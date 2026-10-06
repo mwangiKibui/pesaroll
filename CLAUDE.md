@@ -64,6 +64,8 @@ CI (GitHub Actions) is switched off until the MVP 1 items are done. The workflow
 
 ## How work is tracked
 
-- Tasks live in the GitHub project "Pesaroll" (issues titled `[AUTH-03] …`). Plan a task before building: break it into sub-issues using the checklist in the issue.
+- Tasks live in the GitHub project "Pesaroll" (issues titled `[AUTH-03] …`).
+- **Plan before building, always.** Use the `build` skill (`.claude/skills/build/SKILL.md`): a plan with problem statement, implementation steps, risks and success, approved by the user before any code. The approved plan is posted on the task's issue.
+- Move tasks through the project's stages with `scripts/task-stage.sh <TASK-ID> "<Stage>"` (Not planned, Planning, Ready to build, In progress, Done).
 - Branch names and commit messages start with the task ID, e.g. `PLAT-15/database-project`.
 - Decisions and designs live in the project docs: Problem Statement, Technical Architecture, Stack Decision, and the Schema Design page. Follow the schema page's conventions and review checklist for any table change.
