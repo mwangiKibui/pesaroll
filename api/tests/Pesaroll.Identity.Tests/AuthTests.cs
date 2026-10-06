@@ -44,6 +44,21 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
     private static async Task<Error> ErrorFrom(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<Error>())!;
 
+    private sealed record Text(string En, string Sw);
+
+    private sealed record RoleOption(string Code, Text Name, Text Description);
+
+    [Fact]
+    public async Task Sign_up_roles_come_from_the_list_in_display_order()
+    {
+        var roles = await api.CreateClient().GetFromJsonAsync<List<RoleOption>>("/api/auth/signup-roles");
+
+        Assert.Equal(["owner", "hr_payroll", "accountant", "other"], roles!.Select(r => r.Code));
+        Assert.Equal("Owner or director", roles[0].Name.En);
+        Assert.Equal("Mmiliki au mkurugenzi", roles[0].Name.Sw);
+        Assert.All(roles, r => Assert.False(string.IsNullOrWhiteSpace(r.Description.En)));
+    }
+
     [Fact]
     public async Task Sign_up_creates_the_account_and_signs_in()
     {

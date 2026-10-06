@@ -43,3 +43,15 @@ public sealed class MembershipRow
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>An option for "What's your role in the business?" (reference data).</summary>
+public sealed class SignupRole
+{
+    public required string Code { get; set; }
+    public required string NameEn { get; set; }
+    public required string NameSw { get; set; }
+    public required string DescriptionEn { get; set; }
+    public required string DescriptionSw { get; set; }
+    public int SortOrder { get; set; }
+    public bool Active { get; set; }
+}

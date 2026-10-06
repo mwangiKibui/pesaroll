@@ -13,6 +13,10 @@ using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Identity;
 
+public sealed record LocalizedText(string En, string Sw);
+
+public sealed record SignupRoleOption(string Code, LocalizedText Name, LocalizedText Description);
+
 public static class IdentityModule
 {
     public const string SignInRateLimit = "auth";
@@ -57,6 +61,16 @@ public static class IdentityModule
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder app)
     {
         var auth = app.MapGroup("/api/auth").WithTags("Auth");
+
+        // The options for the sign-up screen's role cards, in display order.
+        auth.MapGet("/signup-roles", async (IdentityDbContext db, CancellationToken ct) =>
+            Results.Ok(await db.SignupRoles
+                .Where(r => r.Active)
+                .OrderBy(r => r.SortOrder)
+                .Select(r => new SignupRoleOption(r.Code,
+                    new LocalizedText(r.NameEn, r.NameSw),
+                    new LocalizedText(r.DescriptionEn, r.DescriptionSw)))
+                .ToListAsync(ct)));
 
         auth.MapPost("/signup", async (SignUpRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
         {

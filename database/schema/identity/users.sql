@@ -5,7 +5,7 @@ create table users (
     phone                text unique,                   -- stored as +254...
     name                 text not null,
     password_hash        text,                          -- null for employees who sign in by code
-    signup_role          text check (signup_role in ('owner', 'hr_payroll', 'accountant', 'other')),
+    signup_role          text references signup_roles (code),   -- picked from the list at sign-up
     failed_signin_count  integer not null default 0,
     locked_until         timestamptz,
     email_verified_at    timestamptz,

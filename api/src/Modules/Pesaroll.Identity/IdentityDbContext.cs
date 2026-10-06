@@ -13,6 +13,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<User> Users => Set<User>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<MembershipRow> Memberships => Set<MembershipRow>();
+    public DbSet<SignupRole> SignupRoles => Set<SignupRole>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -21,6 +22,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
         model.Entity<User>().Property(u => u.FailedSigninCount).ValueGeneratedOnAdd();
         model.Entity<Session>().Property(s => s.CreatedAt).ValueGeneratedOnAdd();
         model.Entity<MembershipRow>().ToTable("memberships");
+        model.Entity<SignupRole>().HasKey(r => r.Code);
     }
 
     /// <summary>Runs a database function and reads its rows, through the tenant interceptor.</summary>

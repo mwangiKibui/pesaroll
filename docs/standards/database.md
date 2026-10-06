@@ -40,6 +40,7 @@ For staging or production, run the same image with that database's `PGHOST`, `PG
 - **No built-in temporary database.** pgschema normally validates plans in a temporary PostgreSQL it downloads at runtime. `db.sh` points it at a scratch database on the same server instead (`<database>_plan`, created on first use), so deploys never depend on a download.
 - **Not as root.** The tools image runs as the `postgres` user.
 - **A second plan must be empty.** `tests/run.sh` fails if a plan right after a deploy shows any change; that's how we catch schema files that don't round-trip.
+- **Reference data that a new foreign key points to must exist first.** Post-deploy scripts run after the schema is applied, so on a database that already has rows, a new foreign key to a freshly created reference table would fail. In that case add a pre-deploy script that creates and fills the reference table first (with the same definition as its schema file).
 - **Renames need a pre-deploy script.** pgschema sees a renamed column as a drop and an add; copy the data in a pre-deploy script first.
 
 ## Conventions

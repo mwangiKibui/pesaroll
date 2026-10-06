@@ -20,14 +20,15 @@ public sealed record MeResponse(Guid Id, string Name, string? Email, string? Pho
 public sealed class AuthService(
     IdentityDbContext db, TenantContext tenant, SessionService sessions, IPasswordHasher<User> hasher, TimeProvider clock)
 {
-    private static readonly string[] Roles = ["owner", "hr_payroll", "accountant", "other"];
     private static readonly User TimingUser = new() { Name = "timing" };
     private static readonly string TimingHash = new PasswordHasher<User>().HashPassword(TimingUser, "not-a-real-password");
 
     public async Task<User> SignUpAsync(SignUpRequest request, HttpContext http, CancellationToken ct)
     {
         var name = request.Name?.Trim();
-        if (string.IsNullOrEmpty(name) || name.Length > 120 || request.Role is null || !Roles.Contains(request.Role))
+        var roleIsOnTheList = request.Role is not null
+            && await db.SignupRoles.AnyAsync(r => r.Code == request.Role && r.Active, ct);
+        if (string.IsNullOrEmpty(name) || name.Length > 120 || !roleIsOnTheList)
         {
             throw AuthErrors.MissingDetails();
         }
