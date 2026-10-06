@@ -1,6 +1,6 @@
 ---
 name: build
-description: Plan-first workflow for building any Pesaroll task. Use whenever starting work on a board task (e.g. "build AUTH-01", "work on PAY-03", "let's do the leave balances") or any new feature, fix or schema change. Produces a plan with problem statement, implementation steps, risks and success criteria, gets it approved, then builds, checks and opens a pull request.
+description: Plan-first workflow for building any Pesaroll task. Use whenever starting work on a board task (e.g. "build AUTH-01", "work on PAY-03", "let's do the leave balances") or any new feature, fix or schema change. Produces a plan with problem statement, implementation steps, risks and success criteria, gets it approved, then builds and checks; when there is something to try by hand, gives local test steps and waits for the user to confirm before opening the pull request.
 ---
 
 # Build a Pesaroll task
@@ -68,10 +68,41 @@ List what is explicitly out of scope.
 - Follow the plan's steps in order and the rules in `CLAUDE.md`. If the plan turns out wrong, stop, explain what changed, and get the revised plan approved before continuing.
 - Prove the tests can fail: for security and money logic, break the code on purpose once and confirm the test catches it, then restore it.
 
-## 5. Check and hand over
+## 5. Check
 
 - Run `scripts/check.sh` (CI is off until the MVP 1 items are done). All checks must pass.
-- Commit with the task ID first in the message; push the branch.
-- Open a pull request whose description maps back to the plan: what was built per step, how each success check was verified, what's left. Link the plan comment.
+- Commit with the task ID first in the message; push the branch. Don't open the pull request yet if step 6 applies.
+
+## 6. Let the user test it locally (only when there's something to try)
+
+If the change has behaviour a person can try on their machine (a screen, an API endpoint, a flow, a schema change visible in the app), hand over step-by-step local test instructions and wait for the user to confirm it works. Skip this step for changes with nothing to try by hand (docs, skills, scripts, refactors fully covered by tests) and go straight to step 7.
+
+Write the instructions so someone who didn't build it can follow them exactly:
+
+```markdown
+## Test <TASK-ID> locally
+
+**Start**
+1. `git fetch && git checkout <branch>`
+2. `docker compose up -d` (set `DB_PORT=55432` if 5432 is taken)
+3. `docker compose run --rm db-tools deploy`   <- only if the schema changed
+4. <any seed or setup step, with the exact command>
+
+**Try it**
+1. Open http://localhost:5173/<page> (or `curl …` for an API-only change)
+2. Do <action> → you should see <result>
+3. <the main failure case> → you should see <error message and code>
+
+**Clean up**
+`docker compose down` (add `-v` to wipe the local database)
+```
+
+- Cover the success checks from the plan, including at least one failure case (wrong input, no permission, another organization's data).
+- Before handing over, run through the instructions yourself in Docker so they're known to work.
+- Wait for the user. If they report a problem, fix it on the same branch, rerun `scripts/check.sh`, and send updated instructions.
+
+## 7. Open the pull request and hand over
+
+- Once the user confirms it works locally (or step 6 didn't apply), open the pull request. Its description maps back to the plan: what was built per step, how each success check was verified (including the user's local test), what's left. Link the plan comment.
 - Report to the user in plain words: what changed, what was verified, what needs their review or decision.
 - When the pull request is merged: `scripts/task-stage.sh <TASK-ID> "Done"` (or keep "In progress" if steps remain).
