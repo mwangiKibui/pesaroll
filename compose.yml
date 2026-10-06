@@ -14,6 +14,11 @@ services:
     ports: ["${DB_PORT:-5432}:5432"]       # set DB_PORT if 5432 is taken on your machine
     volumes:
       - pgdata:/var/lib/postgresql   # PostgreSQL 18 keeps its data in a versioned folder under here
+    healthcheck:                       # ready only after first-start initialisation finishes
+      test: ["CMD-SHELL", "pg_isready -U pesaroll -d pesaroll"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   db-tools:
     build: ./database
@@ -26,7 +31,8 @@ services:
       PGSSLMODE: disable
     volumes:
       - ./database:/db:ro
-    depends_on: [db]
+    depends_on:
+      db: { condition: service_healthy }
 
   api:
     image: mcr.microsoft.com/dotnet/sdk:10.0
@@ -39,7 +45,8 @@ services:
     volumes:
       - .:/src
       - nuget:/root/.nuget/packages
-    depends_on: [db]
+    depends_on:
+      db: { condition: service_healthy }
 
   web:
     image: node:22-alpine

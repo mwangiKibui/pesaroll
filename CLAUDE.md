@@ -42,7 +42,7 @@ CI (GitHub Actions) is switched off until the MVP 1 items are done. The workflow
 
 ## Rules that apply to every change
 
-1. **Tenancy.** Every customer table has `organization_id`; company-owned tables also have `company_id`. Row-level security enforces it in the database, and the API sets `app.org_id` and `app.company_ids` per transaction. Never use a database role that bypasses row-level security.
+1. **Tenancy.** Every customer table has `organization_id`; company-owned tables also have `company_id`. Row-level security enforces it in the database. Every `DbContext` must add `TenantSessionInterceptor` (see `OrganizationsModule`), which switches each connection to the `pesaroll_app` role and sets `app.org_id` and `app.company_ids` from the request's `TenantContext`. Never query without it, and never use a database role that bypasses row-level security. Every new customer table gets a test like `TenancyTests`.
 2. **Per company.** Companies in one organization can differ. Every feature states how it works per company, and every list or setup screen uses the company selector.
 3. **No migrations.** Change the schema only in `database/schema/`, including grants (pgschema revokes grants it doesn't see there). EF Core reads and writes data and never creates or alters tables. Renames and data reshaping need a script in `database/pre-deploy/`; reference data goes in `database/post-deploy/` as re-runnable upserts. After any schema change, `database/tests/run.sh` must pass.
 4. **Money.** `decimal` in C#, `numeric(18,2)` in PostgreSQL, never `double` or `float`. Statutory rates are data (rule packs), never constants in code.
