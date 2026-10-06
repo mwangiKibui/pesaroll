@@ -9,3 +9,6 @@ create table error_codes (
     playbook     text not null,
     retired_at   timestamptz
 );
+
+-- The app reads the catalogue; only deploys write it.
+grant select on table error_codes to pesaroll_app;

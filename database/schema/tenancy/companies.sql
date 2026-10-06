@@ -23,3 +23,6 @@ create policy companies_tenant on companies
 
 create policy companies_scope on companies as restrictive
     using (id = any (app_company_ids()));
+
+-- The app role reads and writes; row-level security decides which rows.
+grant select, insert, update, delete on table companies to pesaroll_app;

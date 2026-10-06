@@ -12,3 +12,6 @@ create table users (
     updated_at         timestamptz not null default now(),
     check (email is not null or phone is not null)
 );
+
+-- The app role reads and writes; row-level security decides which rows.
+grant select, insert, update, delete on table users to pesaroll_app;

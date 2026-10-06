@@ -22,13 +22,15 @@ Everything runs in Docker, locally and in production. Nobody needs .NET or Node 
 
 ```bash
 # run the whole app locally: database, API (hot reload), web app (hot reload)
-docker compose up                                # app :5173, API :8080, database :5432
+docker compose up                                # app :5173, API :8080, database :5432 (DB_PORT=55432 if taken)
 
 # run every check before opening a pull request (API tests, web lint and build, database tests)
 scripts/check.sh
 
-# database only: apply the schema to a throwaway PostgreSQL and run the tenancy tests
-database/tests/run.sh
+# database schema (no migrations): see docs/standards/database.md
+docker compose run --rm db-tools plan       # what would change in the local database
+docker compose run --rm db-tools deploy     # apply it
+database/tests/run.sh                       # fresh PostgreSQL 18: deploy, re-plan must be empty, tests
 
 # production images (built from the repo root)
 docker build -f api/Dockerfile -t pesaroll-api .
@@ -42,7 +44,7 @@ CI (GitHub Actions) is switched off until the MVP 1 items are done. The workflow
 
 1. **Tenancy.** Every customer table has `organization_id`; company-owned tables also have `company_id`. Row-level security enforces it in the database, and the API sets `app.org_id` and `app.company_ids` per transaction. Never use a database role that bypasses row-level security.
 2. **Per company.** Companies in one organization can differ. Every feature states how it works per company, and every list or setup screen uses the company selector.
-3. **No migrations.** Change the schema only in `database/schema/`. EF Core reads and writes data and never creates or alters tables. Renames and data reshaping need a script in `database/pre-deploy/`; reference data goes in `database/post-deploy/` as re-runnable upserts.
+3. **No migrations.** Change the schema only in `database/schema/`, including grants (pgschema revokes grants it doesn't see there). EF Core reads and writes data and never creates or alters tables. Renames and data reshaping need a script in `database/pre-deploy/`; reference data goes in `database/post-deploy/` as re-runnable upserts. After any schema change, `database/tests/run.sh` must pass.
 4. **Money.** `decimal` in C#, `numeric(18,2)` in PostgreSQL, never `double` or `float`. Statutory rates are data (rule packs), never constants in code.
 5. **History.** Anything that affects pay is effective-dated or locked after approval, never overwritten.
 6. **Errors.** Every error returned to a user has a code from the catalogue in `docs/standards/errors.md` and a reference. Don't invent codes ad hoc: add them to the catalogue.

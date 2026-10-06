@@ -1,16 +1,32 @@
 # Local development, all in Docker: no .NET or Node install needed.
+# Database schema (no migrations):
+#   docker compose run --rm db-tools plan     # show what would change
+#   docker compose run --rm db-tools deploy   # apply it
 #   docker compose up
 # App: http://localhost:5173   API: http://localhost:8080   Database: localhost:5432
 services:
   db:
-    image: postgres:17
+    image: postgres:18
     environment:
       POSTGRES_DB: pesaroll
       POSTGRES_USER: pesaroll
       POSTGRES_PASSWORD: pesaroll
-    ports: ["5432:5432"]
+    ports: ["${DB_PORT:-5432}:5432"]       # set DB_PORT if 5432 is taken on your machine
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql   # PostgreSQL 18 keeps its data in a versioned folder under here
+
+  db-tools:
+    build: ./database
+    profiles: [tools]                  # only runs when called: docker compose run --rm db-tools plan
+    environment:
+      PGHOST: db
+      PGDATABASE: pesaroll
+      PGUSER: pesaroll
+      PGPASSWORD: pesaroll
+      PGSSLMODE: disable
+    volumes:
+      - ./database:/db:ro
+    depends_on: [db]
 
   api:
     image: mcr.microsoft.com/dotnet/sdk:10.0

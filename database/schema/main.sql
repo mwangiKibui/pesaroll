@@ -3,6 +3,7 @@
 -- Files are included in dependency order.
 
 \i functions/tenancy.sql
+\i platform/deploy_scripts.sql
 \i platform/error_codes.sql
 \i identity/users.sql
 \i tenancy/organizations.sql

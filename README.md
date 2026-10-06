@@ -17,5 +17,6 @@ You need Docker and nothing else.
 
 ```bash
 docker compose up                             # app http://localhost:5173, API http://localhost:8080
+DB_PORT=55432 docker compose up               # if port 5432 is already taken on your machine
 scripts/check.sh                              # all checks, run before every pull request
 ```
