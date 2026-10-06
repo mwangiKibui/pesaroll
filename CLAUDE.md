@@ -22,7 +22,7 @@ Everything runs in Docker, locally and in production. Nobody needs .NET or Node 
 
 ```bash
 # run the whole app locally: database, API (hot reload), web app (hot reload)
-docker compose up                                # app :5173, API :8080, database :5432 (DB_PORT=55432 if taken)
+docker compose up                                # app :5173, API :8080, database :55432
 
 # run every check before opening a pull request (API tests, web lint and build, database tests)
 scripts/check.sh

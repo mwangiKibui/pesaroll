@@ -3,7 +3,7 @@
 #   docker compose run --rm db-tools plan     # show what would change
 #   docker compose run --rm db-tools deploy   # apply it
 #   docker compose up
-# App: http://localhost:5173   API: http://localhost:8080   Database: localhost:5432
+# App: http://localhost:5173   API: http://localhost:8080   Database: localhost:55432
 services:
   db:
     image: postgres:18
@@ -11,7 +11,7 @@ services:
       POSTGRES_DB: pesaroll
       POSTGRES_USER: pesaroll
       POSTGRES_PASSWORD: pesaroll
-    ports: ["${DB_PORT:-5432}:5432"]       # set DB_PORT if 5432 is taken on your machine
+    ports: ["55432:5432"]              # 55432 on your machine, so it never clashes with another PostgreSQL on 5432
     volumes:
       - pgdata:/var/lib/postgresql   # PostgreSQL 18 keeps its data in a versioned folder under here
     healthcheck:                       # ready only after first-start initialisation finishes
