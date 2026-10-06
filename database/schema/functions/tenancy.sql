@@ -10,3 +10,6 @@ as $$ select nullif(current_setting('app.org_id', true), '')::uuid $$;
 create or replace function app_company_ids() returns uuid[]
 language sql stable
 as $$ select coalesce(string_to_array(nullif(current_setting('app.company_ids', true), ''), ',')::uuid[], '{}') $$;
+
+grant execute on function app_org_id() to pesaroll_app;
+grant execute on function app_company_ids() to pesaroll_app;

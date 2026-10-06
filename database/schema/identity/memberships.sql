@@ -14,3 +14,6 @@ alter table memberships enable row level security;
 
 create policy memberships_tenant on memberships
     using (organization_id = app_org_id());
+
+-- The app role reads and writes; row-level security decides which rows.
+grant select, insert, update, delete on table memberships to pesaroll_app;
