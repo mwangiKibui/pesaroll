@@ -181,6 +181,16 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
         Assert.Matches("^[0-9A-Z]{8}$", error.Reference);
     }
 
+    [Theory]
+    [InlineData("/swagger/index.html")]
+    [InlineData("/openapi/v1.json")]
+    public async Task Swagger_and_the_API_description_are_not_published_outside_development(string path)
+    {
+        var response = await api.CreateClient().GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Fact]
     public async Task Requests_from_another_website_are_blocked()
     {
