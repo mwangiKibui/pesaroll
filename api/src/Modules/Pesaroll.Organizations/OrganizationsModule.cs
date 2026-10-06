@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pesaroll.Shared.Data;
 using Pesaroll.Shared.Tenancy;
 
@@ -13,8 +14,8 @@ public static class OrganizationsModule
     /// </summary>
     public static IServiceCollection AddOrganizationsModule(this IServiceCollection services, string connectionString)
     {
-        services.AddScoped<TenantContext>();
-        services.AddScoped<TenantSessionInterceptor>();
+        services.TryAddScoped<TenantContext>();
+        services.TryAddScoped<TenantSessionInterceptor>();
         services.AddDbContext<OrganizationsDbContext>((provider, options) => options
             .UseNpgsql(connectionString)
             .UseSnakeCaseNamingConvention()

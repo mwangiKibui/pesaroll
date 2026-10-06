@@ -1,15 +1,19 @@
 namespace Pesaroll.Shared.Tenancy;
 
 /// <summary>
-/// The organization and companies the current request may see. Set once per request
-/// (by sign-in, from AUTH) and read by <see cref="Data.TenantSessionInterceptor"/>,
-/// which hands it to PostgreSQL row-level security.
+/// Who the current request is for: the signed-in person, their current organization and the
+/// companies they may see. Filled once per request by the session middleware and read by
+/// <see cref="Data.TenantSessionInterceptor"/>, which hands it to PostgreSQL row-level security.
 /// </summary>
 public sealed class TenantContext
 {
+    public Guid? UserId { get; private set; }
+
     public Guid? OrganizationId { get; private set; }
 
     public IReadOnlyList<Guid> CompanyIds { get; private set; } = [];
+
+    public void SetUser(Guid userId) => UserId = userId;
 
     public void Set(Guid organizationId, IEnumerable<Guid> companyIds)
     {
@@ -19,6 +23,7 @@ public sealed class TenantContext
 
     public void Clear()
     {
+        UserId = null;
         OrganizationId = null;
         CompanyIds = [];
     }

@@ -3,13 +3,12 @@ using Microsoft.EntityFrameworkCore;
 namespace Pesaroll.Organizations;
 
 /// <summary>
-/// Data access for organizations, companies, users and memberships. The schema itself lives in
+/// Data access for organizations, companies and memberships (users belong to the Identity module). The schema itself lives in
 /// database/schema/ (no migrations); this context only reads and writes rows, and row-level
 /// security decides which rows it sees.
 /// </summary>
 public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbContext> options) : DbContext(options)
 {
-    public DbSet<User> Users => Set<User>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Membership> Memberships => Set<Membership>();
@@ -17,8 +16,6 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     protected override void OnModelCreating(ModelBuilder model)
     {
         // Database defaults (now(), 'active') fill these when the app doesn't set them.
-        model.Entity<User>().Property(u => u.CreatedAt).ValueGeneratedOnAdd();
-        model.Entity<User>().Property(u => u.UpdatedAt).ValueGeneratedOnAdd();
         model.Entity<Organization>().Property(o => o.CreatedAt).ValueGeneratedOnAdd();
         model.Entity<Organization>().Property(o => o.UpdatedAt).ValueGeneratedOnAdd();
         model.Entity<Company>().Property(c => c.CreatedAt).ValueGeneratedOnAdd();

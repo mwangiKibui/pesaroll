@@ -9,3 +9,6 @@
 \i tenancy/organizations.sql
 \i tenancy/companies.sql
 \i identity/memberships.sql
+\i identity/users_policies.sql
+\i identity/sessions.sql
+\i identity/signin_functions.sql

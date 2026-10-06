@@ -9,7 +9,8 @@ namespace Pesaroll.Organizations.Tests;
 /// <summary>
 /// Proves from the API side that row-level security keeps organizations apart.
 /// Needs a PostgreSQL with the schema deployed; scripts/check.sh provides one and sets
-/// PESAROLL_TEST_DB. The seed data is written as the database owner, which bypasses
+/// PESAROLL_TEST_DB. Only this test's own rows are reset, so other test projects can share the
+/// database. The seed data is written as the database owner, which bypasses
 /// row-level security; every assertion reads through the app's interceptor.
 /// </summary>
 public sealed class TenancyTests : IAsyncLifetime
@@ -33,7 +34,11 @@ public sealed class TenancyTests : IAsyncLifetime
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
-            truncate memberships, companies, organizations, users cascade;
+            delete from memberships where organization_id in ('{Org1}', '{Org2}');
+            delete from companies where organization_id in ('{Org1}', '{Org2}');
+            delete from organizations where id in ('{Org1}', '{Org2}');
+            delete from sessions where user_id in ('{Owner1}', '{Owner2}');
+            delete from users where id in ('{Owner1}', '{Owner2}');
             insert into users (id, email, name) values
               ('{Owner1}', 'owner1@example.com', 'Owner One'),
               ('{Owner2}', 'owner2@example.com', 'Owner Two');

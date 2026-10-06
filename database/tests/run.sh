@@ -41,7 +41,8 @@ echo "== Seed test data"
 psql <<'SQL'
 insert into users (id, email, name) values
   ('00000000-0000-7000-8000-0000000000f1', 'owner1@example.com', 'Owner One'),
-  ('00000000-0000-7000-8000-0000000000f2', 'owner2@example.com', 'Owner Two');
+  ('00000000-0000-7000-8000-0000000000f2', 'owner2@example.com', 'Owner Two'),
+  ('00000000-0000-7000-8000-0000000000f3', 'hr1@example.com', 'HR One');
 insert into organizations (id, name, created_by) values
   ('00000000-0000-7000-8000-000000000001', 'Org One', '00000000-0000-7000-8000-0000000000f1'),
   ('00000000-0000-7000-8000-000000000002', 'Org Two', '00000000-0000-7000-8000-0000000000f2');
@@ -49,10 +50,24 @@ insert into companies (id, organization_id, legal_name, country_code, currency) 
   ('00000000-0000-7000-8000-0000000000a1', '00000000-0000-7000-8000-000000000001', 'One Kenya Ltd', 'KE', 'KES'),
   ('00000000-0000-7000-8000-0000000000a2', '00000000-0000-7000-8000-000000000001', 'One Uganda Ltd', 'UG', 'UGX'),
   ('00000000-0000-7000-8000-0000000000b1', '00000000-0000-7000-8000-000000000002', 'Two Kenya Ltd', 'KE', 'KES');
+insert into memberships (id, organization_id, user_id) values
+  ('00000000-0000-7000-8000-0000000000c1', '00000000-0000-7000-8000-000000000001', '00000000-0000-7000-8000-0000000000f1'),
+  ('00000000-0000-7000-8000-0000000000c3', '00000000-0000-7000-8000-000000000001', '00000000-0000-7000-8000-0000000000f3'),
+  ('00000000-0000-7000-8000-0000000000c2', '00000000-0000-7000-8000-000000000002', '00000000-0000-7000-8000-0000000000f2');
 SQL
 
 echo "== Tests"
+failed=0
 for f in "$DB_DIR"/tests/*.sql; do
-  docker exec -i "$RUN-db" psql -U postgres -v ON_ERROR_STOP=1 -q < "$f" && echo "  pass  $(basename "$f")"
+  if docker exec -i "$RUN-db" psql -U postgres -v ON_ERROR_STOP=1 -q < "$f"; then
+    echo "  pass  $(basename "$f")"
+  else
+    echo "  FAIL  $(basename "$f")"
+    failed=1
+  fi
 done
+if [ "$failed" -ne 0 ]; then
+  echo "Database tests failed"
+  exit 1
+fi
 echo "All database tests passed"

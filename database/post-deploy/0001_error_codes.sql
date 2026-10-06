@@ -2,6 +2,13 @@
 insert into error_codes (code, module, severity, message_en, fixable_by, playbook) values
   ('AUTH-1001', 'AUTH', 'warning', 'That email or phone number and password don''t match.', 'customer', 'Offer a password reset. Accounts lock after 5 failed tries.'),
   ('AUTH-1002', 'AUTH', 'warning', 'Your account is locked after too many attempts. Try again in 15 minutes or reset your password.', 'customer', 'Confirm identity before unlocking manually.'),
+  ('AUTH-1003', 'AUTH', 'warning', 'An account with this email or phone number already exists. Sign in instead.', 'customer', 'Point them to sign-in or password reset; never confirm details over the phone without verification.'),
+  ('AUTH-1004', 'AUTH', 'warning', 'Use a password of at least 10 characters.', 'customer', 'Ask them to choose a longer password.'),
+  ('AUTH-1005', 'AUTH', 'warning', 'Enter a valid email address or Kenyan phone number.', 'customer', 'Phone numbers: 07…, 01… or +254…. Other countries come later.'),
+  ('AUTH-1006', 'AUTH', 'warning', 'Too many attempts. Wait a minute and try again.', 'customer', 'Rate limit per IP address; repeated hits may be an attack, check the logs.'),
+  ('AUTH-1007', 'AUTH', 'info',    'Sign in to continue.', 'customer', 'Session missing or expired (12 hours idle, 7 days total).'),
+  ('AUTH-1008', 'AUTH', 'warning', 'Enter your name and choose your role.', 'customer', 'Sign-up form incomplete.'),
+  ('PLAT-9002', 'PLAT', 'warning', 'This request came from another website and was blocked.', 'engineering', 'Check App:AllowedOrigins includes the app''s address; otherwise a cross-site request was stopped.'),
   ('ACC-8001',  'ACC',  'warning', 'You don''t have permission to do this. Ask your organization''s owner.', 'customer', 'Check the person''s role and company scope in the back office.'),
   ('IMP-3001',  'IMP',  'error',   'Row {row}: {column} is required.', 'customer', 'Point them to the template''s required columns.'),
   ('IMP-3002',  'IMP',  'error',   'Row {row}: "{value}" isn''t one of your {column} options.', 'customer', 'Check the option exists in setup, or fix the spelling.'),
