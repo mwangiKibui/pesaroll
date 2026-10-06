@@ -29,9 +29,16 @@ app.UseMiddleware<OriginCheckMiddleware>();
 app.UseRateLimiter();
 app.UseSessions();
 
+// The API description and a page to try it: development only, never published in production.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi();                       // /openapi/v1.json (also the source of the web app's types)
+    app.UseSwaggerUI(options =>             // /swagger
+    {
+        options.SwaggerEndpoint("/openapi/v1.json", "Pesaroll API");
+        options.RoutePrefix = "swagger";
+        options.EnableTryItOutByDefault();
+    });
 }
 
 // Liveness and database reachability, for uptime checks and deploys.
