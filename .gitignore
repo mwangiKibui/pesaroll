@@ -1,0 +1,25 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# Node
+node_modules/
+web/dist/
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+
+# Secrets: only encrypted .env files (SOPS) are committed
+.env
+.env.*
+!.env.example
+*.enc.env.dec
+
+# pnpm store created by Docker runs
+.pnpm-store/

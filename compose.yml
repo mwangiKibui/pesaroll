@@ -1,0 +1,46 @@
+# Local development, all in Docker: no .NET or Node install needed.
+#   docker compose up
+# App: http://localhost:5173   API: http://localhost:8080   Database: localhost:5432
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: pesaroll
+      POSTGRES_USER: pesaroll
+      POSTGRES_PASSWORD: pesaroll
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src
+    command: dotnet watch run --project api/src/Pesaroll.Api --urls http://0.0.0.0:8080
+    environment:
+      ConnectionStrings__Pesaroll: Host=db;Database=pesaroll;Username=pesaroll;Password=pesaroll
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    ports: ["8080:8080"]
+    volumes:
+      - .:/src
+      - nuget:/root/.nuget/packages
+    depends_on: [db]
+
+  web:
+    image: node:22-alpine
+    working_dir: /src/web
+    command: sh -c "corepack enable && corepack prepare pnpm@8.10.2 --activate && pnpm install && pnpm dev --host 0.0.0.0"
+    environment:
+      API_URL: http://api:8080
+      npm_config_store_dir: /pnpm-store
+    ports: ["5173:5173"]
+    volumes:
+      - .:/src
+      - web_node_modules:/src/web/node_modules   # Linux packages, kept apart from the host's
+      - pnpm_store:/pnpm-store
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  nuget:
+  web_node_modules:
+  pnpm_store:

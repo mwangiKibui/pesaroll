@@ -1,0 +1,19 @@
+# Production Droplet (PLAT-12). The database is DigitalOcean Managed PostgreSQL and
+# files are in Spaces, so nothing on this server holds data that can't be rebuilt.
+services:
+  web:
+    image: registry.digitalocean.com/pesaroll/web:${VERSION}   # Caddy + the built React app
+    ports: ["80:80", "443:443"]
+    volumes:
+      - caddy_data:/data
+    restart: unless-stopped
+  api:
+    image: registry.digitalocean.com/pesaroll/api:${VERSION}
+    env_file: .env                     # decrypted from .env.enc (SOPS) at deploy time
+    restart: unless-stopped
+  worker:
+    image: registry.digitalocean.com/pesaroll/worker:${VERSION}
+    env_file: .env
+    restart: unless-stopped
+volumes:
+  caddy_data:
