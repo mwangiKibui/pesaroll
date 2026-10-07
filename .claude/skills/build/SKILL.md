@@ -1,6 +1,6 @@
 ---
 name: build
-description: Plan-first workflow for building any Pesaroll task. Use whenever starting work on a board task (e.g. "build AUTH-01", "work on PAY-03", "let's do the leave balances") or any new feature, fix or schema change. Produces a plan with problem statement, implementation steps, risks and success criteria, gets it approved, then builds and checks; when there is something to try by hand, gives local test steps and waits for the user to confirm before opening the pull request.
+description: Plan-first workflow for building any Pesaroll task. Use whenever starting work on a board task (e.g. "build AUTH-01", "work on PAY-03", "let's do the leave balances") or any new feature, fix or schema change. Produces a plan with problem statement, implementation steps, risks and success criteria, gets it approved, then builds test-first (TDD) and checks; when there is something to try by hand, gives local test steps and waits for the user to confirm before opening the pull request.
 ---
 
 # Build a Pesaroll task
@@ -37,7 +37,9 @@ Cover every item in the planning checklist that applies:
 - errors: the error codes it adds to docs/standards/errors.md
 - notifications: what it sends (in-app, push, email, SMS), with no salaries in push or email
 - reports: what it feeds or needs
-- tests: unit, tenancy (every new customer table), golden payroll cases if pay is touched
+- tests first: for each step, the failing tests written before its code (backend xUnit unit tests,
+  integration tests where the database or an endpoint is involved, frontend Vitest unit tests),
+  plus tenancy (every new customer table) and golden payroll cases if pay is touched
 
 ### Risks
 What could go wrong and what we do about it. At minimum consider: data leaking
@@ -66,6 +68,16 @@ List what is explicitly out of scope.
 - Branch from an up-to-date `main`: `<TASK-ID>/<short-name>` (e.g. `AUTH-01/api`). Never commit to `main`.
 - `scripts/task-stage.sh <TASK-ID> "In progress"`
 - Follow the plan's steps in order and the rules in `CLAUDE.md`. If the plan turns out wrong, stop, explain what changed, and get the revised plan approved before continuing.
+- **Test-driven, always.** For each behaviour, red, green, refactor:
+  1. Red: write a test for the behaviour and run it. It must fail, for the reason you expect.
+  2. Green: write the least code that makes it pass.
+  3. Refactor: tidy the code and the test with every test still passing.
+  Never write production code without a failing test that needs it. A bug fix starts with a test that reproduces the bug.
+- **Backend:** xUnit unit tests for logic (services, validation, calculations) in `api/tests/<Module>.Tests`,
+  fast and without the database. Integration tests (`WebApplicationFactory<Program>` and the test database) for
+  endpoints, row-level security and anything the database enforces. Database rules also get a test in `database/tests/`.
+- **Frontend:** Vitest and React Testing Library unit tests next to the component (`Component.test.tsx`), testing what
+  the user sees and does, not implementation details. Mock the API at the client boundary. The first frontend task sets them up.
 - Prove the tests can fail: for security and money logic, break the code on purpose once and confirm the test catches it, then restore it.
 
 ## 5. Check
