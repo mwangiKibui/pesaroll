@@ -43,11 +43,11 @@ services:
   api:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src
-    command: dotnet watch run --project api/src/Pesaroll.Api --urls http://0.0.0.0:8080
+    # Full restart on every change: hot reload can leave the API half old, half new.
+    command: dotnet watch run --no-hot-reload --project api/src/Pesaroll.Api --urls http://0.0.0.0:8080
     environment:
       ConnectionStrings__Pesaroll: Host=db;Database=pesaroll;Username=pesaroll;Password=pesaroll
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
-      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "true"   # restart by itself instead of asking (nobody can answer inside a container)
     ports: ["8080:8080"]
     volumes:
       - .:/src

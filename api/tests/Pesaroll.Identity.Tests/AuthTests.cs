@@ -417,6 +417,27 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
     }
 
     [Fact]
+    public async Task A_stale_token_does_not_block_signing_in_again_or_public_pages()
+    {
+        // Swagger (and a browser tab left open) keeps sending the last token after it stops working.
+        var email = NewEmail();
+        var token = await TokenFrom(await api.CreateClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email: email)));
+        await Bearer(token).PostAsync("/api/auth/signout", null);
+        var stale = Bearer(token);
+
+        Assert.Equal(HttpStatusCode.OK, (await stale.GetAsync("/api/auth/signup-roles")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await stale.GetAsync("/api/health")).StatusCode);
+        var signin = await stale.PostAsJsonAsync("/api/auth/signin", new { identifier = email, password = Password });
+        Assert.Equal(HttpStatusCode.OK, signin.StatusCode);
+        var signup = await stale.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
+        Assert.Equal(HttpStatusCode.Created, signup.StatusCode);
+
+        // Anything that needs sign-in still says the session has ended, so the app knows to refresh.
+        Assert.Equal("AUTH-1010", (await ErrorFrom(await stale.GetAsync("/api/auth/me"))).Code);
+        Assert.Equal((await MeWith(token with { AccessToken = (await TokenFrom(signin)).AccessToken })).Email, email);
+    }
+
+    [Fact]
     public async Task A_changed_token_is_refused()
     {
         var token = await TokenFrom(await api.CreateClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail())));

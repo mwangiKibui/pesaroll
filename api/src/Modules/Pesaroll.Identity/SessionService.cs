@@ -22,6 +22,11 @@ public sealed class SessionService(
     public const string RefreshCookiePath = "/api/auth";
     public static readonly TimeSpan MaxAge = TimeSpan.FromDays(7);
     private const string SessionIdKey = "pesaroll.session_id";
+    private const string TokenRejectedKey = "pesaroll.token_rejected";
+
+    /// <summary>The error for a request that needs sign-in but has no working token.</summary>
+    public static Exception RequireSignedIn(HttpContext http) =>
+        http.Items.ContainsKey(TokenRejectedKey) ? AuthErrors.SessionEnded(invalidToken: true) : AuthErrors.NotSignedIn();
 
     public async Task<TokenResponse> StartAsync(Guid userId, Guid? organizationId, HttpContext http, CancellationToken ct)
     {
@@ -80,7 +85,9 @@ public sealed class SessionService(
     /// <summary>
     /// Reads the access token and, when it and its session are live, fills the request's
     /// <see cref="TenantContext"/> with the person, their current organization and the companies they may see.
-    /// No token means a signed-out request; a token that doesn't check out is refused (AUTH-1010).
+    /// No token, or one that no longer works, means a signed-out request: public endpoints (sign-in,
+    /// sign-up, refresh) still work, and endpoints that need sign-in answer AUTH-1010 for a token that
+    /// no longer works (see <see cref="RequireSignedIn"/>), so the app knows to refresh.
     /// </summary>
     public async Task ResumeAsync(HttpContext http, CancellationToken ct)
     {
@@ -94,7 +101,8 @@ public sealed class SessionService(
         if (!header.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)
             || await tokens.ValidateAsync(header[scheme.Length..].Trim()) is not { } claims)
         {
-            throw AuthErrors.SessionEnded(invalidToken: true);
+            http.Items[TokenRejectedKey] = true;
+            return;
         }
 
         // Row-level security lets a person read only their own sessions.
@@ -121,7 +129,8 @@ public sealed class SessionService(
         if (session is null || session.Organization != claims.OrganizationId)
         {
             tenant.Clear();
-            throw AuthErrors.SessionEnded(invalidToken: true);
+            http.Items[TokenRejectedKey] = true;
+            return;
         }
 
         if (claims.OrganizationId is Guid organizationId)

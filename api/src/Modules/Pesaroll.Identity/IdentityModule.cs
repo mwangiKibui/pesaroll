@@ -62,18 +62,7 @@ public static class IdentityModule
     public static IApplicationBuilder UseSessions(this IApplicationBuilder app) =>
         app.Use(async (http, next) =>
         {
-            // Refresh and sign-out run on the refresh cookie, so an expired access token mustn't block them.
-            var cookieOnly = HttpMethods.IsPost(http.Request.Method)
-                && (http.Request.Path.Equals("/api/auth/refresh", StringComparison.OrdinalIgnoreCase)
-                    || http.Request.Path.Equals("/api/auth/signout", StringComparison.OrdinalIgnoreCase));
-            try
-            {
-                await http.RequestServices.GetRequiredService<SessionService>().ResumeAsync(http, http.RequestAborted);
-            }
-            catch (AppException) when (cookieOnly)
-            {
-            }
-
+            await http.RequestServices.GetRequiredService<SessionService>().ResumeAsync(http, http.RequestAborted);
             await next(http);
         });
 
@@ -119,11 +108,11 @@ public static class IdentityModule
             return Results.NoContent();
         });
 
-        auth.MapGet("/me", async (IdentityDbContext db, TenantContext tenant, CancellationToken ct) =>
+        auth.MapGet("/me", async (IdentityDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             if (tenant.UserId is not Guid userId)
             {
-                throw AuthErrors.NotSignedIn();
+                throw SessionService.RequireSignedIn(http);
             }
 
             var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, ct) ?? throw AuthErrors.NotSignedIn();
