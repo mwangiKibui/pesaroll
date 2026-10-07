@@ -7,7 +7,7 @@ namespace Pesaroll.Shared.Data;
 /// <summary>
 /// Runs every time the app opens a database connection. It switches to the
 /// <c>pesaroll_app</c> role, which row-level security applies to, and sets the
-/// organization and companies for this request. Both values are always written,
+/// person, organization and companies for this request. All three are always written,
 /// empty when there is no tenant, so nothing carries over on a pooled connection.
 /// </summary>
 public sealed class TenantSessionInterceptor(TenantContext tenant) : DbConnectionInterceptor
@@ -32,7 +32,9 @@ public sealed class TenantSessionInterceptor(TenantContext tenant) : DbConnectio
         var command = connection.CreateCommand();
         command.CommandText =
             $"set role {AppRole}; " +
-            "select set_config('app.org_id', @org_id, false), set_config('app.company_ids', @company_ids, false);";
+            "select set_config('app.user_id', @user_id, false), " +
+            "set_config('app.org_id', @org_id, false), set_config('app.company_ids', @company_ids, false);";
+        AddParameter(command, "user_id", tenant.UserId?.ToString() ?? "");
         AddParameter(command, "org_id", tenant.OrganizationId?.ToString() ?? "");
         AddParameter(command, "company_ids", string.Join(',', tenant.CompanyIds));
         return command;

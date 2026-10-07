@@ -12,7 +12,7 @@ HR and payroll for East Africa, Kenya first. One app and one sign-in for custome
   - `tests/*` xUnit tests, including the golden payroll suite
 - `web/` React + TypeScript (Vite), one single-page app for all roles
 - `database/` the database project: the schema as code, no migrations
-- `compose.yml` local development (database, API, web app), started with `docker compose up`
+- `compose.yml` local development: `docker compose up -d --build` starts the database, deploys the schema, then starts the API and web app
 - `deploy/` production Compose file, Caddy and the web Dockerfile for DigitalOcean
 - `docs/standards/` backend, database and error-code standards
 
@@ -22,14 +22,14 @@ Everything runs in Docker, locally and in production. Nobody needs .NET or Node 
 
 ```bash
 # run the whole app locally: database, API (hot reload), web app (hot reload)
-docker compose up                                # app :5173, API :8080, database :5432 (DB_PORT=55432 if taken)
+docker compose up -d --build                     # everything; app :5173, API :8080 (/swagger), database :55432
+docker compose down -v                           # stop and wipe the local database
 
 # run every check before opening a pull request (API tests, web lint and build, database tests)
 scripts/check.sh
 
 # database schema (no migrations): see docs/standards/database.md
-docker compose run --rm db-tools plan       # what would change in the local database
-docker compose run --rm db-tools deploy     # apply it
+docker compose run --rm db-tools plan       # what a schema change would do (compose up applies it automatically)
 database/tests/run.sh                       # fresh PostgreSQL 18: deploy, re-plan must be empty, tests
 
 # production images (built from the repo root)
@@ -48,7 +48,7 @@ CI (GitHub Actions) is switched off until the MVP 1 items are done. The workflow
 4. **Money.** `decimal` in C#, `numeric(18,2)` in PostgreSQL, never `double` or `float`. Statutory rates are data (rule packs), never constants in code.
 5. **History.** Anything that affects pay is effective-dated or locked after approval, never overwritten.
 6. **Errors.** Every error returned to a user has a code from the catalogue in `docs/standards/errors.md` and a reference. Don't invent codes ad hoc: add them to the catalogue.
-7. **Permissions.** Every endpoint checks a permission on the server. Customer roles and back office roles are separate. Hiding a button is never the protection.
+7. **Permissions.** Access comes from security groups: a group carries roles (bundles of permissions) and a company scope, and people get access by joining groups. Every endpoint checks a permission on the server; code never checks role or group names. Relationship-based access (a person's own records, a line manager's team) is checked separately. Customer roles and back office roles are separate. Hiding a button is never the protection.
 8. **Personal data.** Never put salaries, ID numbers, KRA PINs or bank details in logs, error context, push notifications or emails.
 9. **DigitalOcean first.** Don't add services that need extra servers; use DigitalOcean products before outside ones.
 10. **Docker.** Every service runs in a container, locally and in production. New services get a Dockerfile and a place in `compose.yml` (local) and `deploy/compose.prod.yml` (production).

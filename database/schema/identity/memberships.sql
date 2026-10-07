@@ -17,3 +17,9 @@ create policy memberships_tenant on memberships
 
 -- The app role reads and writes; row-level security decides which rows.
 grant select, insert, update, delete on table memberships to pesaroll_app;
+
+-- A person can see their own memberships in every organization (to pick their organization
+-- at sign-in and, later, to switch between organizations).
+create policy memberships_self on memberships
+    for select
+    using (user_id = app_user_id());

@@ -2,20 +2,6 @@ namespace Pesaroll.Organizations;
 
 // Mapped to the tables in database/schema/. EF Core never creates or changes them.
 
-public sealed class User
-{
-    public Guid Id { get; set; }
-    public string? Email { get; set; }
-    public string? Phone { get; set; }
-    public required string Name { get; set; }
-    public string? PasswordHash { get; set; }
-    public DateTimeOffset? EmailVerifiedAt { get; set; }
-    public DateTimeOffset? PhoneVerifiedAt { get; set; }
-    public string Status { get; set; } = "active";
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset UpdatedAt { get; set; }
-}
-
 public sealed class Organization
 {
     public Guid Id { get; set; }

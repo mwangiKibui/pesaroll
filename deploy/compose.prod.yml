@@ -10,6 +10,11 @@ services:
   api:
     image: registry.digitalocean.com/pesaroll/api:${VERSION}
     env_file: .env                     # decrypted from .env.enc (SOPS) at deploy time
+    # .env must set the access-token signing key (openssl rand -base64 32):
+    #   Auth__Tokens__Keys__0__Id=2026-10
+    #   Auth__Tokens__Keys__0__Secret=<base64>
+    # To change keys without signing anyone out, put the new key at 0 and the old one at 1
+    # for 15 minutes, then remove the old one. The API refuses to start without a key.
     restart: unless-stopped
   worker:
     image: registry.digitalocean.com/pesaroll/worker:${VERSION}

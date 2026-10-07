@@ -1,9 +1,14 @@
 # Local development, all in Docker: no .NET or Node install needed.
-# Database schema (no migrations):
-#   docker compose run --rm db-tools plan     # show what would change
-#   docker compose run --rm db-tools deploy   # apply it
-#   docker compose up
-# App: http://localhost:5173   API: http://localhost:8080   Database: localhost:5432
+#
+#   docker compose up -d --build     # everything: database, schema, API, web app
+#   docker compose down -v           # stop and wipe the local database
+#
+# Startup order: db (healthy) -> db-tools deploys the schema and reference data, then exits
+# -> api -> web. Every `up` re-deploys the schema, which is a no-op when nothing changed.
+# To see what a schema change would do without applying it:
+#   docker compose run --rm db-tools plan
+#
+# App: http://localhost:5173   API: http://localhost:8080 (Swagger: /swagger)   Database: localhost:55432
 services:
   db:
     image: postgres:18
@@ -11,7 +16,7 @@ services:
       POSTGRES_DB: pesaroll
       POSTGRES_USER: pesaroll
       POSTGRES_PASSWORD: pesaroll
-    ports: ["${DB_PORT:-5432}:5432"]       # set DB_PORT if 5432 is taken on your machine
+    ports: ["55432:5432"]              # 55432 on your machine, so it never clashes with another PostgreSQL on 5432
     volumes:
       - pgdata:/var/lib/postgresql   # PostgreSQL 18 keeps its data in a versioned folder under here
     healthcheck:                       # ready only after first-start initialisation finishes
@@ -22,7 +27,8 @@ services:
 
   db-tools:
     build: ./database
-    profiles: [tools]                  # only runs when called: docker compose run --rm db-tools plan
+    command: ["deploy"]                # one-shot: deploy the schema, then exit
+    restart: "no"
     environment:
       PGHOST: db
       PGDATABASE: pesaroll
@@ -37,7 +43,8 @@ services:
   api:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /src
-    command: dotnet watch run --project api/src/Pesaroll.Api --urls http://0.0.0.0:8080
+    # Full restart on every change: hot reload can leave the API half old, half new.
+    command: dotnet watch run --no-hot-reload --project api/src/Pesaroll.Api --urls http://0.0.0.0:8080
     environment:
       ConnectionStrings__Pesaroll: Host=db;Database=pesaroll;Username=pesaroll;Password=pesaroll
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
@@ -47,6 +54,7 @@ services:
       - nuget:/root/.nuget/packages
     depends_on:
       db: { condition: service_healthy }
+      db-tools: { condition: service_completed_successfully }   # schema in place before the API starts
 
   web:
     image: node:22-alpine
