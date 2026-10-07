@@ -30,7 +30,8 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
     private sealed record Error(string Code, string Message, string Reference);
 
-    private sealed record Me(Guid Id, string Name, string? Email, string? Phone, Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId);
+    private sealed record Me(Guid Id, string FirstName, string? MiddleName, string LastName, string FullName,
+        string? Email, string? Phone, Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId);
 
     private const string Password = "correct-horse-battery";
 
@@ -44,7 +45,7 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
     private static object SignUpBody(string? email = null, string? phone = null, string password = Password,
         string roleId = Ceo, string? roleOther = null) =>
-        new { name = "Wanjiru Kamau", email, phone, password, roleId = Guid.Parse(roleId), roleOther };
+        new { firstName = "Wanjiru", lastName = "Kamau", email, phone, password, roleId = Guid.Parse(roleId), roleOther };
 
     private static async Task<Error> ErrorFrom(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<Error>())!;
@@ -68,6 +69,38 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
         Assert.Equal(15, all.Count);
         Assert.Equal(Guid.Parse(Other), Assert.Single(all, r => r.IsOther).Id);
         Assert.All(all, r => Assert.False(string.IsNullOrWhiteSpace(r.Name.Sw)));
+    }
+
+    [Fact]
+    public async Task Middle_name_is_optional_and_the_full_name_includes_it()
+    {
+        var client = api.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/auth/signup", new
+        {
+            firstName = " Wanjiru ", middleName = "Akinyi", lastName = "Kamau ",
+            email = NewEmail(), password = Password, roleId = Guid.Parse(Ceo),
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
+        Assert.Equal(("Wanjiru", "Akinyi", "Kamau"), (me!.FirstName, me.MiddleName, me.LastName));
+        Assert.Equal("Wanjiru Akinyi Kamau", me.FullName);
+    }
+
+    [Theory]
+    [InlineData(null, "Kamau")]
+    [InlineData("Wanjiru", "")]
+    [InlineData("Wanjiru", "   ")]
+    public async Task First_and_last_name_are_required(string? firstName, string? lastName)
+    {
+        var response = await api.CreateClient().PostAsJsonAsync("/api/auth/signup", new
+        {
+            firstName, lastName, email = NewEmail(), password = Password, roleId = Guid.Parse(Ceo),
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("AUTH-1008", (await ErrorFrom(response)).Code);
     }
 
     [Fact]
@@ -108,7 +141,10 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
         Assert.Equal(email, me!.Email);
-        Assert.Equal("Wanjiru Kamau", me.Name);
+        Assert.Equal("Wanjiru", me.FirstName);
+        Assert.Null(me.MiddleName);
+        Assert.Equal("Kamau", me.LastName);
+        Assert.Equal("Wanjiru Kamau", me.FullName);
         Assert.Equal(Guid.Parse(Ceo), me.SignupRoleId);
         Assert.Null(me.OrganizationId);
     }

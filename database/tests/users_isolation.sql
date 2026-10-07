@@ -13,8 +13,8 @@ begin
     raise exception 'users leak or missing: f1 in org 1 sees %', visible;
   end if;
   -- changing someone else's row is refused (no rows match the policy)
-  update users set name = 'Hacked' where id = '00000000-0000-7000-8000-0000000000f3';
-  if exists (select 1 from users where name = 'Hacked') then
+  update users set first_name = 'Hacked' where id = '00000000-0000-7000-8000-0000000000f3';
+  if exists (select 1 from users where first_name = 'Hacked') then
     raise exception 'f1 could change another member''s row';
   end if;
 end $$;

@@ -37,7 +37,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | AUTH-1005 | Enter a valid email address or Kenyan phone number. | Customer | Phone numbers: 07…, 01… or +254…. Other countries come later. |
 | AUTH-1006 | Too many attempts. Wait a minute and try again. | Customer | Rate limit per IP address; repeated hits may be an attack, check the logs. |
 | AUTH-1007 | Sign in to continue. | Customer | Session missing or expired (12 hours idle, 7 days total). |
-| AUTH-1008 | Enter your name and choose your role. | Customer | Sign-up form incomplete. |
+| AUTH-1008 | Enter your first and last name and choose your role. | Customer | Sign-up form incomplete. |
 | AUTH-1009 | You chose Other: type your role (up to 80 characters). | Customer | Sign-up role "Other" needs the person's own role. |
 | ACC-8001 | You don't have permission to do this. Ask your organization's owner. | Customer | Check the person's role and company scope in the back office. |
 | IMP-3001 | Row {row}: {column} is required. | Customer | Point them to the template's required columns. |

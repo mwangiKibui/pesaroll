@@ -7,7 +7,7 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('AUTH-1005', 'AUTH', 'warning', 'Enter a valid email address or Kenyan phone number.', 'customer', 'Phone numbers: 07…, 01… or +254…. Other countries come later.'),
   ('AUTH-1006', 'AUTH', 'warning', 'Too many attempts. Wait a minute and try again.', 'customer', 'Rate limit per IP address; repeated hits may be an attack, check the logs.'),
   ('AUTH-1007', 'AUTH', 'info',    'Sign in to continue.', 'customer', 'Session missing or expired (12 hours idle, 7 days total).'),
-  ('AUTH-1008', 'AUTH', 'warning', 'Enter your name and choose your role.', 'customer', 'Sign-up form incomplete.'),
+  ('AUTH-1008', 'AUTH', 'warning', 'Enter your first and last name and choose your role.', 'customer', 'Sign-up form incomplete.'),
   ('AUTH-1009', 'AUTH', 'warning', 'You chose Other: type your role (up to 80 characters).', 'customer', 'Sign-up role "Other" needs the person''s own role.'),
   ('PLAT-9002', 'PLAT', 'warning', 'This request came from another website and was blocked.', 'engineering', 'Check App:AllowedOrigins includes the app''s address; otherwise a cross-site request was stopped.'),
   ('ACC-8001',  'ACC',  'warning', 'You don''t have permission to do this. Ask your organization''s owner.', 'customer', 'Check the person''s role and company scope in the back office.'),

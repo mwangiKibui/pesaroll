@@ -39,9 +39,9 @@ public sealed class TenancyTests : IAsyncLifetime
             delete from organizations where id in ('{Org1}', '{Org2}');
             delete from sessions where user_id in ('{Owner1}', '{Owner2}');
             delete from users where id in ('{Owner1}', '{Owner2}');
-            insert into users (id, email, name) values
-              ('{Owner1}', 'owner1@example.com', 'Owner One'),
-              ('{Owner2}', 'owner2@example.com', 'Owner Two');
+            insert into users (id, email, first_name, last_name) values
+              ('{Owner1}', 'owner1@example.com', 'Owner', 'One'),
+              ('{Owner2}', 'owner2@example.com', 'Owner', 'Two');
             insert into organizations (id, name, created_by) values
               ('{Org1}', 'Org One', '{Owner1}'),
               ('{Org2}', 'Org Two', '{Owner2}');

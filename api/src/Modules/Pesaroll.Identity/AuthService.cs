@@ -6,31 +6,36 @@ using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Identity;
 
-public sealed record SignUpRequest(string? Name, string? Email, string? Phone, string? Password, Guid? RoleId, string? RoleOther);
+public sealed record SignUpRequest(
+    string? FirstName, string? MiddleName, string? LastName, string? Email, string? Phone, string? Password, Guid? RoleId, string? RoleOther);
 
 public sealed record SignInRequest(string? Identifier, string? Password);
 
 public sealed record MeResponse(
-    Guid Id, string Name, string? Email, string? Phone, Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId)
+    Guid Id, string FirstName, string? MiddleName, string LastName, string FullName, string? Email, string? Phone,
+    Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId)
 {
     public static MeResponse From(User user, Guid? organizationId) =>
-        new(user.Id, user.Name, user.Email, user.Phone, user.SignupRoleId, user.SignupRoleOther, organizationId);
+        new(user.Id, user.FirstName, user.MiddleName, user.LastName, user.FullName, user.Email, user.Phone,
+            user.SignupRoleId, user.SignupRoleOther, organizationId);
 }
 
 /// <summary>Sign-up and sign-in (AUTH-01, AUTH-02).</summary>
 public sealed class AuthService(
     IdentityDbContext db, TenantContext tenant, SessionService sessions, IPasswordHasher<User> hasher, TimeProvider clock)
 {
-    private static readonly User TimingUser = new() { Name = "timing" };
+    private static readonly User TimingUser = new() { FirstName = "timing", LastName = "timing" };
     private static readonly string TimingHash = new PasswordHasher<User>().HashPassword(TimingUser, "not-a-real-password");
 
     public async Task<User> SignUpAsync(SignUpRequest request, HttpContext http, CancellationToken ct)
     {
-        var name = request.Name?.Trim();
+        var firstName = request.FirstName?.Trim();
+        var middleName = string.IsNullOrWhiteSpace(request.MiddleName) ? null : request.MiddleName.Trim();
+        var lastName = request.LastName?.Trim();
         var role = request.RoleId is Guid roleId
             ? await db.SignupRoles.SingleOrDefaultAsync(r => r.Id == roleId && r.Active, ct)
             : null;
-        if (string.IsNullOrEmpty(name) || name.Length > 120 || role is null)
+        if (!IsNamePart(firstName) || !IsNamePart(lastName) || (middleName is not null && !IsNamePart(middleName)) || role is null)
         {
             throw AuthErrors.MissingDetails();
         }
@@ -57,7 +62,9 @@ public sealed class AuthService(
         var user = new User
         {
             Id = Guid.CreateVersion7(),
-            Name = name,
+            FirstName = firstName!,
+            MiddleName = middleName,
+            LastName = lastName!,
             Email = email,
             Phone = phone,
             SignupRoleId = role.Id,
@@ -133,4 +140,6 @@ public sealed class AuthService(
             new Dictionary<string, object?> { ["user_id"] = userId, ["success"] = success }, ct)).Single();
 
     private static bool Blank(string? value) => string.IsNullOrWhiteSpace(value);
+
+    private static bool IsNamePart(string? value) => !string.IsNullOrEmpty(value) && value.Length <= 60;
 }

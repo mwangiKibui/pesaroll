@@ -21,6 +21,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
         model.Entity<User>().Property(u => u.CreatedAt).ValueGeneratedOnAdd();
         model.Entity<User>().Property(u => u.UpdatedAt).ValueGeneratedOnAdd();
         model.Entity<User>().Property(u => u.FailedSigninCount).ValueGeneratedOnAdd();
+        model.Entity<User>().Property(u => u.FullName).HasComputedColumnSql("first_name || coalesce(' ' || middle_name, '') || ' ' || last_name", stored: true);
         model.Entity<Session>().Property(s => s.CreatedAt).ValueGeneratedOnAdd();
         model.Entity<MembershipRow>().ToTable("memberships");
         model.Entity<SignupRoleGroup>().HasKey(g => g.Code);
