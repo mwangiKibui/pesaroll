@@ -57,8 +57,9 @@ as $$
       and s.last_seen_at > now() - interval '12 hours'
 $$;
 
--- Every request: the companies a member may see. Until roles arrive (ACC module) an
--- active member sees all of the organization's companies.
+-- Every request: the companies a member may see. PLACEHOLDER: for now an active member
+-- sees all of the organization's companies. ACC-02 replaces this body with the combined
+-- company scope of the person's security groups; callers don't change.
 create or replace function member_company_ids(p_user_id uuid, p_organization_id uuid)
 returns uuid[]
 language sql stable security definer set search_path = public
