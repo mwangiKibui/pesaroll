@@ -30,7 +30,7 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
     private sealed record Error(string Code, string Message, string Reference);
 
-    private sealed record Me(Guid Id, string Name, string? Email, string? Phone, string? SignupRole, Guid? OrganizationId);
+    private sealed record Me(Guid Id, string Name, string? Email, string? Phone, Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId);
 
     private const string Password = "correct-horse-battery";
 
@@ -38,25 +38,63 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
     private static string NewPhone() => "07" + Random.Shared.Next(10_000_000, 99_999_999);
 
-    private static object SignUpBody(string? email = null, string? phone = null, string password = Password, string role = "owner") =>
-        new { name = "Wanjiru Kamau", email, phone, password, role };
+    // Fixed ids from database/post-deploy/0002_signup_roles.sql.
+    private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
+    private const string Other = "0199c0de-5a5e-7000-8000-000000000502";
+
+    private static object SignUpBody(string? email = null, string? phone = null, string password = Password,
+        string roleId = Ceo, string? roleOther = null) =>
+        new { name = "Wanjiru Kamau", email, phone, password, roleId = Guid.Parse(roleId), roleOther };
 
     private static async Task<Error> ErrorFrom(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<Error>())!;
 
     private sealed record Text(string En, string Sw);
 
-    private sealed record RoleOption(string Code, Text Name, Text Description);
+    private sealed record RoleOption(Guid Id, string Code, Text Name, Text Description, bool IsOther);
+
+    private sealed record RoleGroup(string Code, Text Name, List<RoleOption> Roles);
 
     [Fact]
-    public async Task Sign_up_roles_come_from_the_list_in_display_order()
+    public async Task Sign_up_roles_come_grouped_from_the_list_in_display_order()
     {
-        var roles = await api.CreateClient().GetFromJsonAsync<List<RoleOption>>("/api/auth/signup-roles");
+        var groups = await api.CreateClient().GetFromJsonAsync<List<RoleGroup>>("/api/auth/signup-roles");
 
-        Assert.Equal(["owner", "hr_payroll", "accountant", "other"], roles!.Select(r => r.Code));
-        Assert.Equal("Owner or director", roles[0].Name.En);
-        Assert.Equal("Mmiliki au mkurugenzi", roles[0].Name.Sw);
-        Assert.All(roles, r => Assert.False(string.IsNullOrWhiteSpace(r.Description.En)));
+        Assert.Equal(["leadership", "hr_payroll", "finance", "operations", "other"], groups!.Select(g => g.Code));
+        Assert.Equal(["founder", "ceo", "general_manager", "director"], groups[0].Roles.Select(r => r.Code));
+        Assert.Equal("CEO or Managing Director", groups[0].Roles[1].Name.En);
+        Assert.Equal(Guid.Parse(Ceo), groups[0].Roles[1].Id);
+        var all = groups.SelectMany(g => g.Roles).ToList();
+        Assert.Equal(15, all.Count);
+        Assert.Equal(Guid.Parse(Other), Assert.Single(all, r => r.IsOther).Id);
+        Assert.All(all, r => Assert.False(string.IsNullOrWhiteSpace(r.Name.Sw)));
+    }
+
+    [Fact]
+    public async Task Other_needs_a_typed_role_which_is_saved()
+    {
+        var client = api.CreateClient();
+
+        var missing = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail(), roleId: Other));
+        var typed = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail(), roleId: Other, roleOther: "  Head Chef "));
+
+        Assert.Equal("AUTH-1009", (await ErrorFrom(missing)).Code);
+        Assert.Equal(HttpStatusCode.Created, typed.StatusCode);
+        var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
+        Assert.Equal(Guid.Parse(Other), me!.SignupRoleId);
+        Assert.Equal("Head Chef", me.SignupRoleOther);
+    }
+
+    [Fact]
+    public async Task Typed_text_is_ignored_when_a_listed_role_is_chosen()
+    {
+        var client = api.CreateClient();
+
+        await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail(), roleId: Ceo, roleOther: "Boss"));
+
+        var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
+        Assert.Equal(Guid.Parse(Ceo), me!.SignupRoleId);
+        Assert.Null(me.SignupRoleOther);
     }
 
     [Fact]
@@ -71,7 +109,7 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
         var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
         Assert.Equal(email, me!.Email);
         Assert.Equal("Wanjiru Kamau", me.Name);
-        Assert.Equal("owner", me.SignupRole);
+        Assert.Equal(Guid.Parse(Ceo), me.SignupRoleId);
         Assert.Null(me.OrganizationId);
     }
 
@@ -103,14 +141,14 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
     }
 
     [Theory]
-    [InlineData("short", "test@example.com", null, "owner", "AUTH-1004")]
-    [InlineData(Password, "not-an-email", null, "owner", "AUTH-1005")]
-    [InlineData(Password, null, "0812345678", "owner", "AUTH-1005")]
-    [InlineData(Password, null, null, "owner", "AUTH-1005")]
-    [InlineData(Password, "test@example.com", null, "ceo", "AUTH-1008")]
-    public async Task Sign_up_rejects_bad_input_with_its_error_code(string password, string? email, string? phone, string role, string code)
+    [InlineData("short", "test@example.com", null, Ceo, "AUTH-1004")]
+    [InlineData(Password, "not-an-email", null, Ceo, "AUTH-1005")]
+    [InlineData(Password, null, "0812345678", Ceo, "AUTH-1005")]
+    [InlineData(Password, null, null, Ceo, "AUTH-1005")]
+    [InlineData(Password, "test@example.com", null, "0199c0de-5a5e-7000-8000-000000009999", "AUTH-1008")]
+    public async Task Sign_up_rejects_bad_input_with_its_error_code(string password, string? email, string? phone, string roleId, string code)
     {
-        var response = await api.CreateClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email, phone, password, role));
+        var response = await api.CreateClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email, phone, password, roleId));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(code, (await ErrorFrom(response)).Code);

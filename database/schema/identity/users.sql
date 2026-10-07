@@ -5,7 +5,9 @@ create table users (
     phone                text unique,                   -- stored as +254...
     name                 text not null,
     password_hash        text,                          -- null for employees who sign in by code
-    signup_role          text references signup_roles (code),   -- picked from the list at sign-up
+    signup_role_id       uuid references signup_roles (id),     -- picked from the list at sign-up
+    signup_role_other    text check (signup_role_other is null
+                                     or length(btrim(signup_role_other)) between 1 and 80),
     failed_signin_count  integer not null default 0,
     locked_until         timestamptz,
     email_verified_at    timestamptz,

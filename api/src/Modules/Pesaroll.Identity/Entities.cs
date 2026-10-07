@@ -11,7 +11,8 @@ public sealed class User
     public string? Phone { get; set; }
     public required string Name { get; set; }
     public string? PasswordHash { get; set; }
-    public string? SignupRole { get; set; }
+    public Guid? SignupRoleId { get; set; }
+    public string? SignupRoleOther { get; set; }
     public int FailedSigninCount { get; set; }
     public DateTimeOffset? LockedUntil { get; set; }
     public DateTimeOffset? EmailVerifiedAt { get; set; }
@@ -44,14 +45,26 @@ public sealed class MembershipRow
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>A group of sign-up roles, e.g. Leadership (reference data).</summary>
+public sealed class SignupRoleGroup
+{
+    public required string Code { get; set; }
+    public required string NameEn { get; set; }
+    public required string NameSw { get; set; }
+    public int SortOrder { get; set; }
+}
+
 /// <summary>An option for "What's your role in the business?" (reference data).</summary>
 public sealed class SignupRole
 {
+    public Guid Id { get; set; }
     public required string Code { get; set; }
+    public required string GroupCode { get; set; }
     public required string NameEn { get; set; }
     public required string NameSw { get; set; }
     public required string DescriptionEn { get; set; }
     public required string DescriptionSw { get; set; }
     public int SortOrder { get; set; }
+    public bool IsOther { get; set; }
     public bool Active { get; set; }
 }

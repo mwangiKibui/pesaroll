@@ -15,7 +15,9 @@ namespace Pesaroll.Identity;
 
 public sealed record LocalizedText(string En, string Sw);
 
-public sealed record SignupRoleOption(string Code, LocalizedText Name, LocalizedText Description);
+public sealed record SignupRoleOption(Guid Id, string Code, LocalizedText Name, LocalizedText Description, bool IsOther);
+
+public sealed record SignupRoleGroupOption(string Code, LocalizedText Name, IReadOnlyList<SignupRoleOption> Roles);
 
 public static class IdentityModule
 {
@@ -62,15 +64,22 @@ public static class IdentityModule
     {
         var auth = app.MapGroup("/api/auth").WithTags("Auth");
 
-        // The options for the sign-up screen's role cards, in display order.
+        // The sign-up screen's role cards: groups in order, each with its active roles in order.
         auth.MapGet("/signup-roles", async (IdentityDbContext db, CancellationToken ct) =>
-            Results.Ok(await db.SignupRoles
-                .Where(r => r.Active)
-                .OrderBy(r => r.SortOrder)
-                .Select(r => new SignupRoleOption(r.Code,
-                    new LocalizedText(r.NameEn, r.NameSw),
-                    new LocalizedText(r.DescriptionEn, r.DescriptionSw)))
-                .ToListAsync(ct)));
+        {
+            var groups = await db.SignupRoleGroups.OrderBy(g => g.SortOrder).ToListAsync(ct);
+            var roles = await db.SignupRoles.Where(r => r.Active).OrderBy(r => r.SortOrder).ToListAsync(ct);
+            return Results.Ok(groups
+                .Select(g => new SignupRoleGroupOption(g.Code, new LocalizedText(g.NameEn, g.NameSw),
+                    roles.Where(r => r.GroupCode == g.Code)
+                        .Select(r => new SignupRoleOption(r.Id, r.Code,
+                            new LocalizedText(r.NameEn, r.NameSw),
+                            new LocalizedText(r.DescriptionEn, r.DescriptionSw),
+                            r.IsOther))
+                        .ToList()))
+                .Where(g => g.Roles.Count > 0)
+                .ToList());
+        });
 
         auth.MapPost("/signup", async (SignUpRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
         {

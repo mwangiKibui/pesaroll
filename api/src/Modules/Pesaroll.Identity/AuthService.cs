@@ -6,14 +6,15 @@ using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Identity;
 
-public sealed record SignUpRequest(string? Name, string? Email, string? Phone, string? Password, string? Role);
+public sealed record SignUpRequest(string? Name, string? Email, string? Phone, string? Password, Guid? RoleId, string? RoleOther);
 
 public sealed record SignInRequest(string? Identifier, string? Password);
 
-public sealed record MeResponse(Guid Id, string Name, string? Email, string? Phone, string? SignupRole, Guid? OrganizationId)
+public sealed record MeResponse(
+    Guid Id, string Name, string? Email, string? Phone, Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId)
 {
     public static MeResponse From(User user, Guid? organizationId) =>
-        new(user.Id, user.Name, user.Email, user.Phone, user.SignupRole, organizationId);
+        new(user.Id, user.Name, user.Email, user.Phone, user.SignupRoleId, user.SignupRoleOther, organizationId);
 }
 
 /// <summary>Sign-up and sign-in (AUTH-01, AUTH-02).</summary>
@@ -26,11 +27,19 @@ public sealed class AuthService(
     public async Task<User> SignUpAsync(SignUpRequest request, HttpContext http, CancellationToken ct)
     {
         var name = request.Name?.Trim();
-        var roleIsOnTheList = request.Role is not null
-            && await db.SignupRoles.AnyAsync(r => r.Code == request.Role && r.Active, ct);
-        if (string.IsNullOrEmpty(name) || name.Length > 120 || !roleIsOnTheList)
+        var role = request.RoleId is Guid roleId
+            ? await db.SignupRoles.SingleOrDefaultAsync(r => r.Id == roleId && r.Active, ct)
+            : null;
+        if (string.IsNullOrEmpty(name) || name.Length > 120 || role is null)
         {
             throw AuthErrors.MissingDetails();
+        }
+
+        // "Other" needs the person's own role; any other choice ignores typed text.
+        var roleOther = request.RoleOther?.Trim();
+        if (role.IsOther && (string.IsNullOrEmpty(roleOther) || roleOther.Length > 80))
+        {
+            throw AuthErrors.OtherRoleNotTyped();
         }
 
         var email = Blank(request.Email) ? null : Identifiers.NormalizeEmail(request.Email) ?? throw AuthErrors.InvalidIdentifier();
@@ -45,7 +54,15 @@ public sealed class AuthService(
             throw AuthErrors.PasswordTooShort();
         }
 
-        var user = new User { Id = Guid.CreateVersion7(), Name = name, Email = email, Phone = phone, SignupRole = request.Role };
+        var user = new User
+        {
+            Id = Guid.CreateVersion7(),
+            Name = name,
+            Email = email,
+            Phone = phone,
+            SignupRoleId = role.Id,
+            SignupRoleOther = role.IsOther ? roleOther : null,
+        };
         user.PasswordHash = hasher.HashPassword(user, request.Password);
 
         // Row-level security only lets a person create their own row.

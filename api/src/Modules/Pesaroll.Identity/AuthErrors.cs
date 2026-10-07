@@ -25,6 +25,9 @@ internal static class AuthErrors
 
     public static AppException MissingDetails() =>
         new("AUTH-1008", "Enter your name and choose your role.");
+
+    public static AppException OtherRoleNotTyped() =>
+        new("AUTH-1009", "You chose Other: type your role (up to 80 characters).");
 }
 
 internal static class Passwords
