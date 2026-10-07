@@ -12,7 +12,7 @@ HR and payroll for East Africa, Kenya first. One app and one sign-in for custome
   - `tests/*` xUnit tests, including the golden payroll suite
 - `web/` React + TypeScript (Vite), one single-page app for all roles
 - `database/` the database project: the schema as code, no migrations
-- `compose.yml` local development (database, API, web app), started with `docker compose up`
+- `compose.yml` local development: `docker compose up -d --build` starts the database, deploys the schema, then starts the API and web app
 - `deploy/` production Compose file, Caddy and the web Dockerfile for DigitalOcean
 - `docs/standards/` backend, database and error-code standards
 
@@ -22,14 +22,14 @@ Everything runs in Docker, locally and in production. Nobody needs .NET or Node 
 
 ```bash
 # run the whole app locally: database, API (hot reload), web app (hot reload)
-docker compose up                                # app :5173, API :8080, database :55432
+docker compose up -d --build                     # everything; app :5173, API :8080 (/swagger), database :55432
+docker compose down -v                           # stop and wipe the local database
 
 # run every check before opening a pull request (API tests, web lint and build, database tests)
 scripts/check.sh
 
 # database schema (no migrations): see docs/standards/database.md
-docker compose run --rm db-tools plan       # what would change in the local database
-docker compose run --rm db-tools deploy     # apply it
+docker compose run --rm db-tools plan       # what a schema change would do (compose up applies it automatically)
 database/tests/run.sh                       # fresh PostgreSQL 18: deploy, re-plan must be empty, tests
 
 # production images (built from the repo root)

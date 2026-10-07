@@ -19,8 +19,8 @@ Target: PostgreSQL 18, the version we run locally, in tests and on DigitalOcean 
 ## Commands
 
 ```bash
-docker compose run --rm db-tools plan      # local database: show what would change
-docker compose run --rm db-tools deploy    # local database: pre-deploy, apply, post-deploy
+docker compose up -d --build               # local database: deploys automatically on every start
+docker compose run --rm db-tools plan      # local database: show what a change would do, without applying it
 database/tests/run.sh                      # fresh database: deploy, re-plan (must be empty), redeploy, tests
 ```
 

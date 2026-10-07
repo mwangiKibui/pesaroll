@@ -16,6 +16,8 @@ See `CLAUDE.md` for the layout, commands and the rules every change follows.
 You need Docker and nothing else.
 
 ```bash
-docker compose up                             # app http://localhost:5173, API http://localhost:8080
+docker compose up -d --build                  # database, schema, API and web app, all running
+                                              # app http://localhost:5173, API http://localhost:8080/swagger
+docker compose down -v                        # stop and wipe the local database
 scripts/check.sh                              # all checks, run before every pull request
 ```
