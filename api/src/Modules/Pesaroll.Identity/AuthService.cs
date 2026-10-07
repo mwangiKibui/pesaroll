@@ -27,7 +27,7 @@ public sealed class AuthService(
     private static readonly User TimingUser = new() { FirstName = "timing", LastName = "timing" };
     private static readonly string TimingHash = new PasswordHasher<User>().HashPassword(TimingUser, "not-a-real-password");
 
-    public async Task<User> SignUpAsync(SignUpRequest request, HttpContext http, CancellationToken ct)
+    public async Task<TokenResponse> SignUpAsync(SignUpRequest request, HttpContext http, CancellationToken ct)
     {
         var firstName = request.FirstName?.Trim();
         var middleName = string.IsNullOrWhiteSpace(request.MiddleName) ? null : request.MiddleName.Trim();
@@ -85,11 +85,10 @@ public sealed class AuthService(
             throw AuthErrors.AlreadyExists();
         }
 
-        await sessions.StartAsync(user.Id, organizationId: null, http, ct);
-        return user;
+        return await sessions.StartAsync(user.Id, organizationId: null, http, ct);
     }
 
-    public async Task<(User User, Guid? OrganizationId)> SignInAsync(SignInRequest request, HttpContext http, CancellationToken ct)
+    public async Task<TokenResponse> SignInAsync(SignInRequest request, HttpContext http, CancellationToken ct)
     {
         var identifier = Identifiers.NormalizeEither(request.Identifier) ?? throw AuthErrors.InvalidIdentifier();
         var password = request.Password ?? "";
@@ -128,9 +127,7 @@ public sealed class AuthService(
             .Select(m => (Guid?)m.OrganizationId)
             .FirstOrDefaultAsync(ct);
 
-        await sessions.StartAsync(account.Id, organizationId, http, ct);
-        var user = await db.Users.SingleAsync(u => u.Id == account.Id, ct);
-        return (user, organizationId);
+        return await sessions.StartAsync(account.Id, organizationId, http, ct);
     }
 
     private async Task<DateTimeOffset?> RecordSignInAsync(Guid userId, bool success, CancellationToken ct) =>

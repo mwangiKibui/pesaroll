@@ -31,6 +31,7 @@ public sealed class Session
     public Guid UserId { get; set; }
     public Guid? OrganizationId { get; set; }
     public required byte[] TokenHash { get; set; }
+    public byte[]? PreviousTokenHash { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset LastSeenAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }

@@ -23,6 +23,15 @@ internal static class AuthErrors
     public static AppException NotSignedIn() =>
         new("AUTH-1007", "Sign in to continue.", 401);
 
+    /// <summary>The access token or refresh cookie no longer works. The app refreshes once, then asks the person to sign in.</summary>
+    public static AppException SessionEnded(bool invalidToken = false) =>
+        new("AUTH-1010", "Your session has ended. Sign in again.", 401)
+        {
+            Headers = invalidToken
+                ? new Dictionary<string, string> { ["WWW-Authenticate"] = "Bearer error=\"invalid_token\"" }
+                : new Dictionary<string, string>(),
+        };
+
     public static AppException MissingDetails() =>
         new("AUTH-1008", "Enter your first and last name and choose your role.");
 

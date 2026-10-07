@@ -43,18 +43,42 @@ begin
 end
 $$;
 
--- Every request: the live session for a cookie token hash.
-create or replace function find_session(p_token_hash bytea)
-returns table (session_id uuid, user_id uuid, organization_id uuid)
-language sql stable security definer set search_path = public
+-- Refresh: swap a live refresh token for a new one and return its session. A token that was
+-- already replaced means two parties hold it (one may be an attacker), so the session ends
+-- and nothing is returned; an unknown, expired or signed-out token also returns nothing.
+create or replace function rotate_session_token(p_token_hash bytea, p_new_token_hash bytea)
+returns table (session_id uuid, user_id uuid, organization_id uuid, expires_at timestamptz)
+language plpgsql security definer set search_path = public
 as $$
-    select s.id, s.user_id, s.organization_id
-    from sessions s
-    join users u on u.id = s.user_id and u.status = 'active'
+begin
+    update sessions s set revoked_at = now()
+    where s.previous_token_hash = p_token_hash and s.revoked_at is null;
+    if found then
+        return;
+    end if;
+
+    return query
+    update sessions s set
+        previous_token_hash = s.token_hash,
+        token_hash = p_new_token_hash,
+        last_seen_at = now()
+    from users u
     where s.token_hash = p_token_hash
+      and u.id = s.user_id and u.status = 'active'
       and s.revoked_at is null
       and s.expires_at > now()
       and s.last_seen_at > now() - interval '12 hours'
+    returning s.id, s.user_id, s.organization_id, s.expires_at;
+end
+$$;
+
+-- Sign-out with only the refresh cookie (the access token may have expired).
+create or replace function end_session_by_token(p_token_hash bytea)
+returns void
+language sql security definer set search_path = public
+as $$
+    update sessions set revoked_at = now()
+    where token_hash = p_token_hash and revoked_at is null
 $$;
 
 -- Every request: the companies a member may see. PLACEHOLDER: for now an active member
@@ -76,9 +100,11 @@ $$;
 
 revoke all on function find_account_for_signin(text) from public;
 revoke all on function record_signin_result(uuid, boolean) from public;
-revoke all on function find_session(bytea) from public;
+revoke all on function rotate_session_token(bytea, bytea) from public;
+revoke all on function end_session_by_token(bytea) from public;
 revoke all on function member_company_ids(uuid, uuid) from public;
 grant execute on function find_account_for_signin(text) to pesaroll_app;
 grant execute on function record_signin_result(uuid, boolean) to pesaroll_app;
-grant execute on function find_session(bytea) to pesaroll_app;
+grant execute on function rotate_session_token(bytea, bytea) to pesaroll_app;
+grant execute on function end_session_by_token(bytea) to pesaroll_app;
 grant execute on function member_company_ids(uuid, uuid) to pesaroll_app;

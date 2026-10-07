@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.OpenApi;
 using Pesaroll.Identity;
 using Pesaroll.Organizations;
 using Pesaroll.Shared.Errors;
@@ -9,7 +10,22 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Pesaroll")
     ?? throw new InvalidOperationException("ConnectionStrings:Pesaroll is not set.");
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
+{
+    // Swagger's Authorize button: paste the accessToken from sign-in or sign-up.
+    document.Components ??= new OpenApiComponents();
+    document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+    document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "The accessToken from POST /api/auth/signin or /signup. It lasts 15 minutes; POST /api/auth/refresh gives a new one.",
+    };
+    document.Security ??= [];
+    document.Security.Add(new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("Bearer", document)] = [] });
+    return Task.CompletedTask;
+}));
 builder.Services.AddOrganizationsModule(connectionString);
 builder.Services.AddIdentityModule(connectionString, builder.Configuration);
 
@@ -38,6 +54,7 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/openapi/v1.json", "Pesaroll API");
         options.RoutePrefix = "swagger";
         options.EnableTryItOutByDefault();
+        options.EnablePersistAuthorization();       // keep the pasted token across page reloads
     });
 }
 

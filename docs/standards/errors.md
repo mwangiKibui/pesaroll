@@ -36,9 +36,10 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | AUTH-1004 | Use a password of at least 6 characters. | Customer | Ask them to choose a longer password. |
 | AUTH-1005 | Enter a valid email address or Kenyan phone number. | Customer | Phone numbers: 07…, 01… or +254…. Other countries come later. |
 | AUTH-1006 | Too many attempts. Wait a minute and try again. | Customer | Rate limit per IP address; repeated hits may be an attack, check the logs. |
-| AUTH-1007 | Sign in to continue. | Customer | Session missing or expired (12 hours idle, 7 days total). |
+| AUTH-1007 | Sign in to continue. | Customer | No access token or refresh cookie was sent: the person is not signed in. |
 | AUTH-1008 | Enter your first and last name and choose your role. | Customer | Sign-up form incomplete. |
 | AUTH-1009 | You chose Other: type your role (up to 80 characters). | Customer | Sign-up role "Other" needs the person's own role. |
+| AUTH-1010 | Your session has ended. Sign in again. | Customer | Access token expired, changed or for an ended session, or a refresh failed. Sessions end after 12 hours idle, 7 days total, at sign-out, or when an old refresh token is reused (possible theft: suggest a password change). |
 | ACC-8001 | You don't have permission to do this. Ask your organization's owner. | Customer | Check the person's role and company scope in the back office. |
 | IMP-3001 | Row {row}: {column} is required. | Customer | Point them to the template's required columns. |
 | IMP-3002 | Row {row}: "{value}" isn't one of your {column} options. | Customer | Check the option exists in setup, or fix the spelling. |

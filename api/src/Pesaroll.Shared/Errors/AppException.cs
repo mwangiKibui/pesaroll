@@ -9,4 +9,7 @@ public sealed class AppException(string code, string message, int statusCode = 4
     public string Code { get; } = code;
 
     public int StatusCode { get; } = statusCode;
+
+    /// <summary>Response headers sent with the error, e.g. WWW-Authenticate.</summary>
+    public IReadOnlyDictionary<string, string> Headers { get; init; } = new Dictionary<string, string>();
 }

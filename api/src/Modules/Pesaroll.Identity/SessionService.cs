@@ -8,80 +8,145 @@ using Pesaroll.Shared.Tenancy;
 namespace Pesaroll.Identity;
 
 /// <summary>
-/// Signed-in sessions. The cookie carries a random 32-byte token; the database stores only its
-/// SHA-256 hash, so a database leak doesn't hand out live sessions. A session ends after
-/// 12 hours idle or 7 days in total (checked in find_session), or when the person signs out.
+/// Signed-in sessions. Signing in returns a 15-minute access token (sent as
+/// <c>Authorization: Bearer</c>) and sets a refresh token in an HttpOnly cookie that only the
+/// /api/auth endpoints receive. The database stores only the refresh token's SHA-256 hash, so a
+/// database leak doesn't hand out live sessions. Every request checks the session the access
+/// token names, so sign-out works at once. A session ends after 12 hours idle, 7 days in total,
+/// at sign-out, or when a replaced refresh token is used again (see rotate_session_token).
 /// </summary>
-public sealed class SessionService(IdentityDbContext db, TenantContext tenant, IConfiguration configuration, TimeProvider clock)
+public sealed class SessionService(
+    IdentityDbContext db, TenantContext tenant, AccessTokens tokens, IConfiguration configuration, TimeProvider clock)
 {
-    public const string CookieName = "pesaroll_session";
+    public const string RefreshCookie = "pesaroll_refresh";
+    public const string RefreshCookiePath = "/api/auth";
     public static readonly TimeSpan MaxAge = TimeSpan.FromDays(7);
     private const string SessionIdKey = "pesaroll.session_id";
 
-    public async Task StartAsync(Guid userId, Guid? organizationId, HttpContext http, CancellationToken ct)
+    public async Task<TokenResponse> StartAsync(Guid userId, Guid? organizationId, HttpContext http, CancellationToken ct)
     {
-        var token = RandomNumberGenerator.GetBytes(32);
+        var refreshToken = RandomNumberGenerator.GetBytes(32);
         var now = clock.GetUtcNow();
         var userAgent = http.Request.Headers.UserAgent.ToString();
-
-        db.Sessions.Add(new Session
+        var session = new Session
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
             OrganizationId = organizationId,
-            TokenHash = SHA256.HashData(token),
+            TokenHash = SHA256.HashData(refreshToken),
             LastSeenAt = now,
             ExpiresAt = now + MaxAge,
             Ip = http.Connection.RemoteIpAddress,
             UserAgent = userAgent.Length > 300 ? userAgent[..300] : userAgent,
-        });
+        };
+
+        db.Sessions.Add(session);
         await db.SaveChangesAsync(ct);
 
-        http.Response.Cookies.Append(CookieName, Base64Url.EncodeToString(token), CookieOptions(now + MaxAge));
+        SetRefreshCookie(http, refreshToken, session.ExpiresAt);
+        return tokens.Issue(new AccessTokenClaims(userId, organizationId, session.Id));
+    }
+
+    /// <summary>Swaps the refresh cookie for a new one and returns a new access token for the same session.</summary>
+    public async Task<TokenResponse> RefreshAsync(HttpContext http, CancellationToken ct)
+    {
+        if (!http.Request.Cookies.TryGetValue(RefreshCookie, out var value))
+        {
+            throw AuthErrors.NotSignedIn();
+        }
+
+        if (!TryDecode(value, out var refreshToken))
+        {
+            throw AuthErrors.SessionEnded();
+        }
+
+        var next = RandomNumberGenerator.GetBytes(32);
+        var rotated = (await db.QueryAsync(
+            "select session_id, user_id, organization_id, expires_at from rotate_session_token(@hash, @next_hash)",
+            r => new
+            {
+                Session = r.GetGuid(0),
+                User = r.GetGuid(1),
+                Organization = r.IsDBNull(2) ? (Guid?)null : r.GetGuid(2),
+                ExpiresAt = r.GetFieldValue<DateTimeOffset>(3),
+            },
+            new Dictionary<string, object?> { ["hash"] = SHA256.HashData(refreshToken), ["next_hash"] = SHA256.HashData(next) },
+            ct)).FirstOrDefault() ?? throw AuthErrors.SessionEnded();
+
+        SetRefreshCookie(http, next, rotated.ExpiresAt);
+        return tokens.Issue(new AccessTokenClaims(rotated.User, rotated.Organization, rotated.Session));
     }
 
     /// <summary>
-    /// Reads the session cookie and, when it's live, fills the request's <see cref="TenantContext"/>
-    /// with the person, their current organization and the companies they may see.
+    /// Reads the access token and, when it and its session are live, fills the request's
+    /// <see cref="TenantContext"/> with the person, their current organization and the companies they may see.
+    /// No token means a signed-out request; a token that doesn't check out is refused (AUTH-1010).
     /// </summary>
     public async Task ResumeAsync(HttpContext http, CancellationToken ct)
     {
-        if (!http.Request.Cookies.TryGetValue(CookieName, out var value) || !TryDecode(value, out var token))
+        var header = http.Request.Headers.Authorization.ToString();
+        if (string.IsNullOrEmpty(header))
         {
             return;
         }
 
-        var parameters = new Dictionary<string, object?> { ["hash"] = SHA256.HashData(token) };
-        var found = (await db.QueryAsync(
-            "select session_id, user_id, organization_id from find_session(@hash)",
-            r => (Session: r.GetGuid(0), User: r.GetGuid(1), Organization: r.IsDBNull(2) ? (Guid?)null : r.GetGuid(2)),
-            parameters, ct)).FirstOrDefault();
-        if (found == default)
+        const string scheme = "Bearer ";
+        if (!header.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)
+            || await tokens.ValidateAsync(header[scheme.Length..].Trim()) is not { } claims)
         {
-            return;
+            throw AuthErrors.SessionEnded(invalidToken: true);
         }
 
-        tenant.SetUser(found.User);
-        if (found.Organization is Guid organizationId)
+        // Row-level security lets a person read only their own sessions.
+        tenant.SetUser(claims.UserId);
+        var session = (await db.QueryAsync(
+            """
+            select s.organization_id, s.last_seen_at
+            from sessions s
+            join users u on u.id = s.user_id and u.status = 'active'
+            where s.id = @session_id and s.user_id = @user_id
+              and s.revoked_at is null
+              and s.expires_at > now()
+              and s.last_seen_at > now() - interval '12 hours'
+            """,
+            r => new
+            {
+                Organization = r.IsDBNull(0) ? (Guid?)null : r.GetGuid(0),
+                LastSeenAt = r.GetFieldValue<DateTimeOffset>(1),
+            },
+            new Dictionary<string, object?> { ["session_id"] = claims.SessionId, ["user_id"] = claims.UserId },
+            ct)).FirstOrDefault();
+
+        // The organization must still be the session's: after a switch, older tokens stop working.
+        if (session is null || session.Organization != claims.OrganizationId)
+        {
+            tenant.Clear();
+            throw AuthErrors.SessionEnded(invalidToken: true);
+        }
+
+        if (claims.OrganizationId is Guid organizationId)
         {
             var companyIds = (await db.QueryAsync(
                 "select member_company_ids(@user_id, @organization_id)",
                 r => r.GetFieldValue<Guid[]>(0),
-                new Dictionary<string, object?> { ["user_id"] = found.User, ["organization_id"] = organizationId },
+                new Dictionary<string, object?> { ["user_id"] = claims.UserId, ["organization_id"] = organizationId },
                 ct)).Single();
             tenant.Set(organizationId, companyIds);
         }
 
-        http.Items[SessionIdKey] = found.Session;
+        http.Items[SessionIdKey] = claims.SessionId;
 
         // Keep the idle timer fresh without writing on every request.
         var now = clock.GetUtcNow();
-        var stale = now.AddMinutes(-5);
-        await db.Sessions
-            .Where(s => s.Id == found.Session && s.LastSeenAt < stale)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.LastSeenAt, now), ct);
+        if (session.LastSeenAt < now.AddMinutes(-5))
+        {
+            await db.Sessions
+                .Where(s => s.Id == claims.SessionId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.LastSeenAt, now), ct);
+        }
     }
 
+    /// <summary>Ends the session named by the access token, or else by the refresh cookie, and clears the cookie.</summary>
     public async Task EndAsync(HttpContext http, CancellationToken ct)
     {
         if (http.Items[SessionIdKey] is Guid sessionId)
@@ -91,16 +156,27 @@ public sealed class SessionService(IdentityDbContext db, TenantContext tenant, I
                 .Where(s => s.Id == sessionId)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, now), ct);
         }
+        else if (http.Request.Cookies.TryGetValue(RefreshCookie, out var value) && TryDecode(value, out var refreshToken))
+        {
+            await db.QueryAsync(
+                "select end_session_by_token(@hash)",
+                _ => 0,
+                new Dictionary<string, object?> { ["hash"] = SHA256.HashData(refreshToken) },
+                ct);
+        }
 
-        http.Response.Cookies.Delete(CookieName, CookieOptions(null));
+        http.Response.Cookies.Delete(RefreshCookie, CookieOptions(null));
     }
+
+    private void SetRefreshCookie(HttpContext http, byte[] token, DateTimeOffset expires) =>
+        http.Response.Cookies.Append(RefreshCookie, Base64Url.EncodeToString(token), CookieOptions(expires));
 
     private CookieOptions CookieOptions(DateTimeOffset? expires) => new()
     {
         HttpOnly = true,
         Secure = configuration.GetValue("Auth:SecureCookie", true),
-        SameSite = SameSiteMode.Lax,
-        Path = "/",
+        SameSite = SameSiteMode.Strict,
+        Path = RefreshCookiePath,
         Expires = expires,
         IsEssential = true,
     };

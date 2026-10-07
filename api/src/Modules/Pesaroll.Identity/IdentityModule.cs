@@ -34,6 +34,12 @@ public static class IdentityModule
             .UseSnakeCaseNamingConvention()
             .AddInterceptors(provider.GetRequiredService<TenantSessionInterceptor>()));
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddOptions<TokenOptions>()
+            .Bind(configuration.GetSection("Auth:Tokens"))
+            .Validate(o => o.Keys.Count > 0 && o.Issuer.Length > 0 && o.Audience.Length > 0,
+                "Auth:Tokens needs an Issuer, an Audience and at least one signing key.")
+            .ValidateOnStart();
+        services.AddSingleton<AccessTokens>();
         services.AddScoped<SessionService>();
         services.AddScoped<AuthService>();
 
@@ -56,7 +62,18 @@ public static class IdentityModule
     public static IApplicationBuilder UseSessions(this IApplicationBuilder app) =>
         app.Use(async (http, next) =>
         {
-            await http.RequestServices.GetRequiredService<SessionService>().ResumeAsync(http, http.RequestAborted);
+            // Refresh and sign-out run on the refresh cookie, so an expired access token mustn't block them.
+            var cookieOnly = HttpMethods.IsPost(http.Request.Method)
+                && (http.Request.Path.Equals("/api/auth/refresh", StringComparison.OrdinalIgnoreCase)
+                    || http.Request.Path.Equals("/api/auth/signout", StringComparison.OrdinalIgnoreCase));
+            try
+            {
+                await http.RequestServices.GetRequiredService<SessionService>().ResumeAsync(http, http.RequestAborted);
+            }
+            catch (AppException) when (cookieOnly)
+            {
+            }
+
             await next(http);
         });
 
@@ -81,17 +98,20 @@ public static class IdentityModule
                 .ToList());
         });
 
+        // Sign-up and sign-in return an access token and set the refresh cookie; GET /me has the details.
         auth.MapPost("/signup", async (SignUpRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
-        {
-            var user = await service.SignUpAsync(request, http, ct);
-            return Results.Created("/api/auth/me", MeResponse.From(user, organizationId: null));
-        }).RequireRateLimiting(SignInRateLimit);
+                Results.Created("/api/auth/me", await service.SignUpAsync(request, http, ct)))
+            .RequireRateLimiting(SignInRateLimit);
 
         auth.MapPost("/signin", async (SignInRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
-        {
-            var (user, organizationId) = await service.SignInAsync(request, http, ct);
-            return Results.Ok(MeResponse.From(user, organizationId));
-        }).RequireRateLimiting(SignInRateLimit);
+                Results.Ok(await service.SignInAsync(request, http, ct)))
+            .RequireRateLimiting(SignInRateLimit);
+
+        // A new access token from the refresh cookie. The web app calls this when a token is
+        // about to expire or a request fails with AUTH-1010, one call at a time.
+        auth.MapPost("/refresh", async (SessionService sessions, HttpContext http, CancellationToken ct) =>
+                Results.Ok(await sessions.RefreshAsync(http, ct)))
+            .RequireRateLimiting(SignInRateLimit);
 
         auth.MapPost("/signout", async (SessionService sessions, HttpContext http, CancellationToken ct) =>
         {

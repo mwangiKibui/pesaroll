@@ -47,6 +47,7 @@ services:
     environment:
       ConnectionStrings__Pesaroll: Host=db;Database=pesaroll;Username=pesaroll;Password=pesaroll
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
+      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "true"   # restart by itself instead of asking (nobody can answer inside a container)
     ports: ["8080:8080"]
     volumes:
       - .:/src

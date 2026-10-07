@@ -1,12 +1,14 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Pesaroll.Identity.Tests;
 
 /// <summary>
-/// Sign-up, sign-in, sessions and lockout through the real API, against a PostgreSQL with the
+/// Sign-up, sign-in, tokens, sessions and lockout through the real API, against a PostgreSQL with the
 /// schema deployed (scripts/check.sh sets PESAROLL_TEST_DB). Each test uses fresh accounts,
 /// so tests don't depend on each other.
 /// </summary>
@@ -16,15 +18,19 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
     {
         public int RateLimitPerMinute { get; init; } = 1000;
 
+        public string Environment { get; init; } = "Testing";
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            var connectionString = Environment.GetEnvironmentVariable("PESAROLL_TEST_DB")
+            var connectionString = System.Environment.GetEnvironmentVariable("PESAROLL_TEST_DB")
                 ?? throw new InvalidOperationException("PESAROLL_TEST_DB is not set. Run scripts/check.sh.");
-            builder.UseEnvironment("Testing");
+            builder.UseEnvironment(Environment);
             builder.UseSetting("ConnectionStrings:Pesaroll", connectionString);
             builder.UseSetting("Auth:SecureCookie", "false");
             builder.UseSetting("Auth:RateLimitPerMinute", RateLimitPerMinute.ToString());
             builder.UseSetting("App:AllowedOrigins:0", "http://localhost:5173");
+            builder.UseSetting("Auth:Tokens:Keys:0:Id", "test");
+            builder.UseSetting("Auth:Tokens:Keys:0:Secret", Convert.ToBase64String(Enumerable.Repeat((byte)42, 32).ToArray()));
         }
     }
 
@@ -32,6 +38,8 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
     private sealed record Me(Guid Id, string FirstName, string? MiddleName, string LastName, string FullName,
         string? Email, string? Phone, Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId);
+
+    private sealed record Token(string AccessToken, string TokenType, int ExpiresIn);
 
     private const string Password = "correct-horse-battery";
 
@@ -49,6 +57,33 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
     private static async Task<Error> ErrorFrom(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<Error>())!;
+
+    private static async Task<Token> TokenFrom(HttpResponseMessage response)
+    {
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<Token>())!;
+    }
+
+    /// <summary>A client that sends the access token, as the web app will.</summary>
+    private HttpClient Bearer(Token token, HttpClient? client = null)
+    {
+        client ??= api.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
+        return client;
+    }
+
+    private async Task<Me> MeWith(Token token) =>
+        (await Bearer(token).GetFromJsonAsync<Me>("/api/auth/me"))!;
+
+    /// <summary>The refresh cookie from a response, as "name=value".</summary>
+    private static string RefreshCookie(HttpResponseMessage response) =>
+        response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("pesaroll_refresh=")).Split(';')[0];
+
+    private static HttpRequestMessage WithCookie(HttpMethod method, string path, string cookie) =>
+        new(method, path) { Headers = { { "Cookie", cookie } } };
+
+    private HttpClient CookieFreeClient() =>
+        api.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
 
     private sealed record Text(string En, string Sw);
 
@@ -83,7 +118,7 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
         });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
+        var me = await MeWith(await TokenFrom(response));
         Assert.Equal(("Wanjiru", "Akinyi", "Kamau"), (me!.FirstName, me.MiddleName, me.LastName));
         Assert.Equal("Wanjiru Akinyi Kamau", me.FullName);
     }
@@ -113,8 +148,8 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
         Assert.Equal("AUTH-1009", (await ErrorFrom(missing)).Code);
         Assert.Equal(HttpStatusCode.Created, typed.StatusCode);
-        var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
-        Assert.Equal(Guid.Parse(Other), me!.SignupRoleId);
+        var me = await MeWith(await TokenFrom(typed));
+        Assert.Equal(Guid.Parse(Other), me.SignupRoleId);
         Assert.Equal("Head Chef", me.SignupRoleOther);
     }
 
@@ -123,15 +158,15 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
     {
         var client = api.CreateClient();
 
-        await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail(), roleId: Ceo, roleOther: "Boss"));
+        var response = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail(), roleId: Ceo, roleOther: "Boss"));
 
-        var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
-        Assert.Equal(Guid.Parse(Ceo), me!.SignupRoleId);
+        var me = await MeWith(await TokenFrom(response));
+        Assert.Equal(Guid.Parse(Ceo), me.SignupRoleId);
         Assert.Null(me.SignupRoleOther);
     }
 
     [Fact]
-    public async Task Sign_up_creates_the_account_and_signs_in()
+    public async Task Sign_up_creates_the_account_and_returns_a_token()
     {
         var client = api.CreateClient();
         var email = NewEmail();
@@ -139,8 +174,11 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
         var response = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: email));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var me = await client.GetFromJsonAsync<Me>("/api/auth/me");
-        Assert.Equal(email, me!.Email);
+        Assert.Equal("/api/auth/me", response.Headers.Location?.ToString());
+        var token = await TokenFrom(response);
+        Assert.Equal(("Bearer", 900), (token.TokenType, token.ExpiresIn));
+        var me = await MeWith(token);
+        Assert.Equal(email, me.Email);
         Assert.Equal("Wanjiru", me.FirstName);
         Assert.Null(me.MiddleName);
         Assert.Equal("Kamau", me.LastName);
@@ -161,7 +199,7 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
         Assert.Equal(HttpStatusCode.OK, byEmail.StatusCode);
         Assert.Equal(HttpStatusCode.OK, byPhone.StatusCode);
-        Assert.Equal("+254" + phone[1..], (await byPhone.Content.ReadFromJsonAsync<Me>())!.Phone);
+        Assert.Equal("+254" + phone[1..], (await MeWith(await TokenFrom(byPhone))).Phone);
     }
 
     [Fact]
@@ -228,35 +266,169 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
     }
 
     [Fact]
-    public async Task Sign_out_ends_the_session_and_the_old_cookie_stops_working()
+    public async Task Sign_in_returns_only_a_token_whose_ids_match_the_account()
     {
-        var client = api.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        var signup = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
-        var cookie = signup.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+        var email = NewEmail();
+        var me = await MeWith(await TokenFrom(await api.CreateClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email: email))));
 
-        var before = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me") { Headers = { { "Cookie", cookie } } };
-        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(before)).StatusCode);
+        var response = await api.CreateClient().PostAsJsonAsync("/api/auth/signin", new { identifier = email, password = Password });
 
-        var signout = new HttpRequestMessage(HttpMethod.Post, "/api/auth/signout") { Headers = { { "Cookie", cookie } } };
-        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(signout)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(email, body);
+        Assert.DoesNotContain("Wanjiru", body);
+        var token = new JsonWebToken((await TokenFrom(response)).AccessToken);
+        Assert.Equal(me.Id.ToString(), token.Subject);
+        Assert.True(token.TryGetPayloadValue<string>("sid", out _));
+    }
 
-        var after = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me") { Headers = { { "Cookie", cookie } } };
-        var response = await client.SendAsync(after);
+    [Fact]
+    public async Task Refresh_cookie_is_http_only_strict_and_sent_only_to_auth_endpoints()
+    {
+        var signup = await CookieFreeClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
+
+        var cookie = signup.Headers.GetValues("Set-Cookie").Single().ToLowerInvariant();
+        Assert.StartsWith("pesaroll_refresh=", cookie);
+        Assert.Contains("httponly", cookie);
+        Assert.Contains("samesite=strict", cookie);
+        Assert.Contains("path=/api/auth", cookie);
+        Assert.Contains("expires=", cookie);
+    }
+
+    [Fact]
+    public async Task The_refresh_cookie_alone_does_not_sign_you_in()
+    {
+        var client = CookieFreeClient();
+        var cookie = RefreshCookie(await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail())));
+
+        var response = await client.SendAsync(WithCookie(HttpMethod.Get, "/api/auth/me", cookie));
+
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("AUTH-1007", (await ErrorFrom(response)).Code);
     }
 
     [Fact]
-    public async Task Session_cookie_is_http_only_and_same_site()
+    public async Task Refresh_gives_a_new_token_and_a_new_refresh_cookie()
     {
-        var client = api.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-
+        var client = CookieFreeClient();
         var signup = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
+        var first = await TokenFrom(signup);
 
-        var cookie = signup.Headers.GetValues("Set-Cookie").Single().ToLowerInvariant();
-        Assert.StartsWith("pesaroll_session=", cookie);
-        Assert.Contains("httponly", cookie);
-        Assert.Contains("samesite=lax", cookie);
+        var refreshed = await client.SendAsync(WithCookie(HttpMethod.Post, "/api/auth/refresh", RefreshCookie(signup)));
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        var second = await TokenFrom(refreshed);
+        Assert.NotEqual(first.AccessToken, second.AccessToken);
+        Assert.NotEqual(RefreshCookie(signup), RefreshCookie(refreshed));
+        Assert.Equal((await MeWith(first)).Id, (await MeWith(second)).Id);
+        Assert.Equal(new JsonWebToken(first.AccessToken).GetPayloadValue<string>("sid"),
+            new JsonWebToken(second.AccessToken).GetPayloadValue<string>("sid"));
+    }
+
+    [Fact]
+    public async Task Using_an_old_refresh_cookie_again_ends_the_session()
+    {
+        var client = CookieFreeClient();
+        var signup = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
+        var stolen = RefreshCookie(signup);
+        var refreshed = await client.SendAsync(WithCookie(HttpMethod.Post, "/api/auth/refresh", stolen));
+        var latest = await TokenFrom(refreshed);
+
+        var reuse = await client.SendAsync(WithCookie(HttpMethod.Post, "/api/auth/refresh", stolen));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, reuse.StatusCode);
+        Assert.Equal("AUTH-1010", (await ErrorFrom(reuse)).Code);
+        // The session is over for everyone: the latest token and refresh cookie stop working too.
+        var me = await Bearer(latest).GetAsync("/api/auth/me");
+        Assert.Equal("AUTH-1010", (await ErrorFrom(me)).Code);
+        var again = await client.SendAsync(WithCookie(HttpMethod.Post, "/api/auth/refresh", RefreshCookie(refreshed)));
+        Assert.Equal("AUTH-1010", (await ErrorFrom(again)).Code);
+    }
+
+    [Theory]
+    [InlineData(null, "AUTH-1007")]
+    [InlineData("pesaroll_refresh=not-a-token", "AUTH-1010")]
+    [InlineData("pesaroll_refresh=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "AUTH-1010")]
+    public async Task Refresh_without_a_live_cookie_is_refused(string? cookie, string code)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        if (cookie is not null)
+        {
+            request.Headers.Add("Cookie", cookie);
+        }
+
+        var response = await CookieFreeClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(code, (await ErrorFrom(response)).Code);
+    }
+
+    [Fact]
+    public async Task Sign_out_ends_the_session_at_once_for_the_token_and_the_refresh_cookie()
+    {
+        var client = CookieFreeClient();
+        var signup = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
+        var token = await TokenFrom(signup);
+        Assert.Equal(HttpStatusCode.OK, (await Bearer(token).GetAsync("/api/auth/me")).StatusCode);
+
+        var signout = await Bearer(token).PostAsync("/api/auth/signout", null);
+
+        Assert.Equal(HttpStatusCode.NoContent, signout.StatusCode);
+        var me = await Bearer(token).GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
+        Assert.Equal("AUTH-1010", (await ErrorFrom(me)).Code);
+        var refresh = await client.SendAsync(WithCookie(HttpMethod.Post, "/api/auth/refresh", RefreshCookie(signup)));
+        Assert.Equal("AUTH-1010", (await ErrorFrom(refresh)).Code);
+    }
+
+    [Fact]
+    public async Task Sign_out_with_only_the_refresh_cookie_ends_the_session_and_clears_the_cookie()
+    {
+        var client = CookieFreeClient();
+        var signup = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
+        var token = await TokenFrom(signup);
+
+        var signout = await client.SendAsync(WithCookie(HttpMethod.Post, "/api/auth/signout", RefreshCookie(signup)));
+
+        Assert.Equal(HttpStatusCode.NoContent, signout.StatusCode);
+        Assert.Contains(signout.Headers.GetValues("Set-Cookie"), c => c.StartsWith("pesaroll_refresh=;"));
+        Assert.Equal("AUTH-1010", (await ErrorFrom(await Bearer(token).GetAsync("/api/auth/me"))).Code);
+    }
+
+    [Fact]
+    public async Task Sign_out_and_refresh_still_work_when_the_access_token_is_no_good()
+    {
+        var client = CookieFreeClient();
+        var signup = await client.PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail()));
+        var token = await TokenFrom(signup);
+        var expired = token with { AccessToken = token.AccessToken[..^4] + "AAAA" };
+
+        var refresh = WithCookie(HttpMethod.Post, "/api/auth/refresh", RefreshCookie(signup));
+        refresh.Headers.Authorization = new AuthenticationHeaderValue("Bearer", expired.AccessToken);
+        var refreshed = await client.SendAsync(refresh);
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+
+        var signout = WithCookie(HttpMethod.Post, "/api/auth/signout", RefreshCookie(refreshed));
+        signout.Headers.Authorization = new AuthenticationHeaderValue("Bearer", expired.AccessToken);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(signout)).StatusCode);
+
+        var after = await client.SendAsync(WithCookie(HttpMethod.Post, "/api/auth/refresh", RefreshCookie(refreshed)));
+        Assert.Equal("AUTH-1010", (await ErrorFrom(after)).Code);
+    }
+
+    [Fact]
+    public async Task A_changed_token_is_refused()
+    {
+        var token = await TokenFrom(await api.CreateClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail())));
+        var other = await TokenFrom(await api.CreateClient().PostAsJsonAsync("/api/auth/signup", SignUpBody(email: NewEmail())));
+        var parts = token.AccessToken.Split('.');
+        var tampered = $"{parts[0]}.{new JsonWebToken(other.AccessToken).EncodedPayload}.{parts[2]}";
+
+        var response = await Bearer(token with { AccessToken = tampered }).GetAsync("/api/auth/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("AUTH-1010", (await ErrorFrom(response)).Code);
+        Assert.Contains("Bearer", response.Headers.WwwAuthenticate.ToString());
     }
 
     [Fact]
@@ -268,6 +440,17 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
         var error = await ErrorFrom(response);
         Assert.Equal("AUTH-1007", error.Code);
         Assert.Matches("^[0-9A-Z]{8}$", error.Reference);
+    }
+
+    [Fact]
+    public async Task In_development_Swagger_offers_sign_in_with_a_bearer_token()
+    {
+        await using var development = new Api { Environment = "Development" };
+
+        var json = await development.CreateClient().GetStringAsync("/openapi/v1.json");
+
+        Assert.Contains("\"bearer\"", json);
+        Assert.Contains("\"bearerFormat\": \"JWT\"", json);
     }
 
     [Theory]
