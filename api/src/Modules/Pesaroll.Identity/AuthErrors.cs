@@ -32,5 +32,5 @@ internal static class AuthErrors
 
 internal static class Passwords
 {
-    public const int MinimumLength = 10;
+    public const int MinimumLength = 6;
 }

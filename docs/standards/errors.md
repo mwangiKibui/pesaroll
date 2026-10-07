@@ -33,7 +33,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | AUTH-1001 | That email or phone number and password don't match. | Customer | Offer a password reset. Accounts lock after 5 failed tries. |
 | AUTH-1002 | Your account is locked after too many attempts. Try again in 15 minutes or reset your password. | Customer | Confirm identity before unlocking manually. |
 | AUTH-1003 | An account with this email or phone number already exists. Sign in instead. | Customer | Point them to sign-in or password reset; never confirm details over the phone without verification. |
-| AUTH-1004 | Use a password of at least 10 characters. | Customer | Ask them to choose a longer password. |
+| AUTH-1004 | Use a password of at least 6 characters. | Customer | Ask them to choose a longer password. |
 | AUTH-1005 | Enter a valid email address or Kenyan phone number. | Customer | Phone numbers: 07…, 01… or +254…. Other countries come later. |
 | AUTH-1006 | Too many attempts. Wait a minute and try again. | Customer | Rate limit per IP address; repeated hits may be an attack, check the logs. |
 | AUTH-1007 | Sign in to continue. | Customer | Session missing or expired (12 hours idle, 7 days total). |

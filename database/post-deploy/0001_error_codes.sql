@@ -3,7 +3,7 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('AUTH-1001', 'AUTH', 'warning', 'That email or phone number and password don''t match.', 'customer', 'Offer a password reset. Accounts lock after 5 failed tries.'),
   ('AUTH-1002', 'AUTH', 'warning', 'Your account is locked after too many attempts. Try again in 15 minutes or reset your password.', 'customer', 'Confirm identity before unlocking manually.'),
   ('AUTH-1003', 'AUTH', 'warning', 'An account with this email or phone number already exists. Sign in instead.', 'customer', 'Point them to sign-in or password reset; never confirm details over the phone without verification.'),
-  ('AUTH-1004', 'AUTH', 'warning', 'Use a password of at least 10 characters.', 'customer', 'Ask them to choose a longer password.'),
+  ('AUTH-1004', 'AUTH', 'warning', 'Use a password of at least 6 characters.', 'customer', 'Ask them to choose a longer password.'),
   ('AUTH-1005', 'AUTH', 'warning', 'Enter a valid email address or Kenyan phone number.', 'customer', 'Phone numbers: 07…, 01… or +254…. Other countries come later.'),
   ('AUTH-1006', 'AUTH', 'warning', 'Too many attempts. Wait a minute and try again.', 'customer', 'Rate limit per IP address; repeated hits may be an attack, check the logs.'),
   ('AUTH-1007', 'AUTH', 'info',    'Sign in to continue.', 'customer', 'Session missing or expired (12 hours idle, 7 days total).'),
