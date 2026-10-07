@@ -17,10 +17,13 @@ Customers quote the code or reference; customer service looks it up in the back 
 | AUTH | 1000–1999 | Sign-in, accounts, two-step sign-in |
 | PAY | 2000–2999 | Payroll and statutory rules |
 | IMP | 3000–3999 | Bulk imports (one code per row problem) |
-| LV | 4000–4999 | Leave |
-| WF | 5000–5999 | Workflows and approvals |
+| LV | 4000–4499 | Leave |
+| HOL | 4500–4999 | Holiday management |
+| WF | 5000–5499 | Workflows and approvals |
+| TASK | 5500–5999 | Task management |
 | BILL | 6000–6999 | Pricing and subscriptions |
-| PRN | 7000–7999 | Partners and commissions |
+| PRN | 7000–7499 | Partners and commissions |
+| PERF | 7500–7999 | Performance management |
 | ACC | 8000–8999 | Access and permissions |
 | PLAT | 9000–9999 | Platform and unexpected errors |
 
