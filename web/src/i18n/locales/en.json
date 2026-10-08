@@ -5,7 +5,8 @@
     "close": "Close",
     "done": "Done",
     "loading": "Loading",
-    "menu": "Menu"
+    "menu": "Menu",
+    "noMatches": "No matches"
   },
   "nav": {
     "main": "Main",
@@ -19,7 +20,9 @@
     "all": "All companies",
     "allHint": "Includes companies added later",
     "placeholder": "Select companies",
-    "selected": "{{count}} selected"
+    "selected": "{{count}} selected",
+    "search": "Search companies",
+    "searchPlaceholder": "Your company name"
   },
   "setup": {
     "progress": "Finish setting up · {{done}} of {{total}}",
@@ -199,7 +202,6 @@
     "tradingName": "Trading name",
     "tradingNamePlaceholder": "Your trading name",
     "industry": "Industry",
-    "chooseIndustry": "Choose an industry",
     "numbers": "Statutory numbers",
     "yourField": "Your {{field}}",
     "example": "For example {{example}}.",
@@ -209,7 +211,6 @@
     "addressLinePlaceholder": "Your physical address",
     "town": "Town",
     "townPlaceholder": "Your town",
-    "chooseRegion": "Choose a {{region}}",
     "postalAddress": "Postal address",
     "postalAddressPlaceholder": "Your postal address",
     "postalCode": "Postal code",
@@ -217,6 +218,8 @@
     "phone": "Phone number",
     "phonePlaceholder": "Your phone number",
     "email": "Email",
-    "emailPlaceholder": "Your email"
+    "emailPlaceholder": "Your email",
+    "countryPlaceholder": "Your country",
+    "industryPlaceholder": "Your industry"
   }
 }

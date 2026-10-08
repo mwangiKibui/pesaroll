@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { useId, useState } from 'react'
-import { useForm, useWatch, type FieldPath, type Resolver } from 'react-hook-form'
+import { Controller, useForm, useWatch, type FieldPath, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import type { components } from '../api/schema'
@@ -279,15 +279,18 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
 
         <h3 className={section}>{t('companies.details')}</h3>
-        <SelectField label={t('companies.country')} hint={t('companies.countryHint')} error={err('countryCode')}
-          options={countries.map(c => ({ value: c.code, label: local(c.name) }))} {...register('countryCode')} />
+        <Controller control={control} name="countryCode" render={({ field }) => (
+          <SelectField label={t('companies.country')} placeholder={t('companies.countryPlaceholder')} hint={t('companies.countryHint')}
+            error={err('countryCode')} options={countries.map(c => ({ value: c.code, label: local(c.name) }))} {...field} />
+        )} />
         <TextField label={t('companies.legalName')} placeholder={t('companies.legalNamePlaceholder')} hint={t('companies.legalNameHint')}
           maxLength={160} error={err('legalName')} {...register('legalName')} />
         <TextField label={t('companies.tradingName')} placeholder={t('companies.tradingNamePlaceholder')} optional
           maxLength={160} error={err('tradingName')} {...register('tradingName')} />
-        <SelectField label={t('companies.industry')} optional error={err('industryCode')}
-          options={[{ value: '', label: t('companies.chooseIndustry') }, ...industries.map(i => ({ value: i.code, label: local(i.name) }))]}
-          {...register('industryCode')} />
+        <Controller control={control} name="industryCode" render={({ field }) => (
+          <SelectField label={t('companies.industry')} placeholder={t('companies.industryPlaceholder')} optional error={err('industryCode')}
+            options={industries.map(i => ({ value: i.code, label: local(i.name) }))} {...field} />
+        )} />
 
         <h3 className={section}>{t('companies.numbers')}</h3>
         {country.fields.map(f => (
@@ -302,9 +305,10 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
           autoComplete="street-address" maxLength={200} error={err('addressLine')} {...register('addressLine')} />
         <TextField label={t('companies.town')} placeholder={t('companies.townPlaceholder')} optional
           maxLength={100} error={err('town')} {...register('town')} />
-        <SelectField label={regionLabel} optional error={err('regionCode')}
-          options={[{ value: '', label: t('companies.chooseRegion', { region: regionLabel.toLowerCase() }) }, ...country.regions.map(r => ({ value: r.code, label: r.name }))]}
-          {...register('regionCode')} />
+        <Controller control={control} name="regionCode" render={({ field }) => (
+          <SelectField label={regionLabel} placeholder={t('companies.yourField', { field: regionLabel.toLowerCase() })} optional
+            error={err('regionCode')} options={country.regions.map(r => ({ value: r.code, label: r.name }))} {...field} />
+        )} />
         <TextField label={t('companies.postalAddress')} placeholder={t('companies.postalAddressPlaceholder')} optional
           maxLength={100} error={err('postalAddress')} {...register('postalAddress')} />
         <TextField label={t('companies.postalCode')} placeholder={t('companies.postalCodePlaceholder')} optional

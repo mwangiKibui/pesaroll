@@ -42,6 +42,7 @@ export default function ComponentsPage() {
   const [drawer, setDrawer] = useState(false)
   const [several, setSeveral] = useState<CompanySelection>({ all: false, ids: ['ke'] })
   const [one, setOne] = useState<CompanySelection>({ all: false, ids: ['ug'] })
+  const [town, setTown] = useState('nbo')
 
   return (
     <AppShell current="components" organization="Mama Oliech Group" person="Grace Wanjiru · CEO or Managing Director"
@@ -77,7 +78,7 @@ export default function ComponentsPage() {
             <TextField label="First name" placeholder="Your first name" defaultValue="Wanjiru" />
             <TextField label="Middle name" placeholder="Your middle name" optional hint="As on your national ID." />
             <TextField label="Email" placeholder="Your email" defaultValue="wanjiru@" error="Enter a valid email address or Kenyan phone number." />
-            <SelectField label="Town" hint="Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }, { value: 'msa', label: 'Mombasa' }]} />
+            <SelectField label="Town" placeholder="Your town" hint="Searchable: type to filter. Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }, { value: 'msa', label: 'Mombasa' }, { value: 'ksm', label: 'Kisumu' }, { value: 'nak', label: 'Nakuru' }, { value: 'eld', label: 'Eldoret' }, { value: 'mra', label: "Murang'a" }]} value={town} onChange={setTown} />
             <TextField label="Phone (phone layout)" placeholder="Your phone" size="lg" defaultValue="0723 456 789" />
             <PasswordField label="Password" placeholder="Your password" isNew />
             <div className="flex flex-col"><Checkbox label="Main location for Mama Oliech Restaurants · KE" defaultChecked /><Checkbox label="Main location for Oliech Catering · UG" /></div>
@@ -120,7 +121,7 @@ export default function ComponentsPage() {
           <Drawer open={drawer} title="Add location" onClose={() => setDrawer(false)}
             footer={<><Button variant="secondary" onClick={() => setDrawer(false)}>Cancel</Button><Button onClick={() => { setDrawer(false); toast.show('Location added') }}>Add location</Button></>}>
             <TextField label="Location name" placeholder="Your location name" defaultValue="Karen branch" />
-            <SelectField label="Town" hint="Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }]} />
+            <SelectField label="Town" placeholder="Your town" hint="Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }, { value: 'msa', label: 'Mombasa' }, { value: 'ksm', label: 'Kisumu' }, { value: 'nak', label: 'Nakuru' }, { value: 'eld', label: 'Eldoret' }, { value: 'mra', label: "Murang'a" }]} value={town} onChange={setTown} />
             <CompanySelect label="Applies to" companies={companies} value={several} onChange={setSeveral} />
           </Drawer>
           <div className="grid gap-4 md:grid-cols-2">

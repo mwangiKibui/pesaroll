@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
 import { Checkbox, SelectField, TextField } from './fields'
@@ -31,11 +32,119 @@ it('passes typing through', async () => {
   expect(onChange).toHaveBeenCalledWith('W')
 })
 
-it('a select lists its options', async () => {
-  const { container } = render(
-    <SelectField label="Town" defaultValue="Mombasa" options={[{ value: 'Nairobi', label: 'Nairobi' }, { value: 'Mombasa', label: 'Mombasa' }]} />)
+const counties = [
+  { value: '047', label: 'Nairobi' },
+  { value: '001', label: 'Mombasa' },
+  { value: '021', label: "Murang'a" },
+  { value: '045', label: 'Kéroka Town' },
+]
 
-  expect(screen.getByRole('combobox', { name: 'Town' })).toHaveValue('Mombasa')
+function County({ optional = false, initial = '' }: { optional?: boolean; initial?: string }) {
+  const [value, setValue] = useState(initial)
+  return (
+    <>
+      <SelectField label="County" placeholder="Your county" hint="Sets public holidays." optional={optional}
+        options={counties} value={value} onChange={setValue} />
+      <output>{value || 'none'}</output>
+    </>
+  )
+}
+
+const county = (name = 'County') => screen.getByRole('combobox', { name })
+
+it('a dropdown shows the choice like a text field and opens a styled list', async () => {
+  const { container } = render(<County initial="001" />)
+
+  expect(county()).toHaveValue('Mombasa')
+  expect(county()).toHaveAccessibleDescription('Sets public holidays.')
+  expect(county()).toHaveAttribute('aria-expanded', 'false')
+  expect(document.querySelector('select')).toBeNull()
+  await expectNoA11yViolations(container)
+
+  await userEvent.click(county())
+
+  expect(county()).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getAllByRole('option')).toHaveLength(4)
+  expect(screen.getByRole('option', { name: 'Mombasa' })).toHaveAttribute('aria-selected', 'true')
+  await expectNoA11yViolations(container)
+})
+
+it('with nothing chosen it shows the placeholder', () => {
+  render(<County />)
+  expect(county()).toHaveValue('')
+  expect(county()).toHaveAttribute('placeholder', 'Your county')
+})
+
+it('typing filters the options, ignoring case and accents, and says when nothing fits', async () => {
+  render(<County />)
+
+  await userEvent.type(county(), 'NAI')
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Nairobi'])
+
+  await userEvent.clear(county())
+  await userEvent.type(county(), 'kero')
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Kéroka Town'])
+
+  await userEvent.clear(county())
+  await userEvent.type(county(), 'zzz')
+  expect(screen.queryAllByRole('option')).toHaveLength(0)
+  expect(screen.getByText('No matches')).toBeInTheDocument()
+})
+
+it('clicking an option picks it and closes the list', async () => {
+  render(<County />)
+  await userEvent.click(county())
+  await userEvent.click(screen.getByRole('option', { name: "Murang'a" }))
+
+  expect(screen.getByRole('status')).toHaveTextContent('021')
+  expect(county()).toHaveValue("Murang'a")
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+})
+
+it('works from the keyboard: arrows open and move, Enter picks, Escape closes and keeps the choice', async () => {
+  render(<County initial="047" />)
+  county().focus()
+
+  await userEvent.keyboard('{ArrowDown}')
+  expect(screen.getByRole('listbox')).toBeInTheDocument()
+  await userEvent.keyboard('{ArrowDown}{Enter}')
+  expect(screen.getByRole('status')).toHaveTextContent('001')
+  expect(county()).toHaveValue('Mombasa')
+
+  await userEvent.type(county(), 'x')
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  expect(county()).toHaveValue('Mombasa')
+  expect(county()).toHaveFocus()
+})
+
+it('typing then Enter picks the first match', async () => {
+  render(<County />)
+  await userEvent.type(county(), 'mur{Enter}')
+  expect(screen.getByRole('status')).toHaveTextContent('021')
+})
+
+it('an optional dropdown is cleared by emptying it; a required one keeps its choice', async () => {
+  render(<><County optional initial="047" /></>)
+  await userEvent.clear(county('County optional'))
+  await userEvent.tab()
+  expect(screen.getByRole('status')).toHaveTextContent('none')
+  expect(county('County optional')).toHaveValue('')
+})
+
+it('a required dropdown keeps its choice when emptied and left', async () => {
+  render(<County initial="047" />)
+  await userEvent.clear(county())
+  await userEvent.tab()
+  expect(screen.getByRole('status')).toHaveTextContent('047')
+  expect(county()).toHaveValue('Nairobi')
+})
+
+it('a dropdown error is shown under it and read out with it', async () => {
+  const { container } = render(<SelectField label="Industry" placeholder="Your industry" error="Choose an industry from the list."
+    options={[{ value: 'hotels', label: 'Hotels' }]} value="" onChange={() => {}} />)
+  expect(county('Industry')).toHaveAttribute('aria-invalid', 'true')
+  expect(county('Industry')).toHaveAccessibleDescription('Choose an industry from the list.')
   await expectNoA11yViolations(container)
 })
 

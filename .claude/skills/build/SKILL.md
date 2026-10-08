@@ -37,7 +37,7 @@ Cover every item in the planning checklist that applies:
 - errors: the error codes it adds to docs/standards/errors.md
 - notifications: what it sends (in-app, push, email, SMS), with no salaries in push or email
 - reports: what it feeds or needs
-- UI: the screens and the components they use (docs/standards/ui.md); new components go on /dev/components; phone width; placeholders on every field; copy in the translation files
+- UI: the screens and the components they use (docs/standards/ui.md); new components go on /dev/components; phone width; placeholders on every field; every dropdown and search filter is the styled, searchable `SelectField` or `CompanySelect` (never a native select), on web and on phones; copy in the translation files
 - tests first: for each step, the failing tests written before its code (backend xUnit unit tests,
   integration tests where the database or an endpoint is involved, frontend Vitest unit tests),
   plus tenancy (every new customer table) and golden payroll cases if pay is touched

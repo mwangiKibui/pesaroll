@@ -5,7 +5,8 @@
     "close": "Funga",
     "done": "Tayari",
     "loading": "Inapakia",
-    "menu": "Menyu"
+    "menu": "Menyu",
+    "noMatches": "Hakuna kinacholingana"
   },
   "nav": {
     "main": "Menyu kuu",
@@ -19,7 +20,9 @@
     "all": "Kampuni zote",
     "allHint": "Pamoja na kampuni zitakazoongezwa baadaye",
     "placeholder": "Chagua kampuni",
-    "selected": "{{count}} zimechaguliwa"
+    "selected": "{{count}} zimechaguliwa",
+    "search": "Tafuta kampuni",
+    "searchPlaceholder": "Jina la kampuni yako"
   },
   "setup": {
     "progress": "Maliza kuweka mipangilio · {{done}} kati ya {{total}}",
@@ -199,7 +202,6 @@
     "tradingName": "Jina la biashara",
     "tradingNamePlaceholder": "Jina lako la biashara",
     "industry": "Sekta",
-    "chooseIndustry": "Chagua sekta",
     "numbers": "Nambari za kisheria",
     "yourField": "{{field}} yako",
     "example": "Kwa mfano {{example}}.",
@@ -209,7 +211,6 @@
     "addressLinePlaceholder": "Anwani yako ya mahali",
     "town": "Mji",
     "townPlaceholder": "Mji wako",
-    "chooseRegion": "Chagua {{region}}",
     "postalAddress": "Sanduku la posta",
     "postalAddressPlaceholder": "Sanduku lako la posta",
     "postalCode": "Msimbo wa posta",
@@ -217,6 +218,8 @@
     "phone": "Nambari ya simu",
     "phonePlaceholder": "Nambari yako ya simu",
     "email": "Barua pepe",
-    "emailPlaceholder": "Barua pepe yako"
+    "emailPlaceholder": "Barua pepe yako",
+    "countryPlaceholder": "Nchi yako",
+    "industryPlaceholder": "Sekta yako"
   }
 }

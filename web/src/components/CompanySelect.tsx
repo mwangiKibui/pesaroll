@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { matches } from './search'
 
 export interface Company { id: string; name: string; code: string }
 
@@ -22,7 +23,7 @@ const ALL = '__all__'
 
 /**
  * The company selector: on every list and setup screen where companies can differ.
- * A button opens a list; arrows move, Enter or Space picks, Escape closes.
+ * A button opens a list with a search box on top: typing filters, arrows move, Enter picks, Escape closes.
  */
 export function CompanySelect({ label, companies, value, onChange, multiple = true, allowAll = multiple, placeholder }: CompanySelectProps) {
   const { t } = useTranslation()
@@ -31,10 +32,13 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
-  const list = useRef<HTMLUListElement>(null)
+  const search = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
 
   const showAll = multiple && allowAll
-  const options = [...(showAll ? [ALL] : []), ...companies.map(c => c.id)]
+  // While searching, "All companies" steps aside so the matches come first.
+  const options = [...(showAll && !query.trim() ? [ALL] : []),
+    ...companies.filter(c => matches(`${c.name} ${c.code}`, query)).map(c => c.id)]
   const isOn = (cid: string) => (showAll && value.all) || value.ids.includes(cid)
   const picked = companies.filter(c => isOn(c.id))
 
@@ -45,13 +49,13 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
 
   useEffect(() => {
     if (!open) return
-    list.current?.focus()
+    search.current?.focus()
     const onDown = (e: MouseEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false) }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
-  const close = () => { setOpen(false); button.current?.focus() }
+  const close = () => { setOpen(false); setQuery(''); button.current?.focus() }
 
   const pick = (option: string) => {
     if (option === ALL) {
@@ -72,7 +76,7 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => Math.max(i - 1, 0)) }
     else if (e.key === 'Home') { e.preventDefault(); setActive(0) }
     else if (e.key === 'End') { e.preventDefault(); setActive(options.length - 1) }
-    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(options[active]) }
+    else if (e.key === 'Enter') { e.preventDefault(); if (options[active]) pick(options[active]) }
     else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); close() }
   }
 
@@ -86,15 +90,21 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
     <div ref={root} className="relative flex w-full flex-col gap-1.5">
       <span id={`${id}-label`} className="text-label font-medium text-ink">{label}</span>
       <button ref={button} id={`${id}-button`} type="button" aria-haspopup="listbox" aria-expanded={open}
-        aria-labelledby={`${id}-label ${id}-button`} onClick={() => { setActive(0); setOpen(o => !o) }}
+        aria-labelledby={`${id}-label ${id}-button`} onClick={() => { setActive(0); setQuery(''); setOpen(o => !o) }}
         className="flex min-h-11 w-full items-center justify-between gap-2 rounded-control border border-field-border bg-card px-3 text-left text-body text-ink">
         <span className={`truncate ${picked.length || value.all ? 'text-ink' : 'text-muted'}`}>{summary}</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`flex-none text-muted ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && (
         <div className="absolute inset-x-0 top-full z-30 mt-1 min-w-[260px] rounded-card border border-line bg-card p-1.5 shadow-float">
-          <ul ref={list} role="listbox" tabIndex={-1} aria-labelledby={`${id}-label`} aria-multiselectable={multiple}
-            aria-activedescendant={`${id}-opt-${active}`} onKeyDown={onListKey} className="m-0 flex list-none flex-col gap-0.5 p-0 outline-none">
+          <input ref={search} type="text" role="combobox" autoComplete="off" aria-label={t('company.search')}
+            aria-expanded="true" aria-controls={`${id}-list`} aria-autocomplete="list"
+            aria-activedescendant={options[active] ? `${id}-opt-${active}` : undefined}
+            placeholder={t('company.searchPlaceholder')} value={query} onKeyDown={onListKey}
+            onChange={e => { setQuery(e.target.value); setActive(0) }}
+            className="mb-1.5 min-h-10 w-full rounded-control border border-field-border bg-card px-3 text-body text-ink placeholder:text-muted" />
+          <ul id={`${id}-list`} role="listbox" aria-labelledby={`${id}-label`} aria-multiselectable={multiple}
+            className="m-0 flex max-h-64 list-none flex-col gap-0.5 overflow-y-auto p-0">
             {options.map((option, i) => {
               const on = option === ALL ? value.all : isOn(option)
               const company = companies.find(c => c.id === option)
@@ -109,6 +119,7 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
               )
             })}
           </ul>
+          {options.length === 0 && <p className="m-0 px-3 py-2.5 text-label text-muted">{t('common.noMatches')}</p>}
           {multiple && (
             <div className="mt-1 flex justify-end border-t border-line-soft px-1 pt-1.5">
               <button type="button" onClick={close} className="min-h-9 rounded-control bg-brand px-3.5 text-label font-semibold text-on-brand hover:bg-brand-hover">{t('common.done')}</button>

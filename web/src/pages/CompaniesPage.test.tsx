@@ -13,6 +13,12 @@ const companyPath = `/api/companies/${saved.id}`
 
 const drawer = () => screen.getByRole('dialog')
 
+/** Search a dropdown in the drawer and pick the option. */
+async function choose(name: string, search: string, option: string) {
+  await userEvent.type(within(drawer()).getByRole('combobox', { name }), search)
+  await userEvent.click(within(drawer()).getByRole('option', { name: option }))
+}
+
 it('with no companies yet, offers the first one, named after the organization and in Kenya', async () => {
   fakeApi(signedIn)
   const { container } = renderApp('/setup/companies')
@@ -28,14 +34,17 @@ it('with no companies yet, offers the first one, named after the organization an
 
   expect(within(drawer()).getByRole('heading', { name: 'Add company' })).toBeInTheDocument()
   expect(within(drawer()).getByRole('textbox', { name: 'Legal name' })).toHaveValue('Mama Oliech Group')
-  expect(within(drawer()).getByRole('combobox', { name: 'Country' })).toHaveValue('KE')
+  expect(within(drawer()).getByRole('combobox', { name: 'Country' })).toHaveValue('Kenya')
   // The numbers come from the country: payroll needs the first three, the last is optional.
   const pin = within(drawer()).getByRole('textbox', { name: 'KRA PIN' })
   expect(pin).toHaveAttribute('placeholder', 'Your KRA PIN')
   expect(pin).toHaveAccessibleDescription(/Used for PAYE.*Needed before your first payroll/)
   expect(within(drawer()).getByRole('textbox', { name: 'NSSF employer number' })).toBeInTheDocument()
   expect(within(drawer()).getByRole('textbox', { name: 'Business registration number optional' })).toBeInTheDocument()
-  expect(within(drawer()).getByRole('combobox', { name: 'County optional' })).toHaveTextContent('Nairobi')
+  const county = within(drawer()).getByRole('combobox', { name: 'County optional' })
+  expect(county).toHaveAttribute('placeholder', 'Your county')
+  await userEvent.type(county, 'nai')
+  expect(within(drawer()).getAllByRole('option').map(o => o.textContent)).toEqual(['Nairobi'])
   await expectNoA11yViolations(container)
 })
 
@@ -48,9 +57,9 @@ it('adds a company; numbers it still needs show against it, and the step is tick
   await userEvent.clear(legal)
   await userEvent.type(legal, 'Mama Oliech Restaurant Ltd ')
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Trading name optional' }), 'Mama Oliech')
-  await userEvent.selectOptions(within(drawer()).getByRole('combobox', { name: 'Industry optional' }), 'restaurants_bars')
+  await choose('Industry optional', 'restaurant', 'Restaurants, bars and clubs')
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'KRA PIN' }), 'p051234567x')
-  await userEvent.selectOptions(within(drawer()).getByRole('combobox', { name: 'County optional' }), '047')
+  await choose('County optional', 'nairobi', 'Nairobi')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
 
   expect(await screen.findByText('Company added')).toBeInTheDocument()

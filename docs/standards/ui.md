@@ -11,9 +11,10 @@ How every Pesaroll screen looks and is built: the admin app, the back office and
 3. **Light only for now.** Every token still has a light and a dark value, and both stay contrast-tested, so dark mode can return later. The app always shows light (`THEME_CHOICE_ENABLED` in `web/src/theme/theme.ts`; turning it on also needs `ThemeMenu` back in the navbar). Payslip PDFs and exported files are always light.
 4. **Every field has a placeholder: "Your" and the field name**, such as "Your first name", "Your email or phone number", "Your password". No examples and no "e.g.". `TextField` won't compile without one. The label still says what the field is; the placeholder never replaces it.
 5. **Password fields have an eye icon inside the field** (on the right) to show or hide what was typed: use `PasswordField`, never a "Show password" link under the field.
-6. **Every word through translations,** in English and Swahili (`web/src/i18n/locales/`). The keys must match; a test checks. **For now the app is English only:** people can't choose Swahili until a native speaker has reviewed it (to turn it on: `initialLanguage()` in `web/src/i18n/index.ts` and `LanguageSwitch` in the navbar).
-7. **Phone first for anything employees use.** Design the portal at 390 px wide; check every admin screen at phone width too (menus stack, tables scroll sideways inside their card).
-8. **Accessible as built:**
+6. **Every dropdown is styled and searchable, everywhere:** admin app, employee portal on phones, and any app we build later. Use `SelectField` (one choice) or `CompanySelect` (companies); never a native `<select>`, which can't be styled or searched. Typing filters the options (ignoring case and accents), arrows move, Enter picks, Escape closes, and "No matches" shows when nothing fits. Every filter and search on a list uses the same components. A test fails on a native `<select>` outside the component.
+7. **Every word through translations,** in English and Swahili (`web/src/i18n/locales/`). The keys must match; a test checks. **For now the app is English only:** people can't choose Swahili until a native speaker has reviewed it (to turn it on: `initialLanguage()` in `web/src/i18n/index.ts` and `LanguageSwitch` in the navbar).
+8. **Phone first for anything employees use.** Design the portal at 390 px wide; check every admin screen at phone width too (menus stack, tables scroll sideways inside their card).
+9. **Accessible as built:**
    - real `<button>`, `<a href>` and labelled inputs
    - icon-only buttons carry a label (`IconButton label="Edit Westlands Restaurant"`)
    - tap targets at least 44 px (50 px for main buttons on the portal)
@@ -21,7 +22,7 @@ How every Pesaroll screen looks and is built: the admin app, the back office and
    - the pointer hand on everything clickable (buttons, menu items, options, radio and checkbox labels), "not allowed" on disabled buttons: set once in `web/src/index.css`, never per component
    - text contrast at least 4.5:1 in both themes (tested on the tokens)
    - every component test runs axe
-9. **Test-first:** component behaviour, keyboard use and axe, with Vitest and React Testing Library, next to the component (`Component.test.tsx`). Test what people see and do, not class names.
+10. **Test-first:** component behaviour, keyboard use and axe, with Vitest and React Testing Library, next to the component (`Component.test.tsx`). Test what people see and do, not class names.
 
 ## Look
 
@@ -64,6 +65,7 @@ Colour tokens (light / dark):
 - **Company selector (`CompanySelect`)** on every list and setup screen where companies can differ:
   - "All companies" first ("Includes companies added later")
   - checkboxes for several, round options for one
+  - a search box at the top of the list, like every dropdown (rule 6)
 - **Suggest, don't ask:**
   - fill in sensible defaults and let people skip any step
   - unsaved work shows a "Not saved yet" `Tag`
@@ -82,6 +84,7 @@ Colour tokens (light / dark):
 
 - Labels above fields, hints below in secondary text, "optional" beside the label; required fields carry no marker.
 - Buttons say what they do: "Send code", "Verify and continue", never "Submit" or "OK". While waiting, a button is `busy`.
+- Choosing from a list uses the searchable `SelectField`, with a placeholder like any field ("Your county").
 - A field's error appears under it and is read out with it (`TextField error=…`).
 - Problems with the whole form or page use `FormErrorBanner`, which shows the message plus the code and reference from the API, so customers can quote them to support (see `errors.md`).
 - Short confirmations ("Location added") are toasts (`useToast().show(…)`); they go away after 5 seconds.
