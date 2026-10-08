@@ -71,6 +71,18 @@ export function createAuthClient({ channelName = 'pesaroll-auth' }: { channelNam
     status: () => status,
     accessToken: () => token,
 
+    /** The organization the token carries (null before the organization step). Read, not verified: the API verifies. */
+    organizationId(): string | null {
+      try {
+        const payload = token?.split('.')[1]
+        if (!payload) return null
+        const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { org?: string }
+        return json.org ?? null
+      } catch {
+        return null
+      }
+    },
+
     subscribe(listener: () => void) {
       listeners.add(listener)
       return () => { listeners.delete(listener) }

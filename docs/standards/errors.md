@@ -16,7 +16,8 @@ Customers quote the code or reference; customer service looks it up in the back 
 | --- | --- | --- |
 | AUTH | 1000–1999 | Sign-in, accounts, two-step sign-in |
 | PAY | 2000–2999 | Payroll and statutory rules |
-| IMP | 3000–3999 | Bulk imports (one code per row problem) |
+| IMP | 3000–3499 | Bulk imports (one code per row problem) |
+| ONB | 3500–3999 | Onboarding (organization and setup steps) |
 | LV | 4000–4499 | Leave |
 | HOL | 4500–4999 | Holiday management |
 | WF | 5000–5499 | Workflows and approvals |
@@ -43,9 +44,13 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | AUTH-1008 | Enter your first and last name and choose your role. | Customer | Sign-up form incomplete. |
 | AUTH-1009 | You chose Other: type your role (up to 80 characters). | Customer | Sign-up role "Other" needs the person's own role. |
 | AUTH-1010 | Your session has ended. Sign in again. | Customer | Access token expired, changed or for an ended session, or a refresh failed. Sessions end after 12 hours idle, 7 days total, at sign-out, or when an old refresh token is reused (possible theft: suggest a password change). |
-| ACC-8001 | You don't have permission to do this. Ask your organization's owner. | Customer | Check the person's role and company scope in the back office. |
+| ACC-8001 | You don't have permission to do this. Ask an administrator in your organization. | Customer | Check the person's role and company scope in the back office. |
 | IMP-3001 | Row {row}: {column} is required. | Customer | Point them to the template's required columns. |
 | IMP-3002 | Row {row}: "{value}" isn't one of your {column} options. | Customer | Check the option exists in setup, or fix the spelling. |
+| ONB-3501 | Enter your organization's name (2 to 120 characters). | Customer | Organization step: the name is the one their team knows them by; legal company names come next. |
+| ONB-3502 | You already have an organization. | Customer | One onboarded organization per person for now. Accountants and bureaus with several clients go through the partner program. |
+| ONB-3503 | You haven't set up your organization yet. | Customer | They signed up but skipped or left the organization step; the app takes them back to it. |
+| ONB-3504 | Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization. | Customer | Only people who signed up themselves onboard an organization; invited people, staff and partners come in another way. |
 | PAY-2001 | {employee} has no KRA PIN, so PAYE can't be filed. | Customer | Add the KRA PIN on the employee's profile, then rerun. |
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |

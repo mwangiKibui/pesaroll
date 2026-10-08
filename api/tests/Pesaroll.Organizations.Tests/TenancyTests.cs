@@ -42,7 +42,7 @@ public sealed class TenancyTests : IAsyncLifetime
             insert into users (id, email, first_name, last_name) values
               ('{Owner1}', 'owner1@example.com', 'Owner', 'One'),
               ('{Owner2}', 'owner2@example.com', 'Owner', 'Two');
-            insert into organizations (id, name, created_by) values
+            insert into organizations (id, name, onboarded_by) values
               ('{Org1}', 'Org One', '{Owner1}'),
               ('{Org2}', 'Org Two', '{Owner2}');
             insert into companies (id, organization_id, legal_name, country_code, currency) values

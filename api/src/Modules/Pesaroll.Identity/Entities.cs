@@ -21,6 +21,8 @@ public sealed class User
     public DateTimeOffset? EmailVerifiedAt { get; set; }
     public DateTimeOffset? PhoneVerifiedAt { get; set; }
     public string Status { get; set; } = "active";
+    /// <summary>self, invitation, back_office or partner. Only self onboards an organization.</summary>
+    public string SignedUpVia { get; set; } = "self";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

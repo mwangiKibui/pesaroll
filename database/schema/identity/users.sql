@@ -17,6 +17,9 @@ create table users (
     email_verified_at    timestamptz,
     phone_verified_at    timestamptz,
     status               text not null default 'active' check (status in ('active', 'locked', 'disabled')),
+    -- How the account came in. Only 'self' (the sign-up page) onboards an organization (ONB-02);
+    -- invitations (AUTH-08), the back office (BO-03) and partners (PRN-01) set theirs.
+    signed_up_via        text not null default 'self' check (signed_up_via in ('self', 'invitation', 'back_office', 'partner')),
     created_at           timestamptz not null default now(),
     updated_at           timestamptz not null default now(),
     check (email is not null or phone is not null)

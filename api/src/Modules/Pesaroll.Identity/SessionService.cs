@@ -24,6 +24,9 @@ public sealed class SessionService(
     private const string SessionIdKey = "pesaroll.session_id";
     private const string TokenRejectedKey = "pesaroll.token_rejected";
 
+    /// <summary>The session behind this request's access token, or null when signed out.</summary>
+    public static Guid? CurrentSessionId(HttpContext http) => http.Items[SessionIdKey] as Guid?;
+
     /// <summary>The error for a request that needs sign-in but has no working token.</summary>
     public static Exception RequireSignedIn(HttpContext http) =>
         http.Items.ContainsKey(TokenRejectedKey) ? AuthErrors.SessionEnded(invalidToken: true) : AuthErrors.NotSignedIn();

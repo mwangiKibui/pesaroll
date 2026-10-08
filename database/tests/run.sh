@@ -43,7 +43,7 @@ insert into users (id, email, first_name, last_name) values
   ('00000000-0000-7000-8000-0000000000f1', 'owner1@example.com', 'Owner', 'One'),
   ('00000000-0000-7000-8000-0000000000f2', 'owner2@example.com', 'Owner', 'Two'),
   ('00000000-0000-7000-8000-0000000000f3', 'hr1@example.com', 'HR', 'One');
-insert into organizations (id, name, created_by) values
+insert into organizations (id, name, onboarded_by) values
   ('00000000-0000-7000-8000-000000000001', 'Org One', '00000000-0000-7000-8000-0000000000f1'),
   ('00000000-0000-7000-8000-000000000002', 'Org Two', '00000000-0000-7000-8000-0000000000f2');
 insert into companies (id, organization_id, legal_name, country_code, currency) values

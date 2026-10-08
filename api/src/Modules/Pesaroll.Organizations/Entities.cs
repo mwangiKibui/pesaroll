@@ -6,7 +6,8 @@ public sealed class Organization
 {
     public Guid Id { get; set; }
     public required string Name { get; set; }
-    public Guid CreatedBy { get; set; }
+    /// <summary>Who onboarded the organization (ONB-02). Not an owner: roles come from security groups.</summary>
+    public Guid OnboardedBy { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

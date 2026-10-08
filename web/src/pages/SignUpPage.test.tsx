@@ -97,18 +97,18 @@ it('choosing Other asks for the role, and sends it', async () => {
   await userEvent.type(screen.getByRole('textbox', { name: 'Your role' }), 'Head Chef')
   await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
-  await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })
+  await screen.findByRole('heading', { name: "What's your organization called?" })
   expect(calls.find(c => c.path === '/api/auth/signup')?.body).toMatchObject({ roleId: roles[1].roles[0].id, roleOther: 'Head Chef' })
 })
 
-it('creates the account and lands on the welcome page, signed in', async () => {
+it('creates the account and goes on to the organization step, signed in', async () => {
   const calls = fakeApi({ 'POST /api/auth/signup': () => token('new-token') })
   renderApp('/signup')
   await fill({ contact: '0712 345 678' })
 
   await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: "What's your organization called?" })).toBeInTheDocument()
   expect(calls.find(c => c.path === '/api/auth/signup')?.body).toEqual({
     firstName: 'Wanjiru', middleName: null, lastName: 'Kamau', phone: '+254712345678', email: null,
     password: 'Mombasa-raha-7', roleId: roles[0].roles[0].id, roleOther: null,

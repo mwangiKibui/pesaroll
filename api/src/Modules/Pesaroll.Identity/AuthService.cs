@@ -11,13 +11,18 @@ public sealed record SignUpRequest(
 
 public sealed record SignInRequest(string? Identifier, string? Password);
 
+/// <param name="CanOnboardOrganization">
+/// True for someone who signed up themselves and hasn't onboarded an organization yet: the app takes
+/// them to the organization step. Anyone else without an organization sees "not part of an organization".
+/// </param>
 public sealed record MeResponse(
     Guid Id, string FirstName, string? MiddleName, string LastName, string FullName, string? Email, string? Phone,
-    Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId)
+    Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId, string SignedUpVia, bool CanOnboardOrganization)
 {
-    public static MeResponse From(User user, Guid? organizationId) =>
+    public static MeResponse From(User user, Guid? organizationId, bool hasOnboardedOrganization) =>
         new(user.Id, user.FirstName, user.MiddleName, user.LastName, user.FullName, user.Email, user.Phone,
-            user.SignupRoleId, user.SignupRoleOther, organizationId);
+            user.SignupRoleId, user.SignupRoleOther, organizationId, user.SignedUpVia,
+            user.SignedUpVia == "self" && !hasOnboardedOrganization);
 }
 
 /// <summary>Sign-up and sign-in (AUTH-01, AUTH-02).</summary>

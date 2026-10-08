@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
 import { AppShell, PhoneShell } from './shells'
 
@@ -40,4 +40,13 @@ it('the phone layout has a bottom bar with the current tab marked', async () => 
   expect(within(bar).getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
   expect(screen.getByRole('heading', { name: 'Habari, Peter' })).toBeInTheDocument()
   await expectNoA11yViolations(container)
+})
+
+it('the sidebar shows the person with a Sign out button', async () => {
+  const onSignOut = vi.fn()
+  render(<AppShell groups={groups} current="home" organization="Mama Oliech Group" person="Grace Wanjiru" onSignOut={onSignOut}><p>Home</p></AppShell>)
+
+  await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+
+  expect(onSignOut).toHaveBeenCalledOnce()
 })

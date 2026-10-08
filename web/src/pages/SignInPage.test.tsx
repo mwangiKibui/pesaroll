@@ -3,13 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import i18n from '../i18n'
 import { expectNoA11yViolations } from '../test/a11y'
-import { apiError, fakeApi, token } from '../test/fakeApi'
+import { apiError, fakeApi, orgToken, token } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
 
-it('signs in with a phone number and lands on the welcome page', async () => {
-  const calls = fakeApi({ 'POST /api/auth/signin': () => token() })
+it('signs in with a phone number and goes home', async () => {
+  const calls = fakeApi({ 'POST /api/auth/signin': () => orgToken() })
   const { container } = renderApp('/signin')
   await expectNoA11yViolations(await screen.findByRole('main').then(() => container))
 
@@ -18,6 +18,7 @@ it('signs in with a phone number and lands on the welcome page', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+  expect(screen.getAllByText('Mama Oliech Group').length).toBeGreaterThan(0)
   expect(calls.find(c => c.path === '/api/auth/signin')?.body).toEqual({ identifier: '0712 345 678', password: 'Mombasa-raha-7' })
 })
 
@@ -47,4 +48,15 @@ it('error messages are in Swahili when the app is', async () => {
 
   expect(await screen.findByRole('alert')).toHaveTextContent('Akaunti yako imefungwa')
   await i18n.changeLanguage('en')
+})
+
+it('someone who signed up but never named their organization is taken to that step', async () => {
+  fakeApi({ 'POST /api/auth/signin': () => token() })
+  renderApp('/signin')
+
+  await userEvent.type(await screen.findByRole('textbox', { name: 'Email or phone number' }), 'wanjiru@example.com')
+  await userEvent.type(screen.getByLabelText('Password'), 'Mombasa-raha-7')
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+  expect(await screen.findByRole('heading', { name: "What's your organization called?" })).toBeInTheDocument()
 })

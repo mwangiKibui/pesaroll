@@ -44,7 +44,7 @@ export default function ComponentsPage() {
   const [one, setOne] = useState<CompanySelection>({ all: false, ids: ['ug'] })
 
   return (
-    <AppShell current="components" organization="Mama Oliech Group" person="Grace Wanjiru (Owner)"
+    <AppShell current="components" organization="Mama Oliech Group" person="Grace Wanjiru · CEO or Managing Director"
       setup={{ done: 8, total: 10, next: 'Payroll history', href: '#' }}
       groups={[
         { items: [{ key: 'components', label: 'Components', href: '/dev/components' }] },

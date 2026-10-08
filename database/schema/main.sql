@@ -14,3 +14,4 @@
 \i identity/users_policies.sql
 \i identity/sessions.sql
 \i identity/signin_functions.sql
+\i tenancy/onboarding_functions.sql

@@ -12,11 +12,13 @@ interface AppShellProps {
   person: string
   /** "Finish setting up" card while setup is incomplete. */
   setup?: { done: number; total: number; next: string; href: string }
+  /** Shows a Sign out button under the person's name. */
+  onSignOut?: () => void
   children: ReactNode
 }
 
 /** The admin app: dark sidebar on the left (behind a Menu button on phones), page on the right. */
-export function AppShell({ groups, current, organization, person, setup, children }: AppShellProps) {
+export function AppShell({ groups, current, organization, person, setup, onSignOut, children }: AppShellProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const navId = useId()
@@ -33,6 +35,9 @@ export function AppShell({ groups, current, organization, person, setup, childre
         <div className="mb-2 mt-1 rounded-card bg-sidebar-raise px-3 py-2.5 text-hint">
           <div className="font-semibold text-sidebar-ink">{organization}</div>
           <div className="text-sidebar-muted">{person}</div>
+          {onSignOut && (
+            <button type="button" onClick={onSignOut} className="mt-1.5 min-h-9 rounded-control px-0 text-hint font-medium text-sidebar-accent hover:underline">{t('nav.signOut')}</button>
+          )}
         </div>
         {groups.map((group, gi) => (
           <div key={group.label ?? gi} className="flex flex-col gap-0.5">
