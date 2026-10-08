@@ -1,0 +1,136 @@
+/*
+ * Pesaroll design tokens: the only place colours are written. Every token has a light and a
+ * dark value; screens use the Tailwind names below (bg-card, text-muted, border-line…), so a
+ * component written once works in both themes. Contrast is tested in tokens.test.ts.
+ * Rules: docs/standards/ui.md.
+ */
+@import "tailwindcss";
+
+/* Tailwind's built-in palette is off: only the tokens below exist as colours. */
+@theme {
+  --color-*: initial;
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-page: var(--pr-page);
+  --color-card: var(--pr-card);
+  --color-raised: var(--pr-raised);
+  --color-ink: var(--pr-ink);
+  --color-muted: var(--pr-muted);
+  --color-line: var(--pr-line);
+  --color-line-soft: var(--pr-line-soft);
+  --color-field-border: var(--pr-field-border);
+  --color-brand: var(--pr-brand);
+  --color-brand-hover: var(--pr-brand-hover);
+  --color-on-brand: var(--pr-on-brand);
+  --color-brand-soft: var(--pr-brand-soft);
+  --color-brand-soft-ink: var(--pr-brand-soft-ink);
+  --color-warning-soft: var(--pr-warning-soft);
+  --color-warning-ink: var(--pr-warning-ink);
+  --color-danger: var(--pr-danger);
+  --color-on-danger: var(--pr-on-danger);
+  --color-danger-soft: var(--pr-danger-soft);
+  --color-danger-ink: var(--pr-danger-ink);
+  --color-sidebar: var(--pr-sidebar);
+  --color-sidebar-raise: var(--pr-sidebar-raise);
+  --color-sidebar-ink: var(--pr-sidebar-ink);
+  --color-sidebar-muted: var(--pr-sidebar-muted);
+  --color-sidebar-accent: var(--pr-sidebar-accent);
+  --color-sidebar-current: var(--pr-sidebar-current);
+  --color-sidebar-current-ink: var(--pr-sidebar-current-ink);
+  --color-scrim: var(--pr-scrim);
+
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --text-tag: 12px;
+  --text-hint: 13px;
+  --text-label: 14px;
+  --text-body: 15px;
+  --text-drawer-title: 22px;
+  --text-title-sm: 24px;
+  --text-title: 30px;
+  --text-amount: 34px;
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+
+  --shadow-float: var(--pr-shadow-float);
+  --shadow-drawer: var(--pr-shadow-drawer);
+}
+
+:root {
+  color-scheme: light;
+  --pr-page: #F3F5F2;
+  --pr-card: #FFFFFF;
+  --pr-raised: #F7FAF8;
+  --pr-ink: #18201D;
+  --pr-muted: #56635D;
+  --pr-line: #DCE2DE;
+  --pr-line-soft: #EEF2EF;
+  --pr-field-border: #7E8A84;
+  --pr-brand: #0E7A5F;
+  --pr-brand-hover: #0A5C47;
+  --pr-on-brand: #FFFFFF;
+  --pr-brand-soft: #E3F1EB;
+  --pr-brand-soft-ink: #0A5C47;
+  --pr-warning-soft: #FBEFDC;
+  --pr-warning-ink: #6B3A00;
+  --pr-danger: #B42318;
+  --pr-on-danger: #FFFFFF;
+  --pr-danger-soft: #FDE8E6;
+  --pr-danger-ink: #9B1C12;
+  --pr-sidebar: #0E3B30;
+  --pr-sidebar-raise: #174A3D;
+  --pr-sidebar-ink: #C9DDD5;
+  --pr-sidebar-muted: #8FB3A4;
+  --pr-sidebar-accent: #8FE0C3;
+  --pr-sidebar-current: #E8F3EE;
+  --pr-sidebar-current-ink: #0E3B30;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --pr-page: #101513;
+  --pr-card: #18201C;
+  --pr-raised: #1D2622;
+  --pr-ink: #E5EBE8;
+  --pr-muted: #9BA8A2;
+  --pr-line: #2B3631;
+  --pr-line-soft: #222B27;
+  --pr-field-border: #66746D;
+  --pr-brand: #43C39B;
+  --pr-brand-hover: #6FD3B0;
+  --pr-on-brand: #0B1712;
+  --pr-brand-soft: #15302A;
+  --pr-brand-soft-ink: #8FE0C3;
+  --pr-warning-soft: #3A2A12;
+  --pr-warning-ink: #F2C27B;
+  --pr-danger: #F08A80;
+  --pr-on-danger: #2A0B08;
+  --pr-danger-soft: #3B1A18;
+  --pr-danger-ink: #F4A39B;
+  --pr-sidebar: #0B1210;
+  --pr-sidebar-raise: #16211D;
+  --pr-sidebar-ink: #C9DDD5;
+  --pr-sidebar-muted: #8FB3A4;
+  --pr-sidebar-accent: #8FE0C3;
+  --pr-sidebar-current: #1F3A31;
+  --pr-sidebar-current-ink: #E8F3EE;
+}
+
+/* Values that aren't plain colours: weaker shadows and a darker scrim in dark mode. */
+:root {
+  --pr-scrim: rgb(14 30 24 / 0.35);
+  --pr-shadow-float: 0 8px 24px rgb(14 30 24 / 0.14);
+  --pr-shadow-drawer: -8px 0 24px rgb(14 30 24 / 0.14);
+}
+
+:root[data-theme="dark"] {
+  --pr-scrim: rgb(0 0 0 / 0.6);
+  --pr-shadow-float: 0 8px 24px rgb(0 0 0 / 0.4);
+  --pr-shadow-drawer: -8px 0 24px rgb(0 0 0 / 0.4);
+}

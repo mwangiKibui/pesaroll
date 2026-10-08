@@ -19,9 +19,9 @@ docker run --rm --network "$RUN" -v "$ROOT":/src -w /src \
   -e PESAROLL_TEST_DB="Host=$RUN-db;Database=postgres;Username=postgres;Password=test" \
   mcr.microsoft.com/dotnet/sdk:10.0 dotnet test api/Pesaroll.slnx
 
-echo "== Web: lint and build"
+echo "== Web: tests, lint and build"
 docker run --rm -v "$ROOT":/src -v pesaroll_check_node_modules:/src/web/node_modules -v pesaroll_pnpm_store:/pnpm-store -e npm_config_store_dir=/pnpm-store -w /src/web node:22-alpine \
-  sh -c "corepack enable && corepack prepare pnpm@8.10.2 --activate >/dev/null && pnpm install --frozen-lockfile && pnpm lint && pnpm build"
+  sh -c "corepack enable && corepack prepare pnpm@8.10.2 --activate >/dev/null && pnpm install --frozen-lockfile && pnpm test && pnpm lint && pnpm build"
 
 echo "== Database: apply schema and run tests"
 "$ROOT/database/tests/run.sh"

@@ -14,7 +14,7 @@ HR and payroll for East Africa, Kenya first. One app and one sign-in for custome
 - `database/` the database project: the schema as code, no migrations
 - `compose.yml` local development: `docker compose up -d --build` starts the database, deploys the schema, then starts the API and web app
 - `deploy/` production Compose file, Caddy and the web Dockerfile for DigitalOcean
-- `docs/standards/` backend, database and error-code standards
+- `docs/standards/` backend, database, error-code and UI standards
 
 ## Commands
 
@@ -25,7 +25,7 @@ Everything runs in Docker, locally and in production. Nobody needs .NET or Node 
 docker compose up -d --build                     # everything; app :5173, API :8080 (/swagger), database :55432
 docker compose down -v                           # stop and wipe the local database
 
-# run every check before opening a pull request (API tests, web lint and build, database tests)
+# run every check before opening a pull request (API tests, web tests, lint and build, database tests)
 scripts/check.sh
 
 # database schema (no migrations): see docs/standards/database.md
@@ -51,7 +51,8 @@ CI (GitHub Actions) is switched off until the MVP 1 items are done. The workflow
 7. **Permissions.** Access comes from security groups: a group carries roles (bundles of permissions) and a company scope, and people get access by joining groups. Every endpoint checks a permission on the server; code never checks role or group names. Relationship-based access (a person's own records, a line manager's team) is checked separately. Customer roles and back office roles are separate. Hiding a button is never the protection.
 8. **Personal data.** Never put salaries, ID numbers, KRA PINs or bank details in logs, error context, push notifications or emails.
 9. **DigitalOcean first.** Don't add services that need extra servers; use DigitalOcean products before outside ones.
-10. **Docker.** Every service runs in a container, locally and in production. New services get a Dockerfile and a place in `compose.yml` (local) and `deploy/compose.prod.yml` (production).
+10. **UI.** Screens are built from the components in `web/src/components/` and follow `docs/standards/ui.md`: colour tokens only (never hex or palette colours), light and dark, every word in English and Swahili through `web/src/i18n/locales/`, checked at phone width. See them at http://localhost:5173/dev/components.
+11. **Docker.** Every service runs in a container, locally and in production. New services get a Dockerfile and a place in `compose.yml` (local) and `deploy/compose.prod.yml` (production).
 
 ## How we work in parallel
 
