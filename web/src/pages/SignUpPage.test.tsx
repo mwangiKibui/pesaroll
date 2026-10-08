@@ -8,17 +8,42 @@ import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
 
-async function fill({ contact = 'Wanjiru@Example.com', password = 'Mombasa-raha-7', role = /CEO or Managing Director/ } = {}) {
+async function fillDetails({ contact = 'Wanjiru@Example.com', password = 'Mombasa-raha-7' } = {}) {
   await userEvent.type(await screen.findByRole('textbox', { name: 'First name' }), 'Wanjiru')
   await userEvent.type(screen.getByRole('textbox', { name: 'Last name' }), 'Kamau')
   await userEvent.type(screen.getByRole('textbox', { name: 'Email or phone number' }), contact)
   await userEvent.type(screen.getByLabelText('Password'), password)
-  await userEvent.click(screen.getByRole('radio', { name: role }))
 }
+
+async function fill({ contact = 'Wanjiru@Example.com', password = 'Mombasa-raha-7', role = /CEO or Managing Director/ } = {}) {
+  await fillDetails({ contact, password })
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+  await userEvent.click(await screen.findByRole('radio', { name: role }))
+}
+
+it('step 1 asks for your details, step 2 for your role, and Back keeps what you typed', async () => {
+  fakeApi()
+  renderApp('/signup')
+
+  expect(await screen.findByText('Step 1 of 2')).toBeInTheDocument()
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  await fillDetails()
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+  expect(await screen.findByText('Step 2 of 2')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Your role in the business' })).toHaveFocus()
+  expect(screen.queryByRole('textbox', { name: 'First name' })).not.toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Back' }))
+  expect(await screen.findByRole('textbox', { name: 'First name' })).toHaveValue('Wanjiru')
+  expect(screen.getByLabelText('Password')).toHaveValue('Mombasa-raha-7')
+})
 
 it('shows the role cards from the API, grouped, with Swahili names in Swahili', async () => {
   fakeApi()
   const { container } = renderApp('/signup')
+  await fillDetails()
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
   const group = await screen.findByRole('group', { name: 'Leadership' })
   expect(within(group).getByRole('radio', { name: /CEO or Managing Director/ })).toBeInTheDocument()
@@ -30,27 +55,34 @@ it('shows the role cards from the API, grouped, with Swahili names in Swahili', 
   await i18n.changeLanguage('en')
 })
 
-it('checks the form before sending anything', async () => {
+it('checks each step before moving on, and sends nothing until both are right', async () => {
   const calls = fakeApi()
   renderApp('/signup')
 
-  await userEvent.click(await screen.findByRole('button', { name: 'Create account' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Continue' }))
 
   expect(await screen.findByRole('textbox', { name: 'First name' })).toHaveAccessibleDescription('Enter your first name.')
   expect(screen.getByRole('textbox', { name: 'Email or phone number' })).toHaveAccessibleDescription(/valid email address or Kenyan phone number/)
-  expect(screen.getByText('Choose your role.')).toBeInTheDocument()
+  expect(screen.getByText('Step 1 of 2')).toBeInTheDocument()
+
+  await fillDetails()
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Create account' }))
+
+  expect(await screen.findByText('Choose your role.')).toBeInTheDocument()
   expect(calls.filter(c => c.path === '/api/auth/signup')).toHaveLength(0)
 })
 
 it('a weak password is refused, and the meter says how strong it is', async () => {
   const calls = fakeApi()
   renderApp('/signup')
-  await fill({ password: 'password1' })
+  await fillDetails({ password: 'password1' })
 
   expect(screen.getByText('Password strength: Weak')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
   expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(/Use at least 8 characters/)
+  expect(screen.getByText('Step 1 of 2')).toBeInTheDocument()
   expect(calls.filter(c => c.path === '/api/auth/signup')).toHaveLength(0)
 })
 
@@ -84,7 +116,7 @@ it('creates the account and lands on the welcome page, signed in', async () => {
   expect(calls.find(c => c.path === '/api/auth/me')?.auth).toBe('Bearer new-token')
 })
 
-it('an account that already exists is shown under the email or phone', async () => {
+it('an account that already exists takes you back to step 1, with the message under the email or phone', async () => {
   fakeApi({ 'POST /api/auth/signup': () => apiError(409, 'AUTH-1003', 'An account with this email or phone number already exists. Sign in instead.') })
   renderApp('/signup')
   await fill()

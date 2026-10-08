@@ -15,7 +15,7 @@ function Page({ onClose = () => {} }: { onClose?: () => void }) {
       <Button onClick={() => setOpen(true)}>Add location</Button>
       <Drawer open={open} title="Add location" onClose={close}
         footer={<><Button variant="secondary" onClick={close}>Cancel</Button><Button>Add location</Button></>}>
-        <TextField label="Location name" />
+        <TextField label="Location name" placeholder="e.g. Westlands branch" />
       </Drawer>
     </>
   )

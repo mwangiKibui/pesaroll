@@ -52,8 +52,8 @@ export default function SignInPage() {
       <form noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
-        <TextField label={t('auth.contact')} autoComplete="username" inputMode="email" error={fieldError('identifier')} {...register('identifier')} />
-        <PasswordField label={t('auth.password')} error={fieldError('password')} {...register('password')} />
+        <TextField label={t('auth.contact')} placeholder={t('auth.contactPlaceholder')} autoComplete="username" inputMode="email" error={fieldError('identifier')} {...register('identifier')} />
+        <PasswordField label={t('auth.password')} placeholder={t('signIn.passwordPlaceholder')} error={fieldError('password')} {...register('password')} />
         <Button type="submit" size="lg" fullWidth busy={isSubmitting}>{t('signIn.submit')}</Button>
         <p className="m-0 text-label">{t('signIn.noAccount')} <Link to="/signup">{t('signIn.signUp')}</Link></p>
       </form>

@@ -1,13 +1,16 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { createAppRouter } from './app/router'
 import { ServicesContext, type Services } from './app/services'
 import { ToastProvider } from './components/feedback'
+import { applyStartupTheme } from './theme/theme'
 
 /** The app: services for every screen, and the router. initialPath is for tests. */
 export default function App({ services, initialPath }: { services: Services; initialPath?: string }) {
   const [router] = useState(() => createAppRouter(services.auth, initialPath))
+
+  useLayoutEffect(() => { applyStartupTheme() }, [])
 
   // Signing in or out (here or in another tab) re-checks the current page's guard,
   // which moves the person to the right page.

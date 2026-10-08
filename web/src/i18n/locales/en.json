@@ -36,11 +36,17 @@
   },
   "auth": {
     "panelTitle": "Run your first payroll today.",
-    "panelText": "Payroll, payslips and leave in one place. Taxes and statutory deductions are worked out for you, and every employee gets their payslips and leave requests on their phone.",
+    "panelText": "Everything you need to pay and manage your people, in one place.",
     "contact": "Email or phone number",
     "password": "Password",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "featuresLabel": "What Pesaroll does",
+    "featurePayroll": "Every kind of payroll: monthly, weekly, daily and hourly workers, with taxes and statutory deductions worked out for you.",
+    "featurePhones": "Payslips and leave requests on every employee's phone.",
+    "featurePerformance": "Performance management: goals, check-ins and reviews.",
+    "featureTasks": "Task management: assignments, and checklists for people joining and leaving.",
+    "contactPlaceholder": "you@company.com or 0712 345 678"
   },
   "signUp": {
     "title": "Create your account",
@@ -59,14 +65,25 @@
     "submit": "Create account",
     "haveAccount": "Already have an account?",
     "signIn": "Sign in",
-    "terms": "By continuing you agree to our terms and privacy notice. We process staff data under Kenya's Data Protection Act."
+    "terms": "By continuing you agree to our terms and privacy notice. We process staff data under Kenya's Data Protection Act.",
+    "firstNamePlaceholder": "e.g. Amina",
+    "middleNamePlaceholder": "e.g. Wanjiru",
+    "lastNamePlaceholder": "e.g. Otieno",
+    "passwordPlaceholder": "At least 8 characters",
+    "roleOtherPlaceholder": "e.g. Head Chef",
+    "stepOf": "Step {{step}} of {{total}}",
+    "stepsLabel": "Sign-up steps",
+    "detailsTitle": "Your details",
+    "continue": "Continue",
+    "back": "Back"
   },
   "signIn": {
     "title": "Sign in",
     "intro": "Welcome back.",
     "submit": "Sign in",
     "noAccount": "New to Pesaroll?",
-    "signUp": "Create an account"
+    "signUp": "Create an account",
+    "passwordPlaceholder": "Your password"
   },
   "welcome": {
     "title": "Karibu, {{name}}",

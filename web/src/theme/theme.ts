@@ -3,6 +3,20 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react'
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type Theme = 'light' | 'dark'
 
+/**
+ * Light only for now: the dark values stay in tokens.css (and their contrast stays tested), but
+ * people can't choose dark. To turn the choice back on, set this to true and put ThemeMenu back
+ * in the navbar; index.html follows the same rule.
+ */
+export const THEME_CHOICE_ENABLED = false
+
+/** The theme a page starts in: the person's choice when choosing is on, otherwise light. */
+export function applyStartupTheme(): Theme {
+  if (THEME_CHOICE_ENABLED) return applyTheme(readPreference())
+  document.documentElement.dataset.theme = 'light'
+  return 'light'
+}
+
 /** Stored on the device for now; moves to the person's account settings later. index.html reads it too. */
 export const THEME_KEY = 'pesaroll.theme'
 const SYSTEM_DARK = '(prefers-color-scheme: dark)'

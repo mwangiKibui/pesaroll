@@ -8,17 +8,19 @@ How every Pesaroll screen looks and is built: the admin app, the back office and
 
 1. **Build screens from the components** in `web/src/components/`. Need something new? Add it there test-first, show it on the components page, then use it.
 2. **Colours come from tokens only:** `bg-card`, `text-muted`, `border-line`, `bg-brand`… never a hex code, `rgb()` or a Tailwind palette colour (`bg-green-700`). The values live in `web/src/styles/tokens.css`, once for light and once for dark. A test fails on raw colours anywhere else.
-3. **Light and dark.** The theme follows the device by default; people pick System, Light or Dark from the theme icon in the navbar (`ThemeMenu`). Every token has both values. Payslip PDFs and exported files are always light.
-4. **Every word through translations,** in English and Swahili (`web/src/i18n/locales/`). The keys must match; a test checks. **For now the app is English only:** people can't choose Swahili until a native speaker has reviewed it (to turn it on: `initialLanguage()` in `web/src/i18n/index.ts` and `LanguageSwitch` in the navbar).
-5. **Phone first for anything employees use.** Design the portal at 390 px wide; check every admin screen at phone width too (menus stack, tables scroll sideways inside their card).
-6. **Accessible as built:**
+3. **Light only for now.** Every token still has a light and a dark value, and both stay contrast-tested, so dark mode can return later. The app always shows light (`THEME_CHOICE_ENABLED` in `web/src/theme/theme.ts`; turning it on also needs `ThemeMenu` back in the navbar). Payslip PDFs and exported files are always light.
+4. **Every field has a placeholder** showing an example of what goes in it ("e.g. Amina", "you@company.com or 0712 345 678"). `TextField` won't compile without one. The label still says what the field is; the placeholder never replaces it.
+5. **Password fields have an eye icon inside the field** (on the right) to show or hide what was typed: use `PasswordField`, never a "Show password" link under the field.
+6. **Every word through translations,** in English and Swahili (`web/src/i18n/locales/`). The keys must match; a test checks. **For now the app is English only:** people can't choose Swahili until a native speaker has reviewed it (to turn it on: `initialLanguage()` in `web/src/i18n/index.ts` and `LanguageSwitch` in the navbar).
+7. **Phone first for anything employees use.** Design the portal at 390 px wide; check every admin screen at phone width too (menus stack, tables scroll sideways inside their card).
+8. **Accessible as built:**
    - real `<button>`, `<a href>` and labelled inputs
    - icon-only buttons carry a label (`IconButton label="Edit Westlands Restaurant"`)
    - tap targets at least 44 px (50 px for main buttons on the portal)
    - a visible focus ring
    - text contrast at least 4.5:1 in both themes (tested on the tokens)
    - every component test runs axe
-7. **Test-first:** component behaviour, keyboard use and axe, with Vitest and React Testing Library, next to the component (`Component.test.tsx`). Test what people see and do, not class names.
+9. **Test-first:** component behaviour, keyboard use and axe, with Vitest and React Testing Library, next to the component (`Component.test.tsx`). Test what people see and do, not class names.
 
 ## Look
 

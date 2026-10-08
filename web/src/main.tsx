@@ -4,9 +4,9 @@ import './index.css'
 import './i18n'
 import App from './App.tsx'
 import { createServices } from './app/services'
-import { applyTheme, readPreference } from './theme/theme'
+import { applyStartupTheme } from './theme/theme'
 
-applyTheme(readPreference())
+applyStartupTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

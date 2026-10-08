@@ -41,14 +41,22 @@ function Field({ id, label, hint, hintId, error, errorId, optional, children }: 
   )
 }
 
-type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
+type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'placeholder'> & {
+  /** Required: every field shows an example of what goes in it ("e.g. Amina"). The label still says what it is. */
+  placeholder: string
+  /** Something inside the field on the right, e.g. the password field's eye button. */
+  end?: ReactNode
+}
 
-export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, error, optional, size = 'md', className = '', ...input }, ref) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, error, optional, size = 'md', end, className = '', ...input }, ref) {
   const ids = useFieldIds(hint, error)
   return (
     <Field {...ids} label={label} hint={hint} error={error} optional={optional}>
-      <input ref={ref} id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
-        className={`${control} ${controlSize[size]} ${className}`} {...input} />
+      <div className="relative">
+        <input ref={ref} id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
+          className={`${control} ${controlSize[size]} ${end ? 'pr-12' : ''} ${className}`} {...input} />
+        {end && <div className="absolute inset-y-0 right-0 flex items-center pr-1">{end}</div>}
+      </div>
     </Field>
   )
 })

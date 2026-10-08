@@ -4,16 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <title>Pesaroll</title>
     <script>
-      // Apply the saved theme before the first paint, so dark mode never flashes white.
-      // Same rule as src/theme/theme.ts.
-      try {
-        var saved = localStorage.getItem('pesaroll.theme');
-        var dark = saved === 'dark' || (saved !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-      } catch (e) {}
+      // Light only for now (THEME_CHOICE_ENABLED in src/theme/theme.ts). When dark mode is switched
+      // back on, apply the saved choice here before the first paint so dark never flashes white.
+      document.documentElement.dataset.theme = 'light';
     </script>
   </head>
   <body>
