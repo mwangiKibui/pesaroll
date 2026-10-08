@@ -12,14 +12,14 @@ interface DrawerProps {
   children: ReactNode
   /** Cancel, then a button that names the action ("Add location", "Save changes"). */
   footer?: ReactNode
-  /** wide (760 px): records with several sections, shown as Tabs in `tabs`. */
+  /** wide (960 px): records with several sections, shown as Tabs in `tabs`. */
   size?: 'md' | 'wide'
   /** Tabs under the title; they stay in place while the content scrolls. */
   tabs?: ReactNode
 }
 
 /**
- * Add and edit happen in a drawer from the right (480 px, or 760 px with tabs for records with
+ * Add and edit happen in a drawer from the right (480 px, or 960 px with tabs for records with
  * several sections; full width on phones), never a
  * separate page. Escape and the scrim close it, Tab stays inside, and focus returns to the
  * button that opened it.
@@ -62,7 +62,7 @@ export function Drawer({ open, title, onClose, children, footer, size = 'md', ta
     <>
       <div data-testid="drawer-scrim" aria-hidden="true" className="fixed inset-0 z-40 bg-scrim" onClick={onClose} />
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-card shadow-drawer ${size === 'wide' ? 'max-w-[760px]' : 'max-w-[480px]'}`}>
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-card shadow-drawer ${size === 'wide' ? 'max-w-[960px]' : 'max-w-[480px]'}`}>
         <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
           <h2 id={titleId} className="m-0 font-display text-drawer-title text-ink">{title}</h2>
           <IconButton label={t('common.close')} onClick={onClose}>

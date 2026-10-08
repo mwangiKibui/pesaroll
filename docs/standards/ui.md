@@ -62,7 +62,7 @@ Colour tokens (light / dark):
   4. Labelled edit and delete `IconButton`s in each row.
   5. At the foot, "Save <things> and continue" plus Back.
 - **Add and edit happen in a `Drawer` from the right:** 480 px, full width on phones. Its title is "Add location" or "Edit location"; the footer has Cancel, then a button that names the action ("Add location", "Save changes"). Never a separate page or a centred pop-up.
-  - Records with many details (a company) use the wide drawer (760 px) with `Tabs` under the title: the record's own form on the first tab, in headed sections ("Company", "Statutory numbers", "Address and contact"), and things that are saved separately (paying accounts) on their own tabs. Hidden tabs keep what was typed; saving with a problem goes back to its tab, and a tab with something to fix is marked.
+  - Records with many details (a company) use the wide drawer (960 px) with `Tabs` under the title: the record's own form on the first tab, in headed sections ("Company", "Statutory numbers", "Address and contact"), and things that are saved separately (paying accounts) on their own tabs. Hidden tabs keep what was typed; saving with a problem goes back to its tab, and a tab with something to fix is marked.
   - Lists inside a drawer (a company's paying accounts) are a table; adding to them opens a `Modal` on top (a centred dialog, never a drawer on a drawer). Escape closes only the modal.
 - **Company selector (`CompanySelect`)** on every list and setup screen where companies can differ:
   - "All companies" first ("Includes companies added later")
