@@ -7,11 +7,11 @@ import { Navbar } from '../components/Navbar'
  * Sign-up and sign-in: the navbar across the top, then a deep green panel on the left (on top on
  * phones) with a decorative background, and the form on the right. Both sides are centred vertically; the panel lists what Pesaroll does.
  */
-export function AuthLayout({ title, intro, alignTop, children }: {
+export function AuthLayout({ title, intro, wide, children }: {
   title: string
   intro: string
-  /** Longer forms (sign-up) start near the top instead of the middle. */
-  alignTop?: boolean
+  /** Sign-up: a wider form (720 px) that starts near the top, so both steps fit without scrolling. Sign-in stays 460 px and centred. */
+  wide?: boolean
   children: ReactNode
 }) {
   const { t } = useTranslation()
@@ -35,8 +35,8 @@ export function AuthLayout({ title, intro, alignTop, children }: {
             </ul>
           </div>
         </section>
-        <main className={`flex flex-[1_1_480px] justify-center px-5 ${alignTop ? 'items-start pb-6 pt-4 md:pt-5' : 'items-center py-10 md:py-12'}`}>
-          <div className={`@container flex w-full max-w-[720px] flex-col ${alignTop ? 'gap-3' : 'gap-5'}`}>
+        <main className={`flex flex-[1_1_480px] justify-center px-5 ${wide ? 'items-start pb-6 pt-4 md:pt-5' : 'items-center py-10 md:py-12'}`}>
+          <div className={`@container flex w-full flex-col ${wide ? 'max-w-[720px] gap-3' : 'max-w-[460px] gap-5'}`}>
             <div className="flex flex-col gap-1">
               <h1 className="m-0 font-display text-title text-ink">{title}</h1>
               <p className="m-0 text-muted">{intro}</p>

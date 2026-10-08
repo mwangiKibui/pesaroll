@@ -103,7 +103,7 @@ export default function SignUpPage() {
   const level = passwordStrength(password)
 
   return (
-    <AuthLayout title={t('signUp.title')} intro={t('signUp.intro')} alignTop>
+    <AuthLayout title={t('signUp.title')} intro={t('signUp.intro')} wide>
       <form noValidate onSubmit={step === 1 ? e => { e.preventDefault(); void next() } : handleSubmit(onSubmit)} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <p className="m-0 text-label font-medium text-muted">{t('signUp.stepOf', { step, total: 2 })}</p>
