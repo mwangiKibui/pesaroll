@@ -173,6 +173,37 @@ export function SelectField({ label, hint, error, optional, size = 'md', options
   )
 }
 
+interface RadioGroupProps {
+  /** The question: "Pay from". */
+  label: string
+  name: string
+  options: { value: string; label: string; hint?: string }[]
+  value: string
+  onChange: (value: string) => void
+}
+
+/** One choice from a few (two to four) shown side by side; more than that is a SelectField. */
+export function RadioGroup({ label, name, options, value, onChange }: RadioGroupProps) {
+  const id = useId()
+  return (
+    <fieldset role="radiogroup" aria-labelledby={`${id}-label`} className="m-0 flex flex-col gap-1.5 border-0 p-0">
+      <legend id={`${id}-label`} className="mb-1.5 p-0 text-label font-medium text-ink">{label}</legend>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {options.map(o => (
+          <label key={o.value} className={`flex min-h-11 cursor-pointer items-start gap-2.5 rounded-control border px-3 py-2.5 ${o.value === value ? 'border-brand bg-brand-soft' : 'border-field-border bg-card'}`}>
+            <input type="radio" name={name} value={o.value} checked={o.value === value} onChange={() => onChange(o.value)}
+              aria-labelledby={`${id}-${o.value}-label`} aria-describedby={o.hint ? `${id}-${o.value}-hint` : undefined} className="mt-1 accent-brand" />
+            <span className="flex flex-col">
+              <span id={`${id}-${o.value}-label`} className="text-body text-ink">{o.label}</span>
+              {o.hint && <span id={`${id}-${o.value}-hint`} className="text-hint text-muted">{o.hint}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
 type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { label: ReactNode }
 
 export function Checkbox({ label, className = '', ...input }: CheckboxProps) {

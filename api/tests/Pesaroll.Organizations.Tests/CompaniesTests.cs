@@ -74,7 +74,7 @@ public sealed class CompaniesTests(OnboardingTests.Api api) : IClassFixture<Onbo
     }
 
     [Fact]
-    public async Task Adding_a_company_saves_its_details_and_cleaned_numbers_and_says_it_is_ready()
+    public async Task Adding_a_company_saves_its_details_and_cleaned_numbers_and_only_a_paying_account_is_missing()
     {
         var (client, _, _) = await Onboarded();
 
@@ -84,7 +84,9 @@ public sealed class CompaniesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var company = (await res.Content.ReadFromJsonAsync<Company>())!;
         Assert.Equal(("Mama Oliech Restaurants Ltd", "KES", "047"), (company.LegalName, company.Currency, company.RegionCode));
         Assert.Equal("P051234567X", company.Identifiers["kra_pin"]);
-        Assert.True(company.Readiness.Ready);
+        Assert.False(company.Readiness.Ready);
+        var missing = Assert.Single(company.Readiness.Missing);
+        Assert.Equal(("payment_account", "payment_account", "A paying account"), (missing.Kind, missing.Key, missing.Label.En));
         var list = (await client.GetFromJsonAsync<List<Company>>("/api/companies"))!;
         Assert.Equal(company.Id, Assert.Single(list).Id);
     }
@@ -99,7 +101,7 @@ public sealed class CompaniesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var company = (await res.Content.ReadFromJsonAsync<Company>())!;
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
         Assert.False(company.Readiness.Ready);
-        Assert.Equal(["nssf_employer_no", "sha_employer_no"], company.Readiness.Missing.Select(m => m.Key));
+        Assert.Equal(["nssf_employer_no", "sha_employer_no", "payment_account"], company.Readiness.Missing.Select(m => m.Key));
         Assert.Equal("NSSF employer number", company.Readiness.Missing[0].Label.En);
     }
 
@@ -162,7 +164,7 @@ public sealed class CompaniesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var updated = (await res.Content.ReadFromJsonAsync<Company>())!;
         Assert.Equal(("Mama Oliech Restaurants Limited", (string?)null, "001"), (updated.LegalName, updated.TradingName, updated.RegionCode));
         Assert.False(updated.Identifiers.ContainsKey("sha_employer_no"));
-        Assert.Equal("sha_employer_no", Assert.Single(updated.Readiness.Missing).Key);
+        Assert.Equal(["sha_employer_no", "payment_account"], updated.Readiness.Missing.Select(m => m.Key));
     }
 
     [Fact]

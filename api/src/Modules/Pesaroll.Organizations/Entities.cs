@@ -103,3 +103,49 @@ public sealed class Membership
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+public sealed class Bank
+{
+    public required string CountryCode { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public required string LegalName { get; set; }
+    public bool Active { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public sealed class BankBranch
+{
+    public required string CountryCode { get; set; }
+    public required string BankCode { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public bool Active { get; set; }
+    public int SortOrder { get; set; }
+}
+
+/// <summary>
+/// Where a company's payroll is paid from. Rows are never rewritten: the app may only move the
+/// default or close one (database/schema/tenancy/companies.sql grants nothing else).
+/// </summary>
+public sealed class CompanyPaymentAccount
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    /// <summary>bank or mpesa.</summary>
+    public required string Method { get; set; }
+    public string? CountryCode { get; set; }
+    public string? BankCode { get; set; }
+    public string? BranchCode { get; set; }
+    public string? AccountName { get; set; }
+    /// <summary>Encrypted with <see cref="Pesaroll.Shared.Security.FieldEncryptor"/>; see PaymentAccountsEndpoints.Context.</summary>
+    public byte[]? AccountNoEnc { get; set; }
+    public string? AccountLast4 { get; set; }
+    public string? MpesaShortcode { get; set; }
+    public bool IsDefault { get; set; }
+    public Guid CreatedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ClosedAt { get; set; }
+    public Guid? ClosedBy { get; set; }
+}

@@ -17,6 +17,9 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<CountryCompanyField> CountryCompanyFields => Set<CountryCompanyField>();
     public DbSet<CountryRegion> CountryRegions => Set<CountryRegion>();
     public DbSet<Industry> Industries => Set<Industry>();
+    public DbSet<Bank> Banks => Set<Bank>();
+    public DbSet<BankBranch> BankBranches => Set<BankBranch>();
+    public DbSet<CompanyPaymentAccount> CompanyPaymentAccounts => Set<CompanyPaymentAccount>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -42,5 +45,11 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<CountryRegion>().HasKey(r => new { r.CountryCode, r.Code });
         model.Entity<CountryRegion>().Property(r => r.CountryCode).HasColumnType("char(2)");
         model.Entity<Industry>().HasKey(i => i.Code);
+        model.Entity<Bank>().HasKey(b => new { b.CountryCode, b.Code });
+        model.Entity<Bank>().Property(b => b.CountryCode).HasColumnType("char(2)");
+        model.Entity<BankBranch>().HasKey(b => new { b.CountryCode, b.BankCode, b.Code });
+        model.Entity<BankBranch>().Property(b => b.CountryCode).HasColumnType("char(2)");
+        model.Entity<CompanyPaymentAccount>().Property(a => a.CountryCode).HasColumnType("char(2)");
+        model.Entity<CompanyPaymentAccount>().Property(a => a.CreatedAt).ValueGeneratedOnAdd();
     }
 }

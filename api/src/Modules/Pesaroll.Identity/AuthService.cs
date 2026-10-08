@@ -135,6 +135,30 @@ public sealed class AuthService(
         return await sessions.StartAsync(account.Id, organizationId, http, ct);
     }
 
+    /// <summary>
+    /// Asks a signed-in person for their password again before a sensitive change (where payroll
+    /// is paid from). Wrong attempts count towards the same lock as sign-in, so it can't be guessed.
+    /// </summary>
+    public async Task ConfirmPasswordAsync(Guid userId, string? password, CancellationToken ct)
+    {
+        var user = await db.Users.AsNoTracking().SingleAsync(u => u.Id == userId, ct);
+        if (user.LockedUntil > clock.GetUtcNow())
+        {
+            throw AuthErrors.Locked();
+        }
+
+        if (string.IsNullOrEmpty(password) || user.PasswordHash is null)
+        {
+            throw AuthErrors.PasswordNotConfirmed();
+        }
+
+        if (hasher.VerifyHashedPassword(user, user.PasswordHash, password) == PasswordVerificationResult.Failed)
+        {
+            var lockedUntil = await RecordSignInAsync(userId, success: false, ct);
+            throw lockedUntil > clock.GetUtcNow() ? AuthErrors.Locked() : AuthErrors.PasswordNotConfirmed();
+        }
+    }
+
     private async Task<DateTimeOffset?> RecordSignInAsync(Guid userId, bool success, CancellationToken ct) =>
         (await db.QueryAsync(
             "select record_signin_result(@user_id, @success)",

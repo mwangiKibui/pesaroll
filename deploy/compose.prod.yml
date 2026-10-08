@@ -15,6 +15,11 @@ services:
     #   Auth__Tokens__Keys__0__Secret=<base64>
     # To change keys without signing anyone out, put the new key at 0 and the old one at 1
     # for 15 minutes, then remove the old one. The API refuses to start without a key.
+    # .env must also set the field-encryption key for bank account numbers (openssl rand -base64 32):
+    #   Encryption__Keys__0__Id=2026-10
+    #   Encryption__Keys__0__Secret=<base64>
+    # Losing it makes stored account numbers unreadable: keep it in the password manager too.
+    # To change it, put the new key at 0 and keep the old one at 1 until old values are re-encrypted.
     restart: unless-stopped
   worker:
     image: registry.digitalocean.com/pesaroll/worker:${VERSION}

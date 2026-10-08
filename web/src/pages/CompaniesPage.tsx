@@ -14,6 +14,7 @@ import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components
 import { SelectField, TextField } from '../components/fields'
 import { TableCard } from '../components/TableCard'
 import { useToast } from '../components/toast'
+import { PaymentAccounts } from './PaymentAccounts'
 import i18n from '../i18n'
 import { useCompanies, useCountries, useIndustries, useOrganization, useSetupDone } from '../setup/hooks'
 import { SetupLayout } from '../setup/SetupLayout'
@@ -342,6 +343,12 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
         <TextField label={t('companies.email')} placeholder={t('companies.emailPlaceholder')} optional type="email"
           autoComplete="email" maxLength={254} error={err('email')} {...register('email')} />
       </form>
+      {company ? <PaymentAccounts company={company} /> : (
+        <section className="flex flex-col gap-1.5 border-t border-line pt-4">
+          <h3 className="m-0 text-label font-semibold text-ink">{t('payingAccounts.title')}</h3>
+          <p className="m-0 text-hint text-muted">{t('payingAccounts.saveFirst')}</p>
+        </section>
+      )}
     </Drawer>
   )
 }

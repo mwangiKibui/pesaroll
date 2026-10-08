@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { Checkbox, SelectField, TextField } from './fields'
+import { Checkbox, RadioGroup, SelectField, TextField } from './fields'
 
 it('a text field has its label above, its hint below, and says when it is optional', async () => {
   const { container } = render(<TextField label="Middle name" placeholder="Your middle name" hint="As on your ID" optional />)
@@ -152,4 +152,21 @@ it('a checkbox toggles by its label', async () => {
   render(<Checkbox label="Main location for Mama Oliech Restaurants" />)
   await userEvent.click(screen.getByText('Main location for Mama Oliech Restaurants'))
   expect(screen.getByRole('checkbox')).toBeChecked()
+})
+
+it('a radio group names its question and picks one option', async () => {
+  function PayFrom() {
+    const [value, setValue] = useState('bank')
+    return <><RadioGroup label="Pay from" name="method" value={value} onChange={setValue}
+      options={[{ value: 'bank', label: 'Bank account' }, { value: 'mpesa', label: 'M-Pesa', hint: 'A B2C shortcode' }]} /><output>{value}</output></>
+  }
+  const { container } = render(<PayFrom />)
+
+  const group = screen.getByRole('radiogroup', { name: 'Pay from' })
+  expect(screen.getByRole('radio', { name: 'Bank account' })).toBeChecked()
+  await userEvent.click(screen.getByText('M-Pesa'))
+  expect(screen.getByRole('status')).toHaveTextContent('mpesa')
+  expect(screen.getByRole('radio', { name: /M-Pesa/ })).toHaveAccessibleDescription('A B2C shortcode')
+  expect(group).toBeInTheDocument()
+  await expectNoA11yViolations(container)
 })

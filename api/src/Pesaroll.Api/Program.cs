@@ -3,6 +3,7 @@ using Microsoft.OpenApi;
 using Pesaroll.Identity;
 using Pesaroll.Organizations;
 using Pesaroll.Shared.Errors;
+using Pesaroll.Shared.Security;
 using Pesaroll.Shared.Web;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,7 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
 }));
 builder.Services.AddOrganizationsModule(connectionString);
 builder.Services.AddIdentityModule(connectionString, builder.Configuration);
+builder.Services.AddFieldEncryption(builder.Configuration);
 
 // The API only runs behind Caddy, which sets the client's address and scheme.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -67,6 +69,7 @@ app.MapGet("/api/health", async (OrganizationsDbContext db, CancellationToken ct
 app.MapIdentityEndpoints();
 app.MapOrganizationsEndpoints();
 app.MapCompaniesEndpoints();
+app.MapPaymentAccountsEndpoints();
 
 app.Run();
 
