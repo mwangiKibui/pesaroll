@@ -8,20 +8,23 @@ export const LANGUAGE_KEY = 'pesaroll.language'
 export const languages = ['en', 'sw'] as const
 export type Language = (typeof languages)[number]
 
-function storedLanguage(): Language {
-  try {
-    return localStorage.getItem(LANGUAGE_KEY) === 'sw' ? 'sw' : 'en'
-  } catch {
-    return 'en'
-  }
+/**
+ * English only for now: Swahili stays in the code (and its keys stay in step, see i18n.test.ts)
+ * but people can't choose it until the copy is reviewed. To turn it back on, return the stored
+ * choice here and put LanguageSwitch back in the navbar.
+ */
+export function initialLanguage(): Language {
+  return 'en'
 }
 
 void i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, sw: { translation: sw } },
-  lng: storedLanguage(),
+  lng: initialLanguage(),
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 })
+
+if (typeof document !== 'undefined') document.documentElement.lang = i18n.language
 
 i18n.on('languageChanged', lng => {
   document.documentElement.lang = lng
