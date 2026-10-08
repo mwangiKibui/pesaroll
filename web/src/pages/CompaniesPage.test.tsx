@@ -205,7 +205,7 @@ it('a company with every number shows ready for payroll', async () => {
   expect(screen.queryByText(/can't run payroll until/)).not.toBeInTheDocument()
 })
 
-it('continuing needs at least one company, then goes to the dashboard with two steps done', async () => {
+it('continuing needs at least one company, then goes on to Locations', async () => {
   let companies: ReturnType<typeof company>[] = []
   fakeApi({ ...signedIn, 'GET /api/companies': () => json(200, companies), 'POST /api/companies': () => { companies = [saved]; return json(201, saved) } })
   renderApp('/setup/companies')
@@ -219,9 +219,7 @@ it('continuing needs at least one company, then goes to the dashboard with two s
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
-  expect(screen.getByText('Finish setting up · 2 of 10')).toBeInTheDocument()
-  expect(screen.getAllByText('Next: Locations').length).toBeGreaterThan(0)
+  expect(await screen.findByRole('heading', { name: 'Where do your people work?' })).toBeInTheDocument()
 })
 
 it('the organization step leads on to companies', async () => {

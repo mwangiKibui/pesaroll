@@ -36,6 +36,11 @@ export const kenya = {
     { key: 'business_registration_no', label: text('Business registration number'), hint: null, example: null, pattern: null, requiredForPayroll: false },
   ],
   regions: [{ code: '001', name: 'Mombasa' }, { code: '022', name: 'Kiambu' }, { code: '047', name: 'Nairobi' }],
+  wageAreas: [
+    { code: 'cities', name: text('Cities'), description: text('Nairobi, Mombasa, Kisumu, Nakuru and Eldoret cities.'), towns: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'] },
+    { code: 'municipalities', name: text('Former municipalities and town councils'), description: text('Former municipalities and the town councils of Mavoko, Ruiru and Limuru.'), towns: ['Mavoko', 'Ruiru', 'Limuru'] },
+    { code: 'other', name: text('All other areas'), description: text('Anywhere that is neither a city, a former municipality nor one of those town councils.'), towns: [] },
+  ],
 }
 
 export const industries = [
@@ -67,6 +72,13 @@ export const equityAccount = (overrides: Record<string, unknown> = {}) => ({
   isDefault: true, createdAt: '2026-10-08T10:00:00Z', ...overrides,
 })
 
+/** A location as the API returns it; by default the company's Head office and its main location. */
+export const location = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000d001', code: 'HQ-01', name: 'Head office', countryCode: 'KE', regionCode: '047', town: 'Nairobi',
+  addressLine: 'Marcus Garvey Road', wageAreaCode: 'cities', allCompanies: false,
+  companyIds: [company().id], mainFor: [company().id], ...overrides,
+})
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -91,6 +103,7 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/industries': () => json(200, industries),
     'GET /api/companies': () => json(200, []),
     'GET /api/banks': () => json(200, banks),
+    'GET /api/locations': () => json(200, []),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }

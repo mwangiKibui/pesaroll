@@ -58,6 +58,10 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3509 | We couldn't find that company. | Customer | The company doesn't exist, was deleted, or belongs to another organization. |
 | ONB-3510 | Some paying account details don't look right. Check the fields marked. | Customer | A paying account detail failed its check; `fields` says which (bank and branch must be from the list; account number 6 to 20 digits; M-Pesa shortcode 5 to 7 digits). |
 | ONB-3511 | We couldn't find that paying account. | Customer | The account doesn't exist, was already removed, or belongs to another company or organization. |
+| ONB-3512 | Some location details don't look right. Check the fields marked. | Customer | A location detail failed its check; fields says which (name, code format, county, minimum-wage area, companies, main location). |
+| ONB-3513 | Another location already has this code. Choose a different one or leave it empty. | Customer | Location codes are unique in the organization; leaving it empty makes one (MOM-01). |
+| ONB-3514 | We couldn't find that location. | Customer | The location doesn't exist, was deleted, or belongs to another organization. |
+| ONB-3515 | This is the main location of {companies}. Make another location their main location first. | Customer | Every company keeps exactly one main location: it can't be deleted or unticked until another location is made main. |
 | PAY-2001 | {employee} has no KRA PIN, so PAYE can't be filed. | Customer | Add the KRA PIN on the employee's profile, then rerun. |
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |
