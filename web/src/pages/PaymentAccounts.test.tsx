@@ -65,7 +65,7 @@ it('adds a bank account; the number only shows masked', async () => {
   expect(screen.queryByRole('dialog', { name: 'Add paying account' })).not.toBeInTheDocument()
   expect(drawer()).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === path)?.body).toEqual({
-    method: 'bank', bankCode: '68', branchCode: '047', accountName: 'Mama Oliech Restaurant Ltd', accountNumber: '0123 4567 8901', mpesaShortcode: null,
+    method: 'bank', bankCode: '68', branchCode: '047', accountName: 'Mama Oliech Restaurant Ltd', accountNumber: '0123 4567 8901', mpesaShortcode: null, isDefault: true,
   })
   expect(within(section()).getAllByRole('columnheader').map(h => h.textContent))
     .toEqual(['Pay from', 'Bank and branch', 'Account name', 'Account', 'Default', 'Actions'])
@@ -105,7 +105,7 @@ it('adds an M-Pesa shortcode instead', async () => {
 
   expect(await screen.findByText('Paying account added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === path)?.body).toEqual({
-    method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: '600123',
+    method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: '600123', isDefault: true,
   })
 })
 
@@ -158,4 +158,41 @@ it('edits an account in a modal; leaving the number empty keeps it', async () =>
   expect(await screen.findByText('Paying account saved')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({ method: 'bank', bankCode: '01', branchCode: '100', accountNumber: '' })
   expect(await within(section()).findByText('KCB Bank')).toBeInTheDocument()
+})
+
+it('the first account is always the default: the toggle is on and locked', async () => {
+  await openEdit()
+  await userEvent.click(within(section()).getByRole('button', { name: 'Add paying account' }))
+
+  const first = within(modal()).getByRole('switch', { name: 'Use as the default' })
+  expect(first).toHaveAttribute('aria-checked', 'true')
+  expect(first).toBeDisabled()
+  expect(first).toHaveAccessibleDescription('The first account is always the default.')
+})
+
+it('another account can be made the default from the modal; the default itself stays locked', async () => {
+  const { calls } = await openEdit({
+    [`GET ${path}`]: () => json(200, [equityAccount()]),
+    [`POST ${path}`]: () => json(201, mpesa),
+  })
+  await within(section()).findByText('•••• 8901')
+
+  await userEvent.click(within(section()).getByRole('button', { name: 'Edit Equity Bank •••• 8901' }))
+  const editing = screen.getByRole('dialog', { name: 'Edit paying account' })
+  const locked = within(editing).getByRole('switch', { name: 'Use as the default' })
+  expect(locked).toHaveAttribute('aria-checked', 'true')
+  expect(locked).toBeDisabled()
+  expect(locked).toHaveAccessibleDescription('To change the default, turn this on for another account.')
+  await userEvent.click(within(editing).getByRole('button', { name: 'Cancel' }))
+
+  await userEvent.click(within(section()).getByRole('button', { name: 'Add paying account' }))
+  const toggle = within(modal()).getByRole('switch', { name: 'Use as the default' })
+  expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await userEvent.click(within(modal()).getByText('M-Pesa'))
+  await userEvent.type(within(modal()).getByRole('textbox', { name: 'M-Pesa shortcode' }), '600123')
+  await userEvent.click(toggle)
+  await userEvent.click(within(modal()).getByRole('button', { name: 'Add account' }))
+
+  expect(await screen.findByText('Paying account added')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'POST' && c.path === path)?.body).toMatchObject({ method: 'mpesa', isDefault: true })
 })

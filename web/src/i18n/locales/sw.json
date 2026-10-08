@@ -280,6 +280,10 @@
     "editTitle": "Hariri akaunti ya kulipa",
     "save": "Hifadhi mabadiliko",
     "saved": "Akaunti ya kulipa imehifadhiwa",
-    "keepNumber": "Acha wazi ili kubaki na {{masked}}."
+    "keepNumber": "Acha wazi ili kubaki na {{masked}}.",
+    "useAsDefault": "Tumia kama akaunti kuu",
+    "firstIsDefault": "Akaunti ya kwanza huwa kuu kila wakati.",
+    "defaultLocked": "Kubadilisha akaunti kuu, washa hili kwa akaunti nyingine.",
+    "defaultHint": "Mishahara hulipwa kutoka akaunti kuu isipokuwa uchague nyingine."
   }
 }

@@ -280,6 +280,10 @@
     "editTitle": "Edit paying account",
     "save": "Save changes",
     "saved": "Paying account saved",
-    "keepNumber": "Leave empty to keep {{masked}}."
+    "keepNumber": "Leave empty to keep {{masked}}.",
+    "useAsDefault": "Use as the default",
+    "firstIsDefault": "The first account is always the default.",
+    "defaultLocked": "To change the default, turn this on for another account.",
+    "defaultHint": "Payroll is paid from the default unless you choose another account."
   }
 }

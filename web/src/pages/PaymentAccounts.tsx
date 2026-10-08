@@ -11,7 +11,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { Modal } from '../components/Modal'
 import { TableCard } from '../components/TableCard'
-import { RadioGroup, SelectField, TextField } from '../components/fields'
+import { RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { useToast } from '../components/toast'
 
 type Company = components['schemas']['CompanyResponse']
@@ -24,6 +24,7 @@ interface Values {
   accountName: string
   accountNumber: string
   mpesaShortcode: string
+  isDefault: boolean
 }
 
 const none = <span className="text-muted">—</span>
@@ -144,7 +145,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
           )}
         </TableCard>
       )}
-      {editing && <AccountForm company={company} account={editing === 'new' ? null : editing}
+      {editing && <AccountForm company={company} account={editing === 'new' ? null : editing} isFirst={list.length === 0}
         onDone={() => { setEditing(null); changed() }} onCancel={() => setEditing(null)} />}
       <ConfirmDialog open={!!removing} title={t('payingAccounts.removeTitle', { name: removing ? shortName(t, removing) : '' })}
         confirmLabel={t('payingAccounts.removeConfirm')} busy={busy} onConfirm={remove} onCancel={() => setRemoving(null)}>
@@ -158,7 +159,14 @@ export function PaymentAccounts({ company }: { company: Company }) {
  * Adding or editing an account, in a modal. Editing replaces the account (the API closes the old
  * one and keeps it on record); a bank account's number can be left empty to keep it.
  */
-function AccountForm({ company, account, onDone, onCancel }: { company: Company; account: Account | null; onDone: () => void; onCancel: () => void }) {
+function AccountForm({ company, account, isFirst, onDone, onCancel }: {
+  company: Company
+  account: Account | null
+  /** The company has no accounts yet: this one will be the default. */
+  isFirst: boolean
+  onDone: () => void
+  onCancel: () => void
+}) {
   const { t } = useTranslation()
   const { api } = useServices()
   const toast = useToast()
@@ -181,6 +189,7 @@ function AccountForm({ company, account, onDone, onCancel }: { company: Company;
       accountName: account?.accountName ?? company.legalName,
       accountNumber: '',
       mpesaShortcode: account?.mpesaShortcode ?? '',
+      isDefault: isFirst || !!account?.isDefault,
     },
   })
   const method = useWatch({ control, name: 'method' })
@@ -210,8 +219,8 @@ function AccountForm({ company, account, onDone, onCancel }: { company: Company;
     if (!check(v)) return
     // The other method's fields are sent empty.
     const body = v.method === 'mpesa'
-      ? { method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: v.mpesaShortcode.trim() }
-      : { method: 'bank', bankCode: v.bankCode, branchCode: v.branchCode, accountName: v.accountName.trim(), accountNumber: v.accountNumber.trim(), mpesaShortcode: null }
+      ? { method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: v.mpesaShortcode.trim(), isDefault: v.isDefault }
+      : { method: 'bank', bankCode: v.bankCode, branchCode: v.branchCode, accountName: v.accountName.trim(), accountNumber: v.accountNumber.trim(), mpesaShortcode: null, isDefault: v.isDefault }
     try {
       const { data, error } = account
         ? await api.PUT('/api/companies/{companyId}/payment-accounts/{accountId}', { params: { path: { companyId: company.id, accountId: account.id } }, body })
@@ -268,6 +277,12 @@ function AccountForm({ company, account, onDone, onCancel }: { company: Company;
         <TextField label={t('payingAccounts.shortcode')} placeholder={t('payingAccounts.shortcodePlaceholder')} hint={t('payingAccounts.shortcodeHint')}
           inputMode="numeric" maxLength={7} error={errors.mpesaShortcode?.message} {...register('mpesaShortcode')} />
       )}
+      {/* A company always has one default: the first account is it, and the default changes by choosing another. */}
+      <Controller control={control} name="isDefault" render={({ field }) => (
+        <Switch label={t('payingAccounts.useAsDefault')} checked={field.value} onChange={field.onChange}
+          disabled={isFirst || !!account?.isDefault}
+          hint={isFirst ? t('payingAccounts.firstIsDefault') : account?.isDefault ? t('payingAccounts.defaultLocked') : t('payingAccounts.defaultHint')} />
+      )} />
     </form>
     </Modal>
   )

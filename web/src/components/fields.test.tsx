@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { Checkbox, RadioGroup, SelectField, TextField } from './fields'
+import { Checkbox, RadioGroup, SelectField, Switch, TextField } from './fields'
 
 it('a text field has its label above, its hint below, and says when it is optional', async () => {
   const { container } = render(<TextField label="Middle name" placeholder="Your middle name" hint="As on your ID" optional />)
@@ -169,4 +169,27 @@ it('a radio group names its question and picks one option', async () => {
   expect(screen.getByRole('radio', { name: /M-Pesa/ })).toHaveAccessibleDescription('A B2C shortcode')
   expect(group).toBeInTheDocument()
   await expectNoA11yViolations(container)
+})
+
+it('a switch turns a setting on and off, says why when it is locked, and works from the keyboard', async () => {
+  function Default({ disabled = false }) {
+    const [on, setOn] = useState(false)
+    return <><Switch label="Use as the default" hint="Payroll is paid from it unless you choose another." checked={on} onChange={setOn} disabled={disabled} /><output>{on ? 'on' : 'off'}</output></>
+  }
+  const { container, unmount } = render(<Default />)
+
+  const toggle = screen.getByRole('switch', { name: 'Use as the default' })
+  expect(toggle).toHaveAttribute('aria-checked', 'false')
+  expect(toggle).toHaveAccessibleDescription('Payroll is paid from it unless you choose another.')
+  await userEvent.click(toggle)
+  expect(toggle).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByRole('status')).toHaveTextContent('on')
+  await userEvent.keyboard(' ')
+  expect(screen.getByRole('status')).toHaveTextContent('off')
+  await expectNoA11yViolations(container)
+  unmount()
+
+  render(<Default disabled />)
+  await userEvent.click(screen.getByRole('switch', { name: 'Use as the default' }))
+  expect(screen.getByRole('status')).toHaveTextContent('off')
 })

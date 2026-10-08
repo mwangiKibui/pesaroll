@@ -225,6 +225,37 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
     }
 
     [Fact]
+    public async Task Adding_or_editing_with_is_default_makes_it_the_one_default()
+    {
+        var (client, _, _, companyId) = await CompanyReadyButForAccount();
+        var path = $"/api/companies/{companyId}/payment-accounts";
+        var first = (await (await client.PostAsJsonAsync(path, EquityAccount())).Content.ReadFromJsonAsync<Account>())!;
+        var plain = (await (await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = "600123", isDefault = false }))
+            .Content.ReadFromJsonAsync<Account>())!;
+        Assert.False(plain.IsDefault);
+
+        var chosen = (await (await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = "600124", isDefault = true }))
+            .Content.ReadFromJsonAsync<Account>())!;
+
+        Assert.True(chosen.IsDefault);
+        var open = (await client.GetFromJsonAsync<List<Account>>(path))!;
+        Assert.Equal(chosen.Id, Assert.Single(open, a => a.IsDefault).Id);
+
+        var edited = (await (await client.PutAsJsonAsync($"{path}/{plain.Id}", new { method = "mpesa", mpesaShortcode = "600125", isDefault = true }))
+            .Content.ReadFromJsonAsync<Account>())!;
+
+        Assert.True(edited.IsDefault);
+        open = (await client.GetFromJsonAsync<List<Account>>(path))!;
+        Assert.Equal(edited.Id, Assert.Single(open, a => a.IsDefault).Id);
+        Assert.Contains(open, a => a.Id == first.Id && !a.IsDefault);
+
+        // The default stays the default when edited, even if the request says otherwise.
+        var kept = (await (await client.PutAsJsonAsync($"{path}/{edited.Id}", new { method = "mpesa", mpesaShortcode = "600126", isDefault = false }))
+            .Content.ReadFromJsonAsync<Account>())!;
+        Assert.True(kept.IsDefault);
+    }
+
+    [Fact]
     public async Task Another_organizations_company_and_plain_members_get_nothing()
     {
         var (a, _, orgId, companyId) = await CompanyReadyButForAccount();

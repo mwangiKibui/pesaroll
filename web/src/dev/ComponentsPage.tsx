@@ -4,7 +4,7 @@ import { CompanySelect, type CompanySelection } from '../components/CompanySelec
 import { Drawer } from '../components/Drawer'
 import { Modal } from '../components/Modal'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
-import { Checkbox, RadioGroup, SelectField, TextField } from '../components/fields'
+import { Checkbox, RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { PasswordField } from '../components/PasswordField'
 import { Money } from '../components/Money'
 import { AppShell, PhoneShell } from '../components/shells'
@@ -46,6 +46,7 @@ export default function ComponentsPage() {
   const [one, setOne] = useState<CompanySelection>({ all: false, ids: ['ug'] })
   const [town, setTown] = useState('nbo')
   const [payFrom, setPayFrom] = useState('bank')
+  const [isDefault, setIsDefault] = useState(true)
 
   return (
     <AppShell current="components" organization="Mama Oliech Group" person="Grace Wanjiru · CEO or Managing Director"
@@ -87,6 +88,7 @@ export default function ComponentsPage() {
             <div className="flex flex-col"><Checkbox label="Main location for Mama Oliech Restaurants · KE" defaultChecked /><Checkbox label="Main location for Oliech Catering · UG" /></div>
             <RadioGroup label="Pay from" name="dev-pay-from" value={payFrom} onChange={setPayFrom}
               options={[{ value: 'bank', label: 'Bank account', hint: 'A bulk payment file for your bank.' }, { value: 'mpesa', label: 'M-Pesa', hint: 'A B2C shortcode that sends pay to phones.' }]} />
+            <Switch label="Use as the default" hint="Payroll is paid from the default unless you choose another account." checked={isDefault} onChange={setIsDefault} />
           </div>
         </Section>
 

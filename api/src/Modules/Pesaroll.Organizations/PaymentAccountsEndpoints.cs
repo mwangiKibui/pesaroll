@@ -14,9 +14,14 @@ public sealed record BranchResponse(string Code, string Name);
 
 public sealed record BankResponse(string Code, string Name, IReadOnlyList<BranchResponse> Branches);
 
-/// <summary>Adding a paying account: a bank account (bank, branch, name, number) or an M-Pesa shortcode.</summary>
+/// <summary>
+/// Adding or editing a paying account: a bank account (bank, branch, name, number) or an M-Pesa
+/// shortcode. <see cref="IsDefault"/> makes it the company's default; the first account always is,
+/// and the default stays the default until another account is made the default.
+/// </summary>
 public sealed record PaymentAccountRequest(
-    string? Method, string? BankCode, string? BranchCode, string? AccountName, string? AccountNumber, string? MpesaShortcode);
+    string? Method, string? BankCode, string? BranchCode, string? AccountName, string? AccountNumber, string? MpesaShortcode,
+    bool? IsDefault = null);
 
 /// <summary>A paying account as people see it: the account number only ever masked ("•••• 8901").</summary>
 public sealed record PaymentAccountResponse(
@@ -67,15 +72,23 @@ public static class PaymentAccountsEndpoints
             account.Id = Guid.CreateVersion7();
             account.OrganizationId = organizationId;
             account.CreatedBy = userId;
-            // The first open account is the default; later ones are made default on purpose.
-            account.IsDefault = !await db.CompanyPaymentAccounts.AnyAsync(a => a.CompanyId == company.Id && a.ClosedAt == null, ct);
             if (number is not null)
             {
                 account.AccountNoEnc = encryptor.Encrypt(number, Context(company.Id));
             }
 
+            // The first open account is the default; later ones only when asked.
+            var open = await db.CompanyPaymentAccounts.Where(a => a.CompanyId == company.Id && a.ClosedAt == null).ToListAsync(ct);
+            account.IsDefault = open.Count == 0 || request.IsDefault == true;
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            if (account.IsDefault)
+            {
+                await ClearDefaultAsync(db, open, ct);
+            }
+
             db.CompanyPaymentAccounts.Add(account);
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             var saved = (await ListAsync(db, company, ct)).Single(a => a.Id == account.Id);
             return Results.Created($"/api/companies/{company.Id}/payment-accounts/{account.Id}", saved);
         }).Produces<PaymentAccountResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -107,12 +120,18 @@ public static class PaymentAccountsEndpoints
                 account.AccountLast4 = old.AccountLast4;
             }
 
-            // Close the old row first: only one open account may be the default at a time.
+            // The default stays the default; another becomes it only when asked. Close the old row and
+            // clear the old default first: only one open account may be the default at a time.
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            account.IsDefault = old.IsDefault;
+            account.IsDefault = old.IsDefault || request.IsDefault == true;
             old.IsDefault = false;
             old.ClosedAt = clock.GetUtcNow();
             old.ClosedBy = userId;
+            if (account.IsDefault)
+            {
+                await ClearDefaultAsync(db, await db.CompanyPaymentAccounts.Where(a => a.CompanyId == company.Id && a.ClosedAt == null).ToListAsync(ct), ct);
+            }
+
             await db.SaveChangesAsync(ct);
             db.CompanyPaymentAccounts.Add(account);
             await db.SaveChangesAsync(ct);
@@ -167,15 +186,20 @@ public static class PaymentAccountsEndpoints
         await db.Companies.AsNoTracking().SingleOrDefaultAsync(c => c.Id == companyId && c.Status == "active", ct)
             ?? throw OnboardingErrors.CompanyNotFound();
 
-    // Two steps, because only one open account may be the default at any moment (a unique index).
-    private static async Task MakeDefaultAsync(OrganizationsDbContext db, List<CompanyPaymentAccount> open, CompanyPaymentAccount chosen, CancellationToken ct)
+    private static async Task ClearDefaultAsync(OrganizationsDbContext db, List<CompanyPaymentAccount> open, CancellationToken ct)
     {
-        foreach (var other in open.Where(a => a.IsDefault && a.Id != chosen.Id))
+        foreach (var other in open.Where(a => a.IsDefault))
         {
             other.IsDefault = false;
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    // Two steps, because only one open account may be the default at any moment (a unique index).
+    private static async Task MakeDefaultAsync(OrganizationsDbContext db, List<CompanyPaymentAccount> open, CompanyPaymentAccount chosen, CancellationToken ct)
+    {
+        await ClearDefaultAsync(db, open.Where(a => a.Id != chosen.Id).ToList(), ct);
         chosen.IsDefault = true;
         await db.SaveChangesAsync(ct);
     }

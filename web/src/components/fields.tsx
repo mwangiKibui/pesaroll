@@ -204,6 +204,36 @@ export function RadioGroup({ label, name, options, value, onChange }: RadioGroup
   )
 }
 
+interface SwitchProps {
+  label: string
+  /** Why it matters, or why it can't be changed right now. */
+  hint?: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+}
+
+/** A setting that is on or off and applies at once in the form ("Use as the default"). Space or click toggles. */
+export function Switch({ label, hint, checked, onChange, disabled }: SwitchProps) {
+  const id = useId()
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="flex flex-col gap-0.5">
+        <span id={`${id}-label`} className="text-label font-medium text-ink">{label}</span>
+        {hint && <span id={`${id}-hint`} className="text-hint text-muted">{hint}</span>}
+      </span>
+      <button type="button" role="switch" aria-checked={checked} aria-labelledby={`${id}-label`}
+        aria-describedby={hint ? `${id}-hint` : undefined} disabled={disabled} onClick={() => onChange(!checked)}
+        className="flex min-h-11 min-w-14 flex-none items-center justify-center rounded-control">
+        {/* 44 px to tap; the track inside is smaller. */}
+        <span aria-hidden="true" className={`flex h-7 w-12 items-center rounded-full transition-colors ${checked ? 'bg-brand' : 'bg-field-border'}`}>
+          <span className={`inline-block size-5 rounded-full bg-card shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+        </span>
+      </button>
+    </div>
+  )
+}
+
 type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { label: ReactNode }
 
 export function Checkbox({ label, className = '', ...input }: CheckboxProps) {

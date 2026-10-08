@@ -1336,6 +1336,7 @@ export interface components {
             accountName: null | string;
             accountNumber: null | string;
             mpesaShortcode: null | string;
+            isDefault?: null | boolean;
         };
         PaymentAccountResponse: {
             /** Format: uuid */
