@@ -1,0 +1,41 @@
+{
+  "common": {
+    "optional": "optional",
+    "cancel": "Cancel",
+    "close": "Close",
+    "done": "Done",
+    "loading": "Loading",
+    "menu": "Menu"
+  },
+  "nav": {
+    "main": "Main"
+  },
+  "errors": {
+    "codeAndReference": "Code {{code}} · Reference {{reference}}"
+  },
+  "company": {
+    "all": "All companies",
+    "allHint": "Includes companies added later",
+    "placeholder": "Select companies",
+    "selected": "{{count}} selected"
+  },
+  "setup": {
+    "progress": "Finish setting up · {{done}} of {{total}}",
+    "next": "Next: {{step}}"
+  },
+  "theme": {
+    "label": "Theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "sw": "Kiswahili"
+  },
+  "app": {
+    "tagline": "HR and payroll for East Africa.",
+    "comingSoon": "Sign-up and sign-in are coming next."
+  }
+}

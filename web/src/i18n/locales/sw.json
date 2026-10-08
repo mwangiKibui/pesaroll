@@ -1,0 +1,41 @@
+{
+  "common": {
+    "optional": "si lazima",
+    "cancel": "Ghairi",
+    "close": "Funga",
+    "done": "Tayari",
+    "loading": "Inapakia",
+    "menu": "Menyu"
+  },
+  "nav": {
+    "main": "Menyu kuu"
+  },
+  "errors": {
+    "codeAndReference": "Msimbo {{code}} · Kumbukumbu {{reference}}"
+  },
+  "company": {
+    "all": "Kampuni zote",
+    "allHint": "Pamoja na kampuni zitakazoongezwa baadaye",
+    "placeholder": "Chagua kampuni",
+    "selected": "{{count}} zimechaguliwa"
+  },
+  "setup": {
+    "progress": "Maliza kuweka mipangilio · {{done}} kati ya {{total}}",
+    "next": "Inayofuata: {{step}}"
+  },
+  "theme": {
+    "label": "Mwonekano",
+    "system": "Kama kifaa",
+    "light": "Mwangaza",
+    "dark": "Giza"
+  },
+  "language": {
+    "label": "Lugha",
+    "en": "English",
+    "sw": "Kiswahili"
+  },
+  "app": {
+    "tagline": "HR na mishahara kwa Afrika Mashariki.",
+    "comingSoon": "Kujisajili na kuingia kunakuja hivi karibuni."
+  }
+}
