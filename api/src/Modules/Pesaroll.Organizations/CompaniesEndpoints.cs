@@ -22,7 +22,7 @@ public sealed record RegionResponse(string Code, string Name);
 
 public sealed record CountryResponse(
     string Code, LocalizedText Name, string Currency, LocalizedText RegionLabel,
-    IReadOnlyList<CompanyFieldResponse> Fields, IReadOnlyList<RegionResponse> Regions);
+    IReadOnlyList<CompanyFieldResponse> Fields, IReadOnlyList<RegionResponse> Regions, IReadOnlyList<WageAreaResponse> WageAreas);
 
 public sealed record IndustryResponse(string Code, LocalizedText Name);
 
@@ -53,10 +53,13 @@ public static class CompaniesEndpoints
             var codes = countries.Select(c => c.Code).ToList();
             var fields = await db.CountryCompanyFields.Where(f => codes.Contains(f.CountryCode) && f.Active).OrderBy(f => f.SortOrder).ToListAsync(ct);
             var regions = await db.CountryRegions.Where(r => codes.Contains(r.CountryCode)).OrderBy(r => r.SortOrder).ToListAsync(ct);
+            var areas = await db.CountryWageAreas.Where(a => codes.Contains(a.CountryCode) && a.Active).OrderBy(a => a.SortOrder).ToListAsync(ct);
             return Results.Ok(countries.Select(c => new CountryResponse(
                 c.Code, new LocalizedText(c.NameEn, c.NameSw), c.Currency, new LocalizedText(c.RegionLabelEn, c.RegionLabelSw),
                 fields.Where(f => f.CountryCode == c.Code).Select(ToResponse).ToList(),
-                regions.Where(r => r.CountryCode == c.Code).Select(r => new RegionResponse(r.Code, r.Name)).ToList())).ToList());
+                regions.Where(r => r.CountryCode == c.Code).Select(r => new RegionResponse(r.Code, r.Name)).ToList(),
+                areas.Where(a => a.CountryCode == c.Code).Select(a => new WageAreaResponse(a.Code, new LocalizedText(a.NameEn, a.NameSw),
+                    new LocalizedText(a.DescriptionEn, a.DescriptionSw), a.Towns)).ToList())).ToList());
         }).WithTags("Companies").Produces<List<CountryResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         app.MapGet("/api/industries", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
@@ -78,7 +81,8 @@ public static class CompaniesEndpoints
             return Results.Ok(list.Select(c => ToResponse(c, fields, paying.Contains(c.Id))).ToList());
         }).Produces<List<CompanyResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
-        companies.MapPost("/", async (CompanyRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        companies.MapPost("/", async (CompanyRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
+            TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = RequireOrganization(tenant, http);
             await RequireOnboarder(db, userId, organizationId, ct);
@@ -101,6 +105,10 @@ public static class CompaniesEndpoints
             // The new company joins the companies this request may see, so row-level security lets
             // it (and its numbers) be written. Its organization is still checked by the tenant policy.
             tenant.Set(organizationId, [.. tenant.CompanyIds, company.Id]);
+            // Its main location, suggested from its address (ONB-04); kept even if the Locations step is skipped.
+            var headOffice = await LocationsEndpoints.HeadOfficeAsync(db, company, clock.GetUtcNow(), ct);
+            company.MainLocationId = headOffice.Id;
+            db.Locations.Add(headOffice);
             db.Companies.Add(company);
             await SaveAsync(db, ct);
 
@@ -161,8 +169,20 @@ public static class CompaniesEndpoints
             var company = await db.Companies.SingleOrDefaultAsync(c => c.Id == id && c.Status == "active", ct)
                 ?? throw OnboardingErrors.CompanyNotFound();
             await RequireOnboarder(db, userId, organizationId, ct);
-            db.Companies.Remove(company);   // its numbers go with it (on delete cascade)
+            // Locations only this company used go with it; shared ones stay for the others.
+            var onlyItsOwn = await db.Locations
+                .Where(l => !l.AllCompanies && l.Companies.Any(c => c.CompanyId == id) && l.Companies.All(c => c.CompanyId == id))
+                .ToListAsync(ct);
+            // Locations first, while their links still make them visible (row-level security), then the
+            // company, its numbers and links (on delete cascade).
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            company.MainLocationId = null;
             await db.SaveChangesAsync(ct);
+            db.Locations.RemoveRange(onlyItsOwn);
+            await db.SaveChangesAsync(ct);
+            db.Companies.Remove(company);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound);

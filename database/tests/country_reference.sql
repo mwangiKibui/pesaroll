@@ -30,5 +30,14 @@ begin
   end if;
 
   if (select count(*) from industries where active) < 10 then raise exception 'industries list is missing'; end if;
+
+  -- ONB-04: Kenya's three minimum-wage areas; the cities suggest themselves from the town name.
+  if (select array_agg(code order by sort_order) from country_wage_areas where country_code = 'KE' and active)
+     <> array['cities', 'municipalities', 'other'] then
+    raise exception 'Kenya should have the cities, municipalities and other-areas wage areas';
+  end if;
+  if not (select 'Eldoret' = any (towns) from country_wage_areas where country_code = 'KE' and code = 'cities') then
+    raise exception 'Eldoret is a city for minimum wages (2026 order)';
+  end if;
 end $$;
 rollback;

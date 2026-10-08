@@ -20,6 +20,9 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<Bank> Banks => Set<Bank>();
     public DbSet<BankBranch> BankBranches => Set<BankBranch>();
     public DbSet<CompanyPaymentAccount> CompanyPaymentAccounts => Set<CompanyPaymentAccount>();
+    public DbSet<CountryWageArea> CountryWageAreas => Set<CountryWageArea>();
+    public DbSet<Location> Locations => Set<Location>();
+    public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -51,5 +54,13 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<BankBranch>().Property(b => b.CountryCode).HasColumnType("char(2)");
         model.Entity<CompanyPaymentAccount>().Property(a => a.CountryCode).HasColumnType("char(2)");
         model.Entity<CompanyPaymentAccount>().Property(a => a.CreatedAt).ValueGeneratedOnAdd();
+        model.Entity<CountryWageArea>().HasKey(a => new { a.CountryCode, a.Code });
+        model.Entity<CountryWageArea>().Property(a => a.CountryCode).HasColumnType("char(2)");
+        model.Entity<Location>().Property(l => l.CountryCode).HasColumnType("char(2)");
+        model.Entity<Location>().HasMany(l => l.Companies).WithOne().HasForeignKey(c => c.LocationId);
+        model.Entity<LocationCompany>().HasKey(c => new { c.LocationId, c.CompanyId });
+        model.Entity<LocationCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
+        // Tells EF to write a new location before the company that points at it as main.
+        model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
     }
 }

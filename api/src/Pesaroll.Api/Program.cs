@@ -70,6 +70,7 @@ app.MapIdentityEndpoints();
 app.MapOrganizationsEndpoints();
 app.MapCompaniesEndpoints();
 app.MapPaymentAccountsEndpoints();
+app.MapLocationsEndpoints();
 
 app.Run();
 

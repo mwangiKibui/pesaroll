@@ -15,10 +15,12 @@ create table companies (
     postal_code        text,
     phone              text,
     email              text,
+    main_location_id   uuid,                          -- its one main location (ONB-04); can't be deleted while main
     status             text not null default 'active' check (status in ('active', 'archived')),
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
-    unique (organization_id, id)                      -- target for composite foreign keys
+    unique (organization_id, id),                     -- target for composite foreign keys
+    foreign key (organization_id, main_location_id) references locations (organization_id, id)
 );
 
 -- No two active companies in one organization share a name.
