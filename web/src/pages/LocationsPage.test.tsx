@@ -32,10 +32,10 @@ it('lists the head office made with the company; with one company there is no co
   expect(await screen.findByRole('heading', { name: 'Where do your people work?' })).toBeInTheDocument()
   expect(await within(table()).findByText('Head office')).toBeInTheDocument()
   expect(within(table()).getAllByRole('columnheader').map(h => h.textContent))
-    .toEqual(['Location', 'Town and county', 'Minimum-wage area', 'Applies to', 'Main location for', 'Actions'])
+    .toEqual(['Location', 'Town and county', 'Applies to', 'Main location for', 'Actions'])
   const row = within(table()).getByText('Head office').closest('tr')!
-  expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 5))
-    .toEqual(['Head officeHQ-01', 'Nairobi, Nairobi', 'Cities', 'Mama Oliech Restaurant Ltd', 'Mama Oliech Restaurant Ltd'])
+  expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 4))
+    .toEqual(['Head officeHQ-01', 'Nairobi, Nairobi', 'Mama Oliech Restaurant Ltd', 'Mama Oliech Restaurant Ltd'])
   expect(screen.queryByRole('button', { name: /Show companies/ })).not.toBeInTheDocument()
   const steps = screen.getByRole('list', { name: 'Setup steps' })
   expect(within(steps).getByText('Locations').closest('li')).toHaveAttribute('aria-current', 'step')
@@ -57,7 +57,7 @@ it('with several companies, the selector filters the table to the chosen company
   expect(within(table()).queryByText('HQ-01')).not.toBeInTheDocument()
 })
 
-it('adds a location; the town suggests the minimum-wage area', async () => {
+it('adds a location; there is no minimum-wage area to fill in', async () => {
   let locations = [hq]
   const shop = location({ id: '0199c0de-0000-7000-8000-00000000d003', code: 'MOM-01', name: 'Mombasa shop', regionCode: '001', town: 'Mombasa', mainFor: [] })
   const calls = oneCompany({
@@ -72,15 +72,13 @@ it('adds a location; the town suggests the minimum-wage area', async () => {
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Location name' }), 'Mombasa shop')
   await choose('County', 'mom', 'Mombasa')
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Town optional' }), 'Mombasa')
-  await userEvent.tab()
-  expect(within(drawer()).getByRole('combobox', { name: 'Minimum-wage area' })).toHaveValue('Cities')
-  expect(within(drawer()).getByRole('combobox', { name: 'Minimum-wage area' })).toHaveAccessibleDescription(/Nairobi, Mombasa, Kisumu, Nakuru and Eldoret/)
+  expect(within(drawer()).queryByRole('combobox', { name: 'Minimum-wage area' })).not.toBeInTheDocument()
   expect(within(drawer()).getByRole('checkbox', { name: 'Main location for Mama Oliech Restaurant Ltd' })).not.toBeChecked()
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add location' }))
 
   expect(await screen.findByText('Location added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/locations')?.body).toMatchObject({
-    name: 'Mombasa shop', regionCode: '001', town: 'Mombasa', wageAreaCode: 'cities', allCompanies: false, companyIds: [restaurant.id], mainFor: [],
+    name: 'Mombasa shop', regionCode: '001', town: 'Mombasa', allCompanies: false, companyIds: [restaurant.id], mainFor: [],
   })
   expect(await within(table()).findByText('MOM-01')).toBeInTheDocument()
 })
@@ -94,13 +92,11 @@ it('checks the details before sending; problems the server finds show under thei
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add location' }))
   expect(within(drawer()).getByRole('textbox', { name: 'Location name' })).toHaveAccessibleDescription("Enter the location's name (2 to 120 characters).")
   expect(within(drawer()).getByRole('combobox', { name: 'County' })).toHaveAccessibleDescription('Choose a county from the list.')
-  expect(within(drawer()).getByRole('combobox', { name: 'Minimum-wage area' })).toHaveAccessibleDescription('Choose the minimum-wage area from the list.')
   expect(calls.filter(c => c.method === 'POST' && c.path === '/api/locations')).toHaveLength(0)
 
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Location name' }), 'Mombasa shop')
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Code optional' }), 'hq-01')
   await choose('County', 'mom', 'Mombasa')
-  await choose('Minimum-wage area', 'cit', 'Cities')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add location' }))
   expect(await within(drawer()).findByText('Another location already has this code. Choose a different one or leave it empty.')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/locations')?.body).toMatchObject({ code: 'HQ-01' })

@@ -28,7 +28,6 @@ interface Values {
   regionCode: string
   town: string
   addressLine: string
-  wageAreaCode: string
   applies: CompanySelection
   mainFor: string[]
 }
@@ -41,8 +40,8 @@ const served = (all: boolean, ids: string[], companies: Company[]) => (all ? com
 
 /**
  * ONB-04: where people work. Each company already has its Head office (made with the company) as
- * main location; more locations serve one, several or all companies. The county and minimum-wage
- * area drive minimum-wage checks and public holidays later.
+ * main location; more locations serve one, several or all companies. The county (and the town, from
+ * which the API works out the minimum-wage area) drive minimum-wage checks and public holidays later.
  */
 export default function LocationsPage() {
   const { t } = useTranslation()
@@ -104,7 +103,6 @@ export default function LocationsPage() {
                 <tr>
                   <th scope="col">{t('locations.location')}</th>
                   <th scope="col">{t('locations.townAndCounty', { region: local(country.regionLabel).toLowerCase() })}</th>
-                  <th scope="col">{t('locations.wageArea')}</th>
                   <th scope="col">{t('locations.appliesTo')}</th>
                   <th scope="col">{t('locations.mainFor')}</th>
                   <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
@@ -113,7 +111,6 @@ export default function LocationsPage() {
               <tbody>
                 {list.map(l => {
                   const region = country.regions.find(r => r.code === l.regionCode)?.name
-                  const area = country.wageAreas.find(a => a.code === l.wageAreaCode)
                   return (
                     <tr key={l.id}>
                       <td>
@@ -121,7 +118,6 @@ export default function LocationsPage() {
                         <span className="block font-mono text-hint text-muted">{l.code}</span>
                       </td>
                       <td>{[l.town, region].filter(Boolean).join(', ') || none}</td>
-                      <td>{area ? local(area.name) : none}</td>
                       <td>{l.allCompanies ? t('locations.allCompanies') : companyNames(l.companyIds) || none}</td>
                       <td>{companyNames(l.mainFor) || none}</td>
                       <td className="whitespace-nowrap text-right">
@@ -170,30 +166,19 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const regionLabel = local(country.regionLabel)
 
-  const { register, handleSubmit, control, setError, setValue, getValues, getFieldState, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
       name: location?.name ?? '',
       code: location?.code ?? '',
       regionCode: location?.regionCode ?? '',
       town: location?.town ?? '',
       addressLine: location?.addressLine ?? '',
-      wageAreaCode: location?.wageAreaCode ?? '',
       applies: location ? { all: location.allCompanies, ids: location.allCompanies ? companies.map(c => c.id) : location.companyIds } : defaultApplies,
       mainFor: location?.mainFor ?? [],
     },
   })
   const applies = useWatch({ control, name: 'applies' })
-  const wageAreaCode = useWatch({ control, name: 'wageAreaCode' })
-  const area = country.wageAreas.find(a => a.code === wageAreaCode)
   const serves = served(applies.all, applies.ids, companies)
-
-  // The wage area follows the town until the person picks one themselves (or it was already saved).
-  const suggestArea = () => {
-    if (getFieldState('wageAreaCode').isDirty || location?.wageAreaCode) return
-    const town = getValues('town').trim().toLowerCase()
-    const match = country.wageAreas.find(a => a.towns.some(x => x.toLowerCase() === town))
-    if (match) setValue('wageAreaCode', match.code)
-  }
 
   // The same checks as the API, so most mistakes show before anything is sent.
   const check = (v: Values) => {
@@ -201,7 +186,6 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
     if (v.name.trim().length < 2 || v.name.trim().length > 120) problems.push(['name', t('locations.nameInvalid')])
     if (v.code.trim() && !/^[A-Z0-9][A-Z0-9-]{1,19}$/.test(v.code.trim().toUpperCase())) problems.push(['code', t('locations.codeInvalid')])
     if (!v.regionCode) problems.push(['regionCode', t('locations.regionRequired', { region: regionLabel.toLowerCase() })])
-    if (!v.wageAreaCode) problems.push(['wageAreaCode', t('locations.wageAreaRequired')])
     if (!v.applies.all && v.applies.ids.length === 0) problems.push(['applies', t('locations.companiesRequired')])
     for (const [name, message] of problems) setError(name, { message })
     return problems.length === 0
@@ -216,7 +200,7 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
       regionCode: v.regionCode,
       town: v.town.trim() || null,
       addressLine: v.addressLine.trim() || null,
-      wageAreaCode: v.wageAreaCode,
+      wageAreaCode: null,   // the API works it out from the town
       allCompanies: v.applies.all,
       companyIds: v.applies.all ? [] : v.applies.ids,
       // Only companies it still serves can have it as main.
@@ -243,7 +227,7 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
     if (!isApiError(error)) return setBanner('network')
     if (error.code === 'ONB-3513') return setError('code', { message: errorMessage(t, error) })
     const fields: Record<string, FieldPath<Values>> = {
-      name: 'name', code: 'code', regionCode: 'regionCode', wageAreaCode: 'wageAreaCode', companyIds: 'applies', mainFor: 'mainFor',
+      name: 'name', code: 'code', regionCode: 'regionCode', town: 'town', companyIds: 'applies', mainFor: 'mainFor',
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
@@ -268,14 +252,9 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
             error={errors.regionCode?.message} options={country.regions.map(r => ({ value: r.code, label: r.name }))} {...field} />
         )} />
         <TextField label={t('companies.town')} placeholder={t('companies.townPlaceholder')} optional maxLength={100}
-          {...register('town', { onBlur: suggestArea })} />
+          error={errors.town?.message} {...register('town')} />
         <TextField label={t('companies.addressLine')} placeholder={t('companies.addressLinePlaceholder')} optional maxLength={200}
           {...register('addressLine')} />
-        <Controller control={control} name="wageAreaCode" render={({ field }) => (
-          <SelectField label={t('locations.wageArea')} placeholder={t('locations.wageAreaPlaceholder')} error={errors.wageAreaCode?.message}
-            hint={area ? local(area.description) : undefined}
-            options={country.wageAreas.map(a => ({ value: a.code, label: local(a.name) }))} {...field} />
-        )} />
 
         {companies.length > 1 && (
           <div className="flex flex-col gap-1.5">

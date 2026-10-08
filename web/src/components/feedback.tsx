@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ToastContext, type ToastTone } from './toast'
 
@@ -66,12 +66,22 @@ interface Toast { id: number; message: string; tone: ToastTone; leaving?: boolea
 /** Short confirmations ("Location added"), top right in green with white text (red when something failed); they go away after 5 seconds. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
+  const later = useCallback((ms: number, run: () => void) => {
+    const timer = setTimeout(() => { timers.current.delete(timer); run() }, ms)
+    timers.current.add(timer)
+  }, [])
   const show = useCallback((message: string, tone: ToastTone = 'brand') => {
     const id = Date.now() + Math.random()
     setToasts(list => [...list, { id, message, tone }])
     // Slides out over the last 200 ms, then goes.
-    setTimeout(() => setToasts(list => list.map(x => (x.id === id ? { ...x, leaving: true } : x))), 4800)
-    setTimeout(() => setToasts(list => list.filter(x => x.id !== id)), 5000)
+    later(4800, () => setToasts(list => list.map(x => (x.id === id ? { ...x, leaving: true } : x))))
+    later(5000, () => setToasts(list => list.filter(x => x.id !== id)))
+  }, [later])
+  // Nothing fires after the app is gone.
+  useEffect(() => {
+    const pending = timers.current
+    return () => pending.forEach(clearTimeout)
   }, [])
   return (
     <ToastContext.Provider value={{ show }}>

@@ -290,15 +290,13 @@
   },
   "locations": {
     "title": "Where do your people work?",
-    "intro": "Add your head office, branches and sites. Each company has one main location; the county and minimum-wage area decide which minimum wages and holidays apply.",
+    "intro": "Add your head office, branches and sites. Each company has one main location; the county and town decide which minimum wages and holidays apply.",
     "show": "Show companies",
     "tableTitle": "Locations",
     "emptyTitle": "No locations for these companies",
     "emptyText": "Add one, or choose other companies above.",
     "location": "Location",
     "townAndCounty": "Town and {{region}}",
-    "wageArea": "Minimum-wage area",
-    "wageAreaPlaceholder": "Your minimum-wage area",
     "appliesTo": "Applies to",
     "allCompanies": "All companies",
     "mainFor": "Main location for",
@@ -325,7 +323,6 @@
     "nameInvalid": "Enter the location's name (2 to 120 characters).",
     "codeInvalid": "Use 2 to 20 letters, numbers or dashes, or leave it empty for us to make one.",
     "regionRequired": "Choose a {{region}} from the list.",
-    "wageAreaRequired": "Choose the minimum-wage area from the list.",
     "companiesRequired": "Choose at least one company, or all companies."
   }
 }

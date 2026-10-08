@@ -11,7 +11,7 @@ using Pesaroll.Shared.Tenancy;
 namespace Pesaroll.Organizations;
 
 /// <summary>
-/// Adding or editing a location. <see cref="Code"/> is made up when empty. It serves all companies
+/// Adding or editing a location. <see cref="Code"/> is made up when empty; <see cref="WageAreaCode"/> comes from the town when empty. It serves all companies
 /// (<see cref="AllCompanies"/>) or <see cref="CompanyIds"/>, and is the main location of <see cref="MainFor"/>.
 /// </summary>
 public sealed record LocationRequest(
@@ -233,8 +233,11 @@ public static class LocationsEndpoints
             errors["regionCode"] = $"Choose a {country.RegionLabelEn.ToLowerInvariant()} from the list.";
         }
 
-        var wageArea = request.WageAreaCode?.Trim();
-        if (string.IsNullOrEmpty(wageArea) || !await db.CountryWageAreas.AnyAsync(a => a.CountryCode == countryCode && a.Code == wageArea && a.Active, ct))
+        // Nobody is asked for the minimum-wage area: it comes from the town (a city's name) unless given.
+        var wageArea = string.IsNullOrWhiteSpace(request.WageAreaCode)
+            ? await SuggestWageAreaAsync(db, countryCode, request.Town, ct)
+            : request.WageAreaCode.Trim();
+        if (wageArea is not null && !await db.CountryWageAreas.AnyAsync(a => a.CountryCode == countryCode && a.Code == wageArea && a.Active, ct))
         {
             errors["wageAreaCode"] = "Choose the minimum-wage area from the list.";
         }

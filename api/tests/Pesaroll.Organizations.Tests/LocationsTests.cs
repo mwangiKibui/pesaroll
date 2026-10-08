@@ -137,7 +137,7 @@ public sealed class LocationsTests(OnboardingTests.Api api) : IClassFixture<Onbo
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var error = await ErrorFrom(res);
         Assert.Equal("ONB-3512", error.Code);
-        Assert.Equal(["companyIds", "name", "regionCode", "wageAreaCode"], error.Fields!.Keys.Order());
+        Assert.Equal(["companyIds", "name", "regionCode", "wageAreaCode"], error.Fields!.Keys.Order());   // an unknown area is still refused
 
         var code = await ErrorFrom(await client.PostAsJsonAsync("/api/locations", Shop([a.Id], [], code: "bad code!")));
         Assert.Equal(["code"], code.Fields!.Keys);
@@ -145,6 +145,25 @@ public sealed class LocationsTests(OnboardingTests.Api api) : IClassFixture<Onbo
         Assert.Equal(["mainFor"], main.Fields!.Keys);
         var stranger = await ErrorFrom(await client.PostAsJsonAsync("/api/locations", Shop([Guid.NewGuid()], [])));
         Assert.Equal(["companyIds"], stranger.Fields!.Keys);
+    }
+
+    [Fact]
+    public async Task The_minimum_wage_area_comes_from_the_town_when_not_given()
+    {
+        var (client, _, _) = await Onboarded();
+        var a = await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var city = (await (await client.PostAsJsonAsync("/api/locations", new
+        {
+            name = "Kisumu shop", regionCode = "042", town = " kisumu ", allCompanies = false, companyIds = new[] { a.Id }, mainFor = Array.Empty<Guid>(),
+        })).Content.ReadFromJsonAsync<Location>())!;
+        var rural = (await (await client.PostAsJsonAsync("/api/locations", new
+        {
+            name = "Farm store", regionCode = "032", town = "Njoro", allCompanies = false, companyIds = new[] { a.Id }, mainFor = Array.Empty<Guid>(),
+        })).Content.ReadFromJsonAsync<Location>())!;
+
+        Assert.Equal("cities", city.WageAreaCode);
+        Assert.Null(rural.WageAreaCode);
     }
 
     [Fact]
