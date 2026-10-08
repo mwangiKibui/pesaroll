@@ -122,7 +122,7 @@ export default function SignUpPage() {
         {step === 1 && (
           <>
             <h2 ref={stepHeading} tabIndex={-1} className="m-0 text-body font-semibold text-ink outline-none">{t('signUp.detailsTitle')}</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 @sm:grid-cols-2">
               <TextField label={t('signUp.firstName')} placeholder={t('signUp.firstNamePlaceholder')} autoComplete="given-name" error={fieldError('firstName')} {...register('firstName')} />
               <TextField label={t('signUp.lastName')} placeholder={t('signUp.lastNamePlaceholder')} autoComplete="family-name" error={fieldError('lastName')} {...register('lastName')} />
             </div>
@@ -154,7 +154,7 @@ export default function SignUpPage() {
               {roles.data?.map(group => (
                 <fieldset key={group.code} className="m-0 flex flex-col gap-1.5 border-0 p-0">
                   <legend className="mb-1 p-0 text-tag uppercase tracking-wider text-muted">{group.name[lang]}</legend>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 @sm:grid-cols-2">
                     {group.roles.map(role => (
                       <label key={role.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control border border-line bg-card px-3 py-2 text-label font-medium text-ink has-checked:border-brand has-checked:bg-brand-soft">
                         <input type="radio" value={role.id} className="size-[18px] flex-none accent-brand" {...register('roleId')} />
