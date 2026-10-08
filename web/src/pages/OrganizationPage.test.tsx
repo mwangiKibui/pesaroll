@@ -40,7 +40,7 @@ it('checks the name before sending anything', async () => {
   expect(calls.filter(c => c.path === '/api/organizations')).toHaveLength(0)
 })
 
-it('creates the organization with the name trimmed, stays in setup with it ticked, and offers the dashboard', async () => {
+it('creates the organization, then keeps the name in the field to fix, with Organization ticked and the dashboard offered', async () => {
   const calls = fakeApi(signedUp())
   renderApp('/setup/organization')
 
@@ -48,9 +48,11 @@ it('creates the organization with the name trimmed, stays in setup with it ticke
   await userEvent.click(screen.getByRole('button', { name: 'Create organization' }))
 
   expect(await screen.findByText('Your organization is set up.')).toBeInTheDocument()
-  expect(screen.getAllByText('Mama Oliech Group').length).toBeGreaterThan(0)
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/organizations')?.body).toEqual({ name: 'Mama Oliech Group' })
-  expect(screen.queryByRole('textbox', { name: 'Organization name' })).not.toBeInTheDocument()
+  expect(await screen.findByDisplayValue('Mama Oliech Group')).toBe(screen.getByRole('textbox', { name: 'Organization name' }))
+  expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Create organization' })).not.toBeInTheDocument()
+  expect(screen.queryByText("You don't have an organization yet.")).not.toBeInTheDocument()
   const steps = screen.getByRole('list', { name: 'Setup steps' })
   expect(within(steps).getByText('Organization').closest('li')).toHaveTextContent('✓')
 
@@ -59,12 +61,40 @@ it('creates the organization with the name trimmed, stays in setup with it ticke
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
 })
 
-it('with an organization, the organization step shows it as set up', async () => {
-  fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
+it('with an organization, the step shows the name ready to fix, and saving a typo fix updates it', async () => {
+  const calls = fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
   renderApp('/setup/organization')
 
-  expect(await screen.findByText('Your organization is set up.')).toBeInTheDocument()
+  const field = await screen.findByDisplayValue('Mama Oliech Group')
+  expect(screen.getByText('Your organization is set up.')).toBeInTheDocument()
   expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Proceed to Org Dashboard' })).toHaveAttribute('href', '/')
+
+  await userEvent.clear(field)
+  await userEvent.type(field, 'Mama Oliech Group Ltd ')
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+  expect(await screen.findByText('Organization name saved')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'PATCH' && c.path === '/api/organizations/current')?.body).toEqual({ name: 'Mama Oliech Group Ltd' })
+})
+
+it('a fix is checked like the first name, and a refusal shows its code', async () => {
+  const calls = fakeApi({
+    'POST /api/auth/refresh': () => orgToken(),
+    'PATCH /api/organizations/current': () => apiError(403, 'ACC-8001', "You don't have permission to do this. Ask an administrator in your organization."),
+  })
+  renderApp('/setup/organization')
+  const field = await screen.findByDisplayValue('Mama Oliech Group')
+
+  await userEvent.clear(field)
+  await userEvent.type(field, 'A')
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  expect(field).toHaveAccessibleDescription(/Enter your organization's name \(2 to 120 characters\)/)
+  expect(calls.filter(c => c.method === 'PATCH')).toHaveLength(0)
+
+  await userEvent.type(field, 'cme Ltd')
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('ACC-8001')
 })
 
 it('a name the server refuses shows under the field; other refusals show as a banner with the reference', async () => {

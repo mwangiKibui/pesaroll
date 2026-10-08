@@ -141,7 +141,9 @@
     "noOrgText": "Liweke sasa ili uanze.",
     "createdTitle": "Shirika lako limewekwa.",
     "createdText": "Kisha, utaongeza kampuni zako.",
-    "proceed": "Endelea kwenye dashibodi ya shirika"
+    "proceed": "Endelea kwenye dashibodi ya shirika",
+    "save": "Hifadhi mabadiliko",
+    "saved": "Jina la shirika limehifadhiwa"
   },
   "home": {
     "title": "Karibu, {{name}}",

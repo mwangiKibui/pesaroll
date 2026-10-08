@@ -186,16 +186,75 @@ public sealed class OnboardingTests(OnboardingTests.Api api) : IClassFixture<Onb
     }
 
     [Fact]
+    public async Task The_person_who_onboarded_it_can_fix_the_name()
+    {
+        var (client, token, _) = await SignUp();
+        var created = (await (await client.SendAsync(With(token, HttpMethod.Post, "/api/organizations", new { name = "Mama Olich Group" })))
+            .Content.ReadFromJsonAsync<Created>())!;
+
+        var renamed = await client.SendAsync(With(created.Token, HttpMethod.Patch, "/api/organizations/current", new { name = " Mama Oliech Group " }));
+
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+        Assert.Equal(new Org(created.Organization.Id, "Mama Oliech Group"), await renamed.Content.ReadFromJsonAsync<Org>());
+        var current = await client.SendAsync(With(created.Token, HttpMethod.Get, "/api/organizations/current"));
+        Assert.Equal("Mama Oliech Group", (await current.Content.ReadFromJsonAsync<Org>())!.Name);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("A")]
+    public async Task A_rename_follows_the_same_name_rules(string name)
+    {
+        var (client, token, _) = await SignUp();
+        var created = (await (await client.SendAsync(With(token, HttpMethod.Post, "/api/organizations", new { name = "Kept Ltd" })))
+            .Content.ReadFromJsonAsync<Created>())!;
+
+        var res = await client.SendAsync(With(created.Token, HttpMethod.Patch, "/api/organizations/current", new { name }));
+
+        Assert.Equal("ONB-3501", (await ErrorFrom(res)).Code);
+        var current = await client.SendAsync(With(created.Token, HttpMethod.Get, "/api/organizations/current"));
+        Assert.Equal("Kept Ltd", (await current.Content.ReadFromJsonAsync<Org>())!.Name);
+    }
+
+    [Fact]
+    public async Task Other_members_cannot_rename_it_until_permissions_exist()
+    {
+        var (aClient, aToken, _) = await SignUp();
+        var created = (await (await aClient.SendAsync(With(aToken, HttpMethod.Post, "/api/organizations", new { name = "Alpha Ltd" })))
+            .Content.ReadFromJsonAsync<Created>())!;
+        var (bClient, _, bEmail) = await SignUp();
+        await using (var connection = new Npgsql.NpgsqlConnection(System.Environment.GetEnvironmentVariable("PESAROLL_TEST_DB")))
+        {
+            // As an invite will (AUTH-08): B becomes a member of A's organization.
+            await connection.OpenAsync();
+            await using var command = new Npgsql.NpgsqlCommand(
+                "insert into memberships (id, organization_id, user_id) select uuidv7(), @org, id from users where email = @email", connection);
+            command.Parameters.AddWithValue("org", created.Organization.Id);
+            command.Parameters.AddWithValue("email", bEmail);
+            await command.ExecuteNonQueryAsync();
+        }
+        var bSignIn = await api.CreateClient().PostAsJsonAsync("/api/auth/signin", new { identifier = bEmail, password = Password });
+        var bToken = (await bSignIn.Content.ReadFromJsonAsync<Token>())!;
+
+        var res = await bClient.SendAsync(With(bToken, HttpMethod.Patch, "/api/organizations/current", new { name = "Taken Over Ltd" }));
+
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+        Assert.Equal("ACC-8001", (await ErrorFrom(res)).Code);
+    }
+
+    [Fact]
     public async Task Signed_out_people_can_do_neither()
     {
         var client = api.CreateClient();
 
         var create = await client.PostAsJsonAsync("/api/organizations", new { name = "Nobody Ltd" });
         var current = await client.GetAsync("/api/organizations/current");
+        var rename = await client.PatchAsJsonAsync("/api/organizations/current", new { name = "Nobody Ltd" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, create.StatusCode);
         Assert.Equal("AUTH-1007", (await ErrorFrom(create)).Code);
         Assert.Equal("AUTH-1007", (await ErrorFrom(current)).Code);
+        Assert.Equal("AUTH-1007", (await ErrorFrom(rename)).Code);
     }
 
     [Fact]

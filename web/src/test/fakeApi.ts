@@ -44,6 +44,7 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'POST /api/auth/signout': () => new Response(null, { status: 204 }),
     'POST /api/organizations': () => json(201, { organization, token: { accessToken: jwt(), tokenType: 'Bearer', expiresIn: 900 } }),
     'GET /api/organizations/current': () => json(200, organization),
+    'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = input instanceof Request ? input : new Request(input, init)

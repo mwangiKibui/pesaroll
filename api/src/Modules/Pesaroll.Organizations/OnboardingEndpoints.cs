@@ -11,6 +11,8 @@ namespace Pesaroll.Organizations;
 
 public sealed record CreateOrganizationRequest(string? Name);
 
+public sealed record RenameOrganizationRequest(string? Name);
+
 public sealed record OrganizationResponse(Guid Id, string Name);
 
 /// <summary>The organization, and an access token that now carries it (the old one stops working).</summary>
@@ -89,6 +91,46 @@ public static class OnboardingEndpoints
         })
         .Produces<OrganizationResponse>()
         .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        // Fix the name, e.g. a typo right after the organization step. For now only the person who
+        // onboarded it; ACC-04 turns this into a permission for Administrators.
+        organizations.MapPatch("/current", async (RenameOrganizationRequest request, OrganizationsDbContext db, TenantContext tenant,
+            HttpContext http, TimeProvider clock, CancellationToken ct) =>
+        {
+            if (tenant.UserId is not Guid userId)
+            {
+                throw SessionService.RequireSignedIn(http);
+            }
+
+            var organization = tenant.OrganizationId is Guid organizationId
+                ? await db.Organizations.SingleOrDefaultAsync(o => o.Id == organizationId, ct)
+                : null;
+            if (organization is null)
+            {
+                throw OnboardingErrors.NoOrganizationYet();
+            }
+
+            if (organization.OnboardedBy != userId)
+            {
+                throw OnboardingErrors.NoPermission();
+            }
+
+            var name = request.Name?.Trim() ?? "";
+            if (name.Length is < 2 or > 120)
+            {
+                throw OnboardingErrors.NameInvalid();
+            }
+
+            organization.Name = name;
+            organization.UpdatedAt = clock.GetUtcNow();
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new OrganizationResponse(organization.Id, organization.Name));
+        })
+        .Produces<OrganizationResponse>()
+        .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+        .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
         return app;

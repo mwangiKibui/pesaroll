@@ -141,7 +141,9 @@
     "noOrgText": "Set one up now to get started.",
     "createdTitle": "Your organization is set up.",
     "createdText": "Next, you'll add your companies.",
-    "proceed": "Proceed to Org Dashboard"
+    "proceed": "Proceed to Org Dashboard",
+    "save": "Save changes",
+    "saved": "Organization name saved"
   },
   "home": {
     "title": "Karibu, {{name}}",

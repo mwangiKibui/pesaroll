@@ -14,6 +14,10 @@ internal static class OnboardingErrors
     public static AppException NotSelfSignUp() =>
         new("ONB-3504", "Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization.", 403);
 
+    /// <summary>ACC-8001. For now only the person who onboarded the organization renames it; ACC-04 turns this into a permission.</summary>
+    public static AppException NoPermission() =>
+        new("ACC-8001", "You don't have permission to do this. Ask an administrator in your organization.", 403);
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }
