@@ -71,6 +71,10 @@ it('adds a company; numbers it still needs show against it, and the step is tick
   const table = screen.getByRole('region', { name: 'Companies' })
   const row = within(table).getByText('Mama Oliech Restaurant Ltd').closest('tr')!
   expect(row).toHaveTextContent('Missing: NSSF employer number, SHA employer number')
+  const headers = within(table).getAllByRole('columnheader').map(h => h.textContent)
+  expect(headers).toEqual(['Company', 'Country', 'Industry', 'Location', 'Contact', 'Ready for payroll', 'Actions'])
+  const cells = within(row).getAllByRole('cell').map(c => c.textContent)
+  expect(cells.slice(0, 5)).toEqual(['Mama Oliech Restaurant LtdMama Oliech', 'Kenya', 'Restaurants, bars and clubs', 'Nairobi, Nairobi', '—'])
   expect(within(screen.getByRole('list', { name: 'Setup steps' })).getByText('Companies').closest('li')).toHaveTextContent('✓')
   expect(screen.getByText(/can't run payroll until/)).toBeInTheDocument()
 })
@@ -164,7 +168,7 @@ it('a company with every number shows ready for payroll', async () => {
   renderApp('/setup/companies')
 
   const row = (await screen.findByText('Mama Oliech Restaurant Ltd')).closest('tr')!
-  expect(row).toHaveTextContent('Ready for payroll')
+  expect(within(row).getAllByRole('cell').at(-2)).toHaveTextContent('Ready')
   expect(screen.queryByText(/can't run payroll until/)).not.toBeInTheDocument()
 })
 

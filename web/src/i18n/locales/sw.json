@@ -176,9 +176,9 @@
     "company": "Kampuni",
     "country": "Nchi",
     "countryHint": "Nambari zilizo hapa chini zinategemea nchi.",
-    "readiness": "Mishahara",
+    "readiness": "Tayari kwa mishahara",
     "actions": "Vitendo",
-    "ready": "Tayari kwa mishahara",
+    "ready": "Tayari",
     "missing": "Inakosa: {{items}}",
     "missingNotice": "Kampuni zinazokosa nambari haziwezi kulipa mishahara hadi ziongezwe. Unaweza kuziongeza sasa au baadaye.",
     "needOne": "Ongeza angalau kampuni moja ili kuendelea.",
@@ -220,6 +220,8 @@
     "email": "Barua pepe",
     "emailPlaceholder": "Barua pepe yako",
     "countryPlaceholder": "Nchi yako",
-    "industryPlaceholder": "Sekta yako"
+    "industryPlaceholder": "Sekta yako",
+    "location": "Mahali",
+    "contact": "Mawasiliano"
   }
 }

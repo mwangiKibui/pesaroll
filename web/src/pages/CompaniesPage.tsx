@@ -111,6 +111,9 @@ export default function CompaniesPage() {
               <tr>
                 <th scope="col">{t('companies.company')}</th>
                 <th scope="col">{t('companies.country')}</th>
+                <th scope="col">{t('companies.industry')}</th>
+                <th scope="col">{t('companies.location')}</th>
+                <th scope="col">{t('companies.contact')}</th>
                 <th scope="col">{t('companies.readiness')}</th>
                 <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
               </tr>
@@ -123,6 +126,14 @@ export default function CompaniesPage() {
                     {c.tradingName && <span className="block text-hint text-muted">{c.tradingName}</span>}
                   </td>
                   <td>{countryName(countries.data, c.countryCode)}</td>
+                  <td>{industryName(industries.data, c.industryCode) ?? none}</td>
+                  <td>{location(countries.data, c) ?? none}</td>
+                  <td>
+                    {c.phone || c.email ? <>
+                      {c.phone && <span className="block whitespace-nowrap">{c.phone}</span>}
+                      {c.email && <span className="block text-hint text-muted">{c.email}</span>}
+                    </> : none}
+                  </td>
                   <td>
                     {c.readiness.ready
                       ? <Tag tone="brand">{t('companies.ready')}</Tag>
@@ -156,6 +167,19 @@ export default function CompaniesPage() {
       </ConfirmDialog>
     </SetupLayout>
   )
+}
+
+const none = <span className="text-muted">—</span>
+
+function industryName(industries: Industry[] | undefined, code: string | null) {
+  const industry = industries?.find(i => i.code === code)
+  return industry ? local(industry.name) : null
+}
+
+/** "Nairobi, Nairobi": the town, then the county (or the country's region). */
+function location(countries: Country[] | undefined, c: Company) {
+  const region = countries?.find(x => x.code === c.countryCode)?.regions.find(r => r.code === c.regionCode)?.name
+  return [c.town, region].filter(Boolean).join(', ') || null
 }
 
 function countryName(countries: Country[] | undefined, code: string) {

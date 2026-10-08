@@ -176,9 +176,9 @@
     "company": "Company",
     "country": "Country",
     "countryHint": "The numbers below depend on the country.",
-    "readiness": "Payroll",
+    "readiness": "Ready for payroll",
     "actions": "Actions",
-    "ready": "Ready for payroll",
+    "ready": "Ready",
     "missing": "Missing: {{items}}",
     "missingNotice": "Companies with missing numbers can't run payroll until they're added. You can add them now or later.",
     "needOne": "Add at least one company to continue.",
@@ -220,6 +220,8 @@
     "email": "Email",
     "emailPlaceholder": "Your email",
     "countryPlaceholder": "Your country",
-    "industryPlaceholder": "Your industry"
+    "industryPlaceholder": "Your industry",
+    "location": "Location",
+    "contact": "Contact"
   }
 }
