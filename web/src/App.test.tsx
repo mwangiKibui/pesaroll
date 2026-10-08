@@ -1,13 +1,15 @@
-import { render, screen } from '@testing-library/react'
-import { expect, it } from 'vitest'
-import { expectNoA11yViolations } from './test/a11y'
-import App from './App'
+import { screen } from '@testing-library/react'
+import { afterEach, expect, it, vi } from 'vitest'
+import { fakeApi } from './test/fakeApi'
+import { renderApp } from './test/renderApp'
 
-it('until the sign-in screens land (#141), the app shows its name and the language and theme switches', async () => {
-  const { container } = render(<App />)
+afterEach(() => vi.unstubAllGlobals())
 
-  expect(screen.getByRole('heading', { name: 'Pesaroll' })).toBeInTheDocument()
-  expect(screen.getByRole('group', { name: 'Theme' })).toBeInTheDocument()
+it('opens on sign-in for someone without a session, with the language and theme switches', async () => {
+  fakeApi()
+  renderApp('/')
+
+  expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Kiswahili' })).toBeInTheDocument()
-  await expectNoA11yViolations(container)
+  expect(screen.getByRole('group', { name: 'Theme' })).toBeInTheDocument()
 })

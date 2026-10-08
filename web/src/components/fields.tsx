@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Size = 'md' | 'lg'
@@ -43,15 +43,15 @@ function Field({ id, label, hint, hintId, error, errorId, optional, children }: 
 
 type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
 
-export function TextField({ label, hint, error, optional, size = 'md', className = '', ...input }: TextFieldProps) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, error, optional, size = 'md', className = '', ...input }, ref) {
   const ids = useFieldIds(hint, error)
   return (
     <Field {...ids} label={label} hint={hint} error={error} optional={optional}>
-      <input id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
+      <input ref={ref} id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
         className={`${control} ${controlSize[size]} ${className}`} {...input} />
     </Field>
   )
-}
+})
 
 type SelectFieldProps = FieldProps & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & {
   options: { value: string; label: string }[]

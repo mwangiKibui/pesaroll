@@ -38,6 +38,7 @@
   --color-sidebar-ink: var(--pr-sidebar-ink);
   --color-sidebar-muted: var(--pr-sidebar-muted);
   --color-sidebar-accent: var(--pr-sidebar-accent);
+  --color-sidebar-heading: var(--pr-sidebar-heading);
   --color-sidebar-current: var(--pr-sidebar-current);
   --color-sidebar-current-ink: var(--pr-sidebar-current-ink);
   --color-scrim: var(--pr-scrim);
@@ -88,6 +89,7 @@
   --pr-sidebar-ink: #C9DDD5;
   --pr-sidebar-muted: #8FB3A4;
   --pr-sidebar-accent: #8FE0C3;
+  --pr-sidebar-heading: #E8F3EE;
   --pr-sidebar-current: #E8F3EE;
   --pr-sidebar-current-ink: #0E3B30;
 }
@@ -118,6 +120,7 @@
   --pr-sidebar-ink: #C9DDD5;
   --pr-sidebar-muted: #8FB3A4;
   --pr-sidebar-accent: #8FE0C3;
+  --pr-sidebar-heading: #E8F3EE;
   --pr-sidebar-current: #1F3A31;
   --pr-sidebar-current-ink: #E8F3EE;
 }

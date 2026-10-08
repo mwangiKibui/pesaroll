@@ -34,8 +34,73 @@
     "en": "English",
     "sw": "Kiswahili"
   },
-  "app": {
-    "tagline": "HR and payroll for East Africa.",
-    "comingSoon": "Sign-up and sign-in are coming next."
+  "auth": {
+    "panelTitle": "Run your first payroll today.",
+    "panelText": "Kenyan PAYE, SHIF, NSSF and Housing Levy worked out for you. Payslips for every employee. Leave requests on their phones.",
+    "fact1Value": "~1 hr",
+    "fact1": "from sign-up to an approved draft payroll",
+    "fact2Value": "KES 0",
+    "fact2": "for up to 5 employees, no card needed",
+    "fact3Value": "0",
+    "fact3": "sales calls needed to get started",
+    "contact": "Email or phone number",
+    "password": "Password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
+  },
+  "signUp": {
+    "title": "Create your account",
+    "intro": "It takes a minute. You'll set up your organization next.",
+    "firstName": "First name",
+    "middleName": "Middle name",
+    "lastName": "Last name",
+    "contactHint": "You'll use it to sign in.",
+    "passwordHint": "Use 8 or more characters, mixing letters with numbers or symbols.",
+    "strength": "Password strength: {{level}}",
+    "weak": "Weak",
+    "fair": "Fair",
+    "strong": "Strong",
+    "role": "Your role in the business",
+    "roleOther": "Your role",
+    "submit": "Create account",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "terms": "By continuing you agree to our terms and privacy notice. We process staff data under Kenya's Data Protection Act."
+  },
+  "signIn": {
+    "title": "Sign in",
+    "intro": "Welcome back.",
+    "submit": "Sign in",
+    "noAccount": "New to Pesaroll?",
+    "signUp": "Create an account"
+  },
+  "welcome": {
+    "title": "Karibu, {{name}}",
+    "next": "Next: Create your organization and add your companies. This step is coming soon.",
+    "signOut": "Sign out"
+  },
+  "validation": {
+    "firstName": "Enter your first name.",
+    "lastName": "Enter your last name.",
+    "nameTooLong": "Use up to 60 characters.",
+    "contact": "Enter a valid email address or Kenyan phone number.",
+    "passwordWeak": "Use at least 8 characters, mixing letters with numbers or symbols, and avoid common passwords.",
+    "passwordRequired": "Enter your password.",
+    "role": "Choose your role.",
+    "roleOther": "Type your role.",
+    "roleOtherLong": "Use up to 80 characters."
+  },
+  "apiErrors": {
+    "AUTH-1001": "That email or phone number and password don't match.",
+    "AUTH-1002": "Your account is locked after too many attempts. Try again in 15 minutes or reset your password.",
+    "AUTH-1003": "An account with this email or phone number already exists. Sign in instead.",
+    "AUTH-1004": "Use a password of at least 6 characters.",
+    "AUTH-1005": "Enter a valid email address or Kenyan phone number.",
+    "AUTH-1006": "Too many attempts. Wait a minute and try again.",
+    "AUTH-1007": "Sign in to continue.",
+    "AUTH-1008": "Enter your first and last name and choose your role.",
+    "AUTH-1009": "You chose Other: type your role (up to 80 characters).",
+    "AUTH-1010": "Your session has ended. Sign in again.",
+    "network": "We couldn't reach Pesaroll. Check your connection and try again."
   }
 }

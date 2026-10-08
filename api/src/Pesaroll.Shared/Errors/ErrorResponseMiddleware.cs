@@ -51,7 +51,7 @@ public sealed class ErrorResponseMiddleware(RequestDelegate next, ILogger<ErrorR
             context.Response.Headers[name] = value;
         }
 
-        return context.Response.WriteAsJsonAsync(new { code, message, reference = reference ?? NewReference() });
+        return context.Response.WriteAsJsonAsync(new ErrorResponse(code, message, reference ?? NewReference()));
     }
 
     public static string NewReference() =>
