@@ -50,7 +50,7 @@ it('home names the organization and the next setup step, and signing out ends th
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
   expect(await screen.findByText('Finish setting up · 1 of 10')).toBeInTheDocument()
   expect(screen.getAllByText('Next: Companies').length).toBeGreaterThan(0)
-  expect(screen.getByRole('link', { name: /Finish setting up/ })).toHaveAttribute('href', '/setup/organization')
+  expect(screen.getByRole('link', { name: /Finish setting up/ })).toHaveAttribute('href', '/setup/companies')
 
   await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 

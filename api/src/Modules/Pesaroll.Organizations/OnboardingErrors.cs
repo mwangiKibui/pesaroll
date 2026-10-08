@@ -18,6 +18,21 @@ internal static class OnboardingErrors
     public static AppException NoPermission() =>
         new("ACC-8001", "You don't have permission to do this. Ask an administrator in your organization.", 403);
 
+    public static AppException CompanyNameInvalid() =>
+        new("ONB-3505", "Enter the company's legal name (2 to 160 characters).");
+
+    public static AppException CountryNotSupported() =>
+        new("ONB-3506", "Pesaroll runs payroll for companies in Kenya. Choose Kenya.");
+
+    public static AppException DetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3507", "Some details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException CompanyNameTaken() =>
+        new("ONB-3508", "You already have a company with this name.", 409);
+
+    public static AppException CompanyNotFound() =>
+        new("ONB-3509", "We couldn't find that company.", 404);
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }

@@ -5,6 +5,7 @@
 \i functions/tenancy.sql
 \i platform/deploy_scripts.sql
 \i platform/error_codes.sql
+\i reference/countries.sql
 \i identity/signup_roles.sql
 \i identity/users.sql
 \i identity/signup_role_check.sql

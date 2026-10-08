@@ -12,6 +12,11 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Membership> Memberships => Set<Membership>();
+    public DbSet<CompanyIdentifier> CompanyIdentifiers => Set<CompanyIdentifier>();
+    public DbSet<Country> Countries => Set<Country>();
+    public DbSet<CountryCompanyField> CountryCompanyFields => Set<CountryCompanyField>();
+    public DbSet<CountryRegion> CountryRegions => Set<CountryRegion>();
+    public DbSet<Industry> Industries => Set<Industry>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -25,5 +30,17 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
 
         model.Entity<Company>().Property(c => c.CountryCode).HasColumnType("char(2)");
         model.Entity<Company>().Property(c => c.Currency).HasColumnType("char(3)");
+        model.Entity<Company>().HasMany(c => c.Identifiers).WithOne().HasForeignKey(i => i.CompanyId);
+        model.Entity<CompanyIdentifier>().Property(i => i.CreatedAt).ValueGeneratedOnAdd();
+        model.Entity<CompanyIdentifier>().Property(i => i.UpdatedAt).ValueGeneratedOnAdd();
+
+        model.Entity<Country>().HasKey(c => c.Code);
+        model.Entity<Country>().Property(c => c.Code).HasColumnType("char(2)");
+        model.Entity<Country>().Property(c => c.Currency).HasColumnType("char(3)");
+        model.Entity<CountryCompanyField>().HasKey(f => new { f.CountryCode, f.Key });
+        model.Entity<CountryCompanyField>().Property(f => f.CountryCode).HasColumnType("char(2)");
+        model.Entity<CountryRegion>().HasKey(r => new { r.CountryCode, r.Code });
+        model.Entity<CountryRegion>().Property(r => r.CountryCode).HasColumnType("char(2)");
+        model.Entity<Industry>().HasKey(i => i.Code);
     }
 }

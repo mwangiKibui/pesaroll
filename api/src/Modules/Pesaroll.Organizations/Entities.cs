@@ -17,16 +17,80 @@ public sealed class Company
     public Guid Id { get; set; }
     public Guid OrganizationId { get; set; }
     public required string LegalName { get; set; }
+    public string? TradingName { get; set; }
     public required string CountryCode { get; set; }
     public required string Currency { get; set; }
-    public string? RegistrationNo { get; set; }
-    public byte[]? KraPinEnc { get; set; }
-    public string? NssfEmployerNo { get; set; }
-    public string? ShaEmployerNo { get; set; }
-    public string? NitaNo { get; set; }
+    public string? IndustryCode { get; set; }
+    public string? AddressLine { get; set; }
+    public string? Town { get; set; }
+    public string? RegionCode { get; set; }
+    public string? PostalAddress { get; set; }
+    public string? PostalCode { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public List<CompanyIdentifier> Identifiers { get; set; } = [];
+}
+
+/// <summary>A company's statutory or registration number for one of its country's fields.</summary>
+public sealed class CompanyIdentifier
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public required string FieldKey { get; set; }
+    public required string Value { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+// Reference data (database/schema/reference/countries.sql): read here, edited by the back office (BO-11).
+
+public sealed class Country
+{
+    public required string Code { get; set; }
+    public required string NameEn { get; set; }
+    public required string NameSw { get; set; }
+    public required string Currency { get; set; }
+    public required string PhoneCode { get; set; }
+    public required string RegionLabelEn { get; set; }
+    public required string RegionLabelSw { get; set; }
+    public bool Available { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public sealed class CountryCompanyField
+{
+    public required string CountryCode { get; set; }
+    public required string Key { get; set; }
+    public required string LabelEn { get; set; }
+    public required string LabelSw { get; set; }
+    public string? HintEn { get; set; }
+    public string? HintSw { get; set; }
+    public string? Example { get; set; }
+    public string? Pattern { get; set; }
+    public bool RequiredForPayroll { get; set; }
+    public int SortOrder { get; set; }
+    public bool Active { get; set; }
+}
+
+public sealed class CountryRegion
+{
+    public required string CountryCode { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public sealed class Industry
+{
+    public required string Code { get; set; }
+    public required string NameEn { get; set; }
+    public required string NameSw { get; set; }
+    public int SortOrder { get; set; }
+    public bool Active { get; set; }
 }
 
 public sealed class Membership

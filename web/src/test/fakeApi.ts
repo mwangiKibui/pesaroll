@@ -24,6 +24,37 @@ export const organization = { id: '0199c0de-0000-7000-8000-00000000a001', name: 
 
 const b64 = (value: object) => btoa(JSON.stringify(value)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
 
+const text = (en: string) => ({ en, sw: en })
+
+/** Kenya as the API describes it (the seeded country data, trimmed). */
+export const kenya = {
+  code: 'KE', name: text('Kenya'), currency: 'KES', regionLabel: { en: 'County', sw: 'Kaunti' },
+  fields: [
+    { key: 'kra_pin', label: text('KRA PIN'), hint: text("The company's PIN from KRA iTax. Used for PAYE, Housing Levy and the P10 return."), example: 'P051234567X', pattern: '^[AP][0-9]{9}[A-Z]$', requiredForPayroll: true },
+    { key: 'nssf_employer_no', label: text('NSSF employer number'), hint: text('From your NSSF registration. Used for the monthly NSSF return.'), example: null, pattern: '^[A-Z0-9/-]{4,20}$', requiredForPayroll: true },
+    { key: 'sha_employer_no', label: text('SHA employer number'), hint: null, example: null, pattern: '^[A-Z0-9/-]{4,20}$', requiredForPayroll: true },
+    { key: 'business_registration_no', label: text('Business registration number'), hint: null, example: null, pattern: null, requiredForPayroll: false },
+  ],
+  regions: [{ code: '001', name: 'Mombasa' }, { code: '022', name: 'Kiambu' }, { code: '047', name: 'Nairobi' }],
+}
+
+export const industries = [
+  { code: 'restaurants_bars', name: text('Restaurants, bars and clubs') },
+  { code: 'hotels', name: text('Hotels and hospitality') },
+]
+
+const missing = (key: string, label: string) => ({ kind: 'identifier', key, label: text(label) })
+
+/** A company as the API returns it; by default only its KRA PIN is in, so two numbers are missing. */
+export const company = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000c001', legalName: 'Mama Oliech Restaurant Ltd', tradingName: 'Mama Oliech',
+  countryCode: 'KE', currency: 'KES', industryCode: 'restaurants_bars', addressLine: 'Marcus Garvey Road', town: 'Nairobi',
+  regionCode: '047', postalAddress: null, postalCode: null, phone: null, email: null,
+  identifiers: { kra_pin: 'P051234567X' },
+  readiness: { ready: false, missing: [missing('nssf_employer_no', 'NSSF employer number'), missing('sha_employer_no', 'SHA employer number')] },
+  ...overrides,
+})
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -44,6 +75,9 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'POST /api/auth/signout': () => new Response(null, { status: 204 }),
     'POST /api/organizations': () => json(201, { organization, token: { accessToken: jwt(), tokenType: 'Bearer', expiresIn: 900 } }),
     'GET /api/organizations/current': () => json(200, organization),
+    'GET /api/countries': () => json(200, [kenya]),
+    'GET /api/industries': () => json(200, industries),
+    'GET /api/companies': () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

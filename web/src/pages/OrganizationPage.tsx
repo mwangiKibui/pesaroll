@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState, useSyncExternalStore } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -7,9 +7,11 @@ import { z } from 'zod'
 import { errorKey, errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
 import { Button } from '../components/Button'
+import { buttonClasses } from '../components/buttonStyles'
 import { FormErrorBanner, Loading, Notice } from '../components/feedback'
 import { TextField } from '../components/fields'
 import { useToast } from '../components/toast'
+import { useOrganization, useSetupDone } from '../setup/hooks'
 import { SetupLayout } from '../setup/SetupLayout'
 
 // Same rule as the API and database (ONB-3501).
@@ -23,19 +25,12 @@ type Values = z.infer<typeof schema>
  */
 export default function OrganizationPage() {
   const { t } = useTranslation()
-  const { api, auth } = useServices()
+  const { auth } = useServices()
   const organizationId = useSyncExternalStore(auth.subscribe, auth.organizationId)
-  const organization = useQuery({
-    queryKey: ['organization'],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/organizations/current')
-      if (error || !data) throw new Error('organization')
-      return data
-    },
-  })
+  const organization = useOrganization(!!organizationId)
+  const done = useSetupDone(!!organizationId)
   return (
-    <SetupLayout current="organization" done={organizationId ? ['organization'] : []} hasOrganization={!!organizationId}>
+    <SetupLayout current="organization" done={done} hasOrganization={!!organizationId}>
       <div className="flex flex-col gap-1.5">
         <h1 className="m-0 font-display text-title text-ink">{t('organization.title')}</h1>
         <p className="m-0 text-muted">{t('organization.intro')}</p>
@@ -46,6 +41,7 @@ export default function OrganizationPage() {
       {organizationId && !organization.data
         ? <Loading rows={2} />
         : <NameForm key={organization.data?.id ?? 'new'} existing={organization.data} />}
+      {organizationId && <div><Link to="/setup/companies" className={buttonClasses('secondary')}>{t('organization.continue')}</Link></div>}
     </SetupLayout>
   )
 }

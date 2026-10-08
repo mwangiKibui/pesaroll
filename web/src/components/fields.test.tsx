@@ -8,7 +8,7 @@ it('a text field has its label above, its hint below, and says when it is option
   const { container } = render(<TextField label="Middle name" placeholder="Your middle name" hint="As on your ID" optional />)
 
   const input = screen.getByRole('textbox', { name: /Middle name/ })
-  expect(screen.getByText('optional')).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Middle name optional' })).toBeInTheDocument()
   expect(input).toHaveAccessibleDescription('As on your ID')
   expect(input).not.toBeRequired()
   expect(input).toHaveAttribute('placeholder', 'Your middle name')

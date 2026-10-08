@@ -32,7 +32,7 @@ function Field({ id, label, hint, hintId, error, errorId, optional, children }: 
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-label font-medium text-ink">
         {label}
-        {optional && <span className="ml-1.5 font-normal text-muted">{t('common.optional')}</span>}
+        {optional && <> <span className="ml-1 font-normal text-muted">{t('common.optional')}</span></>}
       </label>
       {children}
       {hint && <p id={hintId} className="m-0 text-hint text-muted">{hint}</p>}
