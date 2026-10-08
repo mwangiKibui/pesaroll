@@ -62,8 +62,9 @@ grant select, insert, update, delete on table company_identifiers to pesaroll_ap
 -- Where a company's payroll is paid from (ONB-03): a bank account or an M-Pesa B2C shortcode.
 -- Bank and M-Pesa files take the debit account from here, never from the person exporting.
 -- History is kept: the app can only close an account or move the default, never rewrite or
--- delete one, so what a past payroll was paid from can always be shown. Replacing an account is
--- closing it and adding the new one. The account number is encrypted by the app (FieldEncryptor);
+-- delete one, so what a past payroll was paid from can always be shown. Editing an account is
+-- closing it and adding the new one, which points back at it (replaces_id).
+-- The account number is encrypted by the app (FieldEncryptor);
 -- only its last four digits are stored in the clear, for display.
 create table company_payment_accounts (
     id               uuid primary key,
@@ -82,6 +83,7 @@ create table company_payment_accounts (
     created_at       timestamptz not null default now(),
     closed_at        timestamptz,
     closed_by        uuid references users (id),
+    replaces_id      uuid references company_payment_accounts (id),   -- editing is closing this row and adding a new one
     foreign key (organization_id, company_id) references companies (organization_id, id) on delete cascade,
     foreign key (country_code, bank_code, branch_code) references bank_branches (country_code, bank_code, code),
     check (

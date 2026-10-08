@@ -174,6 +174,57 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
     }
 
     [Fact]
+    public async Task Editing_replaces_the_account_keeping_the_old_one_on_record_and_the_number_if_left_empty()
+    {
+        var (client, _, _, companyId) = await CompanyReadyButForAccount();
+        var path = $"/api/companies/{companyId}/payment-accounts";
+        var old = (await (await client.PostAsJsonAsync(path, EquityAccount())).Content.ReadFromJsonAsync<Account>())!;
+        await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = "600123" });
+
+        var res = await client.PutAsJsonAsync($"{path}/{old.Id}",
+            new { method = "bank", bankCode = "01", branchCode = "100", accountName = "Mama Oliech Ltd", accountNumber = "" });
+
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var edited = (await res.Content.ReadFromJsonAsync<Account>())!;
+        Assert.NotEqual(old.Id, edited.Id);
+        Assert.Equal(("KCB Bank", "Moi Avenue, Nairobi", "Mama Oliech Ltd", "•••• 8901", true),
+            (edited.BankName, edited.BranchName, edited.AccountName, edited.AccountNumberMasked, edited.IsDefault));
+        var open = (await client.GetFromJsonAsync<List<Account>>(path))!;
+        Assert.Contains(open, a => a.Id == edited.Id);
+        Assert.DoesNotContain(open, a => a.Id == old.Id);
+        Assert.Single(open, a => a.IsDefault);
+
+        // History: the old row is closed and the new one points at it; the number carried over.
+        await using (var connection = new NpgsqlConnection(Db))
+        {
+            await connection.OpenAsync();
+            await using var command = new NpgsqlCommand(
+                "select (select closed_at is not null from company_payment_accounts where id = @old), " +
+                "(select replaces_id from company_payment_accounts where id = @new), " +
+                "(select account_no_enc from company_payment_accounts where id = @new)", connection);
+            command.Parameters.AddWithValue("old", old.Id);
+            command.Parameters.AddWithValue("new", edited.Id);
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.True(reader.GetBoolean(0));
+            Assert.Equal(old.Id, reader.GetGuid(1));
+            Assert.Equal("012345678901", api.Services.GetRequiredService<FieldEncryptor>().Decrypt((byte[])reader[2], PaymentAccountContext(companyId)));
+        }
+
+        var renumbered = (await (await client.PutAsJsonAsync($"{path}/{edited.Id}",
+            new { method = "bank", bankCode = "01", branchCode = "100", accountName = "Mama Oliech Ltd", accountNumber = "9988 7766" }))
+            .Content.ReadFromJsonAsync<Account>())!;
+        Assert.Equal("•••• 7766", renumbered.AccountNumberMasked);
+
+        var gone = await client.PutAsJsonAsync($"{path}/{old.Id}", new { method = "mpesa", mpesaShortcode = "600999" });
+        Assert.Equal("ONB-3511", (await ErrorFrom(gone)).Code);
+        var mpesa = open.Single(a => a.Method == "mpesa");
+        var toBank = await client.PutAsJsonAsync($"{path}/{mpesa.Id}",
+            new { method = "bank", bankCode = "68", branchCode = "047", accountName = "Mama Oliech", accountNumber = "" });
+        Assert.Equal(["accountNumber"], (await ErrorFrom(toBank)).Fields!.Keys);
+    }
+
+    [Fact]
     public async Task Another_organizations_company_and_plain_members_get_nothing()
     {
         var (a, _, orgId, companyId) = await CompanyReadyButForAccount();

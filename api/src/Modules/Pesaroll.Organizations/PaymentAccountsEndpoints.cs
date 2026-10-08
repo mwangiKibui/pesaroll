@@ -26,8 +26,8 @@ public sealed record PaymentAccountResponse(
 /// <summary>
 /// ONB-03, paying accounts: where each company's payroll is paid from, a bank account or an M-Pesa
 /// B2C shortcode. Bank and M-Pesa files (PAY-06, PAY-07) take the debit account from here.
-/// Account numbers are encrypted; nothing is overwritten:
-/// replacing an account is adding the new one and removing (closing) the old.
+/// Account numbers are encrypted; nothing is overwritten: editing an account closes it and adds
+/// the edited one in its place (replaces_id), and removing one closes it.
 /// </summary>
 public static class PaymentAccountsEndpoints
 {
@@ -79,6 +79,46 @@ public static class PaymentAccountsEndpoints
             var saved = (await ListAsync(db, company, ct)).Single(a => a.Id == account.Id);
             return Results.Created($"/api/companies/{company.Id}/payment-accounts/{account.Id}", saved);
         }).Produces<PaymentAccountResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        accounts.MapPut("/{accountId:guid}", async (Guid companyId, Guid accountId, PaymentAccountRequest request, OrganizationsDbContext db,
+            TenantContext tenant, HttpContext http, FieldEncryptor encryptor, TimeProvider clock, CancellationToken ct) =>
+        {
+            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            var company = await FindCompany(db, companyId, ct);
+            var old = await db.CompanyPaymentAccounts.SingleOrDefaultAsync(a => a.Id == accountId && a.CompanyId == company.Id && a.ClosedAt == null, ct)
+                ?? throw OnboardingErrors.PaymentAccountNotFound();
+            var (account, number) = await Validate(request, company, db, ct, replacing: old);
+
+            account.Id = Guid.CreateVersion7();
+            account.OrganizationId = organizationId;
+            account.CreatedBy = userId;
+            account.ReplacesId = old.Id;
+            if (number is not null)
+            {
+                account.AccountNoEnc = encryptor.Encrypt(number, Context(company.Id));
+            }
+            else if (account.Method == "bank")
+            {
+                // Left empty: the same number, already encrypted for this company.
+                account.AccountNoEnc = old.AccountNoEnc;
+                account.AccountLast4 = old.AccountLast4;
+            }
+
+            // Close the old row first: only one open account may be the default at a time.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            account.IsDefault = old.IsDefault;
+            old.IsDefault = false;
+            old.ClosedAt = clock.GetUtcNow();
+            old.ClosedBy = userId;
+            await db.SaveChangesAsync(ct);
+            db.CompanyPaymentAccounts.Add(account);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.Ok((await ListAsync(db, company, ct)).Single(a => a.Id == account.Id));
+        }).Produces<PaymentAccountResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
@@ -140,8 +180,12 @@ public static class PaymentAccountsEndpoints
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>Checks the request. A bank account's number comes back separately, for the caller to encrypt.</summary>
-    private static async Task<(CompanyPaymentAccount Account, string? Number)> Validate(PaymentAccountRequest request, Company company, OrganizationsDbContext db, CancellationToken ct)
+    /// <summary>
+    /// Checks the request. A bank account's number comes back separately, for the caller to encrypt;
+    /// when editing a bank account (<paramref name="replacing"/>) it may be left empty to keep the old one.
+    /// </summary>
+    private static async Task<(CompanyPaymentAccount Account, string? Number)> Validate(PaymentAccountRequest request, Company company,
+        OrganizationsDbContext db, CancellationToken ct, CompanyPaymentAccount? replacing = null)
     {
         var errors = new Dictionary<string, string>();
         var method = request.Method?.Trim().ToLowerInvariant();
@@ -182,7 +226,8 @@ public static class PaymentAccountsEndpoints
 
         // People paste numbers with spaces or dashes; banks only want the digits.
         var number = Regex.Replace(request.AccountNumber ?? "", @"[\s-]", "");
-        if (!Regex.IsMatch(number, "^[0-9]{6,20}$"))
+        var keepNumber = number.Length == 0 && replacing?.Method == "bank";
+        if (!keepNumber && !Regex.IsMatch(number, "^[0-9]{6,20}$"))
         {
             errors["accountNumber"] = "Enter the account number: 6 to 20 digits.";
         }
@@ -200,8 +245,8 @@ public static class PaymentAccountsEndpoints
             BankCode = bankCode,
             BranchCode = branchCode,
             AccountName = name,
-            AccountLast4 = number[^4..],
-        }, number);
+            AccountLast4 = keepNumber ? null : number[^4..],
+        }, keepNumber ? null : number);
     }
 
     private static async Task<List<PaymentAccountResponse>> ListAsync(OrganizationsDbContext db, Company company, CancellationToken ct)

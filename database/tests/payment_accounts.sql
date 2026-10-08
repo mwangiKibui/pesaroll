@@ -65,6 +65,17 @@ begin
   -- With the old default closed, another can be the default.
   update company_payment_accounts set is_default = true where id = '00000000-0000-7000-8000-0000000000e2';
 
+  -- Editing is replacing: the new row points at the one it replaced, which must exist.
+  insert into company_payment_accounts (id, organization_id, company_id, method, country_code, bank_code, branch_code,
+                                        account_name, account_no_enc, account_last4, is_default, created_by, replaces_id)
+  values ('00000000-0000-7000-8000-0000000000e8', org1, ke1, 'bank', 'KE', '01', '100', 'One Kenya Ltd', '\x01', '1234', false, owner1, acc1);
+  begin
+    insert into company_payment_accounts (id, organization_id, company_id, method, mpesa_shortcode, is_default, created_by, replaces_id)
+    values ('00000000-0000-7000-8000-0000000000e9', org1, ke1, 'mpesa', '600126', false, owner1, '00000000-0000-7000-8000-0000000000ff');
+    raise exception 'a replacement for an unknown account was saved';
+  exception when foreign_key_violation then null;
+  end;
+
   -- Organization two sees none of it and can't write into organization one.
   perform set_config('app.org_id', org2::text, true);
   perform set_config('app.company_ids', ke2::text, true);

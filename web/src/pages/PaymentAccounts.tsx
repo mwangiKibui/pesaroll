@@ -43,7 +43,8 @@ export function PaymentAccounts({ company }: { company: Company }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const [adding, setAdding] = useState(false)
+  // 'new', the account being edited, or nothing.
+  const [editing, setEditing] = useState<Account | 'new' | null>(null)
   const [removing, setRemoving] = useState<Account | null>(null)
   const [busy, setBusy] = useState(false)
   const key = ['payment-accounts', company.id]
@@ -93,7 +94,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
   }
 
   const list = accounts.data ?? []
-  const addButton = <Button onClick={() => setAdding(true)}>{t('payingAccounts.add')}</Button>
+  const addButton = <Button onClick={() => setEditing('new')}>{t('payingAccounts.add')}</Button>
   return (
     <div className="flex flex-col gap-3">
       <p className="m-0 text-hint text-muted">{t('payingAccounts.intro')}</p>
@@ -128,7 +129,10 @@ export function PaymentAccounts({ company }: { company: Company }) {
                         ? <Tag tone="brand">{t('payingAccounts.default')}</Tag>
                         : <Button variant="ghost" aria-label={t('payingAccounts.makeDefaultLabel', { name: shortName(t, a) })} onClick={() => void makeDefault(a)}>{t('payingAccounts.makeDefault')}</Button>}
                     </td>
-                    <td className="text-right">
+                    <td className="whitespace-nowrap text-right">
+                      <IconButton label={t('payingAccounts.edit', { name: shortName(t, a) })} onClick={() => setEditing(a)}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
+                      </IconButton>
                       <IconButton tone="danger" label={t('payingAccounts.remove', { name: shortName(t, a) })} onClick={() => setRemoving(a)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                       </IconButton>
@@ -140,7 +144,8 @@ export function PaymentAccounts({ company }: { company: Company }) {
           )}
         </TableCard>
       )}
-      {adding && <AddAccount company={company} onDone={() => { setAdding(false); changed() }} onCancel={() => setAdding(false)} />}
+      {editing && <AccountForm company={company} account={editing === 'new' ? null : editing}
+        onDone={() => { setEditing(null); changed() }} onCancel={() => setEditing(null)} />}
       <ConfirmDialog open={!!removing} title={t('payingAccounts.removeTitle', { name: removing ? shortName(t, removing) : '' })}
         confirmLabel={t('payingAccounts.removeConfirm')} busy={busy} onConfirm={remove} onCancel={() => setRemoving(null)}>
         {t('payingAccounts.removeText')}
@@ -149,7 +154,11 @@ export function PaymentAccounts({ company }: { company: Company }) {
   )
 }
 
-function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: () => void; onCancel: () => void }) {
+/**
+ * Adding or editing an account, in a modal. Editing replaces the account (the API closes the old
+ * one and keeps it on record); a bank account's number can be left empty to keep it.
+ */
+function AccountForm({ company, account, onDone, onCancel }: { company: Company; account: Account | null; onDone: () => void; onCancel: () => void }) {
   const { t } = useTranslation()
   const { api } = useServices()
   const toast = useToast()
@@ -165,9 +174,18 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
     },
   })
   const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
-    defaultValues: { method: 'bank', bankCode: '', branchCode: '', accountName: company.legalName, accountNumber: '', mpesaShortcode: '' },
+    defaultValues: {
+      method: account?.method === 'mpesa' ? 'mpesa' : 'bank',
+      bankCode: account?.bankCode ?? '',
+      branchCode: account?.branchCode ?? '',
+      accountName: account?.accountName ?? company.legalName,
+      accountNumber: '',
+      mpesaShortcode: account?.mpesaShortcode ?? '',
+    },
   })
   const method = useWatch({ control, name: 'method' })
+  // Editing a bank account: the number can stay as it is.
+  const keepsNumber = account?.method === 'bank' && method === 'bank'
   const bankCode = useWatch({ control, name: 'bankCode' })
   const bank = banks.data?.find(b => b.code === bankCode)
 
@@ -180,7 +198,8 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
       if (!v.bankCode) problems.push(['bankCode', t('payingAccounts.bankRequired')])
       else if (!v.branchCode) problems.push(['branchCode', t('payingAccounts.branchRequired')])
       if (v.accountName.trim().length < 2 || v.accountName.trim().length > 120) problems.push(['accountName', t('payingAccounts.accountNameInvalid')])
-      if (!/^[0-9]{6,20}$/.test(v.accountNumber.replace(/[\s-]/g, ''))) problems.push(['accountNumber', t('payingAccounts.accountNumberInvalid')])
+      const number = v.accountNumber.replace(/[\s-]/g, '')
+      if (!(number === '' && keepsNumber) && !/^[0-9]{6,20}$/.test(number)) problems.push(['accountNumber', t('payingAccounts.accountNumberInvalid')])
     }
     for (const [name, message] of problems) setError(name, { message })
     return problems.length === 0
@@ -194,9 +213,11 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
       ? { method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: v.mpesaShortcode.trim() }
       : { method: 'bank', bankCode: v.bankCode, branchCode: v.branchCode, accountName: v.accountName.trim(), accountNumber: v.accountNumber.trim(), mpesaShortcode: null }
     try {
-      const { data, error } = await api.POST('/api/companies/{companyId}/payment-accounts', { params: { path: { companyId: company.id } }, body })
+      const { data, error } = account
+        ? await api.PUT('/api/companies/{companyId}/payment-accounts/{accountId}', { params: { path: { companyId: company.id, accountId: account.id } }, body })
+        : await api.POST('/api/companies/{companyId}/payment-accounts', { params: { path: { companyId: company.id } }, body })
       if (data) {
-        toast.show(t('payingAccounts.added'))
+        toast.show(account ? t('payingAccounts.saved') : t('payingAccounts.added'))
         onDone()
         return
       }
@@ -209,10 +230,10 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
   }
 
   return (
-    <Modal open title={t('payingAccounts.add')} onClose={onCancel}
+    <Modal open title={account ? t('payingAccounts.editTitle') : t('payingAccounts.add')} onClose={onCancel}
       footer={<>
         <Button variant="secondary" onClick={onCancel}>{t('common.cancel')}</Button>
-        <Button type="submit" form={formId} busy={isSubmitting}>{t('payingAccounts.submit')}</Button>
+        <Button type="submit" form={formId} busy={isSubmitting}>{account ? t('payingAccounts.save') : t('payingAccounts.submit')}</Button>
       </>}>
     <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
@@ -240,6 +261,7 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
           <TextField label={t('payingAccounts.accountName')} placeholder={t('payingAccounts.accountNamePlaceholder')} hint={t('payingAccounts.accountNameHint')}
             maxLength={120} error={errors.accountName?.message} {...register('accountName')} />
           <TextField label={t('payingAccounts.accountNumber')} placeholder={t('payingAccounts.accountNumberPlaceholder')} inputMode="numeric"
+            hint={keepsNumber ? t('payingAccounts.keepNumber', { masked: account?.accountNumberMasked }) : undefined}
             autoComplete="off" maxLength={30} error={errors.accountNumber?.message} {...register('accountNumber')} />
         </>
       ) : (

@@ -275,6 +275,11 @@
     "shortcodeInvalid": "Andika nambari fupi ya M-Pesa inayolipa mishahara (tarakimu 5 hadi 7).",
     "bankAndBranch": "Benki na tawi",
     "account": "Akaunti",
-    "shortcodeValue": "Nambari fupi {{shortcode}}"
+    "shortcodeValue": "Nambari fupi {{shortcode}}",
+    "edit": "Hariri {{name}}",
+    "editTitle": "Hariri akaunti ya kulipa",
+    "save": "Hifadhi mabadiliko",
+    "saved": "Akaunti ya kulipa imehifadhiwa",
+    "keepNumber": "Acha wazi ili kubaki na {{masked}}."
   }
 }

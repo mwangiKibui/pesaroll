@@ -275,6 +275,11 @@
     "shortcodeInvalid": "Enter the M-Pesa shortcode your payroll is paid from (5 to 7 digits).",
     "bankAndBranch": "Bank and branch",
     "account": "Account",
-    "shortcodeValue": "Shortcode {{shortcode}}"
+    "shortcodeValue": "Shortcode {{shortcode}}",
+    "edit": "Edit {{name}}",
+    "editTitle": "Edit paying account",
+    "save": "Save changes",
+    "saved": "Paying account saved",
+    "keepNumber": "Leave empty to keep {{masked}}."
   }
 }

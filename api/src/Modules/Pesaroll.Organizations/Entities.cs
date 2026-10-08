@@ -148,4 +148,6 @@ public sealed class CompanyPaymentAccount
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ClosedAt { get; set; }
     public Guid? ClosedBy { get; set; }
+    /// <summary>Set when this row came from editing another (which was closed).</summary>
+    public Guid? ReplacesId { get; set; }
 }

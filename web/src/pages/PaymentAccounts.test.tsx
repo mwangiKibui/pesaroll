@@ -131,3 +131,31 @@ it('makes another account the default, and removes one after asking', async () =
   expect(calls.filter(c => c.method === 'DELETE')).toHaveLength(1)
   expect(rows()).toHaveLength(1)
 })
+
+it('edits an account in a modal; leaving the number empty keeps it', async () => {
+  let accounts = [equityAccount()]
+  const edited = equityAccount({ id: '0199c0de-0000-7000-8000-00000000e003', bankCode: '01', bankName: 'KCB Bank', branchCode: '100' })
+  const { calls } = await openEdit({
+    [`GET ${path}`]: () => json(200, accounts),
+    [`PUT ${path}/${equityAccount().id}`]: () => { accounts = [edited]; return json(200, edited) },
+  })
+  await within(section()).findByText('•••• 8901')
+
+  await userEvent.click(within(section()).getByRole('button', { name: 'Edit Equity Bank •••• 8901' }))
+
+  const dialog = screen.getByRole('dialog', { name: 'Edit paying account' })
+  expect(within(dialog).getByRole('combobox', { name: 'Bank' })).toHaveValue('Equity Bank')
+  expect(within(dialog).getByRole('combobox', { name: 'Branch' })).toHaveValue('Moi Avenue, Nairobi')
+  const number = within(dialog).getByRole('textbox', { name: 'Account number' })
+  expect(number).toHaveValue('')
+  expect(number).toHaveAccessibleDescription('Leave empty to keep •••• 8901.')
+  await userEvent.type(within(dialog).getByRole('combobox', { name: 'Bank' }), '{Control>}a{/Control}kcb')
+  await userEvent.click(within(dialog).getByRole('option', { name: 'KCB Bank' }))
+  await userEvent.type(within(dialog).getByRole('combobox', { name: 'Branch' }), 'moi')
+  await userEvent.click(within(dialog).getByRole('option', { name: 'Moi Avenue, Nairobi' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  expect(await screen.findByText('Paying account saved')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({ method: 'bank', bankCode: '01', branchCode: '100', accountNumber: '' })
+  expect(await within(section()).findByText('KCB Bank')).toBeInTheDocument()
+})
