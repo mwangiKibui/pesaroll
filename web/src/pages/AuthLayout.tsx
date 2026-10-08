@@ -4,8 +4,8 @@ import panelArt from '../assets/auth-panel.svg'
 import { Navbar } from '../components/Navbar'
 
 /**
- * Sign-up and sign-in: the navbar across the top, then a deep green panel on the left (on top on
- * phones) with a decorative background, and the form on the right. Both sides are centred vertically; the panel lists what Pesaroll does.
+ * Sign-up and sign-in: the navbar across the top, then a deep green panel on the left with a
+ * decorative background, and the form on the right. Phones and tablets show only the form; the panel appears from 1024 px, where it fits beside it. Both sides are centred vertically; the panel lists what Pesaroll does.
  */
 export function AuthLayout({ title, intro, wide, children }: {
   title: string
@@ -21,7 +21,7 @@ export function AuthLayout({ title, intro, wide, children }: {
       <Navbar />
       <div className="flex flex-1 flex-wrap">
         <section style={{ backgroundImage: `url(${JSON.stringify(panelArt)})` }}
-          className="flex flex-[1_1_420px] flex-col justify-center gap-5 bg-sidebar bg-cover bg-center px-6 py-10 md:sticky md:top-16 md:h-[calc(100dvh-4rem)] md:self-start md:px-12 md:py-14">
+          className="hidden flex-[1_1_420px] flex-col justify-center gap-5 bg-sidebar bg-cover bg-center px-12 py-14 lg:sticky lg:top-16 lg:flex lg:h-[calc(100dvh-4rem)] lg:self-start">
           <div className="flex w-full max-w-[36rem] flex-col gap-5">
             <p className="m-0 font-display text-title leading-tight text-sidebar-heading md:text-[44px]">{t('auth.panelTitle')}</p>
             <p className="m-0 text-body text-sidebar-ink md:text-[17px]">{t('auth.panelText')}</p>

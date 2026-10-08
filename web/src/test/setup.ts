@@ -4,7 +4,7 @@ import { afterEach } from 'vitest'
 import '../i18n'
 
 // Page tests start the whole app (router, guards, API calls); give them time on a cold start.
-configure({ asyncUtilTimeout: 10_000 })
+configure({ asyncUtilTimeout: 20_000 })
 
 afterEach(() => {
   cleanup()

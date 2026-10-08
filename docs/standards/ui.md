@@ -68,6 +68,7 @@ Colour tokens (light / dark):
   - fill in sensible defaults and let people skip any step
   - unsaved work shows a "Not saved yet" `Tag`
   - problems that block progress show as an amber `Notice` that says how to fix them
+- **Sign-in and sign-up:** on phones and tablets, only the navbar and the form; the green side panel shows from laptop width (1024 px) up, where it fits beside the form.
 - **Employee portal (`PhoneShell`):**
   - one column of cards with a bottom bar (Home · Payslips · Leave · Profile)
   - main buttons full width (`size="lg"`), inputs `size="lg"`

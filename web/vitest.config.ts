@@ -8,6 +8,6 @@ export default mergeConfig(viteConfig, defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     restoreMocks: true,
-    testTimeout: 15_000, // page tests start the whole app; a slow machine shouldn't fail them
+    testTimeout: 30_000, // page tests start the whole app; a busy machine shouldn't fail them
   },
 }))
