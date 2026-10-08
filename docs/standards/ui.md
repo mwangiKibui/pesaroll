@@ -89,7 +89,7 @@ Colour tokens (light / dark):
 - Choosing from a list uses the searchable `SelectField`, with a placeholder like any field ("Your county").
 - A field's error appears under it and is read out with it (`TextField error=…`).
 - Problems with the whole form or page use `FormErrorBanner`, which shows the message plus the code and reference from the API, so customers can quote them to support (see `errors.md`).
-- Short confirmations ("Location added") are toasts (`useToast().show(…)`), everywhere on the platform: top right (full width on phones), green with white text and a tick; a failure that isn't about a field is a red toast (`show(message, 'danger')`). They go away after 5 seconds. Never an inline banner for these.
+- Short confirmations ("Location added") are toasts (`useToast().show(…)`), everywhere on the platform: top right (full width on phones), green with white text and a tick; a failure that isn't about a field is a red toast (`show(message, 'danger')`). They slide in from the right and fade out after 5 seconds (no movement when the device asks for reduced motion). Never an inline banner for these.
 
 ## Money
 

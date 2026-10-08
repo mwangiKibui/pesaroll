@@ -61,7 +61,7 @@ export function Loading({ rows = 3 }: { rows?: number }) {
   )
 }
 
-interface Toast { id: number; message: string; tone: ToastTone }
+interface Toast { id: number; message: string; tone: ToastTone; leaving?: boolean }
 
 /** Short confirmations ("Location added"), top right in green with white text (red when something failed); they go away after 5 seconds. */
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -69,6 +69,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const show = useCallback((message: string, tone: ToastTone = 'brand') => {
     const id = Date.now() + Math.random()
     setToasts(list => [...list, { id, message, tone }])
+    // Slides out over the last 200 ms, then goes.
+    setTimeout(() => setToasts(list => list.map(x => (x.id === id ? { ...x, leaving: true } : x))), 4800)
     setTimeout(() => setToasts(list => list.filter(x => x.id !== id)), 5000)
   }, [])
   return (
@@ -77,7 +79,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {/* Top right (full width on phones), above drawers and dialogs: green for done, red for failed, white text. */}
       <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-4 top-4 z-[80] flex flex-col items-end gap-2 sm:left-auto sm:w-96">
         {toasts.map(x => (
-          <div key={x.id} className={`pointer-events-auto flex w-full items-start gap-2.5 rounded-card px-4 py-3 text-label font-medium shadow-float ${x.tone === 'danger' ? 'bg-danger text-on-danger' : 'bg-brand text-on-brand'}`}>
+          <div key={x.id} className={`pointer-events-auto flex w-full items-start gap-2.5 rounded-card px-4 py-3 text-label font-medium shadow-float ${x.leaving ? 'motion-safe:animate-toast-out' : 'motion-safe:animate-toast-in'} ${x.tone === 'danger' ? 'bg-danger text-on-danger' : 'bg-brand text-on-brand'}`}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-px flex-none">
               {x.tone === 'danger' ? <path d="M12 8v5M12 16.5v.5M12 3l10 18H2z" /> : <path d="M5 12l5 5 9-10" />}
             </svg>
