@@ -60,3 +60,27 @@ it('a tab with something to fix says so', async () => {
   expect(screen.getByRole('tab', { name: 'Statutory numbers, needs fixing' })).toBeInTheDocument()
   await expectNoA11yViolations(container)
 })
+
+it('a tab can be unavailable for now: announced as such, not chosen by click or arrows', async () => {
+  function Adding() {
+    const [current, setCurrent] = useState('details')
+    return (
+      <>
+        <Tabs id="new" label="Company sections" current={current} onChange={setCurrent}
+          tabs={[{ key: 'details', label: 'Company details' }, { key: 'accounts', label: 'Paying accounts', disabled: true }]} />
+        <TabPanel id="new" tab="details" current={current}><p>Details</p></TabPanel>
+        <TabPanel id="new" tab="accounts" current={current}><p>Accounts</p></TabPanel>
+      </>
+    )
+  }
+  const { container } = render(<Adding />)
+
+  const accounts = screen.getByRole('tab', { name: 'Paying accounts' })
+  expect(accounts).toHaveAttribute('aria-disabled', 'true')
+  await userEvent.click(accounts)
+  expect(screen.getByRole('tab', { name: 'Company details' })).toHaveAttribute('aria-selected', 'true')
+  screen.getByRole('tab', { name: 'Company details' }).focus()
+  await userEvent.keyboard('{ArrowRight}')
+  expect(screen.getByRole('tab', { name: 'Company details' })).toHaveAttribute('aria-selected', 'true')
+  await expectNoA11yViolations(container)
+})

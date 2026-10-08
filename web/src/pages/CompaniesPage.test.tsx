@@ -41,6 +41,8 @@ it('with no companies yet, offers the first one, named after the organization an
   expect(within(drawer()).getAllByRole('heading', { level: 3 }).map(h => h.textContent))
     .toEqual(['Company', 'Statutory numbers', 'Address and contact'])
   expect(within(drawer()).getByRole('tab', { name: 'Company details' })).toHaveAttribute('aria-selected', 'true')
+  // Paying accounts belong to a saved company: the tab opens once the company is added.
+  expect(within(drawer()).getByRole('tab', { name: 'Paying accounts' })).toHaveAttribute('aria-disabled', 'true')
   expect(within(drawer()).getByRole('textbox', { name: 'Legal name' })).toHaveValue('Mama Oliech Group')
   expect(within(drawer()).getByRole('combobox', { name: 'Country' })).toHaveValue('Kenya')
   // The numbers come from the country: payroll needs the first three, the last is optional.
@@ -70,7 +72,14 @@ it('adds a company; numbers it still needs show against it, and the step is tick
   await choose('County optional', 'nairobi', 'Nairobi')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
 
+  // Added: the drawer stays open on the new company's Paying accounts, now available.
   expect(await screen.findByText('Company added')).toBeInTheDocument()
+  expect(within(drawer()).getByRole('heading', { name: 'Edit company' })).toBeInTheDocument()
+  const accountsTab = within(drawer()).getByRole('tab', { name: 'Paying accounts' })
+  expect(accountsTab).not.toHaveAttribute('aria-disabled')
+  expect(accountsTab).toHaveAttribute('aria-selected', 'true')
+  expect(await within(drawer()).findByRole('button', { name: 'Add paying account' })).toBeInTheDocument()
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   const body = calls.find(c => c.method === 'POST' && c.path === '/api/companies')?.body as Record<string, unknown>
   expect(body).toMatchObject({ legalName: 'Mama Oliech Restaurant Ltd', tradingName: 'Mama Oliech', countryCode: 'KE', industryCode: 'restaurants_bars', regionCode: '047' })
@@ -105,13 +114,14 @@ it('checks the name and the numbers against the country before sending anything'
 })
 
 it('saving from the Paying accounts tab goes back to the details with the problem', async () => {
-  fakeApi(signedIn)
+  fakeApi({ ...signedIn, 'GET /api/companies': () => json(200, [saved]) })
   renderApp('/setup/companies')
-  await userEvent.click(await screen.findByRole('button', { name: 'Add company' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Mama Oliech Restaurant Ltd' }))
+  await userEvent.clear(within(drawer()).getByRole('textbox', { name: 'KRA PIN' }))
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'KRA PIN' }), 'A12')
   await tab('Paying accounts')
 
-  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
 
   expect(within(drawer()).getByRole('tab', { name: 'Company details, needs fixing' })).toHaveAttribute('aria-selected', 'true')
   expect(within(drawer()).getByRole('textbox', { name: 'KRA PIN' })).toBeVisible()
@@ -206,6 +216,7 @@ it('continuing needs at least one company, then goes to the dashboard with two s
   await userEvent.click(screen.getByRole('button', { name: 'Add company' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
   await screen.findByText('Company added')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
 
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()

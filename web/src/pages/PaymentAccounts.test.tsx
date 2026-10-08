@@ -33,7 +33,7 @@ async function choose(name: string, search: string, option: string) {
   await userEvent.click(within(modal()).getByRole('option', { name: option }))
 }
 
-it('a company without a paying account says payroll needs one; a new company is saved first', async () => {
+it('a company without a paying account says payroll needs one; a new company gets accounts once added', async () => {
   const { container } = await openEdit()
 
   expect(within(section()).getByText(/can't run payroll until it has one/)).toBeInTheDocument()
@@ -41,8 +41,7 @@ it('a company without a paying account says payroll needs one; a new company is 
 
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
   await userEvent.click(screen.getByRole('button', { name: 'Add company' }))
-  await userEvent.click(within(drawer()).getByRole('tab', { name: 'Paying accounts' }))
-  expect(within(section()).getByText('Save the company first, then add where its payroll is paid from.')).toBeVisible()
+  expect(within(drawer()).getByRole('tab', { name: 'Paying accounts' })).toHaveAttribute('aria-disabled', 'true')
 })
 
 it('adds a bank account; the number only shows masked', async () => {

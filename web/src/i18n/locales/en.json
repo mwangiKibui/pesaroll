@@ -237,7 +237,6 @@
     "title": "Paying accounts",
     "intro": "Where this company's payroll is paid from. Bank and M-Pesa files use it as it's saved here, so it can't be changed in the file.",
     "none": "No paying account yet. This company can't run payroll until it has one.",
-    "saveFirst": "Save the company first, then add where its payroll is paid from.",
     "add": "Add paying account",
     "submit": "Add account",
     "added": "Paying account added",

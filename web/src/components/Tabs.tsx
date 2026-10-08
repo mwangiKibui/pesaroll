@@ -6,6 +6,8 @@ export interface Tab {
   label: string
   /** Something on this tab needs fixing: a dot, and "needs fixing" for screen readers. */
   invalid?: boolean
+  /** Not available yet (paying accounts before the company exists): shown, but can't be chosen. */
+  disabled?: boolean
 }
 
 interface TabsProps {
@@ -27,18 +29,22 @@ export function Tabs({ id, label, tabs, current, onChange }: TabsProps) {
   const { t } = useTranslation()
   const list = useRef<HTMLDivElement>(null)
 
-  const go = (index: number) => {
-    const tab = tabs[(index + tabs.length) % tabs.length]
+  const go = (index: number, step: number) => {
+    // Skip tabs that can't be chosen yet.
+    let i = index
+    for (let n = 0; n < tabs.length && tabs[(i + tabs.length) % tabs.length].disabled; n++) i += step
+    const tab = tabs[(i + tabs.length) % tabs.length]
+    if (tab.disabled) return
     onChange(tab.key)
     list.current?.querySelector<HTMLElement>(`#${CSS.escape(`${id}-tab-${tab.key}`)}`)?.focus()
   }
 
   const onKeyDown = (e: KeyboardEvent) => {
     const at = tabs.findIndex(tab => tab.key === current)
-    if (e.key === 'ArrowRight') { e.preventDefault(); go(at + 1) }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at - 1) }
-    else if (e.key === 'Home') { e.preventDefault(); go(0) }
-    else if (e.key === 'End') { e.preventDefault(); go(tabs.length - 1) }
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(at + 1, 1) }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at - 1, -1) }
+    else if (e.key === 'Home') { e.preventDefault(); go(0, 1) }
+    else if (e.key === 'End') { e.preventDefault(); go(tabs.length - 1, -1) }
   }
 
   return (
@@ -48,8 +54,9 @@ export function Tabs({ id, label, tabs, current, onChange }: TabsProps) {
         const selected = tab.key === current
         return (
           <button key={tab.key} id={`${id}-tab-${tab.key}`} type="button" role="tab" aria-selected={selected}
-            aria-controls={`${id}-panel-${tab.key}`} tabIndex={selected ? 0 : -1} onClick={() => onChange(tab.key)}
-            className={`-mb-px flex min-h-11 flex-none items-center gap-1.5 border-b-2 px-3 text-label whitespace-nowrap ${selected ? 'border-brand font-semibold text-ink' : 'border-transparent text-muted hover:text-ink'}`}>
+            aria-controls={`${id}-panel-${tab.key}`} aria-disabled={tab.disabled || undefined} tabIndex={selected ? 0 : -1}
+            onClick={() => { if (!tab.disabled) onChange(tab.key) }}
+            className={`-mb-px flex min-h-11 flex-none items-center gap-1.5 border-b-2 px-3 text-label whitespace-nowrap ${selected ? 'border-brand font-semibold text-ink' : 'border-transparent text-muted'} ${tab.disabled ? 'cursor-not-allowed opacity-60' : selected ? '' : 'hover:text-ink'}`}>
             {tab.label}
             {tab.invalid && <>
               <span aria-hidden="true" className="size-2 rounded-full bg-danger" />

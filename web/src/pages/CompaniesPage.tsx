@@ -58,6 +58,7 @@ export default function CompaniesPage() {
   const industries = useIndustries()
   const done = useSetupDone(true)
   const [editing, setEditing] = useState<Company | 'new' | null>(null)
+  const [startTab, setStartTab] = useState<TabKey>('details')
   const [deleting, setDeleting] = useState<Company | null>(null)
   const [busyDeleting, setBusyDeleting] = useState(false)
   const [needOne, setNeedOne] = useState(false)
@@ -158,10 +159,13 @@ export default function CompaniesPage() {
       <div><Button onClick={proceed}>{t('companies.continue')}</Button></div>
 
       {ready && editing && (
-        <CompanyDrawer company={editing === 'new' ? null : editing} countries={countries.data} industries={industries.data}
+        <CompanyDrawer key={editing === 'new' ? 'new' : editing.id} company={editing === 'new' ? null : editing}
+          countries={countries.data} industries={industries.data} initialTab={startTab}
           // The first company is usually the organization itself, so it starts with its name.
           suggestedName={list.length === 0 ? organization.data.name : ''}
-          onClose={() => setEditing(null)} />
+          // A new company stays open on Paying accounts (available now that it exists).
+          onAdded={added => { setEditing(added); setStartTab('accounts') }}
+          onClose={() => { setEditing(null); setStartTab('details') }} />
       )}
       <ConfirmDialog open={!!deleting} title={t('companies.deleteTitle', { name: deleting?.legalName })}
         confirmLabel={t('companies.deleteConfirm')} busy={busyDeleting} onConfirm={remove} onCancel={() => setDeleting(null)}>
@@ -197,11 +201,13 @@ const formFields: FieldPath<Values>[] = ['legalName', 'tradingName', 'countryCod
 const tabOrder = ['details', 'accounts'] as const
 type TabKey = (typeof tabOrder)[number]
 
-function CompanyDrawer({ company, countries, industries, suggestedName, onClose }: {
+function CompanyDrawer({ company, countries, industries, suggestedName, initialTab, onAdded, onClose }: {
   company: Company | null
   countries: Country[]
   industries: Industry[]
   suggestedName: string
+  initialTab: TabKey
+  onAdded: (company: Company) => void
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -209,7 +215,7 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
   const toast = useToast()
   const formId = useId()
   const tabsId = useId()
-  const [tab, setTab] = useState<TabKey>('details')
+  const [tab, setTab] = useState<TabKey>(initialTab)
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const countryOf = (code: string) => countries.find(c => c.code === code) ?? countries[0]
 
@@ -267,7 +273,8 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
         queryClient.setQueryData<Company[]>(['companies'], old =>
           company ? old?.map(c => (c.id === data.id ? data : c)) : [...(old ?? []), data])
         toast.show(company ? t('companies.saved') : t('companies.added'))
-        onClose()
+        if (company) onClose()
+        else onAdded(data)
         return
       }
       showError(error)
@@ -312,7 +319,12 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
   return (
     <Drawer open size="wide" title={company ? t('companies.editTitle') : t('companies.addTitle')} onClose={onClose}
       tabs={<Tabs id={tabsId} label={t('companies.sections')} current={tab} onChange={key => setTab(key as TabKey)}
-        tabs={tabOrder.map(key => ({ key, label: t(`companies.tabs.${key}`), invalid: key === 'details' && Object.keys(errors).length > 0 }))} />}
+        tabs={tabOrder.map(key => ({
+          key, label: t(`companies.tabs.${key}`),
+          invalid: key === 'details' && Object.keys(errors).length > 0,
+          // Paying accounts belong to a saved company.
+          disabled: key === 'accounts' && !company,
+        }))} />}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{company ? t('companies.save') : t('companies.add')}</Button>
@@ -371,7 +383,7 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
         </TabPanel>
       </form>
       <TabPanel id={tabsId} tab="accounts" current={tab}>
-        {company ? <PaymentAccounts company={company} /> : <p className="m-0 text-muted">{t('payingAccounts.saveFirst')}</p>}
+        {company && <PaymentAccounts company={company} />}
       </TabPanel>
     </Drawer>
   )
