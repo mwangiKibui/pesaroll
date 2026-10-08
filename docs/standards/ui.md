@@ -18,6 +18,7 @@ How every Pesaroll screen looks and is built: the admin app, the back office and
    - icon-only buttons carry a label (`IconButton label="Edit Westlands Restaurant"`)
    - tap targets at least 44 px (50 px for main buttons on the portal)
    - a visible focus ring
+   - the pointer hand on everything clickable (buttons, menu items, options, radio and checkbox labels), "not allowed" on disabled buttons: set once in `web/src/index.css`, never per component
    - text contrast at least 4.5:1 in both themes (tested on the tokens)
    - every component test runs axe
 9. **Test-first:** component behaviour, keyboard use and axe, with Vitest and React Testing Library, next to the component (`Component.test.tsx`). Test what people see and do, not class names.

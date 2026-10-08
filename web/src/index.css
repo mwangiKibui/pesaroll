@@ -14,4 +14,16 @@
   a { color: var(--color-brand); }
   a:hover { color: var(--color-brand-hover); }
   :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+  /* Everything people can click shows the pointer hand; Tailwind's reset gives buttons the arrow. */
+  button:not(:disabled),
+  [role="button"],
+  [role="menuitemradio"],
+  [role="option"],
+  label:has(> input[type="radio"]),
+  label:has(> input[type="checkbox"]),
+  input[type="radio"],
+  input[type="checkbox"],
+  select { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
 }
