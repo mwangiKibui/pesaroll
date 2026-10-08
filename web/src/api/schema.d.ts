@@ -1016,15 +1016,6 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Locked */
-                423: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
             };
         };
         delete?: never;
@@ -1283,7 +1274,6 @@ export interface components {
             accountName: null | string;
             accountNumber: null | string;
             mpesaShortcode: null | string;
-            password: null | string;
         };
         PaymentAccountResponse: {
             /** Format: uuid */

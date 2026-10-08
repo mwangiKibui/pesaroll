@@ -10,7 +10,6 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('AUTH-1008', 'AUTH', 'warning', 'Enter your first and last name and choose your role.', 'customer', 'Sign-up form incomplete.'),
   ('AUTH-1009', 'AUTH', 'warning', 'You chose Other: type your role (up to 80 characters).', 'customer', 'Sign-up role "Other" needs the person''s own role.'),
   ('AUTH-1010', 'AUTH', 'info',    'Your session has ended. Sign in again.', 'customer', 'Access token expired, changed or for an ended session, or a refresh failed. Sessions end after 12 hours idle, 7 days total, at sign-out, or when an old refresh token is reused (possible theft: suggest a password change).'),
-  ('AUTH-1011', 'AUTH', 'warning', 'That password isn''t right. Enter the password you sign in with to confirm.', 'customer', 'A sensitive change (adding a paying account) asks for the password again; wrong attempts count towards the sign-in lock (AUTH-1002).'),
   ('PLAT-9002', 'PLAT', 'warning', 'This request came from another website and was blocked.', 'engineering', 'Check App:AllowedOrigins includes the app''s address; otherwise a cross-site request was stopped.'),
   ('ACC-8001',  'ACC',  'warning', 'You don''t have permission to do this. Ask an administrator in your organization.', 'customer', 'Check the person''s role and company scope in the back office.'),
   ('IMP-3001',  'IMP',  'error',   'Row {row}: {column} is required.', 'customer', 'Point them to the template''s required columns.'),

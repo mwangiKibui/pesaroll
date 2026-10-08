@@ -14,9 +14,9 @@ public sealed record BranchResponse(string Code, string Name);
 
 public sealed record BankResponse(string Code, string Name, IReadOnlyList<BranchResponse> Branches);
 
-/// <summary>Adding a paying account. <see cref="Password"/> is the person's sign-in password, asked again.</summary>
+/// <summary>Adding a paying account: a bank account (bank, branch, name, number) or an M-Pesa shortcode.</summary>
 public sealed record PaymentAccountRequest(
-    string? Method, string? BankCode, string? BranchCode, string? AccountName, string? AccountNumber, string? MpesaShortcode, string? Password);
+    string? Method, string? BankCode, string? BranchCode, string? AccountName, string? AccountNumber, string? MpesaShortcode);
 
 /// <summary>A paying account as people see it: the account number only ever masked ("•••• 8901").</summary>
 public sealed record PaymentAccountResponse(
@@ -26,7 +26,7 @@ public sealed record PaymentAccountResponse(
 /// <summary>
 /// ONB-03, paying accounts: where each company's payroll is paid from, a bank account or an M-Pesa
 /// B2C shortcode. Bank and M-Pesa files (PAY-06, PAY-07) take the debit account from here.
-/// Adding one asks for the password again; account numbers are encrypted; nothing is overwritten:
+/// Account numbers are encrypted; nothing is overwritten:
 /// replacing an account is adding the new one and removing (closing) the old.
 /// </summary>
 public static class PaymentAccountsEndpoints
@@ -57,12 +57,11 @@ public static class PaymentAccountsEndpoints
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
         accounts.MapPost("/", async (Guid companyId, PaymentAccountRequest request, OrganizationsDbContext db, TenantContext tenant,
-            HttpContext http, AuthService auth, FieldEncryptor encryptor, CancellationToken ct) =>
+            HttpContext http, FieldEncryptor encryptor, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
             var company = await FindCompany(db, companyId, ct);
-            await auth.ConfirmPasswordAsync(userId, request.Password, ct);
             var (account, number) = await Validate(request, company, db, ct);
 
             account.Id = Guid.CreateVersion7();
@@ -81,7 +80,7 @@ public static class PaymentAccountsEndpoints
             return Results.Created($"/api/companies/{company.Id}/payment-accounts/{account.Id}", saved);
         }).Produces<PaymentAccountResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status423Locked);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
         accounts.MapPost("/{accountId:guid}/default", async (Guid companyId, Guid accountId, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, CancellationToken ct) =>

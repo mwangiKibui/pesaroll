@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { apiError, company, equityAccount, fakeApi, json, orgToken } from '../test/fakeApi'
+import { company, equityAccount, fakeApi, json, orgToken } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -41,7 +41,7 @@ it('a company without a paying account says payroll needs one; a new company is 
   expect(within(section()).getByText('Save the company first, then add where its payroll is paid from.')).toBeVisible()
 })
 
-it('adds a bank account after the password is confirmed; the number only shows masked', async () => {
+it('adds a bank account; the number only shows masked', async () => {
   let accounts: unknown[] = []
   const { calls, container } = await openEdit({
     [`GET ${path}`]: () => json(200, accounts),
@@ -55,44 +55,34 @@ it('adds a bank account after the password is confirmed; the number only shows m
   await choose('Bank', 'equ', 'Equity Bank')
   await choose('Branch', 'moi', 'Moi Avenue, Nairobi')
   await userEvent.type(within(section()).getByRole('textbox', { name: 'Account number' }), '0123 4567 8901')
-  const password = within(section()).getByLabelText('Your password')
-  expect(password).toHaveAccessibleDescription(/confirm it's you/)
-  await userEvent.type(password, 'Mombasa-raha-7')
   await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
 
   expect(await screen.findByText('Paying account added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === path)?.body).toEqual({
-    method: 'bank', bankCode: '68', branchCode: '047', accountName: 'Mama Oliech Restaurant Ltd', accountNumber: '0123 4567 8901', mpesaShortcode: null, password: 'Mombasa-raha-7',
+    method: 'bank', bankCode: '68', branchCode: '047', accountName: 'Mama Oliech Restaurant Ltd', accountNumber: '0123 4567 8901', mpesaShortcode: null,
   })
   const row = within(section()).getByRole('listitem')
   expect(row).toHaveTextContent('Equity Bank · Moi Avenue, Nairobi')
   expect(row).toHaveTextContent('•••• 8901')
   expect(row).toHaveTextContent('Default')
-  expect(within(section()).queryByLabelText('Your password')).not.toBeInTheDocument()
 })
 
-it('checks the details before sending; a wrong password and server problems show under their fields', async () => {
-  let reply = () => apiError(403, 'AUTH-1011', "That password isn't right. Enter the password you sign in with to confirm.")
-  const { calls } = await openEdit({ [`POST ${path}`]: () => reply() })
+it('checks the details before sending; problems the server finds show under their fields', async () => {
+  const { calls } = await openEdit({
+    [`POST ${path}`]: () => json(400, { code: 'ONB-3510', message: 'Some paying account details don\'t look right.', reference: '7F3K92QD', fields: { branchCode: 'Choose a branch of this bank from the list.' } }),
+  })
   await userEvent.click(within(section()).getByRole('button', { name: 'Add paying account' }))
 
   await userEvent.type(within(section()).getByRole('textbox', { name: 'Account number' }), '12ab')
   await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
   expect(within(section()).getByRole('combobox', { name: 'Bank' })).toHaveAccessibleDescription('Choose a bank from the list.')
   expect(within(section()).getByRole('textbox', { name: 'Account number' })).toHaveAccessibleDescription('Enter the account number: 6 to 20 digits.')
-  expect(within(section()).getByLabelText('Your password')).toHaveAccessibleDescription(/Enter your password to confirm/)
   expect(calls.filter(c => c.method === 'POST' && c.path === path)).toHaveLength(0)
 
   await choose('Bank', 'equ', 'Equity Bank')
   await choose('Branch', 'moi', 'Moi Avenue, Nairobi')
   await userEvent.clear(within(section()).getByRole('textbox', { name: 'Account number' }))
   await userEvent.type(within(section()).getByRole('textbox', { name: 'Account number' }), '0123456789')
-  await userEvent.type(within(section()).getByLabelText('Your password'), 'wrong-one')
-  await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
-  expect(await within(section()).findByText("That password isn't right. Enter the password you sign in with to confirm.")).toBeInTheDocument()
-  expect(within(section()).getByLabelText('Your password')).toHaveAccessibleDescription(/That password isn't right/)
-
-  reply = () => json(400, { code: 'ONB-3510', message: 'Some paying account details don\'t look right.', reference: '7F3K92QD', fields: { branchCode: 'Choose a branch of this bank from the list.' } })
   await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
   expect(await within(section()).findByText('Choose a branch of this bank from the list.')).toBeInTheDocument()
 })
@@ -104,12 +94,11 @@ it('adds an M-Pesa shortcode instead', async () => {
   await userEvent.click(within(section()).getByText('M-Pesa'))
   expect(within(section()).queryByRole('combobox', { name: 'Bank' })).not.toBeInTheDocument()
   await userEvent.type(within(section()).getByRole('textbox', { name: 'M-Pesa shortcode' }), '600123')
-  await userEvent.type(within(section()).getByLabelText('Your password'), 'Mombasa-raha-7')
   await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
 
   expect(await screen.findByText('Paying account added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === path)?.body).toEqual({
-    method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: '600123', password: 'Mombasa-raha-7',
+    method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: '600123',
   })
 })
 

@@ -44,7 +44,6 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | AUTH-1008 | Enter your first and last name and choose your role. | Customer | Sign-up form incomplete. |
 | AUTH-1009 | You chose Other: type your role (up to 80 characters). | Customer | Sign-up role "Other" needs the person's own role. |
 | AUTH-1010 | Your session has ended. Sign in again. | Customer | Access token expired, changed or for an ended session, or a refresh failed. Sessions end after 12 hours idle, 7 days total, at sign-out, or when an old refresh token is reused (possible theft: suggest a password change). |
-| AUTH-1011 | That password isn't right. Enter the password you sign in with to confirm. | Customer | A sensitive change (adding a paying account) asks for the password again; wrong attempts count towards the sign-in lock (AUTH-1002). |
 | ACC-8001 | You don't have permission to do this. Ask an administrator in your organization. | Customer | Check the person's role and company scope in the back office. |
 | IMP-3001 | Row {row}: {column} is required. | Customer | Point them to the template's required columns. |
 | IMP-3002 | Row {row}: "{value}" isn't one of your {column} options. | Customer | Check the option exists in setup, or fix the spelling. |

@@ -9,9 +9,8 @@ using Pesaroll.Shared.Security;
 namespace Pesaroll.Organizations.Tests;
 
 /// <summary>
-/// ONB-03, paying accounts: where each company's payroll is paid from. Adding one asks for the
-/// password again, the account number is stored encrypted and only ever shown masked, and history
-/// is kept. A company can't run payroll without one.
+/// ONB-03, paying accounts: where each company's payroll is paid from. The account number is stored
+/// encrypted and only ever shown masked, and history is kept. A company can't run payroll without one.
 /// </summary>
 public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixture<OnboardingTests.Api>
 {
@@ -49,9 +48,9 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
         return (client, email, created.Organization.Id, company.Id);
     }
 
-    private static object EquityAccount(string? password = Password, string number = "0123-4567 8901") => new
+    private static object EquityAccount(string number = "0123-4567 8901") => new
     {
-        method = "bank", bankCode = "68", branchCode = "047", accountName = "Mama Oliech Restaurants Ltd", accountNumber = number, password,
+        method = "bank", bankCode = "68", branchCode = "047", accountName = "Mama Oliech Restaurants Ltd", accountNumber = number,
     };
 
     private static async Task<Error> ErrorFrom(HttpResponseMessage res) => (await res.Content.ReadFromJsonAsync<Error>())!;
@@ -69,16 +68,10 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
     }
 
     [Fact]
-    public async Task Adding_a_bank_account_asks_for_the_password_stores_the_number_encrypted_and_makes_the_company_ready()
+    public async Task Adding_a_bank_account_stores_the_number_encrypted_and_makes_the_company_ready()
     {
         var (client, _, _, companyId) = await CompanyReadyButForAccount();
         var path = $"/api/companies/{companyId}/payment-accounts";
-
-        var noPassword = await client.PostAsJsonAsync(path, EquityAccount(password: null));
-        Assert.Equal(HttpStatusCode.Forbidden, noPassword.StatusCode);
-        Assert.Equal("AUTH-1011", (await ErrorFrom(noPassword)).Code);
-        var wrong = await client.PostAsJsonAsync(path, EquityAccount(password: "not-my-password"));
-        Assert.Equal("AUTH-1011", (await ErrorFrom(wrong)).Code);
 
         var res = await client.PostAsJsonAsync(path, EquityAccount());
 
@@ -113,19 +106,19 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
         var (client, _, _, companyId) = await CompanyReadyButForAccount();
         var path = $"/api/companies/{companyId}/payment-accounts";
 
-        var bank = await client.PostAsJsonAsync(path, new { method = "bank", bankCode = "68", branchCode = "100", accountName = "A", accountNumber = "12ab", password = Password });
+        var bank = await client.PostAsJsonAsync(path, new { method = "bank", bankCode = "68", branchCode = "100", accountName = "A", accountNumber = "12ab" });
         Assert.Equal(HttpStatusCode.BadRequest, bank.StatusCode);
         var error = await ErrorFrom(bank);
         Assert.Equal("ONB-3510", error.Code);
         Assert.Equal(["accountName", "accountNumber", "branchCode"], error.Fields!.Keys.Order());
 
-        var unknownBank = await ErrorFrom(await client.PostAsJsonAsync(path, new { method = "bank", bankCode = "99", branchCode = "001", accountName = "Mama Oliech", accountNumber = "0123456789", password = Password }));
+        var unknownBank = await ErrorFrom(await client.PostAsJsonAsync(path, new { method = "bank", bankCode = "99", branchCode = "001", accountName = "Mama Oliech", accountNumber = "0123456789" }));
         Assert.Equal(["bankCode"], unknownBank.Fields!.Keys);
 
-        var mpesa = await ErrorFrom(await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = "12", password = Password }));
+        var mpesa = await ErrorFrom(await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = "12" }));
         Assert.Equal(["mpesaShortcode"], mpesa.Fields!.Keys);
 
-        var method = await ErrorFrom(await client.PostAsJsonAsync(path, new { method = "cash", password = Password }));
+        var method = await ErrorFrom(await client.PostAsJsonAsync(path, new { method = "cash" }));
         Assert.Equal(["method"], method.Fields!.Keys);
         Assert.Empty((await client.GetFromJsonAsync<List<Account>>(path))!);
     }
@@ -137,7 +130,7 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
         var path = $"/api/companies/{companyId}/payment-accounts";
         var bank = (await (await client.PostAsJsonAsync(path, EquityAccount())).Content.ReadFromJsonAsync<Account>())!;
 
-        var res = await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = " 600123 ", password = Password });
+        var res = await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = " 600123 " });
 
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
         var mpesa = (await res.Content.ReadFromJsonAsync<Account>())!;
@@ -156,7 +149,7 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
         var (client, _, _, companyId) = await CompanyReadyButForAccount();
         var path = $"/api/companies/{companyId}/payment-accounts";
         var first = (await (await client.PostAsJsonAsync(path, EquityAccount())).Content.ReadFromJsonAsync<Account>())!;
-        var second = (await (await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = "600123", password = Password }))
+        var second = (await (await client.PostAsJsonAsync(path, new { method = "mpesa", mpesaShortcode = "600123" }))
             .Content.ReadFromJsonAsync<Account>())!;
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{path}/{first.Id}")).StatusCode);
@@ -211,21 +204,5 @@ public sealed class PaymentAccountsTests(OnboardingTests.Api api) : IClassFixtur
 
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
         Assert.Equal("ACC-8001", (await ErrorFrom(res)).Code);
-    }
-
-    [Fact]
-    public async Task Wrong_passwords_count_towards_the_sign_in_lock()
-    {
-        var (client, email, _, companyId) = await CompanyReadyButForAccount();
-
-        for (var i = 0; i < 4; i++)
-        {
-            await client.PostAsJsonAsync($"/api/companies/{companyId}/payment-accounts", EquityAccount(password: "guess"));
-        }
-        var fifth = await client.PostAsJsonAsync($"/api/companies/{companyId}/payment-accounts", EquityAccount(password: "guess"));
-
-        Assert.Equal("AUTH-1002", (await ErrorFrom(fifth)).Code);
-        var signin = await api.CreateClient().PostAsJsonAsync("/api/auth/signin", new { identifier = email, password = Password });
-        Assert.Equal("AUTH-1002", (await ErrorFrom(signin)).Code);
     }
 }

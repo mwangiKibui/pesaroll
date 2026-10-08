@@ -32,10 +32,6 @@ internal static class AuthErrors
                 : new Dictionary<string, string>(),
         };
 
-    /// <summary>A change that moves money (a paying account) asks for the password again. 403, not 401: the session is fine.</summary>
-    public static AppException PasswordNotConfirmed() =>
-        new("AUTH-1011", "That password isn't right. Enter the password you sign in with to confirm.", 403);
-
     public static AppException MissingDetails() =>
         new("AUTH-1008", "Enter your first and last name and choose your role.");
 

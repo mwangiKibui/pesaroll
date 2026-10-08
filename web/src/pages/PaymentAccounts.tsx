@@ -10,7 +10,6 @@ import { Button, IconButton } from '../components/Button'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { RadioGroup, SelectField, TextField } from '../components/fields'
-import { PasswordField } from '../components/PasswordField'
 import { useToast } from '../components/toast'
 
 type Company = components['schemas']['CompanyResponse']
@@ -23,7 +22,6 @@ interface Values {
   accountName: string
   accountNumber: string
   mpesaShortcode: string
-  password: string
 }
 
 /** "Equity Bank •••• 8901" or "M-Pesa · Shortcode 600123": names an account in buttons and questions. */
@@ -33,8 +31,8 @@ function shortName(t: TFunction, a: Account) {
 
 /**
  * ONB-03: where a company's payroll is paid from, inside the company drawer. Bank and M-Pesa files
- * take the debit account from here. Adding one asks for the password again; the account number
- * only ever comes back masked; removing one keeps it on record for past payrolls.
+ * take the debit account from here. The account number only ever comes back masked; removing one
+ * keeps it on record for past payrolls.
  */
 export function PaymentAccounts({ company }: { company: Company }) {
   const { t } = useTranslation()
@@ -142,7 +140,7 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
     },
   })
   const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
-    defaultValues: { method: 'bank', bankCode: '', branchCode: '', accountName: company.legalName, accountNumber: '', mpesaShortcode: '', password: '' },
+    defaultValues: { method: 'bank', bankCode: '', branchCode: '', accountName: company.legalName, accountNumber: '', mpesaShortcode: '' },
   })
   const method = useWatch({ control, name: 'method' })
   const bankCode = useWatch({ control, name: 'bankCode' })
@@ -159,7 +157,6 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
       if (v.accountName.trim().length < 2 || v.accountName.trim().length > 120) problems.push(['accountName', t('payingAccounts.accountNameInvalid')])
       if (!/^[0-9]{6,20}$/.test(v.accountNumber.replace(/[\s-]/g, ''))) problems.push(['accountNumber', t('payingAccounts.accountNumberInvalid')])
     }
-    if (!v.password) problems.push(['password', t('payingAccounts.passwordRequired')])
     for (const [name, message] of problems) setError(name, { message })
     return problems.length === 0
   }
@@ -169,8 +166,8 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
     if (!check(v)) return
     // The other method's fields are sent empty.
     const body = v.method === 'mpesa'
-      ? { method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: v.mpesaShortcode.trim(), password: v.password }
-      : { method: 'bank', bankCode: v.bankCode, branchCode: v.branchCode, accountName: v.accountName.trim(), accountNumber: v.accountNumber.trim(), mpesaShortcode: null, password: v.password }
+      ? { method: 'mpesa', bankCode: null, branchCode: null, accountName: null, accountNumber: null, mpesaShortcode: v.mpesaShortcode.trim() }
+      : { method: 'bank', bankCode: v.bankCode, branchCode: v.branchCode, accountName: v.accountName.trim(), accountNumber: v.accountNumber.trim(), mpesaShortcode: null }
     try {
       const { data, error } = await api.POST('/api/companies/{companyId}/payment-accounts', { params: { path: { companyId: company.id } }, body })
       if (data) {
@@ -178,8 +175,7 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
         onDone()
         return
       }
-      if (isApiError(error) && error.code === 'AUTH-1011') setError('password', { message: errorMessage(t, error) })
-      else if (isApiError(error) && error.code === 'ONB-3510' && error.fields) {
+      if (isApiError(error) && error.code === 'ONB-3510' && error.fields) {
         for (const [name, message] of Object.entries(error.fields)) setError(name as FieldPath<Values>, { message })
       } else setBanner(isApiError(error) ? error : 'network')
     } catch {
@@ -220,8 +216,6 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
         <TextField label={t('payingAccounts.shortcode')} placeholder={t('payingAccounts.shortcodePlaceholder')} hint={t('payingAccounts.shortcodeHint')}
           inputMode="numeric" maxLength={7} error={errors.mpesaShortcode?.message} {...register('mpesaShortcode')} />
       )}
-      <PasswordField label={t('payingAccounts.password')} placeholder={t('payingAccounts.password')} hint={t('payingAccounts.passwordHint')}
-        error={errors.password?.message} {...register('password')} />
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={onCancel}>{t('common.cancel')}</Button>
         <Button type="submit" busy={isSubmitting}>{t('payingAccounts.submit')}</Button>
