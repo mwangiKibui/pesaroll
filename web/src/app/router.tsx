@@ -48,11 +48,12 @@ async function canOnboard(context: RouterContext) {
   return data?.canOnboardOrganization === true
 }
 
-// The organization step: signed in, no organization yet, and allowed to onboard one.
+// The organization step: to name the organization (if allowed to onboard one), or, once it exists,
+// to see it set up and go on to the dashboard.
 const organizationStep = async ({ context, location }: { context: RouterContext; location: { href: string } }) => {
   await context.auth.start()
   if (context.auth.status() !== 'signedIn') throw redirect({ to: '/signin', search: { redirect: location.href } })
-  if (context.auth.organizationId()) throw redirect({ to: '/' })
+  if (context.auth.organizationId()) return
   if (!(await canOnboard(context))) throw redirect({ to: '/no-organization' })
 }
 

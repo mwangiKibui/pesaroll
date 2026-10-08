@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { apiError, fakeApi, token } from '../test/fakeApi'
+import { apiError, fakeApi, orgToken, token } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -22,6 +22,10 @@ it('asks for the organization name, with the setup steps and who is signed in', 
   expect(await within(navbar).findByText('Wanjiru Kamau')).toBeInTheDocument()
   expect(within(navbar).getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
   expect(screen.queryByRole('link', { name: /skip/i })).not.toBeInTheDocument()
+  expect(screen.getByText("You don't have an organization yet.")).toBeInTheDocument()
+  expect(screen.getByText('Set one up now to get started.')).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /Proceed to Org Dashboard/ })).not.toBeInTheDocument()
+  expect(screen.getByRole('complementary', { name: 'Setup steps' })).toContainElement(steps)
   await expectNoA11yViolations(container)
 })
 
@@ -36,16 +40,31 @@ it('checks the name before sending anything', async () => {
   expect(calls.filter(c => c.path === '/api/organizations')).toHaveLength(0)
 })
 
-it('creates the organization with the name as typed, trimmed, and goes home', async () => {
+it('creates the organization with the name trimmed, stays in setup with it ticked, and offers the dashboard', async () => {
   const calls = fakeApi(signedUp())
   renderApp('/setup/organization')
 
   await userEvent.type(await screen.findByRole('textbox', { name: 'Organization name' }), '  Mama Oliech Group ')
   await userEvent.click(screen.getByRole('button', { name: 'Create organization' }))
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
-  expect(calls.find(c => c.method === 'POST' && c.path === '/api/organizations')?.body).toEqual({ name: 'Mama Oliech Group' })
+  expect(await screen.findByText('Your organization is set up.')).toBeInTheDocument()
   expect(screen.getAllByText('Mama Oliech Group').length).toBeGreaterThan(0)
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/organizations')?.body).toEqual({ name: 'Mama Oliech Group' })
+  expect(screen.queryByRole('textbox', { name: 'Organization name' })).not.toBeInTheDocument()
+  const steps = screen.getByRole('list', { name: 'Setup steps' })
+  expect(within(steps).getByText('Organization').closest('li')).toHaveTextContent('✓')
+
+  await userEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Proceed to Org Dashboard' }))
+
+  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+})
+
+it('with an organization, the organization step shows it as set up', async () => {
+  fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
+  renderApp('/setup/organization')
+
+  expect(await screen.findByText('Your organization is set up.')).toBeInTheDocument()
+  expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Proceed to Org Dashboard' })).toHaveAttribute('href', '/')
 })
 
 it('a name the server refuses shows under the field; other refusals show as a banner with the reference', async () => {

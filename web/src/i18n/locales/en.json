@@ -136,7 +136,12 @@
     "name": "Organization name",
     "namePlaceholder": "Your organization name",
     "nameHint": "The name your team knows you by. Legal company names come in the next step.",
-    "submit": "Create organization"
+    "submit": "Create organization",
+    "noOrgTitle": "You don't have an organization yet.",
+    "noOrgText": "Set one up now to get started.",
+    "createdTitle": "Your organization is set up.",
+    "createdText": "Next, you'll add your companies.",
+    "proceed": "Proceed to Org Dashboard"
   },
   "home": {
     "title": "Karibu, {{name}}",

@@ -28,7 +28,7 @@ export default function HomePage() {
   return (
     <AppShell groups={[{ items: [{ key: 'home', label: t('nav.home'), href: '/' }] }]} current="home"
       organization={organization.data?.name ?? ''} person={me.data?.fullName ?? ''} onSignOut={signOut}
-      setup={{ done, total: setupSteps.length, next, href: '/' }}>
+      setup={{ done, total: setupSteps.length, next, href: '/setup/organization' }}>
       <div className="mx-auto flex max-w-3xl flex-col gap-5">
         {me.data && organization.data ? (
           <>

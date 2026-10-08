@@ -36,7 +36,7 @@ it('without an organization, every signed-in page leads to the organization step
   expect(await screen.findByRole('heading', { name: "What's your organization called?" })).toBeInTheDocument()
 })
 
-it('with an organization, the organization step leads home, and the old welcome page too', async () => {
+it('with an organization, the old welcome page leads home', async () => {
   fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
   renderApp('/welcome')
 
@@ -50,6 +50,7 @@ it('home names the organization and the next setup step, and signing out ends th
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
   expect(await screen.findByText('Finish setting up · 1 of 10')).toBeInTheDocument()
   expect(screen.getAllByText('Next: Companies').length).toBeGreaterThan(0)
+  expect(screen.getByRole('link', { name: /Finish setting up/ })).toHaveAttribute('href', '/setup/organization')
 
   await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 

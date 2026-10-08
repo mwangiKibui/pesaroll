@@ -136,7 +136,12 @@
     "name": "Jina la shirika",
     "namePlaceholder": "Jina la shirika lako",
     "nameHint": "Jina ambalo timu yako inakujua nalo. Majina rasmi ya kampuni yanakuja katika hatua inayofuata.",
-    "submit": "Unda shirika"
+    "submit": "Unda shirika",
+    "noOrgTitle": "Bado huna shirika.",
+    "noOrgText": "Liweke sasa ili uanze.",
+    "createdTitle": "Shirika lako limewekwa.",
+    "createdText": "Kisha, utaongeza kampuni zako.",
+    "proceed": "Endelea kwenye dashibodi ya shirika"
   },
   "home": {
     "title": "Karibu, {{name}}",
