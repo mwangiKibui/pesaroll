@@ -37,12 +37,15 @@ it('the side panel lists what Pesaroll covers: every kind of payroll, phones, pe
   expect(items.some(t => /task/i.test(t ?? ''))).toBe(true)
 })
 
-it.each(['/signin', '/signup'])('every field on %s has a placeholder', async path => {
+it.each(['/signin', '/signup'])('every field on %s has a placeholder: "Your" and the field name', async path => {
   fakeApi()
   renderApp(path)
   await screen.findByRole('heading', { level: 1 })
 
-  const fields = [...document.querySelectorAll('input:not([type=radio]):not([type=checkbox])')]
+  const fields = [...document.querySelectorAll<HTMLInputElement>('input:not([type=radio]):not([type=checkbox])')]
   expect(fields.length).toBeGreaterThan(1)
-  expect(fields.filter(f => !f.getAttribute('placeholder')).map(f => f.getAttribute('name'))).toEqual([])
+  for (const field of fields) {
+    const label = document.querySelector(`label[for="${field.id}"]`)?.firstChild?.textContent ?? ''
+    expect(field.placeholder).toBe(`Your ${label.toLowerCase()}`)
+  }
 })

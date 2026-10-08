@@ -46,7 +46,7 @@
     "featurePhones": "Payslips and leave requests on every employee's phone.",
     "featurePerformance": "Performance management: goals, check-ins and reviews.",
     "featureTasks": "Task management: assignments, and checklists for people joining and leaving.",
-    "contactPlaceholder": "you@company.com or 0712 345 678"
+    "contactPlaceholder": "Your email or phone number"
   },
   "signUp": {
     "title": "Create your account",
@@ -66,11 +66,11 @@
     "haveAccount": "Already have an account?",
     "signIn": "Sign in",
     "terms": "By continuing you agree to our terms and privacy notice. We process staff data under Kenya's Data Protection Act.",
-    "firstNamePlaceholder": "e.g. Amina",
-    "middleNamePlaceholder": "e.g. Wanjiru",
-    "lastNamePlaceholder": "e.g. Otieno",
-    "passwordPlaceholder": "At least 8 characters",
-    "roleOtherPlaceholder": "e.g. Head Chef",
+    "firstNamePlaceholder": "Your first name",
+    "middleNamePlaceholder": "Your middle name",
+    "lastNamePlaceholder": "Your last name",
+    "passwordPlaceholder": "Your password",
+    "roleOtherPlaceholder": "Your role",
     "stepOf": "Step {{step}} of {{total}}",
     "stepsLabel": "Sign-up steps",
     "detailsTitle": "Your details",

@@ -46,7 +46,7 @@
     "featurePhones": "Hati za mishahara na maombi ya likizo kwenye simu ya kila mfanyakazi.",
     "featurePerformance": "Usimamizi wa utendaji: malengo, ufuatiliaji na tathmini.",
     "featureTasks": "Usimamizi wa kazi: kazi za kugawa, na orodha kwa wanaojiunga na wanaoondoka.",
-    "contactPlaceholder": "wewe@kampuni.com au 0712 345 678"
+    "contactPlaceholder": "Barua pepe au nambari yako ya simu"
   },
   "signUp": {
     "title": "Fungua akaunti yako",
@@ -66,11 +66,11 @@
     "haveAccount": "Una akaunti tayari?",
     "signIn": "Ingia",
     "terms": "Kwa kuendelea unakubali masharti yetu na ilani ya faragha. Tunashughulikia data za wafanyakazi chini ya Sheria ya Ulinzi wa Data ya Kenya.",
-    "firstNamePlaceholder": "mf. Amina",
-    "middleNamePlaceholder": "mf. Wanjiru",
-    "lastNamePlaceholder": "mf. Otieno",
-    "passwordPlaceholder": "Angalau herufi 8",
-    "roleOtherPlaceholder": "mf. Mpishi Mkuu",
+    "firstNamePlaceholder": "Jina lako la kwanza",
+    "middleNamePlaceholder": "Jina lako la kati",
+    "lastNamePlaceholder": "Jina lako la mwisho",
+    "passwordPlaceholder": "Nenosiri lako",
+    "roleOtherPlaceholder": "Jukumu lako",
     "stepOf": "Hatua {{step}} kati ya {{total}}",
     "stepsLabel": "Hatua za kujisajili",
     "detailsTitle": "Taarifa zako",

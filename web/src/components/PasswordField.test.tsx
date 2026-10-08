@@ -22,6 +22,6 @@ it('an eye icon inside the field shows and hides the password', async () => {
 })
 
 it('for a new password, asks the browser to suggest one', () => {
-  render(<PasswordField label="Password" placeholder="At least 8 characters" isNew />)
+  render(<PasswordField label="Password" placeholder="Your password" isNew />)
   expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'new-password')
 })

@@ -42,7 +42,7 @@ function Field({ id, label, hint, hintId, error, errorId, optional, children }: 
 }
 
 type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'placeholder'> & {
-  /** Required: every field shows an example of what goes in it ("e.g. Amina"). The label still says what it is. */
+  /** Required: "Your" and the field name, e.g. "Your first name". The label still says what it is. */
   placeholder: string
   /** Something inside the field on the right, e.g. the password field's eye button. */
   end?: ReactNode
