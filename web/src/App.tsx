@@ -1,21 +1,28 @@
-import { useTranslation } from 'react-i18next'
-import { Card } from './components/TableCard'
-import { LanguageSwitch, ThemeSwitch } from './components/switches'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { RouterProvider } from '@tanstack/react-router'
+import { useEffect, useLayoutEffect, useState } from 'react'
+import { createAppRouter } from './app/router'
+import { ServicesContext, type Services } from './app/services'
+import { ToastProvider } from './components/feedback'
+import { applyStartupTheme } from './theme/theme'
 
-/** Placeholder home until the sign-up and sign-in screens (#141). */
-export default function App() {
-  const { t } = useTranslation()
+/** The app: services for every screen, and the router. initialPath is for tests. */
+export default function App({ services, initialPath }: { services: Services; initialPath?: string }) {
+  const [router] = useState(() => createAppRouter(services.auth, initialPath))
+
+  useLayoutEffect(() => { applyStartupTheme() }, [])
+
+  // Signing in or out (here or in another tab) re-checks the current page's guard,
+  // which moves the person to the right page.
+  useEffect(() => services.auth.subscribe(() => { void router.invalidate() }), [services, router])
+
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-4 py-12">
-      <div className="flex flex-col gap-1">
-        <h1 className="m-0 font-display text-title text-brand">Pesaroll</h1>
-        <p className="m-0 text-muted">{t('app.tagline')}</p>
-      </div>
-      <Card>
-        <p className="m-0">{t('app.comingSoon')}</p>
-        <ThemeSwitch />
-        <LanguageSwitch />
-      </Card>
-    </main>
+    <ServicesContext.Provider value={services}>
+      <QueryClientProvider client={services.queryClient}>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
+      </QueryClientProvider>
+    </ServicesContext.Provider>
   )
 }

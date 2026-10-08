@@ -85,21 +85,33 @@ public static class IdentityModule
                         .ToList()))
                 .Where(g => g.Roles.Count > 0)
                 .ToList());
-        });
+        }).Produces<List<SignupRoleGroupOption>>();
 
         // Sign-up and sign-in return an access token and set the refresh cookie; GET /me has the details.
         auth.MapPost("/signup", async (SignUpRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
                 Results.Created("/api/auth/me", await service.SignUpAsync(request, http, ct)))
+            .Produces<TokenResponse>(StatusCodes.Status201Created)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
             .RequireRateLimiting(SignInRateLimit);
 
         auth.MapPost("/signin", async (SignInRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
                 Results.Ok(await service.SignInAsync(request, http, ct)))
+            .Produces<TokenResponse>()
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+            .Produces<ErrorResponse>(StatusCodes.Status423Locked)
+            .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
             .RequireRateLimiting(SignInRateLimit);
 
         // A new access token from the refresh cookie. The web app calls this when a token is
         // about to expire or a request fails with AUTH-1010, one call at a time.
         auth.MapPost("/refresh", async (SessionService sessions, HttpContext http, CancellationToken ct) =>
                 Results.Ok(await sessions.RefreshAsync(http, ct)))
+            .Produces<TokenResponse>()
+            .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+            .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
             .RequireRateLimiting(SignInRateLimit);
 
         auth.MapPost("/signout", async (SessionService sessions, HttpContext http, CancellationToken ct) =>
@@ -117,7 +129,7 @@ public static class IdentityModule
 
             var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, ct) ?? throw AuthErrors.NotSignedIn();
             return Results.Ok(MeResponse.From(user, tenant.OrganizationId));
-        });
+        }).Produces<MeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         return app;
     }

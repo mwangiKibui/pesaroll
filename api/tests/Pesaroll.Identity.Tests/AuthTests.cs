@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -472,6 +473,27 @@ public sealed class AuthTests(AuthTests.Api api) : IClassFixture<AuthTests.Api>
 
         Assert.Contains("\"bearer\"", json);
         Assert.Contains("\"bearerFormat\": \"JWT\"", json);
+    }
+
+    [Theory]
+    [InlineData("/api/auth/signup", "post", "201", "TokenResponse")]
+    [InlineData("/api/auth/signin", "post", "200", "TokenResponse")]
+    [InlineData("/api/auth/refresh", "post", "200", "TokenResponse")]
+    [InlineData("/api/auth/me", "get", "200", "MeResponse")]
+    [InlineData("/api/auth/signup-roles", "get", "200", "SignupRoleGroupOption")]
+    [InlineData("/api/auth/signin", "post", "401", "ErrorResponse")]
+    [InlineData("/api/auth/signup", "post", "400", "ErrorResponse")]
+    [InlineData("/api/auth/me", "get", "401", "ErrorResponse")]
+    public async Task The_API_description_says_what_each_endpoint_returns(string path, string method, string status, string schema)
+    {
+        // The web app's TypeScript types are generated from this document, so responses must be in it.
+        await using var development = new Api { Environment = "Development" };
+        using var document = JsonDocument.Parse(await development.CreateClient().GetStringAsync("/openapi/v1.json"));
+
+        var response = document.RootElement.GetProperty("paths").GetProperty(path).GetProperty(method)
+            .GetProperty("responses").GetProperty(status);
+
+        Assert.Contains($"#/components/schemas/{schema}", response.GetRawText());
     }
 
     [Theory]

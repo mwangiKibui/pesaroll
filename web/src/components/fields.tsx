@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Size = 'md' | 'lg'
@@ -41,17 +41,25 @@ function Field({ id, label, hint, hintId, error, errorId, optional, children }: 
   )
 }
 
-type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
+type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'placeholder'> & {
+  /** Required: "Your" and the field name, e.g. "Your first name". The label still says what it is. */
+  placeholder: string
+  /** Something inside the field on the right, e.g. the password field's eye button. */
+  end?: ReactNode
+}
 
-export function TextField({ label, hint, error, optional, size = 'md', className = '', ...input }: TextFieldProps) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, error, optional, size = 'md', end, className = '', ...input }, ref) {
   const ids = useFieldIds(hint, error)
   return (
     <Field {...ids} label={label} hint={hint} error={error} optional={optional}>
-      <input id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
-        className={`${control} ${controlSize[size]} ${className}`} {...input} />
+      <div className="relative">
+        <input ref={ref} id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
+          className={`${control} ${controlSize[size]} ${end ? 'pr-12' : ''} ${className}`} {...input} />
+        {end && <div className="absolute inset-y-0 right-0 flex items-center pr-1">{end}</div>}
+      </div>
     </Field>
   )
-}
+})
 
 type SelectFieldProps = FieldProps & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & {
   options: { value: string; label: string }[]

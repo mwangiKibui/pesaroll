@@ -1,7 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 import '../i18n'
+
+// Page tests start the whole app (router, guards, API calls); give them time on a cold start.
+configure({ asyncUtilTimeout: 10_000 })
 
 afterEach(() => {
   cleanup()

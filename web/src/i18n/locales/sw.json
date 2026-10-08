@@ -34,8 +34,84 @@
     "en": "English",
     "sw": "Kiswahili"
   },
-  "app": {
-    "tagline": "HR na mishahara kwa Afrika Mashariki.",
-    "comingSoon": "Kujisajili na kuingia kunakuja hivi karibuni."
+  "auth": {
+    "panelTitle": "Endesha mishahara yako ya kwanza leo.",
+    "panelText": "Kila unachohitaji kulipa na kusimamia watu wako, mahali pamoja.",
+    "contact": "Barua pepe au nambari ya simu",
+    "password": "Nenosiri",
+    "showPassword": "Onyesha nenosiri",
+    "hidePassword": "Ficha nenosiri",
+    "featuresLabel": "Pesaroll inafanya nini",
+    "featurePayroll": "Kila aina ya mishahara: wafanyakazi wa mwezi, wiki, siku na saa, na kodi na makato ya kisheria yakihesabiwa kwa ajili yako.",
+    "featurePhones": "Hati za mishahara na maombi ya likizo kwenye simu ya kila mfanyakazi.",
+    "featurePerformance": "Usimamizi wa utendaji: malengo, ufuatiliaji na tathmini.",
+    "featureTasks": "Usimamizi wa kazi: kazi za kugawa, na orodha kwa wanaojiunga na wanaoondoka.",
+    "contactPlaceholder": "Barua pepe au nambari yako ya simu"
+  },
+  "signUp": {
+    "title": "Fungua akaunti yako",
+    "intro": "Inachukua dakika moja. Utaweka shirika lako baadaye.",
+    "firstName": "Jina la kwanza",
+    "middleName": "Jina la kati",
+    "lastName": "Jina la mwisho",
+    "contactHint": "Utaitumia kuingia.",
+    "passwordHint": "Tumia herufi 8 au zaidi, ukichanganya herufi na nambari au alama.",
+    "strength": "Uimara wa nenosiri: {{level}}",
+    "weak": "Dhaifu",
+    "fair": "Wastani",
+    "strong": "Imara",
+    "role": "Jukumu lako katika biashara",
+    "roleOther": "Jukumu lako",
+    "submit": "Fungua akaunti",
+    "haveAccount": "Una akaunti tayari?",
+    "signIn": "Ingia",
+    "terms": "Kwa kuendelea unakubali masharti yetu na ilani ya faragha. Tunashughulikia data za wafanyakazi chini ya Sheria ya Ulinzi wa Data ya Kenya.",
+    "firstNamePlaceholder": "Jina lako la kwanza",
+    "middleNamePlaceholder": "Jina lako la kati",
+    "lastNamePlaceholder": "Jina lako la mwisho",
+    "passwordPlaceholder": "Nenosiri lako",
+    "roleOtherPlaceholder": "Jukumu lako",
+    "stepOf": "Hatua {{step}} kati ya {{total}}",
+    "stepsLabel": "Hatua za kujisajili",
+    "detailsTitle": "Taarifa zako",
+    "continue": "Endelea",
+    "back": "Rudi"
+  },
+  "signIn": {
+    "title": "Ingia",
+    "intro": "Karibu tena.",
+    "submit": "Ingia",
+    "noAccount": "Mgeni kwa Pesaroll?",
+    "signUp": "Fungua akaunti",
+    "passwordPlaceholder": "Nenosiri lako"
+  },
+  "welcome": {
+    "title": "Karibu, {{name}}",
+    "next": "Inayofuata: Unda shirika lako na uongeze kampuni zako. Hatua hii inakuja hivi karibuni.",
+    "signOut": "Toka"
+  },
+  "validation": {
+    "firstName": "Andika jina lako la kwanza.",
+    "lastName": "Andika jina lako la mwisho.",
+    "nameTooLong": "Tumia hadi herufi 60.",
+    "contact": "Andika barua pepe sahihi au nambari ya simu ya Kenya.",
+    "passwordWeak": "Tumia angalau herufi 8, ukichanganya herufi na nambari au alama, na epuka manenosiri ya kawaida.",
+    "passwordRequired": "Andika nenosiri lako.",
+    "role": "Chagua jukumu lako.",
+    "roleOther": "Andika jukumu lako.",
+    "roleOtherLong": "Tumia hadi herufi 80."
+  },
+  "apiErrors": {
+    "AUTH-1001": "Barua pepe au nambari ya simu na nenosiri havilingani.",
+    "AUTH-1002": "Akaunti yako imefungwa baada ya majaribio mengi. Jaribu tena baada ya dakika 15 au weka nenosiri jipya.",
+    "AUTH-1003": "Akaunti yenye barua pepe au nambari hii ya simu tayari ipo. Ingia badala yake.",
+    "AUTH-1004": "Tumia nenosiri la angalau herufi 6.",
+    "AUTH-1005": "Andika barua pepe sahihi au nambari ya simu ya Kenya.",
+    "AUTH-1006": "Majaribio mengi mno. Subiri dakika moja kisha ujaribu tena.",
+    "AUTH-1007": "Ingia ili kuendelea.",
+    "AUTH-1008": "Andika jina lako la kwanza na la mwisho, kisha uchague jukumu lako.",
+    "AUTH-1009": "Umechagua Nyingine: andika jukumu lako (hadi herufi 80).",
+    "AUTH-1010": "Muda wako wa kuingia umeisha. Ingia tena.",
+    "network": "Hatukuweza kufikia Pesaroll. Angalia muunganisho wako kisha ujaribu tena."
   }
 }

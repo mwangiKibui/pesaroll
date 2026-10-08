@@ -35,7 +35,7 @@ const textPairs = [
   ['brand-soft-ink', 'brand-soft'], ['warning-ink', 'warning-soft'], ['danger-ink', 'danger-soft'],
   ['danger-ink', 'card'], ['on-danger', 'danger'],
   ['sidebar-ink', 'sidebar'], ['sidebar-ink', 'sidebar-raise'], ['sidebar-muted', 'sidebar'],
-  ['sidebar-accent', 'sidebar'], ['sidebar-current-ink', 'sidebar-current'],
+  ['sidebar-accent', 'sidebar'], ['sidebar-heading', 'sidebar'], ['sidebar-current-ink', 'sidebar-current'],
 ] as const
 
 // Borders of controls and the focus ring must reach 3:1 against what they sit on (WCAG 1.4.11).

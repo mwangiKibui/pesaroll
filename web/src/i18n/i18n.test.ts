@@ -19,6 +19,12 @@ it('no translation is empty', () => {
   expect([...values(en), ...values(sw)].filter(v => !v.trim())).toEqual([])
 })
 
+it('is English only for now, even if Swahili was chosen before', async () => {
+  localStorage.setItem('pesaroll.language', 'sw')
+  const { initialLanguage } = await import('.')
+  expect(initialLanguage()).toBe('en')
+})
+
 it('starts in English and can switch to Swahili', async () => {
   expect(i18n.language).toBe('en')
   await i18n.changeLanguage('sw')

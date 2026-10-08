@@ -4,6 +4,7 @@ import { CompanySelect, type CompanySelection } from '../components/CompanySelec
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { Checkbox, SelectField, TextField } from '../components/fields'
+import { PasswordField } from '../components/PasswordField'
 import { Money } from '../components/Money'
 import { AppShell, PhoneShell } from '../components/shells'
 import { LanguageSwitch, ThemeSwitch } from '../components/switches'
@@ -73,11 +74,12 @@ export default function ComponentsPage() {
 
         <Section title="Form fields">
           <div className="grid gap-5 md:grid-cols-2">
-            <TextField label="First name" defaultValue="Wanjiru" />
-            <TextField label="Middle name" optional hint="As on your national ID." />
-            <TextField label="Email" defaultValue="wanjiru@" error="Enter a valid email address or Kenyan phone number." />
+            <TextField label="First name" placeholder="Your first name" defaultValue="Wanjiru" />
+            <TextField label="Middle name" placeholder="Your middle name" optional hint="As on your national ID." />
+            <TextField label="Email" placeholder="Your email" defaultValue="wanjiru@" error="Enter a valid email address or Kenyan phone number." />
             <SelectField label="Town" hint="Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }, { value: 'msa', label: 'Mombasa' }]} />
-            <TextField label="Phone (phone layout)" size="lg" defaultValue="0723 456 789" />
+            <TextField label="Phone (phone layout)" placeholder="Your phone" size="lg" defaultValue="0723 456 789" />
+            <PasswordField label="Password" placeholder="Your password" isNew />
             <div className="flex flex-col"><Checkbox label="Main location for Mama Oliech Restaurants · KE" defaultChecked /><Checkbox label="Main location for Oliech Catering · UG" /></div>
           </div>
         </Section>
@@ -117,7 +119,7 @@ export default function ComponentsPage() {
           </TableCard>
           <Drawer open={drawer} title="Add location" onClose={() => setDrawer(false)}
             footer={<><Button variant="secondary" onClick={() => setDrawer(false)}>Cancel</Button><Button onClick={() => { setDrawer(false); toast.show('Location added') }}>Add location</Button></>}>
-            <TextField label="Location name" defaultValue="Karen branch" />
+            <TextField label="Location name" placeholder="Your location name" defaultValue="Karen branch" />
             <SelectField label="Town" hint="Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }]} />
             <CompanySelect label="Applies to" companies={companies} value={several} onChange={setSeveral} />
           </Drawer>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" preserveAspectRatio="xMidYMid slice">
+  <!-- Decorative: payslip cards and a few circles floating in the side panel. Low contrast on purpose, so text stays readable. -->
+  <g fill="none" stroke="#8FE0C3" stroke-opacity="0.3" stroke-width="2">
+    <g transform="translate(470 560) rotate(-8)">
+      <rect width="260" height="330" rx="18" fill="#FFFFFF" fill-opacity="0.05"/>
+      <path d="M28 52h120M28 84h204M28 116h204M28 148h150M28 212h204M28 244h204"/>
+      <path d="M28 290h90" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(560 140) rotate(10)">
+      <rect width="190" height="240" rx="16" fill="#FFFFFF" fill-opacity="0.045"/>
+      <path d="M24 44h90M24 72h142M24 100h142M24 128h100M24 182h70"/>
+    </g>
+    <g transform="translate(-40 720) rotate(6)">
+      <rect width="220" height="280" rx="16" fill="#FFFFFF" fill-opacity="0.045"/>
+      <path d="M24 46h110M24 76h172M24 106h172M24 136h120"/>
+    </g>
+    <circle cx="660" cy="470" r="44" stroke-opacity="0.2"/>
+    <circle cx="120" cy="140" r="70" stroke-opacity="0.1"/>
+    <circle cx="380" cy="930" r="26" stroke-opacity="0.22"/>
+    <path d="M60 520c80-40 140-40 220 0s140 40 220 0" stroke-opacity="0.08"/>
+  </g>
+</svg>
