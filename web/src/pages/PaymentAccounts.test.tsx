@@ -24,9 +24,13 @@ async function openEdit(routes: Parameters<typeof fakeApi>[0] = {}) {
   return { calls, ...result }
 }
 
+const modal = () => screen.getByRole('dialog', { name: 'Add paying account' })
+/** The accounts table's rows, without the header. */
+const rows = () => within(section()).getAllByRole('row').slice(1)
+
 async function choose(name: string, search: string, option: string) {
-  await userEvent.type(within(section()).getByRole('combobox', { name }), search)
-  await userEvent.click(within(section()).getByRole('option', { name: option }))
+  await userEvent.type(within(modal()).getByRole('combobox', { name }), search)
+  await userEvent.click(within(modal()).getByRole('option', { name: option }))
 }
 
 it('a company without a paying account says payroll needs one; a new company is saved first', async () => {
@@ -49,22 +53,25 @@ it('adds a bank account; the number only shows masked', async () => {
   })
 
   await userEvent.click(within(section()).getByRole('button', { name: 'Add paying account' }))
-  expect(within(section()).getByRole('radio', { name: 'Bank account' })).toBeChecked()
-  expect(within(section()).getByRole('textbox', { name: 'Account name' })).toHaveValue('Mama Oliech Restaurant Ltd')
+  expect(within(modal()).getByRole('radio', { name: 'Bank account' })).toBeChecked()
+  expect(within(modal()).getByRole('textbox', { name: 'Account name' })).toHaveValue('Mama Oliech Restaurant Ltd')
   await expectNoA11yViolations(container)
   await choose('Bank', 'equ', 'Equity Bank')
   await choose('Branch', 'moi', 'Moi Avenue, Nairobi')
-  await userEvent.type(within(section()).getByRole('textbox', { name: 'Account number' }), '0123 4567 8901')
-  await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
+  await userEvent.type(within(modal()).getByRole('textbox', { name: 'Account number' }), '0123 4567 8901')
+  await userEvent.click(within(modal()).getByRole('button', { name: 'Add account' }))
 
   expect(await screen.findByText('Paying account added')).toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'Add paying account' })).not.toBeInTheDocument()
+  expect(drawer()).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === path)?.body).toEqual({
     method: 'bank', bankCode: '68', branchCode: '047', accountName: 'Mama Oliech Restaurant Ltd', accountNumber: '0123 4567 8901', mpesaShortcode: null,
   })
-  const row = within(section()).getByRole('listitem')
-  expect(row).toHaveTextContent('Equity Bank · Moi Avenue, Nairobi')
-  expect(row).toHaveTextContent('•••• 8901')
-  expect(row).toHaveTextContent('Default')
+  expect(within(section()).getAllByRole('columnheader').map(h => h.textContent))
+    .toEqual(['Pay from', 'Bank and branch', 'Account name', 'Account', 'Default', 'Actions'])
+  expect(await within(section()).findByText('•••• 8901')).toBeInTheDocument()
+  expect(within(rows()[0]).getAllByRole('cell').map(c => c.textContent).slice(0, 5))
+    .toEqual(['Bank account', 'Equity BankMoi Avenue, Nairobi', 'Mama Oliech Restaurant Ltd', '•••• 8901', 'Default'])
 })
 
 it('checks the details before sending; problems the server finds show under their fields', async () => {
@@ -73,28 +80,28 @@ it('checks the details before sending; problems the server finds show under thei
   })
   await userEvent.click(within(section()).getByRole('button', { name: 'Add paying account' }))
 
-  await userEvent.type(within(section()).getByRole('textbox', { name: 'Account number' }), '12ab')
-  await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
-  expect(within(section()).getByRole('combobox', { name: 'Bank' })).toHaveAccessibleDescription('Choose a bank from the list.')
-  expect(within(section()).getByRole('textbox', { name: 'Account number' })).toHaveAccessibleDescription('Enter the account number: 6 to 20 digits.')
+  await userEvent.type(within(modal()).getByRole('textbox', { name: 'Account number' }), '12ab')
+  await userEvent.click(within(modal()).getByRole('button', { name: 'Add account' }))
+  expect(within(modal()).getByRole('combobox', { name: 'Bank' })).toHaveAccessibleDescription('Choose a bank from the list.')
+  expect(within(modal()).getByRole('textbox', { name: 'Account number' })).toHaveAccessibleDescription('Enter the account number: 6 to 20 digits.')
   expect(calls.filter(c => c.method === 'POST' && c.path === path)).toHaveLength(0)
 
   await choose('Bank', 'equ', 'Equity Bank')
   await choose('Branch', 'moi', 'Moi Avenue, Nairobi')
-  await userEvent.clear(within(section()).getByRole('textbox', { name: 'Account number' }))
-  await userEvent.type(within(section()).getByRole('textbox', { name: 'Account number' }), '0123456789')
-  await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
-  expect(await within(section()).findByText('Choose a branch of this bank from the list.')).toBeInTheDocument()
+  await userEvent.clear(within(modal()).getByRole('textbox', { name: 'Account number' }))
+  await userEvent.type(within(modal()).getByRole('textbox', { name: 'Account number' }), '0123456789')
+  await userEvent.click(within(modal()).getByRole('button', { name: 'Add account' }))
+  expect(await within(modal()).findByText('Choose a branch of this bank from the list.')).toBeInTheDocument()
 })
 
 it('adds an M-Pesa shortcode instead', async () => {
   const { calls } = await openEdit({ [`POST ${path}`]: () => json(201, mpesa) })
   await userEvent.click(within(section()).getByRole('button', { name: 'Add paying account' }))
 
-  await userEvent.click(within(section()).getByText('M-Pesa'))
-  expect(within(section()).queryByRole('combobox', { name: 'Bank' })).not.toBeInTheDocument()
-  await userEvent.type(within(section()).getByRole('textbox', { name: 'M-Pesa shortcode' }), '600123')
-  await userEvent.click(within(section()).getByRole('button', { name: 'Add account' }))
+  await userEvent.click(within(modal()).getByText('M-Pesa'))
+  expect(within(modal()).queryByRole('combobox', { name: 'Bank' })).not.toBeInTheDocument()
+  await userEvent.type(within(modal()).getByRole('textbox', { name: 'M-Pesa shortcode' }), '600123')
+  await userEvent.click(within(modal()).getByRole('button', { name: 'Add account' }))
 
   expect(await screen.findByText('Paying account added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === path)?.body).toEqual({
@@ -109,11 +116,11 @@ it('makes another account the default, and removes one after asking', async () =
     [`POST ${path}/${mpesa.id}/default`]: () => { accounts = [equityAccount({ isDefault: false }), { ...mpesa, isDefault: true }]; return json(200, accounts) },
     [`DELETE ${path}/${equityAccount().id}`]: () => { accounts = [{ ...mpesa, isDefault: true }]; return new Response(null, { status: 204 }) },
   })
-  await within(section()).findByText('M-Pesa · Shortcode 600123')
+  await within(section()).findByText('Shortcode 600123')
 
   await userEvent.click(within(section()).getByRole('button', { name: 'Make default: M-Pesa · Shortcode 600123' }))
   expect(await screen.findByText('Default paying account changed')).toBeInTheDocument()
-  expect(within(section()).getAllByRole('listitem')[1]).toHaveTextContent('Default')
+  expect(rows()[1]).toHaveTextContent('Default')
 
   await userEvent.click(within(section()).getByRole('button', { name: 'Remove Equity Bank •••• 8901' }))
   const confirm = screen.getByRole('alertdialog', { name: 'Remove Equity Bank •••• 8901?' })
@@ -122,5 +129,5 @@ it('makes another account the default, and removes one after asking', async () =
 
   expect(await screen.findByText('Paying account removed')).toBeInTheDocument()
   expect(calls.filter(c => c.method === 'DELETE')).toHaveLength(1)
-  expect(within(section()).getAllByRole('listitem')).toHaveLength(1)
+  expect(rows()).toHaveLength(1)
 })

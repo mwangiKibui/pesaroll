@@ -272,6 +272,9 @@
     "branchRequired": "Choose a branch of this bank from the list.",
     "accountNameInvalid": "Enter the name on the account (2 to 120 characters).",
     "accountNumberInvalid": "Enter the account number: 6 to 20 digits.",
-    "shortcodeInvalid": "Enter the M-Pesa shortcode your payroll is paid from (5 to 7 digits)."
+    "shortcodeInvalid": "Enter the M-Pesa shortcode your payroll is paid from (5 to 7 digits).",
+    "bankAndBranch": "Bank and branch",
+    "account": "Account",
+    "shortcodeValue": "Shortcode {{shortcode}}"
   }
 }

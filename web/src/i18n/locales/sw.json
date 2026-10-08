@@ -272,6 +272,9 @@
     "branchRequired": "Chagua tawi la benki hii kutoka kwenye orodha.",
     "accountNameInvalid": "Andika jina lililo kwenye akaunti (herufi 2 hadi 120).",
     "accountNumberInvalid": "Andika nambari ya akaunti: tarakimu 6 hadi 20.",
-    "shortcodeInvalid": "Andika nambari fupi ya M-Pesa inayolipa mishahara (tarakimu 5 hadi 7)."
+    "shortcodeInvalid": "Andika nambari fupi ya M-Pesa inayolipa mishahara (tarakimu 5 hadi 7).",
+    "bankAndBranch": "Benki na tawi",
+    "account": "Akaunti",
+    "shortcodeValue": "Nambari fupi {{shortcode}}"
   }
 }

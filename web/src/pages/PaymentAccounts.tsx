@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -9,6 +9,8 @@ import { useServices, type ApiError } from '../app/services'
 import { Button, IconButton } from '../components/Button'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
+import { Modal } from '../components/Modal'
+import { TableCard } from '../components/TableCard'
 import { RadioGroup, SelectField, TextField } from '../components/fields'
 import { useToast } from '../components/toast'
 
@@ -24,13 +26,16 @@ interface Values {
   mpesaShortcode: string
 }
 
+const none = <span className="text-muted">—</span>
+
 /** "Equity Bank •••• 8901" or "M-Pesa · Shortcode 600123": names an account in buttons and questions. */
 function shortName(t: TFunction, a: Account) {
   return a.method === 'mpesa' ? t('payingAccounts.mpesaName', { shortcode: a.mpesaShortcode }) : `${a.bankName} ${a.accountNumberMasked}`
 }
 
 /**
- * ONB-03: where a company's payroll is paid from, inside the company drawer. Bank and M-Pesa files
+ * ONB-03: where a company's payroll is paid from: a table on the company drawer's Paying accounts
+ * tab, and adding one in a modal on top. Bank and M-Pesa files
  * take the debit account from here. The account number only ever comes back masked; removing one
  * keeps it on record for past payrolls.
  */
@@ -88,35 +93,54 @@ export function PaymentAccounts({ company }: { company: Company }) {
   }
 
   const list = accounts.data ?? []
+  const addButton = <Button onClick={() => setAdding(true)}>{t('payingAccounts.add')}</Button>
   return (
     <div className="flex flex-col gap-3">
       <p className="m-0 text-hint text-muted">{t('payingAccounts.intro')}</p>
-      {!accounts.data ? <Loading rows={1} /> : list.length === 0 && !adding && <Notice>{t('payingAccounts.none')}</Notice>}
-      {list.length > 0 && (
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {list.map(a => (
-            <li key={a.id} className="flex items-center justify-between gap-3 rounded-control border border-line px-3 py-2.5">
-              <span className="flex min-w-0 flex-col">
-                <span className="font-medium text-ink">
-                  {a.method === 'mpesa' ? t('payingAccounts.mpesaName', { shortcode: a.mpesaShortcode }) : `${a.bankName} · ${a.branchName}`}
-                </span>
-                {a.method === 'bank' && <span className="text-hint text-muted">{a.accountName} · {a.accountNumberMasked}</span>}
-              </span>
-              <span className="flex flex-none items-center gap-1">
-                {a.isDefault
-                  ? <Tag tone="brand">{t('payingAccounts.default')}</Tag>
-                  : <Button variant="ghost" aria-label={t('payingAccounts.makeDefaultLabel', { name: shortName(t, a) })} onClick={() => void makeDefault(a)}>{t('payingAccounts.makeDefault')}</Button>}
-                <IconButton tone="danger" label={t('payingAccounts.remove', { name: shortName(t, a) })} onClick={() => setRemoving(a)}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
-                </IconButton>
-              </span>
-            </li>
-          ))}
-        </ul>
+      {!accounts.data ? <Loading rows={2} /> : (
+        <TableCard title={t('payingAccounts.title')} count={list.length} actions={addButton}>
+          {list.length === 0 ? <p className="m-0 px-4 py-6 text-muted">{t('payingAccounts.none')}</p> : (
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">{t('payingAccounts.method')}</th>
+                  <th scope="col">{t('payingAccounts.bankAndBranch')}</th>
+                  <th scope="col">{t('payingAccounts.accountName')}</th>
+                  <th scope="col">{t('payingAccounts.account')}</th>
+                  <th scope="col">{t('payingAccounts.default')}</th>
+                  <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map(a => (
+                  <tr key={a.id}>
+                    <td>{a.method === 'mpesa' ? t('payingAccounts.mpesa') : t('payingAccounts.bank')}</td>
+                    <td>
+                      {a.method === 'bank' ? <>
+                        <span className="block text-ink">{a.bankName}</span>
+                        <span className="block text-hint text-muted">{a.branchName}</span>
+                      </> : none}
+                    </td>
+                    <td>{a.accountName ?? none}</td>
+                    <td className="whitespace-nowrap">{a.method === 'mpesa' ? t('payingAccounts.shortcodeValue', { shortcode: a.mpesaShortcode }) : a.accountNumberMasked}</td>
+                    <td>
+                      {a.isDefault
+                        ? <Tag tone="brand">{t('payingAccounts.default')}</Tag>
+                        : <Button variant="ghost" aria-label={t('payingAccounts.makeDefaultLabel', { name: shortName(t, a) })} onClick={() => void makeDefault(a)}>{t('payingAccounts.makeDefault')}</Button>}
+                    </td>
+                    <td className="text-right">
+                      <IconButton tone="danger" label={t('payingAccounts.remove', { name: shortName(t, a) })} onClick={() => setRemoving(a)}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                      </IconButton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </TableCard>
       )}
-      {adding
-        ? <AddAccount company={company} onDone={() => { setAdding(false); changed() }} onCancel={() => setAdding(false)} />
-        : <div><Button variant="secondary" onClick={() => setAdding(true)}>{t('payingAccounts.add')}</Button></div>}
+      {adding && <AddAccount company={company} onDone={() => { setAdding(false); changed() }} onCancel={() => setAdding(false)} />}
       <ConfirmDialog open={!!removing} title={t('payingAccounts.removeTitle', { name: removing ? shortName(t, removing) : '' })}
         confirmLabel={t('payingAccounts.removeConfirm')} busy={busy} onConfirm={remove} onCancel={() => setRemoving(null)}>
         {t('payingAccounts.removeText')}
@@ -129,6 +153,7 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
   const { t } = useTranslation()
   const { api } = useServices()
   const toast = useToast()
+  const formId = useId()
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const banks = useQuery({
     queryKey: ['banks', company.countryCode],
@@ -184,7 +209,12 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
   }
 
   return (
-    <form noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4 rounded-card border border-line bg-raised p-4">
+    <Modal open title={t('payingAccounts.add')} onClose={onCancel}
+      footer={<>
+        <Button variant="secondary" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button type="submit" form={formId} busy={isSubmitting}>{t('payingAccounts.submit')}</Button>
+      </>}>
+    <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
       {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
       <Controller control={control} name="method" render={({ field }) => (
@@ -216,10 +246,7 @@ function AddAccount({ company, onDone, onCancel }: { company: Company; onDone: (
         <TextField label={t('payingAccounts.shortcode')} placeholder={t('payingAccounts.shortcodePlaceholder')} hint={t('payingAccounts.shortcodeHint')}
           inputMode="numeric" maxLength={7} error={errors.mpesaShortcode?.message} {...register('mpesaShortcode')} />
       )}
-      <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={onCancel}>{t('common.cancel')}</Button>
-        <Button type="submit" busy={isSubmitting}>{t('payingAccounts.submit')}</Button>
-      </div>
     </form>
+    </Modal>
   )
 }
