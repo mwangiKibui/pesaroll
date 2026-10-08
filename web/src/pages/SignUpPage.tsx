@@ -104,8 +104,8 @@ export default function SignUpPage() {
 
   return (
     <AuthLayout title={t('signUp.title')} intro={t('signUp.intro')} alignTop>
-      <form noValidate onSubmit={step === 1 ? e => { e.preventDefault(); void next() } : handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
+      <form noValidate onSubmit={step === 1 ? e => { e.preventDefault(); void next() } : handleSubmit(onSubmit)} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
           <p className="m-0 text-label font-medium text-muted">{t('signUp.stepOf', { step, total: 2 })}</p>
           <ol aria-label={t('signUp.stepsLabel')} className="m-0 flex list-none gap-2 p-0">
             {([1, 2] as const).map(n => (
@@ -149,12 +149,12 @@ export default function SignUpPage() {
         {step === 2 && (
           <>
             <h2 ref={stepHeading} id="role-title" tabIndex={-1} className="m-0 text-body font-semibold text-ink outline-none">{t('signUp.role')}</h2>
-            <div role="group" aria-labelledby="role-title" aria-describedby={errors.roleId ? 'role-error' : undefined} className="flex flex-col gap-2.5">
+            <div role="group" aria-labelledby="role-title" aria-describedby={errors.roleId ? 'role-error' : undefined} className="flex flex-col gap-2">
               {roles.isPending && <Loading rows={3} />}
               {roles.data?.map(group => (
-                <fieldset key={group.code} className="m-0 flex flex-col gap-1.5 border-0 p-0">
+                <fieldset key={group.code} className="m-0 flex flex-col gap-1 border-0 p-0">
                   <legend className="mb-1 p-0 text-tag uppercase tracking-wider text-muted">{group.name[lang]}</legend>
-                  <div className="grid gap-2 @sm:grid-cols-2">
+                  <div className="grid gap-2 @sm:grid-cols-2 @lg:grid-cols-3">
                     {group.roles.map(role => (
                       <label key={role.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control border border-line bg-card px-3 py-2 text-label font-medium text-ink has-checked:border-brand has-checked:bg-brand-soft">
                         <input type="radio" value={role.id} className="size-[18px] flex-none accent-brand" {...register('roleId')} />

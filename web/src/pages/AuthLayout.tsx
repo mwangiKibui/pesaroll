@@ -35,9 +35,9 @@ export function AuthLayout({ title, intro, alignTop, children }: {
             </ul>
           </div>
         </section>
-        <main className={`flex flex-[1_1_480px] justify-center px-5 ${alignTop ? 'items-start pb-10 pt-6 md:pt-8' : 'items-center py-10 md:py-12'}`}>
-          <div className="@container flex w-full max-w-[640px] flex-col gap-5">
-            <div className="flex flex-col gap-1.5">
+        <main className={`flex flex-[1_1_480px] justify-center px-5 ${alignTop ? 'items-start pb-6 pt-4 md:pt-5' : 'items-center py-10 md:py-12'}`}>
+          <div className={`@container flex w-full max-w-[720px] flex-col ${alignTop ? 'gap-3' : 'gap-5'}`}>
+            <div className="flex flex-col gap-1">
               <h1 className="m-0 font-display text-title text-ink">{title}</h1>
               <p className="m-0 text-muted">{intro}</p>
             </div>
