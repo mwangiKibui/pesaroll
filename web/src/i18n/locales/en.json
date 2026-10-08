@@ -127,7 +127,8 @@
     "network": "We couldn't reach Pesaroll. Check your connection and try again.",
     "ONB-3501": "Enter your organization's name (2 to 120 characters).",
     "ONB-3502": "You already have an organization.",
-    "ONB-3503": "You haven't set up your organization yet."
+    "ONB-3503": "You haven't set up your organization yet.",
+    "ONB-3504": "Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization."
   },
   "organization": {
     "title": "What's your organization called?",
@@ -140,5 +141,9 @@
   "home": {
     "title": "Karibu, {{name}}",
     "next": "Next: {{step}}"
+  },
+  "noOrganization": {
+    "title": "You're not part of an organization",
+    "text": "If you think this is a mistake, ask an administrator in your organization to add you back."
   }
 }

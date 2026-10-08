@@ -128,7 +128,9 @@ public static class IdentityModule
             }
 
             var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, ct) ?? throw AuthErrors.NotSignedIn();
-            return Results.Ok(MeResponse.From(user, tenant.OrganizationId));
+            var hasOnboarded = (await db.QueryAsync("select has_onboarded_organization()", r => r.GetBoolean(0),
+                new Dictionary<string, object?>(), ct)).Single();
+            return Results.Ok(MeResponse.From(user, tenant.OrganizationId, hasOnboarded));
         }).Produces<MeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         return app;

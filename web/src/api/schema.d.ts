@@ -392,6 +392,15 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description Conflict */
                 409: {
                     headers: {
@@ -496,6 +505,8 @@ export interface components {
             signupRoleOther: null | string;
             /** Format: uuid */
             organizationId: null | string;
+            signedUpVia: string;
+            canOnboardOrganization: boolean;
         };
         OrganizationResponse: {
             /** Format: uuid */

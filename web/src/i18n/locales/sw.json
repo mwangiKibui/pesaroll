@@ -127,7 +127,8 @@
     "network": "Hatukuweza kufikia Pesaroll. Angalia muunganisho wako kisha ujaribu tena.",
     "ONB-3501": "Andika jina la shirika lako (herufi 2 hadi 120).",
     "ONB-3502": "Tayari una shirika.",
-    "ONB-3503": "Bado hujaweka shirika lako."
+    "ONB-3503": "Bado hujaweka shirika lako.",
+    "ONB-3504": "Akaunti yako iliwekwa na shirika lako, kwa hivyo huwezi kuunda jipya. Mwombe msimamizi wa shirika lako."
   },
   "organization": {
     "title": "Shirika lako linaitwaje?",
@@ -140,5 +141,9 @@
   "home": {
     "title": "Karibu, {{name}}",
     "next": "Inayofuata: {{step}}"
+  },
+  "noOrganization": {
+    "title": "Wewe si sehemu ya shirika lolote",
+    "text": "Ikiwa unadhani hili ni kosa, mwombe msimamizi wa shirika lako akuongeze tena."
   }
 }

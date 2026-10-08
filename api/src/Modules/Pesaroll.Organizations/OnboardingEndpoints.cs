@@ -50,6 +50,10 @@ public static class OnboardingEndpoints
             {
                 throw OnboardingErrors.AlreadyHasOrganization();
             }
+            catch (PostgresException error) when (error.MessageText == "ONB-3504")
+            {
+                throw OnboardingErrors.NotSelfSignUp();
+            }
             catch (PostgresException error) when (error.MessageText == "ONB-3501")
             {
                 throw OnboardingErrors.NameInvalid();
@@ -66,6 +70,7 @@ public static class OnboardingEndpoints
         .Produces<CreateOrganizationResponse>(StatusCodes.Status201Created)
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+        .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
         .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
 
         organizations.MapGet("/current", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>

@@ -16,7 +16,7 @@ export const roles = [
   ] },
 ]
 
-export const me = { id: 'u1', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau', fullName: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: null, signupRoleId: roles[0].roles[0].id, signupRoleOther: null, organizationId: null }
+export const me = { id: 'u1', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau', fullName: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: null, signupRoleId: roles[0].roles[0].id, signupRoleOther: null, organizationId: null, signedUpVia: 'self', canOnboardOrganization: true }
 
 export const token = (t = 'access-1') => json(200, { accessToken: t, tokenType: 'Bearer', expiresIn: 900 })
 

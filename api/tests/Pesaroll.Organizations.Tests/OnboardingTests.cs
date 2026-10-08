@@ -32,7 +32,7 @@ public sealed class OnboardingTests(OnboardingTests.Api api) : IClassFixture<Onb
     private sealed record Org(Guid Id, string Name);
     private sealed record Created(Org Organization, Token Token);
     private sealed record Error(string Code, string Message, string Reference);
-    private sealed record Me(Guid Id, Guid? OrganizationId);
+    private sealed record Me(Guid Id, Guid? OrganizationId, string SignedUpVia, bool CanOnboardOrganization);
 
     private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
     private const string Password = "Mombasa-raha-7";
@@ -148,6 +148,41 @@ public sealed class OnboardingTests(OnboardingTests.Api api) : IClassFixture<Onb
         var res = await client.SendAsync(With(token, HttpMethod.Post, "/api/organizations", new { name = new string('x', 121) }));
 
         Assert.Equal("ONB-3501", (await ErrorFrom(res)).Code);
+    }
+
+    [Fact]
+    public async Task Someone_who_signed_up_themselves_can_onboard_an_organization_until_they_have()
+    {
+        var (client, token, _) = await SignUp();
+
+        var before = await (await client.SendAsync(With(token, HttpMethod.Get, "/api/auth/me"))).Content.ReadFromJsonAsync<Me>();
+        var created = (await (await client.SendAsync(With(token, HttpMethod.Post, "/api/organizations", new { name = "Later Ltd" })))
+            .Content.ReadFromJsonAsync<Created>())!;
+        var after = await (await client.SendAsync(With(created.Token, HttpMethod.Get, "/api/auth/me"))).Content.ReadFromJsonAsync<Me>();
+
+        Assert.Equal(("self", true), (before!.SignedUpVia, before.CanOnboardOrganization));
+        Assert.False(after!.CanOnboardOrganization);
+    }
+
+    [Fact]
+    public async Task Someone_who_did_not_sign_up_themselves_cannot_onboard_an_organization()
+    {
+        var (client, token, email) = await SignUp();
+        await using (var connection = new Npgsql.NpgsqlConnection(System.Environment.GetEnvironmentVariable("PESAROLL_TEST_DB")))
+        {
+            // As AUTH-08 will: an invited person's account.
+            await connection.OpenAsync();
+            await using var command = new Npgsql.NpgsqlCommand("update users set signed_up_via = 'invitation' where email = @email", connection);
+            command.Parameters.AddWithValue("email", email);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var me = await (await client.SendAsync(With(token, HttpMethod.Get, "/api/auth/me"))).Content.ReadFromJsonAsync<Me>();
+        var create = await client.SendAsync(With(token, HttpMethod.Post, "/api/organizations", new { name = "Not Mine Ltd" }));
+
+        Assert.Equal(("invitation", false), (me!.SignedUpVia, me.CanOnboardOrganization));
+        Assert.Equal(HttpStatusCode.Forbidden, create.StatusCode);
+        Assert.Equal("ONB-3504", (await ErrorFrom(create)).Code);
     }
 
     [Fact]

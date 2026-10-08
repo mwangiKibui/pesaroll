@@ -80,3 +80,28 @@ begin
   end;
 end $$;
 rollback;
+
+-- Only people who signed up themselves onboard an organization (invited people, staff and
+-- partners come in another way); has_onboarded_organization tells the app whether they have.
+begin;
+set local role pesaroll_app;
+do $$
+declare
+  cleo constant uuid := '00000000-0000-7000-8000-0000000000e5';
+  sid constant uuid := '00000000-0000-7000-8000-0000000000e6';
+  msg text;
+begin
+  perform set_config('app.user_id', cleo::text, true);
+  insert into users (id, email, first_name, last_name, signed_up_via) values (cleo, 'cleo@example.com', 'Cleo', 'Wambui', 'invitation');
+  insert into sessions (id, user_id, token_hash, expires_at) values (sid, cleo, '\x10', now() + interval '7 days');
+  if has_onboarded_organization() then raise exception 'has_onboarded_organization is true before onboarding'; end if;
+  begin
+    perform create_organization('Invited Ltd', sid);
+    raise exception 'an invited person onboarded an organization';
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    if msg <> 'ONB-3504' then raise exception 'invited person: expected ONB-3504, got %', msg; end if;
+  end;
+  if (select signed_up_via from users where id = cleo) <> 'invitation' then raise exception 'signed_up_via not kept'; end if;
+end $$;
+rollback;

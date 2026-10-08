@@ -50,6 +50,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3501 | Enter your organization's name (2 to 120 characters). | Customer | Organization step: the name is the one their team knows them by; legal company names come next. |
 | ONB-3502 | You already have an organization. | Customer | One onboarded organization per person for now. Accountants and bureaus with several clients go through the partner program. |
 | ONB-3503 | You haven't set up your organization yet. | Customer | They signed up but skipped or left the organization step; the app takes them back to it. |
+| ONB-3504 | Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization. | Customer | Only people who signed up themselves onboard an organization; invited people, staff and partners come in another way. |
 | PAY-2001 | {employee} has no KRA PIN, so PAYE can't be filed. | Customer | Add the KRA PIN on the employee's profile, then rerun. |
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |

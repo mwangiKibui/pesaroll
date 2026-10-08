@@ -8,7 +8,7 @@ import { applyStartupTheme } from './theme/theme'
 
 /** The app: services for every screen, and the router. initialPath is for tests. */
 export default function App({ services, initialPath }: { services: Services; initialPath?: string }) {
-  const [router] = useState(() => createAppRouter(services.auth, initialPath))
+  const [router] = useState(() => createAppRouter(services.auth, services.api, initialPath))
 
   useLayoutEffect(() => { applyStartupTheme() }, [])
 

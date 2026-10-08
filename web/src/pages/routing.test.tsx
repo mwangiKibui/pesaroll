@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
-import { fakeApi, jwt, orgToken, token } from '../test/fakeApi'
+import { fakeApi, json, jwt, me, orgToken, token } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -65,4 +65,24 @@ it.each(['//evil.example/phish', 'https://evil.example/phish'])('after sign-in, 
 
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
   expect(services.auth.status()).toBe('signedIn')
+})
+
+it.each(['/', '/setup/organization'])('without an organization and unable to onboard one (invited or removed), %s says so', async path => {
+  fakeApi({
+    'POST /api/auth/refresh': () => token('no-org'),
+    'GET /api/auth/me': () => json(200, { ...me, signedUpVia: 'invitation', canOnboardOrganization: false }),
+  })
+  renderApp(path)
+
+  expect(await screen.findByRole('heading', { name: "You're not part of an organization" })).toBeInTheDocument()
+  expect(screen.getByText(/ask an administrator in your organization to add you back/)).toBeInTheDocument()
+  expect(screen.queryByRole('textbox', { name: 'Organization name' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+})
+
+it('someone who signed up and comes back later, still without an organization, is taken to that step', async () => {
+  fakeApi({ 'POST /api/auth/refresh': () => token('back-later') })
+  renderApp('/no-organization')
+
+  expect(await screen.findByRole('heading', { name: "What's your organization called?" })).toBeInTheDocument()
 })

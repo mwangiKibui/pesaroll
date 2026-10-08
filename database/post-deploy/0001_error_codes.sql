@@ -17,6 +17,7 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('ONB-3501',  'ONB',  'warning', 'Enter your organization''s name (2 to 120 characters).', 'customer', 'Organization step: the name is the one their team knows them by; legal company names come next.'),
   ('ONB-3502',  'ONB',  'warning', 'You already have an organization.', 'customer', 'One onboarded organization per person for now. Accountants and bureaus with several clients go through the partner program.'),
   ('ONB-3503',  'ONB',  'info',    'You haven''t set up your organization yet.', 'customer', 'They signed up but skipped or left the organization step; the app takes them back to it.'),
+  ('ONB-3504',  'ONB',  'warning', 'Your account was set up by your organization, so you can''t create a new one. Ask an administrator in your organization.', 'customer', 'Only people who signed up themselves onboard an organization; invited people, staff and partners come in another way.'),
   ('PAY-2001',  'PAY',  'error',   '{employee} has no KRA PIN, so PAYE can''t be filed.', 'customer', 'Add the KRA PIN on the employee''s profile, then rerun.'),
   ('PAY-2002',  'PAY',  'error',   '{employee}''s pay is below the minimum wage for {location}.', 'customer', 'Confirm pay and location; the run can''t be approved below the minimum.'),
   ('BILL-6001', 'BILL', 'warning', 'This company has more than {limit} active employees. Choose a plan to approve this pay run.', 'customer', 'Explain the plans; check for complimentary access first.'),

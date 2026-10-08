@@ -1,7 +1,7 @@
 -- ONB-02, the organization step. One function so the organization, the person's membership and
 -- the switch of their session to it happen together or not at all. It acts for the signed-in
--- person (app.user_id), never an id the caller passes. One onboarded organization per person for
--- now: stops duplicates from double-clicks and junk organizations (relax here when needed).
+-- person (app.user_id), never an id the caller passes, and only for people who signed up
+-- themselves (users.signed_up_via = 'self'). One onboarded organization per person for now: stops duplicates from double-clicks and junk organizations (relax here when needed).
 -- Errors are raised as their catalogue codes; the API turns them into responses.
 create or replace function create_organization(p_name text, p_session_id uuid)
 returns uuid
@@ -14,6 +14,9 @@ declare
 begin
     if v_user is null then
         raise exception 'AUTH-1007';
+    end if;
+    if (select u.signed_up_via from users u where u.id = v_user) is distinct from 'self' then
+        raise exception 'ONB-3504';
     end if;
     if char_length(v_name) not between 2 and 120 then
         raise exception 'ONB-3501';
@@ -38,5 +41,17 @@ begin
 end
 $$;
 
+-- Whether the signed-in person has onboarded an organization. The app offers the organization
+-- step only to people who signed up themselves and haven't (row-level security hides other
+-- organizations from them, hence a function).
+create or replace function has_onboarded_organization()
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+    select exists (select 1 from organizations o where o.onboarded_by = app_user_id())
+$$;
+
+revoke all on function has_onboarded_organization() from public;
+grant execute on function has_onboarded_organization() to pesaroll_app;
 revoke all on function create_organization(text, uuid) from public;
 grant execute on function create_organization(text, uuid) to pesaroll_app;
