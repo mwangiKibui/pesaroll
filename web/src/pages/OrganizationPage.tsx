@@ -41,7 +41,6 @@ export default function OrganizationPage() {
       {organizationId && !organization.data
         ? <Loading rows={2} />
         : <NameForm key={organization.data?.id ?? 'new'} existing={organization.data} />}
-      {organizationId && <div><Link to="/setup/companies" className={buttonClasses('secondary')}>{t('organization.continue')}</Link></div>}
     </SetupLayout>
   )
 }
@@ -95,7 +94,15 @@ function NameForm({ existing }: { existing?: { id: string; name: string } }) {
       <TextField label={t('organization.name')} placeholder={t('organization.namePlaceholder')} hint={t('organization.nameHint')}
         autoComplete="organization" maxLength={120}
         error={errors.name?.message ? t(errors.name.message) : undefined} {...register('name')} />
-      <div><Button type="submit" busy={isSubmitting}>{existing ? t('organization.save') : t('organization.submit')}</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button type="submit" busy={isSubmitting}>{existing ? t('organization.save') : t('organization.submit')}</Button>
+        {existing && (
+          <Link to="/setup/companies" className={buttonClasses('secondary')}>
+            {t('organization.continue')}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </Link>
+        )}
+      </div>
     </form>
   )
 }

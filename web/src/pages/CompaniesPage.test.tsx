@@ -181,7 +181,11 @@ it('the organization step leads on to companies', async () => {
   fakeApi(signedIn)
   renderApp('/setup/organization')
 
-  await userEvent.click(await screen.findByRole('link', { name: 'Continue to companies' }))
+  const link = await screen.findByRole('link', { name: 'Continue to companies' })
+  // In the name's card, on the right of Save changes.
+  expect(link.parentElement).toContainElement(screen.getByRole('button', { name: 'Save changes' }))
+  expect(link.closest('form')).not.toBeNull()
+  await userEvent.click(link)
 
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
 })
