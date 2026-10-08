@@ -49,3 +49,14 @@ it.each(['/signin', '/signup'])('every field on %s has a placeholder: "Your" and
     expect(field.placeholder).toBe(`Your ${label.toLowerCase()}`)
   }
 })
+
+it.each(['/signin', '/signup'])('on %s, phones show only the form: the side panel is hidden below laptop width', async path => {
+  fakeApi()
+  renderApp(path)
+  await screen.findByRole('heading', { level: 1 })
+
+  // jsdom has no screen sizes, so this checks the responsive classes: hidden by default, shown from lg (1024 px).
+  const panel = screen.getByText('Run your first payroll today.').closest('section')
+  expect(panel).toHaveClass('hidden', 'lg:flex')
+  expect(screen.getByRole('main')).toBeInTheDocument()
+})
