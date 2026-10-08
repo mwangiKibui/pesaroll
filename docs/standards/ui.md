@@ -8,8 +8,8 @@ How every Pesaroll screen looks and is built: the admin app, the back office and
 
 1. **Build screens from the components** in `web/src/components/`. Need something new? Add it there test-first, show it on the components page, then use it.
 2. **Colours come from tokens only:** `bg-card`, `text-muted`, `border-line`, `bg-brand`… never a hex code, `rgb()` or a Tailwind palette colour (`bg-green-700`). The values live in `web/src/styles/tokens.css`, once for light and once for dark. A test fails on raw colours anywhere else.
-3. **Light and dark.** The theme follows the device by default; people can pick System, Light or Dark (`ThemeSwitch`, in the user menu and on the portal's profile page). Every token has both values. Payslip PDFs and exported files are always light.
-4. **Every word through translations,** in English and Swahili (`web/src/i18n/locales/`). The keys must match; a test checks. Swahili is reviewed by a native speaker before release.
+3. **Light and dark.** The theme follows the device by default; people pick System, Light or Dark from the theme icon in the navbar (`ThemeMenu`). Every token has both values. Payslip PDFs and exported files are always light.
+4. **Every word through translations,** in English and Swahili (`web/src/i18n/locales/`). The keys must match; a test checks. **For now the app is English only:** people can't choose Swahili until a native speaker has reviewed it (to turn it on: `initialLanguage()` in `web/src/i18n/index.ts` and `LanguageSwitch` in the navbar).
 5. **Phone first for anything employees use.** Design the portal at 390 px wide; check every admin screen at phone width too (menus stack, tables scroll sideways inside their card).
 6. **Accessible as built:**
    - real `<button>`, `<a href>` and labelled inputs
