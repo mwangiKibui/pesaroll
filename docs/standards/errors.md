@@ -56,6 +56,8 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3507 | Some details don't look right. Check the fields marked. | Customer | A company detail failed its check; `fields` says which (statutory number formats come from the country's settings). |
 | ONB-3508 | You already have a company with this name. | Customer | Another active company in the organization has the same legal name (ignoring case and spaces). |
 | ONB-3509 | We couldn't find that company. | Customer | The company doesn't exist, was deleted, or belongs to another organization. |
+| ONB-3510 | Some paying account details don't look right. Check the fields marked. | Customer | A paying account detail failed its check; `fields` says which (bank and branch must be from the list; account number 6 to 20 digits; M-Pesa shortcode 5 to 7 digits). |
+| ONB-3511 | We couldn't find that paying account. | Customer | The account doesn't exist, was already removed, or belongs to another company or organization. |
 | PAY-2001 | {employee} has no KRA PIN, so PAYE can't be filed. | Customer | Add the KRA PIN on the employee's profile, then rerun. |
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |

@@ -2,8 +2,9 @@ import { useState, type ReactNode } from 'react'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { Drawer } from '../components/Drawer'
+import { Modal } from '../components/Modal'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
-import { Checkbox, SelectField, TextField } from '../components/fields'
+import { Checkbox, RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { PasswordField } from '../components/PasswordField'
 import { Money } from '../components/Money'
 import { AppShell, PhoneShell } from '../components/shells'
@@ -40,9 +41,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export default function ComponentsPage() {
   const toast = useToast()
   const [drawer, setDrawer] = useState(false)
+  const [modal, setModal] = useState(false)
   const [several, setSeveral] = useState<CompanySelection>({ all: false, ids: ['ke'] })
   const [one, setOne] = useState<CompanySelection>({ all: false, ids: ['ug'] })
   const [town, setTown] = useState('nbo')
+  const [payFrom, setPayFrom] = useState('bank')
+  const [isDefault, setIsDefault] = useState(true)
 
   return (
     <AppShell current="components" organization="Mama Oliech Group" person="Grace Wanjiru · CEO or Managing Director"
@@ -82,6 +86,9 @@ export default function ComponentsPage() {
             <TextField label="Phone (phone layout)" placeholder="Your phone" size="lg" defaultValue="0723 456 789" />
             <PasswordField label="Password" placeholder="Your password" isNew />
             <div className="flex flex-col"><Checkbox label="Main location for Mama Oliech Restaurants · KE" defaultChecked /><Checkbox label="Main location for Oliech Catering · UG" /></div>
+            <RadioGroup label="Pay from" name="dev-pay-from" value={payFrom} onChange={setPayFrom}
+              options={[{ value: 'bank', label: 'Bank account', hint: 'A bulk payment file for your bank.' }, { value: 'mpesa', label: 'M-Pesa', hint: 'A B2C shortcode that sends pay to phones.' }]} />
+            <Switch label="Use as the default" hint="Payroll is paid from the default unless you choose another account." checked={isDefault} onChange={setIsDefault} />
           </div>
         </Section>
 
@@ -123,7 +130,12 @@ export default function ComponentsPage() {
             <TextField label="Location name" placeholder="Your location name" defaultValue="Karen branch" />
             <SelectField label="Town" placeholder="Your town" hint="Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }, { value: 'msa', label: 'Mombasa' }, { value: 'ksm', label: 'Kisumu' }, { value: 'nak', label: 'Nakuru' }, { value: 'eld', label: 'Eldoret' }, { value: 'mra', label: "Murang'a" }]} value={town} onChange={setTown} />
             <CompanySelect label="Applies to" companies={companies} value={several} onChange={setSeveral} />
+            <Button variant="secondary" onClick={() => setModal(true)}>Open a modal on top</Button>
           </Drawer>
+          <Modal open={modal} title="Add paying account" onClose={() => setModal(false)}
+            footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button><Button onClick={() => setModal(false)}>Add account</Button></>}>
+            <TextField label="Account name" placeholder="Your account name" />
+          </Modal>
           <div className="grid gap-4 md:grid-cols-2">
             <Card><EmptyState title="No locations yet" action={<Button>Add location</Button>}>Add your branches, or skip and add them later.</EmptyState></Card>
             <Card title="Loading"><Loading rows={4} /></Card>

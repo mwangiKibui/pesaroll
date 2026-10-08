@@ -55,6 +55,18 @@ export const company = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+export const banks = [
+  { code: '68', name: 'Equity Bank', branches: [{ code: '047', name: 'Moi Avenue, Nairobi' }, { code: '025', name: 'Mombasa' }] },
+  { code: '01', name: 'KCB Bank', branches: [{ code: '100', name: 'Moi Avenue, Nairobi' }] },
+]
+
+/** A paying account as the API returns it: the number only ever masked. */
+export const equityAccount = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000e001', method: 'bank', bankCode: '68', bankName: 'Equity Bank', branchCode: '047',
+  branchName: 'Moi Avenue, Nairobi', accountName: 'Mama Oliech Restaurant Ltd', accountNumberMasked: '•••• 8901', mpesaShortcode: null,
+  isDefault: true, createdAt: '2026-10-08T10:00:00Z', ...overrides,
+})
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -78,6 +90,8 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/countries': () => json(200, [kenya]),
     'GET /api/industries': () => json(200, industries),
     'GET /api/companies': () => json(200, []),
+    'GET /api/banks': () => json(200, banks),
+    [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -13,6 +13,9 @@ const companyPath = `/api/companies/${saved.id}`
 
 const drawer = () => screen.getByRole('dialog')
 
+/** Open one of the drawer's tabs. */
+const tab = (name: string | RegExp) => userEvent.click(within(drawer()).getByRole('tab', { name }))
+
 /** Search a dropdown in the drawer and pick the option. */
 async function choose(name: string, search: string, option: string) {
   await userEvent.type(within(drawer()).getByRole('combobox', { name }), search)
@@ -33,6 +36,13 @@ it('with no companies yet, offers the first one, named after the organization an
   await userEvent.click(screen.getByRole('button', { name: 'Add company' }))
 
   expect(within(drawer()).getByRole('heading', { name: 'Add company' })).toBeInTheDocument()
+  expect(within(drawer()).getAllByRole('tab').map(t => t.textContent))
+    .toEqual(['Company details', 'Paying accounts'])
+  expect(within(drawer()).getAllByRole('heading', { level: 3 }).map(h => h.textContent))
+    .toEqual(['Company', 'Statutory numbers', 'Address and contact'])
+  expect(within(drawer()).getByRole('tab', { name: 'Company details' })).toHaveAttribute('aria-selected', 'true')
+  // Paying accounts belong to a saved company: the tab opens once the company is added.
+  expect(within(drawer()).getByRole('tab', { name: 'Paying accounts' })).toHaveAttribute('aria-disabled', 'true')
   expect(within(drawer()).getByRole('textbox', { name: 'Legal name' })).toHaveValue('Mama Oliech Group')
   expect(within(drawer()).getByRole('combobox', { name: 'Country' })).toHaveValue('Kenya')
   // The numbers come from the country: payroll needs the first three, the last is optional.
@@ -62,7 +72,14 @@ it('adds a company; numbers it still needs show against it, and the step is tick
   await choose('County optional', 'nairobi', 'Nairobi')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
 
+  // Added: the drawer stays open on the new company's Paying accounts, now available.
   expect(await screen.findByText('Company added')).toBeInTheDocument()
+  expect(within(drawer()).getByRole('heading', { name: 'Edit company' })).toBeInTheDocument()
+  const accountsTab = within(drawer()).getByRole('tab', { name: 'Paying accounts' })
+  expect(accountsTab).not.toHaveAttribute('aria-disabled')
+  expect(accountsTab).toHaveAttribute('aria-selected', 'true')
+  expect(await within(drawer()).findByRole('button', { name: 'Add paying account' })).toBeInTheDocument()
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   const body = calls.find(c => c.method === 'POST' && c.path === '/api/companies')?.body as Record<string, unknown>
   expect(body).toMatchObject({ legalName: 'Mama Oliech Restaurant Ltd', tradingName: 'Mama Oliech', countryCode: 'KE', industryCode: 'restaurants_bars', regionCode: '047' })
@@ -89,10 +106,25 @@ it('checks the name and the numbers against the country before sending anything'
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Email optional' }), 'not-an-email')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
 
+  expect(within(drawer()).getByRole('tab', { name: 'Company details, needs fixing' })).toHaveAttribute('aria-selected', 'true')
   expect(within(drawer()).getByRole('textbox', { name: 'Legal name' })).toHaveAccessibleDescription(/Enter the company's legal name \(2 to 160 characters\)/)
   expect(within(drawer()).getByRole('textbox', { name: 'KRA PIN' })).toHaveAccessibleDescription(/KRA PIN doesn't look right. For example P051234567X./)
   expect(within(drawer()).getByRole('textbox', { name: 'Email optional' })).toHaveAccessibleDescription(/Enter a valid email address/)
   expect(calls.filter(c => c.path === '/api/companies' && c.method === 'POST')).toHaveLength(0)
+})
+
+it('saving from the Paying accounts tab goes back to the details with the problem', async () => {
+  fakeApi({ ...signedIn, 'GET /api/companies': () => json(200, [saved]) })
+  renderApp('/setup/companies')
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Mama Oliech Restaurant Ltd' }))
+  await userEvent.clear(within(drawer()).getByRole('textbox', { name: 'KRA PIN' }))
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'KRA PIN' }), 'A12')
+  await tab('Paying accounts')
+
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
+
+  expect(within(drawer()).getByRole('tab', { name: 'Company details, needs fixing' })).toHaveAttribute('aria-selected', 'true')
+  expect(within(drawer()).getByRole('textbox', { name: 'KRA PIN' })).toBeVisible()
 })
 
 it('problems the server finds show under their fields; others show with their code and reference', async () => {
@@ -108,6 +140,7 @@ it('problems the server finds show under their fields; others show with their co
   reply = () => json(400, { code: 'ONB-3507', message: 'Some details need fixing.', reference: '7F3K92QD', fields: { phone: 'Enter a valid phone number.' } })
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
   expect(await within(drawer()).findByText('Enter a valid phone number.')).toBeInTheDocument()
+  expect(within(drawer()).getByRole('tab', { name: 'Company details, needs fixing' })).toHaveAttribute('aria-selected', 'true')
   expect(within(drawer()).getByRole('textbox', { name: 'Phone number optional' })).toHaveAccessibleDescription('Enter a valid phone number.')
 
   reply = () => apiError(403, 'ACC-8001', "You don't have permission to do this. Ask an administrator in your organization.")
@@ -127,10 +160,10 @@ it('edits a company; a number cleared is sent empty so it is removed', async () 
 
   await userEvent.click(await screen.findByRole('button', { name: 'Edit Mama Oliech Restaurant Ltd' }))
   expect(within(drawer()).getByRole('heading', { name: 'Edit company' })).toBeInTheDocument()
-  expect(within(drawer()).getByRole('textbox', { name: 'KRA PIN' })).toHaveValue('P051234567X')
   const trading = within(drawer()).getByRole('textbox', { name: 'Trading name optional' })
   await userEvent.clear(trading)
   await userEvent.type(trading, 'Oliech Grill')
+  expect(within(drawer()).getByRole('textbox', { name: 'KRA PIN' })).toHaveValue('P051234567X')
   await userEvent.clear(within(drawer()).getByRole('textbox', { name: 'KRA PIN' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
 
@@ -183,6 +216,7 @@ it('continuing needs at least one company, then goes to the dashboard with two s
   await userEvent.click(screen.getByRole('button', { name: 'Add company' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
   await screen.findByText('Company added')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
 
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()

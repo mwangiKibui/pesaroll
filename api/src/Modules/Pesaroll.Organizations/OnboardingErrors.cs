@@ -33,6 +33,12 @@ internal static class OnboardingErrors
     public static AppException CompanyNotFound() =>
         new("ONB-3509", "We couldn't find that company.", 404);
 
+    public static AppException PaymentAccountInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3510", "Some paying account details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException PaymentAccountNotFound() =>
+        new("ONB-3511", "We couldn't find that paying account.", 404);
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }

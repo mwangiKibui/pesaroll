@@ -62,6 +62,8 @@ Colour tokens (light / dark):
   4. Labelled edit and delete `IconButton`s in each row.
   5. At the foot, "Save <things> and continue" plus Back.
 - **Add and edit happen in a `Drawer` from the right:** 480 px, full width on phones. Its title is "Add location" or "Edit location"; the footer has Cancel, then a button that names the action ("Add location", "Save changes"). Never a separate page or a centred pop-up.
+  - Records with many details (a company) use the wide drawer (960 px) with `Tabs` under the title: the record's own form on the first tab, in headed sections ("Company", "Statutory numbers", "Address and contact"), and things that are saved separately (paying accounts) on their own tabs. Hidden tabs keep what was typed; saving with a problem goes back to its tab, and a tab with something to fix is marked. The footer (Cancel, then the save button) is the same on every tab. Tabs for things that need the record to exist first (paying accounts) are shown but unavailable while adding; once it is added, the drawer stays open on that tab.
+  - Lists inside a drawer (a company's paying accounts) are a table; adding to them opens a `Modal` on top (a centred dialog, never a drawer on a drawer). Escape closes only the modal.
 - **Company selector (`CompanySelect`)** on every list and setup screen where companies can differ:
   - "All companies" first ("Includes companies added later")
   - checkboxes for several, round options for one
@@ -87,7 +89,7 @@ Colour tokens (light / dark):
 - Choosing from a list uses the searchable `SelectField`, with a placeholder like any field ("Your county").
 - A field's error appears under it and is read out with it (`TextField error=…`).
 - Problems with the whole form or page use `FormErrorBanner`, which shows the message plus the code and reference from the API, so customers can quote them to support (see `errors.md`).
-- Short confirmations ("Location added") are toasts (`useToast().show(…)`); they go away after 5 seconds.
+- Short confirmations ("Location added") are toasts (`useToast().show(…)`), everywhere on the platform: top right (full width on phones), green with white text and a tick; a failure that isn't about a field is a red toast (`show(message, 'danger')`). They slide in from the right and fade out after 5 seconds (no movement when the device asks for reduced motion). Never an inline banner for these.
 
 ## Money
 

@@ -74,7 +74,8 @@ public static class CompaniesEndpoints
             var list = await db.Companies.Include(c => c.Identifiers).Where(c => c.Status == "active")
                 .OrderBy(c => c.CreatedAt).ToListAsync(ct);
             var fields = await FieldsFor(db, list.Select(c => c.CountryCode).Distinct().ToList(), ct);
-            return Results.Ok(list.Select(c => ToResponse(c, fields)).ToList());
+            var paying = await WithPayingAccount(db, ct);
+            return Results.Ok(list.Select(c => ToResponse(c, fields, paying.Contains(c.Id))).ToList());
         }).Produces<List<CompanyResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
         companies.MapPost("/", async (CompanyRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
@@ -104,7 +105,7 @@ public static class CompaniesEndpoints
             await SaveAsync(db, ct);
 
             var fields = await FieldsFor(db, [company.CountryCode], ct);
-            return Results.Created($"/api/companies/{company.Id}", ToResponse(company, fields));
+            return Results.Created($"/api/companies/{company.Id}", ToResponse(company, fields, hasPayingAccount: false));
         }).Produces<CompanyResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
@@ -148,7 +149,8 @@ public static class CompaniesEndpoints
 
             await SaveAsync(db, ct);
             var saved = await db.Companies.Include(c => c.Identifiers).AsNoTracking().SingleAsync(c => c.Id == id, ct);
-            return Results.Ok(ToResponse(saved, await FieldsFor(db, [saved.CountryCode], ct)));
+            var paying = await WithPayingAccount(db, ct);
+            return Results.Ok(ToResponse(saved, await FieldsFor(db, [saved.CountryCode], ct), paying.Contains(saved.Id)));
         }).Produces<CompanyResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
@@ -281,13 +283,25 @@ public static class CompaniesEndpoints
     private static async Task<List<CountryCompanyField>> FieldsFor(OrganizationsDbContext db, List<string> countryCodes, CancellationToken ct) =>
         await db.CountryCompanyFields.Where(f => countryCodes.Contains(f.CountryCode) && f.Active).OrderBy(f => f.SortOrder).ToListAsync(ct);
 
-    private static CompanyResponse ToResponse(Company c, List<CountryCompanyField> fields)
+    /// <summary>Companies (that this request can see) with at least one open paying account.</summary>
+    private static async Task<HashSet<Guid>> WithPayingAccount(OrganizationsDbContext db, CancellationToken ct) =>
+        [.. await db.CompanyPaymentAccounts.Where(a => a.ClosedAt == null).Select(a => a.CompanyId).Distinct().ToListAsync(ct)];
+
+    private static readonly MissingItem PayingAccountMissing =
+        new("payment_account", "payment_account", new LocalizedText("A paying account", "Akaunti ya kulipa"));
+
+    private static CompanyResponse ToResponse(Company c, List<CountryCompanyField> fields, bool hasPayingAccount)
     {
         var identifiers = c.Identifiers.ToDictionary(i => i.FieldKey, i => i.Value);
         var missing = fields
             .Where(f => f.CountryCode == c.CountryCode && f.RequiredForPayroll && !identifiers.ContainsKey(f.Key))
             .Select(f => new MissingItem("identifier", f.Key, new LocalizedText(f.LabelEn, f.LabelSw)))
             .ToList();
+        if (!hasPayingAccount)
+        {
+            missing.Add(PayingAccountMissing);   // payroll needs an account to pay from (PAY-03 enforces it)
+        }
+
         return new CompanyResponse(c.Id, c.LegalName, c.TradingName, c.CountryCode, c.Currency, c.IndustryCode,
             c.AddressLine, c.Town, c.RegionCode, c.PostalAddress, c.PostalCode, c.Phone, c.Email,
             identifiers, new ReadinessResponse(missing.Count == 0, missing));
@@ -298,7 +312,7 @@ public static class CompaniesEndpoints
         f.HintEn is null ? null : new LocalizedText(f.HintEn, f.HintSw ?? f.HintEn),
         f.Example, f.Pattern, f.RequiredForPayroll);
 
-    private static void RequireSignedIn(TenantContext tenant, HttpContext http)
+    internal static void RequireSignedIn(TenantContext tenant, HttpContext http)
     {
         if (tenant.UserId is null)
         {
@@ -306,7 +320,7 @@ public static class CompaniesEndpoints
         }
     }
 
-    private static (Guid UserId, Guid OrganizationId) RequireOrganization(TenantContext tenant, HttpContext http)
+    internal static (Guid UserId, Guid OrganizationId) RequireOrganization(TenantContext tenant, HttpContext http)
     {
         if (tenant.UserId is not Guid userId)
         {
@@ -317,7 +331,7 @@ public static class CompaniesEndpoints
     }
 
     // For now only the person who onboarded the organization sets up its companies; ACC-04 makes this a permission.
-    private static async Task RequireOnboarder(OrganizationsDbContext db, Guid userId, Guid organizationId, CancellationToken ct)
+    internal static async Task RequireOnboarder(OrganizationsDbContext db, Guid userId, Guid organizationId, CancellationToken ct)
     {
         if (!await db.Organizations.AnyAsync(o => o.Id == organizationId && o.OnboardedBy == userId, ct))
         {

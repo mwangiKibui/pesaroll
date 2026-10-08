@@ -173,6 +173,67 @@ export function SelectField({ label, hint, error, optional, size = 'md', options
   )
 }
 
+interface RadioGroupProps {
+  /** The question: "Pay from". */
+  label: string
+  name: string
+  options: { value: string; label: string; hint?: string }[]
+  value: string
+  onChange: (value: string) => void
+}
+
+/** One choice from a few (two to four) shown side by side; more than that is a SelectField. */
+export function RadioGroup({ label, name, options, value, onChange }: RadioGroupProps) {
+  const id = useId()
+  return (
+    <fieldset role="radiogroup" aria-labelledby={`${id}-label`} className="m-0 flex flex-col gap-1.5 border-0 p-0">
+      <legend id={`${id}-label`} className="mb-1.5 p-0 text-label font-medium text-ink">{label}</legend>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {options.map(o => (
+          <label key={o.value} className={`flex min-h-11 cursor-pointer items-start gap-2.5 rounded-control border px-3 py-2.5 ${o.value === value ? 'border-brand bg-brand-soft' : 'border-field-border bg-card'}`}>
+            <input type="radio" name={name} value={o.value} checked={o.value === value} onChange={() => onChange(o.value)}
+              aria-labelledby={`${id}-${o.value}-label`} aria-describedby={o.hint ? `${id}-${o.value}-hint` : undefined} className="mt-1 accent-brand" />
+            <span className="flex flex-col">
+              <span id={`${id}-${o.value}-label`} className="text-body text-ink">{o.label}</span>
+              {o.hint && <span id={`${id}-${o.value}-hint`} className="text-hint text-muted">{o.hint}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
+interface SwitchProps {
+  label: string
+  /** Why it matters, or why it can't be changed right now. */
+  hint?: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+}
+
+/** A setting that is on or off and applies at once in the form ("Use as the default"). Space or click toggles. */
+export function Switch({ label, hint, checked, onChange, disabled }: SwitchProps) {
+  const id = useId()
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="flex flex-col gap-0.5">
+        <span id={`${id}-label`} className="text-label font-medium text-ink">{label}</span>
+        {hint && <span id={`${id}-hint`} className="text-hint text-muted">{hint}</span>}
+      </span>
+      <button type="button" role="switch" aria-checked={checked} aria-labelledby={`${id}-label`}
+        aria-describedby={hint ? `${id}-hint` : undefined} disabled={disabled} onClick={() => onChange(!checked)}
+        className="flex min-h-11 min-w-14 flex-none items-center justify-center rounded-control">
+        {/* 44 px to tap; the track inside is smaller. */}
+        <span aria-hidden="true" className={`flex h-7 w-12 items-center rounded-full transition-colors ${checked ? 'bg-brand' : 'bg-field-border'}`}>
+          <span className={`inline-block size-5 rounded-full bg-card shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+        </span>
+      </button>
+    </div>
+  )
+}
+
 type CheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & { label: ReactNode }
 
 export function Checkbox({ label, className = '', ...input }: CheckboxProps) {

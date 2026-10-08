@@ -25,6 +25,8 @@ public sealed class OnboardingTests(OnboardingTests.Api api) : IClassFixture<Onb
             builder.UseSetting("App:AllowedOrigins:0", "http://localhost:5173");
             builder.UseSetting("Auth:Tokens:Keys:0:Id", "test");
             builder.UseSetting("Auth:Tokens:Keys:0:Secret", Convert.ToBase64String(Enumerable.Repeat((byte)42, 32).ToArray()));
+            builder.UseSetting("Encryption:Keys:0:Id", "test");
+            builder.UseSetting("Encryption:Keys:0:Secret", Convert.ToBase64String(Enumerable.Repeat((byte)7, 32).ToArray()));
         }
     }
 
