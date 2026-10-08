@@ -6,7 +6,8 @@
     "done": "Tayari",
     "loading": "Inapakia",
     "menu": "Menyu",
-    "noMatches": "Hakuna kinacholingana"
+    "noMatches": "Hakuna kinacholingana",
+    "needsFixing": ", inahitaji kurekebishwa"
   },
   "nav": {
     "main": "Menyu kuu",
@@ -198,18 +199,15 @@
     "saved": "Kampuni imehifadhiwa",
     "deleted": "Kampuni imefutwa",
     "continue": "Hifadhi na uendelee",
-    "details": "Maelezo ya kampuni",
     "legalName": "Jina rasmi",
     "legalNamePlaceholder": "Jina lako rasmi",
     "legalNameHint": "Kama lilivyosajiliwa, jinsi linavyoonekana kwenye fomu za kisheria.",
     "tradingName": "Jina la biashara",
     "tradingNamePlaceholder": "Jina lako la biashara",
     "industry": "Sekta",
-    "numbers": "Nambari za kisheria",
     "yourField": "{{field}} yako",
     "example": "Kwa mfano {{example}}.",
     "neededForPayroll": "Inahitajika kabla ya mishahara yako ya kwanza.",
-    "addressAndContact": "Anwani na mawasiliano",
     "addressLine": "Anwani ya mahali",
     "addressLinePlaceholder": "Anwani yako ya mahali",
     "town": "Mji",
@@ -225,7 +223,16 @@
     "countryPlaceholder": "Nchi yako",
     "industryPlaceholder": "Sekta yako",
     "location": "Mahali",
-    "contact": "Mawasiliano"
+    "contact": "Mawasiliano",
+    "sections": "Sehemu za kampuni",
+    "numbersIntro": "Nambari ambazo kampuni ya {{country}} husajiliwa nazo. Zikikosekana bado unaweza kuhifadhi, lakini mishahara inazihitaji.",
+    "tabs": {
+      "details": "Maelezo ya kampuni",
+      "accounts": "Akaunti za kulipa"
+    },
+    "sectionCompany": "Kampuni",
+    "sectionNumbers": "Nambari za kisheria",
+    "sectionContact": "Anwani na mawasiliano"
   },
   "payingAccounts": {
     "title": "Akaunti za kulipa",

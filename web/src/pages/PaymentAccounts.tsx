@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -40,7 +40,6 @@ export function PaymentAccounts({ company }: { company: Company }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const headingId = useId()
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState<Account | null>(null)
   const [busy, setBusy] = useState(false)
@@ -92,8 +91,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
 
   const list = accounts.data ?? []
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-3 border-t border-line pt-4">
-      <h3 id={headingId} className="m-0 text-label font-semibold text-ink">{t('payingAccounts.title')}</h3>
+    <div className="flex flex-col gap-3">
       <p className="m-0 text-hint text-muted">{t('payingAccounts.intro')}</p>
       {!accounts.data ? <Loading rows={1} /> : list.length === 0 && !adding && <Notice>{t('payingAccounts.none')}</Notice>}
       {list.length > 0 && (
@@ -125,7 +123,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
         confirmLabel={t('payingAccounts.removeConfirm')} busy={busy} onConfirm={remove} onCancel={() => setRemoving(null)}>
         {t('payingAccounts.removeText')}
       </ConfirmDialog>
-    </section>
+    </div>
   )
 }
 

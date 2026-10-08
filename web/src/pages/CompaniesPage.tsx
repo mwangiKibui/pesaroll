@@ -13,6 +13,7 @@ import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { SelectField, TextField } from '../components/fields'
 import { TableCard } from '../components/TableCard'
+import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { PaymentAccounts } from './PaymentAccounts'
 import i18n from '../i18n'
@@ -191,6 +192,11 @@ function countryName(countries: Country[] | undefined, code: string) {
 const formFields: FieldPath<Values>[] = ['legalName', 'tradingName', 'countryCode', 'industryCode', 'addressLine', 'town',
   'regionCode', 'postalAddress', 'postalCode', 'phone', 'email']
 
+// The drawer's tabs: the company form (details, statutory numbers, address and contact) and,
+// apart from it, its paying accounts (each added with its own password check).
+const tabOrder = ['details', 'accounts'] as const
+type TabKey = (typeof tabOrder)[number]
+
 function CompanyDrawer({ company, countries, industries, suggestedName, onClose }: {
   company: Company | null
   countries: Country[]
@@ -202,6 +208,8 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
   const { api, queryClient } = useServices()
   const toast = useToast()
   const formId = useId()
+  const tabsId = useId()
+  const [tab, setTab] = useState<TabKey>('details')
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const countryOf = (code: string) => countries.find(c => c.code === code) ?? countries[0]
 
@@ -268,6 +276,9 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
     }
   }
 
+  // Saving with something to fix goes back to the details, where it is.
+  const onInvalid = () => setTab('details')
+
   const showError = (error: unknown) => {
     if (!isApiError(error)) {
       setBanner('network')
@@ -275,10 +286,12 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
     }
     if (error.code === 'ONB-3505' || error.code === 'ONB-3508') {
       setError('legalName', { message: errorMessage(t, error) })
+      setTab('details')
       return
     }
     if (error.code === 'ONB-3506') {
       setError('countryCode', { message: errorMessage(t, error) })
+      setTab('details')
       return
     }
     const known = [...formFields, ...country.fields.map(f => `identifiers.${f.key}`)]
@@ -286,69 +299,80 @@ function CompanyDrawer({ company, countries, industries, suggestedName, onClose 
     for (const [name, message] of fields.filter(([name]) => known.includes(name))) {
       setError(name as FieldPath<Values>, { message })
     }
+    if (fields.some(([name]) => known.includes(name))) setTab('details')
     // Problems we can't show under a field go in the banner, with the code and reference.
     if (fields.length === 0 || fields.some(([name]) => !known.includes(name))) setBanner(error)
   }
 
   const err = (name: Exclude<keyof Values, 'identifiers'>) => errors[name]?.message
-  const section = 'm-0 border-t border-line pt-4 text-label font-semibold text-ink first:border-t-0 first:pt-0'
+  const grid = 'grid grid-cols-1 gap-4 sm:grid-cols-2'
+  const heading = 'm-0 text-label font-semibold text-ink'
+  const divider = 'border-t border-line pt-4'
 
   return (
-    <Drawer open title={company ? t('companies.editTitle') : t('companies.addTitle')} onClose={onClose}
+    <Drawer open size="wide" title={company ? t('companies.editTitle') : t('companies.addTitle')} onClose={onClose}
+      tabs={<Tabs id={tabsId} label={t('companies.sections')} current={tab} onChange={key => setTab(key as TabKey)}
+        tabs={tabOrder.map(key => ({ key, label: t(`companies.tabs.${key}`), invalid: key === 'details' && Object.keys(errors).length > 0 }))} />}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{company ? t('companies.save') : t('companies.add')}</Button>
       </>}>
-      <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <form id={formId} noValidate onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
 
-        <h3 className={section}>{t('companies.details')}</h3>
-        <Controller control={control} name="countryCode" render={({ field }) => (
-          <SelectField label={t('companies.country')} placeholder={t('companies.countryPlaceholder')} hint={t('companies.countryHint')}
-            error={err('countryCode')} options={countries.map(c => ({ value: c.code, label: local(c.name) }))} {...field} />
-        )} />
-        <TextField label={t('companies.legalName')} placeholder={t('companies.legalNamePlaceholder')} hint={t('companies.legalNameHint')}
-          maxLength={160} error={err('legalName')} {...register('legalName')} />
-        <TextField label={t('companies.tradingName')} placeholder={t('companies.tradingNamePlaceholder')} optional
-          maxLength={160} error={err('tradingName')} {...register('tradingName')} />
-        <Controller control={control} name="industryCode" render={({ field }) => (
-          <SelectField label={t('companies.industry')} placeholder={t('companies.industryPlaceholder')} optional error={err('industryCode')}
-            options={industries.map(i => ({ value: i.code, label: local(i.name) }))} {...field} />
-        )} />
+        <TabPanel id={tabsId} tab="details" current={tab}>
+          <h3 className={heading}>{t('companies.sectionCompany')}</h3>
+          <div className={grid}>
+            <TextField label={t('companies.legalName')} placeholder={t('companies.legalNamePlaceholder')} hint={t('companies.legalNameHint')}
+              maxLength={160} error={err('legalName')} {...register('legalName')} />
+            <TextField label={t('companies.tradingName')} placeholder={t('companies.tradingNamePlaceholder')} optional
+              maxLength={160} error={err('tradingName')} {...register('tradingName')} />
+            <Controller control={control} name="countryCode" render={({ field }) => (
+              <SelectField label={t('companies.country')} placeholder={t('companies.countryPlaceholder')} hint={t('companies.countryHint')}
+                error={err('countryCode')} options={countries.map(c => ({ value: c.code, label: local(c.name) }))} {...field} />
+            )} />
+            <Controller control={control} name="industryCode" render={({ field }) => (
+              <SelectField label={t('companies.industry')} placeholder={t('companies.industryPlaceholder')} optional error={err('industryCode')}
+                options={industries.map(i => ({ value: i.code, label: local(i.name) }))} {...field} />
+            )} />
+          </div>
 
-        <h3 className={section}>{t('companies.numbers')}</h3>
-        {country.fields.map(f => (
-          <TextField key={`${country.code}-${f.key}`} label={local(f.label)} placeholder={t('companies.yourField', { field: local(f.label) })}
-            optional={!f.requiredForPayroll} maxLength={60} autoCapitalize="characters"
-            hint={[f.hint && local(f.hint), f.example && t('companies.example', { example: f.example }), f.requiredForPayroll && t('companies.neededForPayroll')].filter(Boolean).join(' ') || undefined}
-            error={errors.identifiers?.[f.key]?.message} {...register(`identifiers.${f.key}`)} />
-        ))}
+          <h3 className={`${heading} ${divider}`}>{t('companies.sectionNumbers')}</h3>
+          <p className="m-0 text-hint text-muted">{t('companies.numbersIntro', { country: local(country.name) })}</p>
+          <div className={grid}>
+            {country.fields.map(f => (
+              <TextField key={`${country.code}-${f.key}`} label={local(f.label)} placeholder={t('companies.yourField', { field: local(f.label) })}
+                optional={!f.requiredForPayroll} maxLength={60} autoCapitalize="characters"
+                hint={[f.hint && local(f.hint), f.example && t('companies.example', { example: f.example }), f.requiredForPayroll && t('companies.neededForPayroll')].filter(Boolean).join(' ') || undefined}
+                error={errors.identifiers?.[f.key]?.message} {...register(`identifiers.${f.key}`)} />
+            ))}
+          </div>
 
-        <h3 className={section}>{t('companies.addressAndContact')}</h3>
-        <TextField label={t('companies.addressLine')} placeholder={t('companies.addressLinePlaceholder')} optional
-          autoComplete="street-address" maxLength={200} error={err('addressLine')} {...register('addressLine')} />
-        <TextField label={t('companies.town')} placeholder={t('companies.townPlaceholder')} optional
-          maxLength={100} error={err('town')} {...register('town')} />
-        <Controller control={control} name="regionCode" render={({ field }) => (
-          <SelectField label={regionLabel} placeholder={t('companies.yourField', { field: regionLabel.toLowerCase() })} optional
-            error={err('regionCode')} options={country.regions.map(r => ({ value: r.code, label: r.name }))} {...field} />
-        )} />
-        <TextField label={t('companies.postalAddress')} placeholder={t('companies.postalAddressPlaceholder')} optional
-          maxLength={100} error={err('postalAddress')} {...register('postalAddress')} />
-        <TextField label={t('companies.postalCode')} placeholder={t('companies.postalCodePlaceholder')} optional
-          autoComplete="postal-code" maxLength={20} error={err('postalCode')} {...register('postalCode')} />
-        <TextField label={t('companies.phone')} placeholder={t('companies.phonePlaceholder')} optional type="tel"
-          autoComplete="tel" maxLength={20} error={err('phone')} {...register('phone')} />
-        <TextField label={t('companies.email')} placeholder={t('companies.emailPlaceholder')} optional type="email"
-          autoComplete="email" maxLength={254} error={err('email')} {...register('email')} />
+          <h3 className={`${heading} ${divider}`}>{t('companies.sectionContact')}</h3>
+          <TextField label={t('companies.addressLine')} placeholder={t('companies.addressLinePlaceholder')} optional
+            autoComplete="street-address" maxLength={200} error={err('addressLine')} {...register('addressLine')} />
+          <div className={grid}>
+            <TextField label={t('companies.town')} placeholder={t('companies.townPlaceholder')} optional
+              maxLength={100} error={err('town')} {...register('town')} />
+            <Controller control={control} name="regionCode" render={({ field }) => (
+              <SelectField label={regionLabel} placeholder={t('companies.yourField', { field: regionLabel.toLowerCase() })} optional
+                error={err('regionCode')} options={country.regions.map(r => ({ value: r.code, label: r.name }))} {...field} />
+            )} />
+            <TextField label={t('companies.postalAddress')} placeholder={t('companies.postalAddressPlaceholder')} optional
+              maxLength={100} error={err('postalAddress')} {...register('postalAddress')} />
+            <TextField label={t('companies.postalCode')} placeholder={t('companies.postalCodePlaceholder')} optional
+              autoComplete="postal-code" maxLength={20} error={err('postalCode')} {...register('postalCode')} />
+            <TextField label={t('companies.phone')} placeholder={t('companies.phonePlaceholder')} optional type="tel"
+              autoComplete="tel" maxLength={20} error={err('phone')} {...register('phone')} />
+            <TextField label={t('companies.email')} placeholder={t('companies.emailPlaceholder')} optional type="email"
+              autoComplete="email" maxLength={254} error={err('email')} {...register('email')} />
+          </div>
+        </TabPanel>
       </form>
-      {company ? <PaymentAccounts company={company} /> : (
-        <section className="flex flex-col gap-1.5 border-t border-line pt-4">
-          <h3 className="m-0 text-label font-semibold text-ink">{t('payingAccounts.title')}</h3>
-          <p className="m-0 text-hint text-muted">{t('payingAccounts.saveFirst')}</p>
-        </section>
-      )}
+      <TabPanel id={tabsId} tab="accounts" current={tab}>
+        {company ? <PaymentAccounts company={company} /> : <p className="m-0 text-muted">{t('payingAccounts.saveFirst')}</p>}
+      </TabPanel>
     </Drawer>
   )
 }

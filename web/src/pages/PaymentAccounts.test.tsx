@@ -13,12 +13,13 @@ const mpesa = equityAccount({ id: '0199c0de-0000-7000-8000-00000000e002', method
   branchName: null, accountName: null, accountNumberMasked: null, mpesaShortcode: '600123', isDefault: false })
 
 const drawer = () => screen.getByRole('dialog')
-const section = () => within(drawer()).getByRole('region', { name: 'Paying accounts' })
+const section = () => within(drawer()).getByRole('tabpanel', { name: 'Paying accounts' })
 
 async function openEdit(routes: Parameters<typeof fakeApi>[0] = {}) {
   const calls = fakeApi({ 'POST /api/auth/refresh': () => orgToken(), 'GET /api/companies': () => json(200, [saved]), ...routes })
   const result = renderApp('/setup/companies')
   await userEvent.click(await screen.findByRole('button', { name: 'Edit Mama Oliech Restaurant Ltd' }))
+  await userEvent.click(within(drawer()).getByRole('tab', { name: 'Paying accounts' }))
   await within(section()).findByRole('button', { name: 'Add paying account' })
   return { calls, ...result }
 }
@@ -36,7 +37,8 @@ it('a company without a paying account says payroll needs one; a new company is 
 
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
   await userEvent.click(screen.getByRole('button', { name: 'Add company' }))
-  expect(within(drawer()).getByText('Save the company first, then add where its payroll is paid from.')).toBeInTheDocument()
+  await userEvent.click(within(drawer()).getByRole('tab', { name: 'Paying accounts' }))
+  expect(within(section()).getByText('Save the company first, then add where its payroll is paid from.')).toBeVisible()
 })
 
 it('adds a bank account after the password is confirmed; the number only shows masked', async () => {

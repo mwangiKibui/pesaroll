@@ -6,7 +6,8 @@
     "done": "Done",
     "loading": "Loading",
     "menu": "Menu",
-    "noMatches": "No matches"
+    "noMatches": "No matches",
+    "needsFixing": ", needs fixing"
   },
   "nav": {
     "main": "Main",
@@ -198,18 +199,15 @@
     "saved": "Company saved",
     "deleted": "Company deleted",
     "continue": "Save and continue",
-    "details": "Company details",
     "legalName": "Legal name",
     "legalNamePlaceholder": "Your legal name",
     "legalNameHint": "As registered, the way it appears on statutory returns.",
     "tradingName": "Trading name",
     "tradingNamePlaceholder": "Your trading name",
     "industry": "Industry",
-    "numbers": "Statutory numbers",
     "yourField": "Your {{field}}",
     "example": "For example {{example}}.",
     "neededForPayroll": "Needed before your first payroll.",
-    "addressAndContact": "Address and contact",
     "addressLine": "Physical address",
     "addressLinePlaceholder": "Your physical address",
     "town": "Town",
@@ -225,7 +223,16 @@
     "countryPlaceholder": "Your country",
     "industryPlaceholder": "Your industry",
     "location": "Location",
-    "contact": "Contact"
+    "contact": "Contact",
+    "sections": "Company sections",
+    "numbersIntro": "The numbers a company in {{country}} registers with. Missing ones don't stop you saving, but payroll needs them.",
+    "tabs": {
+      "details": "Company details",
+      "accounts": "Paying accounts"
+    },
+    "sectionCompany": "Company",
+    "sectionNumbers": "Statutory numbers",
+    "sectionContact": "Address and contact"
   },
   "payingAccounts": {
     "title": "Paying accounts",
