@@ -5,7 +5,8 @@
     "close": "Close",
     "done": "Done",
     "loading": "Loading",
-    "menu": "Menu"
+    "menu": "Menu",
+    "noMatches": "No matches"
   },
   "nav": {
     "main": "Main",
@@ -19,7 +20,9 @@
     "all": "All companies",
     "allHint": "Includes companies added later",
     "placeholder": "Select companies",
-    "selected": "{{count}} selected"
+    "selected": "{{count}} selected",
+    "search": "Search companies",
+    "searchPlaceholder": "Your company name"
   },
   "setup": {
     "progress": "Finish setting up · {{done}} of {{total}}",
@@ -111,7 +114,12 @@
     "role": "Choose your role.",
     "roleOther": "Type your role.",
     "roleOtherLong": "Use up to 80 characters.",
-    "orgName": "Enter your organization's name (2 to 120 characters)."
+    "orgName": "Enter your organization's name (2 to 120 characters).",
+    "companyName": "Enter the company's legal name (2 to 160 characters).",
+    "phone": "Enter a valid phone number.",
+    "email": "Enter a valid email address.",
+    "number": "{{label}} doesn't look right.",
+    "numberExample": "{{label}} doesn't look right. For example {{example}}."
   },
   "apiErrors": {
     "AUTH-1001": "That email or phone number and password don't match.",
@@ -128,7 +136,12 @@
     "ONB-3501": "Enter your organization's name (2 to 120 characters).",
     "ONB-3502": "You already have an organization.",
     "ONB-3503": "You haven't set up your organization yet.",
-    "ONB-3504": "Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization."
+    "ONB-3504": "Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization.",
+    "ONB-3505": "Enter the company's legal name (2 to 160 characters).",
+    "ONB-3506": "Pesaroll runs payroll for companies in Kenya. Choose Kenya.",
+    "ONB-3507": "Some details don't look right. Check the fields marked.",
+    "ONB-3508": "You already have a company with this name.",
+    "ONB-3509": "We couldn't find that company."
   },
   "organization": {
     "title": "What's your organization called?",
@@ -143,7 +156,8 @@
     "createdText": "Next, you'll add your companies.",
     "proceed": "Proceed to Org Dashboard",
     "save": "Save changes",
-    "saved": "Organization name saved"
+    "saved": "Organization name saved",
+    "continue": "Continue to companies"
   },
   "home": {
     "title": "Karibu, {{name}}",
@@ -152,5 +166,62 @@
   "noOrganization": {
     "title": "You're not part of an organization",
     "text": "If you think this is a mistake, ask an administrator in your organization to add you back."
+  },
+  "companies": {
+    "title": "Your companies",
+    "intro": "Add each company that employs people and pays them. Payroll runs for each company separately.",
+    "emptyTitle": "Add your first company",
+    "emptyText": "Most organizations start with one. We've filled in your organization's name; change it to the company's legal name.",
+    "tableTitle": "Companies",
+    "company": "Company",
+    "country": "Country",
+    "countryHint": "The numbers below depend on the country.",
+    "readiness": "Ready for payroll",
+    "actions": "Actions",
+    "ready": "Ready",
+    "missing": "Missing: {{items}}",
+    "missingNotice": "Companies with missing numbers can't run payroll until they're added. You can add them now or later.",
+    "needOne": "Add at least one company to continue.",
+    "add": "Add company",
+    "addTitle": "Add company",
+    "editTitle": "Edit company",
+    "edit": "Edit {{name}}",
+    "delete": "Delete {{name}}",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteText": "Its details and statutory numbers will be deleted. This can't be undone.",
+    "deleteConfirm": "Delete company",
+    "save": "Save changes",
+    "added": "Company added",
+    "saved": "Company saved",
+    "deleted": "Company deleted",
+    "continue": "Save and continue",
+    "details": "Company details",
+    "legalName": "Legal name",
+    "legalNamePlaceholder": "Your legal name",
+    "legalNameHint": "As registered, the way it appears on statutory returns.",
+    "tradingName": "Trading name",
+    "tradingNamePlaceholder": "Your trading name",
+    "industry": "Industry",
+    "numbers": "Statutory numbers",
+    "yourField": "Your {{field}}",
+    "example": "For example {{example}}.",
+    "neededForPayroll": "Needed before your first payroll.",
+    "addressAndContact": "Address and contact",
+    "addressLine": "Physical address",
+    "addressLinePlaceholder": "Your physical address",
+    "town": "Town",
+    "townPlaceholder": "Your town",
+    "postalAddress": "Postal address",
+    "postalAddressPlaceholder": "Your postal address",
+    "postalCode": "Postal code",
+    "postalCodePlaceholder": "Your postal code",
+    "phone": "Phone number",
+    "phonePlaceholder": "Your phone number",
+    "email": "Email",
+    "emailPlaceholder": "Your email",
+    "countryPlaceholder": "Your country",
+    "industryPlaceholder": "Your industry",
+    "location": "Location",
+    "contact": "Contact"
   }
 }

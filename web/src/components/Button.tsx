@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { buttonClasses, type ButtonSize, type ButtonVariant } from './buttonStyles'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -7,6 +7,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean
   /** Waiting for the server: disabled, and announced as busy. */
   busy?: boolean
+  ref?: Ref<HTMLButtonElement>
 }
 
 /** A button whose label says what it does: "Add location", never "Submit" or "OK". */

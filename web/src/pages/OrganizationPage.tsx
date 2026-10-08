@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState, useSyncExternalStore } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -7,9 +7,11 @@ import { z } from 'zod'
 import { errorKey, errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
 import { Button } from '../components/Button'
+import { buttonClasses } from '../components/buttonStyles'
 import { FormErrorBanner, Loading, Notice } from '../components/feedback'
 import { TextField } from '../components/fields'
 import { useToast } from '../components/toast'
+import { useOrganization, useSetupDone } from '../setup/hooks'
 import { SetupLayout } from '../setup/SetupLayout'
 
 // Same rule as the API and database (ONB-3501).
@@ -23,19 +25,12 @@ type Values = z.infer<typeof schema>
  */
 export default function OrganizationPage() {
   const { t } = useTranslation()
-  const { api, auth } = useServices()
+  const { auth } = useServices()
   const organizationId = useSyncExternalStore(auth.subscribe, auth.organizationId)
-  const organization = useQuery({
-    queryKey: ['organization'],
-    enabled: !!organizationId,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/organizations/current')
-      if (error || !data) throw new Error('organization')
-      return data
-    },
-  })
+  const organization = useOrganization(!!organizationId)
+  const done = useSetupDone(!!organizationId)
   return (
-    <SetupLayout current="organization" done={organizationId ? ['organization'] : []} hasOrganization={!!organizationId}>
+    <SetupLayout current="organization" done={done} hasOrganization={!!organizationId}>
       <div className="flex flex-col gap-1.5">
         <h1 className="m-0 font-display text-title text-ink">{t('organization.title')}</h1>
         <p className="m-0 text-muted">{t('organization.intro')}</p>
@@ -99,7 +94,15 @@ function NameForm({ existing }: { existing?: { id: string; name: string } }) {
       <TextField label={t('organization.name')} placeholder={t('organization.namePlaceholder')} hint={t('organization.nameHint')}
         autoComplete="organization" maxLength={120}
         error={errors.name?.message ? t(errors.name.message) : undefined} {...register('name')} />
-      <div><Button type="submit" busy={isSubmitting}>{existing ? t('organization.save') : t('organization.submit')}</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button type="submit" busy={isSubmitting}>{existing ? t('organization.save') : t('organization.submit')}</Button>
+        {existing && (
+          <Link to="/setup/companies" className={buttonClasses('secondary')}>
+            {t('organization.continue')}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </Link>
+        )}
+      </div>
     </form>
   )
 }

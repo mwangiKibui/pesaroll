@@ -70,3 +70,22 @@ it('works from the keyboard: arrows move, Enter picks, Escape closes', async () 
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Companies/ })).toHaveFocus()
 })
+
+it('a search box at the top of the list filters the companies', async () => {
+  const { container } = render(<Harness />)
+  await userEvent.click(screen.getByRole('button', { name: /Companies/ }))
+
+  const search = screen.getByRole('combobox', { name: 'Search companies' })
+  expect(search).toHaveFocus()
+  expect(search).toHaveAttribute('placeholder', 'Your company name')
+  await userEvent.type(search, 'uganda')
+
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual([expect.stringContaining('Oliech Catering Uganda')])
+  await userEvent.keyboard('{Enter}')
+  expect(screen.getByRole('status')).toHaveTextContent('ke,ug')
+
+  await userEvent.clear(search)
+  await userEvent.type(search, 'zzz')
+  expect(screen.getByText('No matches')).toBeInTheDocument()
+  await expectNoA11yViolations(container)
+})

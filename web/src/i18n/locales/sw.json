@@ -5,7 +5,8 @@
     "close": "Funga",
     "done": "Tayari",
     "loading": "Inapakia",
-    "menu": "Menyu"
+    "menu": "Menyu",
+    "noMatches": "Hakuna kinacholingana"
   },
   "nav": {
     "main": "Menyu kuu",
@@ -19,7 +20,9 @@
     "all": "Kampuni zote",
     "allHint": "Pamoja na kampuni zitakazoongezwa baadaye",
     "placeholder": "Chagua kampuni",
-    "selected": "{{count}} zimechaguliwa"
+    "selected": "{{count}} zimechaguliwa",
+    "search": "Tafuta kampuni",
+    "searchPlaceholder": "Jina la kampuni yako"
   },
   "setup": {
     "progress": "Maliza kuweka mipangilio · {{done}} kati ya {{total}}",
@@ -111,7 +114,12 @@
     "role": "Chagua jukumu lako.",
     "roleOther": "Andika jukumu lako.",
     "roleOtherLong": "Tumia hadi herufi 80.",
-    "orgName": "Andika jina la shirika lako (herufi 2 hadi 120)."
+    "orgName": "Andika jina la shirika lako (herufi 2 hadi 120).",
+    "companyName": "Andika jina rasmi la kampuni (herufi 2 hadi 160).",
+    "phone": "Andika nambari sahihi ya simu.",
+    "email": "Andika barua pepe sahihi.",
+    "number": "{{label}} haionekani sawa.",
+    "numberExample": "{{label}} haionekani sawa. Kwa mfano {{example}}."
   },
   "apiErrors": {
     "AUTH-1001": "Barua pepe au nambari ya simu na nenosiri havilingani.",
@@ -128,7 +136,12 @@
     "ONB-3501": "Andika jina la shirika lako (herufi 2 hadi 120).",
     "ONB-3502": "Tayari una shirika.",
     "ONB-3503": "Bado hujaweka shirika lako.",
-    "ONB-3504": "Akaunti yako iliwekwa na shirika lako, kwa hivyo huwezi kuunda jipya. Mwombe msimamizi wa shirika lako."
+    "ONB-3504": "Akaunti yako iliwekwa na shirika lako, kwa hivyo huwezi kuunda jipya. Mwombe msimamizi wa shirika lako.",
+    "ONB-3505": "Andika jina rasmi la kampuni (herufi 2 hadi 160).",
+    "ONB-3506": "Pesaroll inalipa mishahara kwa kampuni za Kenya. Chagua Kenya.",
+    "ONB-3507": "Baadhi ya maelezo hayaonekani sawa. Angalia sehemu zilizowekwa alama.",
+    "ONB-3508": "Tayari una kampuni yenye jina hili.",
+    "ONB-3509": "Hatukuweza kupata kampuni hiyo."
   },
   "organization": {
     "title": "Shirika lako linaitwaje?",
@@ -143,7 +156,8 @@
     "createdText": "Kisha, utaongeza kampuni zako.",
     "proceed": "Endelea kwenye dashibodi ya shirika",
     "save": "Hifadhi mabadiliko",
-    "saved": "Jina la shirika limehifadhiwa"
+    "saved": "Jina la shirika limehifadhiwa",
+    "continue": "Endelea kwa kampuni"
   },
   "home": {
     "title": "Karibu, {{name}}",
@@ -152,5 +166,62 @@
   "noOrganization": {
     "title": "Wewe si sehemu ya shirika lolote",
     "text": "Ikiwa unadhani hili ni kosa, mwombe msimamizi wa shirika lako akuongeze tena."
+  },
+  "companies": {
+    "title": "Kampuni zako",
+    "intro": "Ongeza kila kampuni inayoajiri na kulipa watu. Mishahara hulipwa kwa kila kampuni peke yake.",
+    "emptyTitle": "Ongeza kampuni yako ya kwanza",
+    "emptyText": "Mashirika mengi huanza na moja. Tumejaza jina la shirika lako; libadilishe liwe jina rasmi la kampuni.",
+    "tableTitle": "Kampuni",
+    "company": "Kampuni",
+    "country": "Nchi",
+    "countryHint": "Nambari zilizo hapa chini zinategemea nchi.",
+    "readiness": "Tayari kwa mishahara",
+    "actions": "Vitendo",
+    "ready": "Tayari",
+    "missing": "Inakosa: {{items}}",
+    "missingNotice": "Kampuni zinazokosa nambari haziwezi kulipa mishahara hadi ziongezwe. Unaweza kuziongeza sasa au baadaye.",
+    "needOne": "Ongeza angalau kampuni moja ili kuendelea.",
+    "add": "Ongeza kampuni",
+    "addTitle": "Ongeza kampuni",
+    "editTitle": "Hariri kampuni",
+    "edit": "Hariri {{name}}",
+    "delete": "Futa {{name}}",
+    "deleteTitle": "Futa {{name}}?",
+    "deleteText": "Maelezo yake na nambari zake za kisheria zitafutwa. Hili haliwezi kutenduliwa.",
+    "deleteConfirm": "Futa kampuni",
+    "save": "Hifadhi mabadiliko",
+    "added": "Kampuni imeongezwa",
+    "saved": "Kampuni imehifadhiwa",
+    "deleted": "Kampuni imefutwa",
+    "continue": "Hifadhi na uendelee",
+    "details": "Maelezo ya kampuni",
+    "legalName": "Jina rasmi",
+    "legalNamePlaceholder": "Jina lako rasmi",
+    "legalNameHint": "Kama lilivyosajiliwa, jinsi linavyoonekana kwenye fomu za kisheria.",
+    "tradingName": "Jina la biashara",
+    "tradingNamePlaceholder": "Jina lako la biashara",
+    "industry": "Sekta",
+    "numbers": "Nambari za kisheria",
+    "yourField": "{{field}} yako",
+    "example": "Kwa mfano {{example}}.",
+    "neededForPayroll": "Inahitajika kabla ya mishahara yako ya kwanza.",
+    "addressAndContact": "Anwani na mawasiliano",
+    "addressLine": "Anwani ya mahali",
+    "addressLinePlaceholder": "Anwani yako ya mahali",
+    "town": "Mji",
+    "townPlaceholder": "Mji wako",
+    "postalAddress": "Sanduku la posta",
+    "postalAddressPlaceholder": "Sanduku lako la posta",
+    "postalCode": "Msimbo wa posta",
+    "postalCodePlaceholder": "Msimbo wako wa posta",
+    "phone": "Nambari ya simu",
+    "phonePlaceholder": "Nambari yako ya simu",
+    "email": "Barua pepe",
+    "emailPlaceholder": "Barua pepe yako",
+    "countryPlaceholder": "Nchi yako",
+    "industryPlaceholder": "Sekta yako",
+    "location": "Mahali",
+    "contact": "Mawasiliano"
   }
 }

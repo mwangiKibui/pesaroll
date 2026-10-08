@@ -66,6 +66,7 @@ app.MapGet("/api/health", async (OrganizationsDbContext db, CancellationToken ct
 
 app.MapIdentityEndpoints();
 app.MapOrganizationsEndpoints();
+app.MapCompaniesEndpoints();
 
 app.Run();
 

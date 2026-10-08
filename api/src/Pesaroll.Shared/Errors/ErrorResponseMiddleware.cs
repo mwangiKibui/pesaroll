@@ -24,7 +24,7 @@ public sealed class ErrorResponseMiddleware(RequestDelegate next, ILogger<ErrorR
             var reference = NewReference();
             logger.LogInformation("{Code} {Reference} on {Method} {Path}", error.Code, reference,
                 context.Request.Method, context.Request.Path);
-            await WriteAsync(context, error.StatusCode, error.Code, error.Message, reference, error.Headers);
+            await WriteAsync(context, error.StatusCode, error.Code, error.Message, reference, error.Headers, error.Fields);
         }
         catch (Exception error)
         {
@@ -37,7 +37,7 @@ public sealed class ErrorResponseMiddleware(RequestDelegate next, ILogger<ErrorR
     }
 
     public static Task WriteAsync(HttpContext context, int statusCode, string code, string message, string? reference = null,
-        IReadOnlyDictionary<string, string>? headers = null)
+        IReadOnlyDictionary<string, string>? headers = null, IReadOnlyDictionary<string, string>? fields = null)
     {
         if (context.Response.HasStarted)
         {
@@ -51,7 +51,7 @@ public sealed class ErrorResponseMiddleware(RequestDelegate next, ILogger<ErrorR
             context.Response.Headers[name] = value;
         }
 
-        return context.Response.WriteAsJsonAsync(new ErrorResponse(code, message, reference ?? NewReference()));
+        return context.Response.WriteAsJsonAsync(new ErrorResponse(code, message, reference ?? NewReference(), fields));
     }
 
     public static string NewReference() =>

@@ -51,6 +51,11 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3502 | You already have an organization. | Customer | One onboarded organization per person for now. Accountants and bureaus with several clients go through the partner program. |
 | ONB-3503 | You haven't set up your organization yet. | Customer | They signed up but skipped or left the organization step; the app takes them back to it. |
 | ONB-3504 | Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization. | Customer | Only people who signed up themselves onboard an organization; invited people, staff and partners come in another way. |
+| ONB-3505 | Enter the company's legal name (2 to 160 characters). | Customer | The legal name is empty, too short or too long. |
+| ONB-3506 | Pesaroll runs payroll for companies in Kenya. Choose Kenya. | Customer | The country isn't one Pesaroll runs payroll in yet (countries.available). |
+| ONB-3507 | Some details don't look right. Check the fields marked. | Customer | A company detail failed its check; `fields` says which (statutory number formats come from the country's settings). |
+| ONB-3508 | You already have a company with this name. | Customer | Another active company in the organization has the same legal name (ignoring case and spaces). |
+| ONB-3509 | We couldn't find that company. | Customer | The company doesn't exist, was deleted, or belongs to another organization. |
 | PAY-2001 | {employee} has no KRA PIN, so PAYE can't be filed. | Customer | Add the KRA PIN on the employee's profile, then rerun. |
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |
