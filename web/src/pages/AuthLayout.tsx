@@ -7,7 +7,13 @@ import { Navbar } from '../components/Navbar'
  * Sign-up and sign-in: the navbar across the top, then a deep green panel on the left (on top on
  * phones) with a decorative background, and the form on the right. Both sides are centred vertically; the panel lists what Pesaroll does.
  */
-export function AuthLayout({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
+export function AuthLayout({ title, intro, alignTop, children }: {
+  title: string
+  intro: string
+  /** Longer forms (sign-up) start near the top instead of the middle. */
+  alignTop?: boolean
+  children: ReactNode
+}) {
   const { t } = useTranslation()
   const features = ['featurePayroll', 'featurePhones', 'featurePerformance', 'featureTasks'] as const
   return (
@@ -29,7 +35,7 @@ export function AuthLayout({ title, intro, children }: { title: string; intro: s
             </ul>
           </div>
         </section>
-        <main className="flex flex-[1_1_480px] items-center justify-center px-5 py-10 md:py-12">
+        <main className={`flex flex-[1_1_480px] justify-center px-5 ${alignTop ? 'items-start pb-10 pt-6 md:pt-8' : 'items-center py-10 md:py-12'}`}>
           <div className="@container flex w-full max-w-[640px] flex-col gap-5">
             <div className="flex flex-col gap-1.5">
               <h1 className="m-0 font-display text-title text-ink">{title}</h1>
