@@ -65,6 +65,7 @@ app.MapGet("/api/health", async (OrganizationsDbContext db, CancellationToken ct
         : Results.Json(new { status = "database unreachable" }, statusCode: 503));
 
 app.MapIdentityEndpoints();
+app.MapOrganizationsEndpoints();
 
 app.Run();
 

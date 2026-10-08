@@ -132,3 +132,23 @@ describe('auth client', () => {
     a.dispose(); b.dispose()
   })
 })
+
+describe('organization in the token', () => {
+  const b64 = (v: object) => btoa(JSON.stringify(v)).replace(/=+$/, '')
+  const shaped = (payload: object) => `${b64({ alg: 'HS256' })}.${b64(payload)}.sig`
+
+  it('reads the organization the token carries, if any', () => {
+    const auth = createAuthClient()
+    expect(auth.organizationId()).toBeNull()
+
+    auth.setAccessToken(shaped({ sub: 'u1', sid: 's1', org: 'org-1' }))
+    expect(auth.organizationId()).toBe('org-1')
+
+    auth.setAccessToken(shaped({ sub: 'u1', sid: 's1' }))
+    expect(auth.organizationId()).toBeNull()
+
+    auth.setAccessToken('not-a-jwt')
+    expect(auth.organizationId()).toBeNull()
+    auth.dispose()
+  })
+})

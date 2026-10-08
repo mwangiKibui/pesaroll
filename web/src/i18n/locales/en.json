@@ -8,7 +8,9 @@
     "menu": "Menu"
   },
   "nav": {
-    "main": "Main"
+    "main": "Main",
+    "signOut": "Sign out",
+    "home": "Home"
   },
   "errors": {
     "codeAndReference": "Code {{code}} · Reference {{reference}}"
@@ -21,7 +23,21 @@
   },
   "setup": {
     "progress": "Finish setting up · {{done}} of {{total}}",
-    "next": "Next: {{step}}"
+    "next": "Next: {{step}}",
+    "stepsLabel": "Setup steps",
+    "optional": "optional",
+    "steps": {
+      "organization": "Organization",
+      "companies": "Companies",
+      "locations": "Locations",
+      "structure": "Org structure",
+      "schedules": "Payroll schedules",
+      "payItems": "Pay items",
+      "leavePlans": "Leave plans",
+      "employees": "Employees",
+      "history": "Payroll history",
+      "team": "Team access"
+    }
   },
   "theme": {
     "label": "Theme",
@@ -85,11 +101,6 @@
     "signUp": "Create an account",
     "passwordPlaceholder": "Your password"
   },
-  "welcome": {
-    "title": "Karibu, {{name}}",
-    "next": "Next: Create your organization and add your companies. This step is coming soon.",
-    "signOut": "Sign out"
-  },
   "validation": {
     "firstName": "Enter your first name.",
     "lastName": "Enter your last name.",
@@ -99,7 +110,8 @@
     "passwordRequired": "Enter your password.",
     "role": "Choose your role.",
     "roleOther": "Type your role.",
-    "roleOtherLong": "Use up to 80 characters."
+    "roleOtherLong": "Use up to 80 characters.",
+    "orgName": "Enter your organization's name (2 to 120 characters)."
   },
   "apiErrors": {
     "AUTH-1001": "That email or phone number and password don't match.",
@@ -112,6 +124,21 @@
     "AUTH-1008": "Enter your first and last name and choose your role.",
     "AUTH-1009": "You chose Other: type your role (up to 80 characters).",
     "AUTH-1010": "Your session has ended. Sign in again.",
-    "network": "We couldn't reach Pesaroll. Check your connection and try again."
+    "network": "We couldn't reach Pesaroll. Check your connection and try again.",
+    "ONB-3501": "Enter your organization's name (2 to 120 characters).",
+    "ONB-3502": "You already have an organization.",
+    "ONB-3503": "You haven't set up your organization yet."
+  },
+  "organization": {
+    "title": "What's your organization called?",
+    "intro": "Just a name to start. You'll add your companies next.",
+    "name": "Organization name",
+    "namePlaceholder": "Your organization name",
+    "nameHint": "The name your team knows you by. Legal company names come in the next step.",
+    "submit": "Create organization"
+  },
+  "home": {
+    "title": "Karibu, {{name}}",
+    "next": "Next: {{step}}"
   }
 }

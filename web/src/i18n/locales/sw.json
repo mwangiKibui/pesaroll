@@ -8,7 +8,9 @@
     "menu": "Menyu"
   },
   "nav": {
-    "main": "Menyu kuu"
+    "main": "Menyu kuu",
+    "signOut": "Toka",
+    "home": "Nyumbani"
   },
   "errors": {
     "codeAndReference": "Msimbo {{code}} · Kumbukumbu {{reference}}"
@@ -21,7 +23,21 @@
   },
   "setup": {
     "progress": "Maliza kuweka mipangilio · {{done}} kati ya {{total}}",
-    "next": "Inayofuata: {{step}}"
+    "next": "Inayofuata: {{step}}",
+    "stepsLabel": "Hatua za kuweka mipangilio",
+    "optional": "si lazima",
+    "steps": {
+      "organization": "Shirika",
+      "companies": "Kampuni",
+      "locations": "Maeneo",
+      "structure": "Muundo wa shirika",
+      "schedules": "Ratiba za mishahara",
+      "payItems": "Vipengele vya malipo",
+      "leavePlans": "Mipango ya likizo",
+      "employees": "Wafanyakazi",
+      "history": "Historia ya mishahara",
+      "team": "Ufikiaji wa timu"
+    }
   },
   "theme": {
     "label": "Mwonekano",
@@ -85,11 +101,6 @@
     "signUp": "Fungua akaunti",
     "passwordPlaceholder": "Nenosiri lako"
   },
-  "welcome": {
-    "title": "Karibu, {{name}}",
-    "next": "Inayofuata: Unda shirika lako na uongeze kampuni zako. Hatua hii inakuja hivi karibuni.",
-    "signOut": "Toka"
-  },
   "validation": {
     "firstName": "Andika jina lako la kwanza.",
     "lastName": "Andika jina lako la mwisho.",
@@ -99,7 +110,8 @@
     "passwordRequired": "Andika nenosiri lako.",
     "role": "Chagua jukumu lako.",
     "roleOther": "Andika jukumu lako.",
-    "roleOtherLong": "Tumia hadi herufi 80."
+    "roleOtherLong": "Tumia hadi herufi 80.",
+    "orgName": "Andika jina la shirika lako (herufi 2 hadi 120)."
   },
   "apiErrors": {
     "AUTH-1001": "Barua pepe au nambari ya simu na nenosiri havilingani.",
@@ -112,6 +124,21 @@
     "AUTH-1008": "Andika jina lako la kwanza na la mwisho, kisha uchague jukumu lako.",
     "AUTH-1009": "Umechagua Nyingine: andika jukumu lako (hadi herufi 80).",
     "AUTH-1010": "Muda wako wa kuingia umeisha. Ingia tena.",
-    "network": "Hatukuweza kufikia Pesaroll. Angalia muunganisho wako kisha ujaribu tena."
+    "network": "Hatukuweza kufikia Pesaroll. Angalia muunganisho wako kisha ujaribu tena.",
+    "ONB-3501": "Andika jina la shirika lako (herufi 2 hadi 120).",
+    "ONB-3502": "Tayari una shirika.",
+    "ONB-3503": "Bado hujaweka shirika lako."
+  },
+  "organization": {
+    "title": "Shirika lako linaitwaje?",
+    "intro": "Jina tu kuanza. Utaongeza kampuni zako baadaye.",
+    "name": "Jina la shirika",
+    "namePlaceholder": "Jina la shirika lako",
+    "nameHint": "Jina ambalo timu yako inakujua nalo. Majina rasmi ya kampuni yanakuja katika hatua inayofuata.",
+    "submit": "Unda shirika"
+  },
+  "home": {
+    "title": "Karibu, {{name}}",
+    "next": "Inayofuata: {{step}}"
   }
 }
