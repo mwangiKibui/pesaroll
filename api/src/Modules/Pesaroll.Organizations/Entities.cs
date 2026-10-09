@@ -323,13 +323,3 @@ public sealed class UnitCompany : IStructureLink
     public Guid CompanyId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
-
-/// <summary>A suggested department or position for an industry (ONB-05).</summary>
-public sealed class IndustryStructure
-{
-    public required string IndustryCode { get; set; }
-    public required string Kind { get; set; }
-    public required string Name { get; set; }
-    public string? DepartmentName { get; set; }
-    public int SortOrder { get; set; }
-}

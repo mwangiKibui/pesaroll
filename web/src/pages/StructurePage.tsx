@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useId, useState, type ReactNode } from 'react'
 import { Controller, useForm, type FieldPath } from 'react-hook-form'
@@ -15,7 +14,6 @@ import { SelectField, TextField } from '../components/fields'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
-import i18n from '../i18n'
 import { useCompanies, useSetupDone, useStructure, type LevelKey, type StructureItem } from '../setup/hooks'
 import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
@@ -39,8 +37,7 @@ interface Values {
 
 /**
  * ONB-05: how the organization is organised, one tab per level (Divisions · Departments ·
- * Positions · Units), each item for all or chosen companies. An empty step offers the starting
- * structure for the company's industry, added only when asked.
+ * Positions · Units), each item for all or chosen companies.
  */
 export default function StructurePage() {
   const { t } = useTranslation()
@@ -61,7 +58,6 @@ export default function StructurePage() {
   const visible = (items: StructureItem[]) => items.filter(i => shown.all || i.allCompanies || i.companyIds.some(id => shown.ids.includes(id)))
   // A new item serves the companies being shown, as the selector suggests.
   const defaultApplies: CompanySelection = companies.data?.length === 1 ? { all: false, ids: [companies.data[0].id] } : shown
-  const empty = ready && data.departments.data!.length === 0 && data.positions.data!.length === 0
 
   return (
     <SetupLayout current="structure" done={done} hasOrganization>
@@ -76,7 +72,6 @@ export default function StructurePage() {
               companies={companies.data.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
           </div>
         )}
-        {empty && <Suggestions applies={shown} />}
         <div className="flex flex-col gap-4">
           <Tabs id={tabsId} label={t('structure.levels')} current={tab} onChange={key => setTab(key as LevelKey)}
             tabs={levels.map(l => ({ key: l, label: t(`structure.${l}.tab`) }))} />
@@ -94,57 +89,6 @@ export default function StructurePage() {
 }
 
 type AllLevels = Record<LevelKey, { data?: StructureItem[] }>
-
-function Suggestions({ applies }: { applies: CompanySelection }) {
-  const { t } = useTranslation()
-  const { api, queryClient } = useServices()
-  const toast = useToast()
-  const headingId = useId()
-  const [busy, setBusy] = useState(false)
-  const suggestions = useQuery({
-    queryKey: ['structure', 'suggestions'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/structure/suggestions')
-      if (error || !data) throw new Error('suggestions')
-      return data
-    },
-  })
-  if (!suggestions.data || suggestions.data.departments.length === 0) return null
-  const s = suggestions.data
-  const industry = i18n.language === 'sw' ? s.industryName.sw : s.industryName.en
-
-  const add = async () => {
-    setBusy(true)
-    try {
-      const { data, error } = await api.POST('/api/structure/suggestions', { body: { allCompanies: applies.all, companyIds: applies.all ? [] : applies.ids } })
-      if (data) {
-        void queryClient.invalidateQueries({ queryKey: ['structure'] })
-        toast.show(t('structure.suggestionsAdded', { departments: data.departments, positions: data.positions }))
-      } else {
-        toast.show(isApiError(error) ? errorMessage(t, error) : t('apiErrors.network'), 'danger')
-      }
-    } catch {
-      toast.show(t('apiErrors.network'), 'danger')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-3 rounded-card border border-brand bg-brand-soft p-5">
-      <h2 id={headingId} className="m-0 text-body font-semibold text-ink">{t('structure.suggestedFor', { industry })}</h2>
-      <p className="m-0 text-label text-ink">{t('structure.suggestedDepartments', { names: s.departments.join(', ') })}</p>
-      <p className="m-0 text-label text-ink">
-        {t('structure.suggestedPositions', { count: s.positions.length, examples: listOf(s.positions.slice(0, 3).map(p => p.title), t('structure.and')) })}
-      </p>
-      <p className="m-0 text-hint text-muted">{t('structure.suggestedHint')}</p>
-      <div><Button busy={busy} onClick={() => void add()}>{t('structure.addThese')}</Button></div>
-    </section>
-  )
-}
-
-/** "Chef, Cook and Kitchen assistant". */
-const listOf = (items: string[], and: string) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} ${and} ${items[items.length - 1]}`)
 
 function LevelTable({ level, items, all, companies, defaultApplies }: {
   level: LevelKey

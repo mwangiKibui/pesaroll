@@ -22,16 +22,11 @@ public sealed record PositionResponse(Guid Id, string Code, string Title, Guid? 
 public sealed record UnitRequest(string? Code, string? Name, Guid? DepartmentId, bool AllCompanies, List<Guid>? CompanyIds);
 public sealed record UnitResponse(Guid Id, string Code, string Name, Guid DepartmentId, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
 
-public sealed record SuggestedPosition(string Title, string Department);
-public sealed record StructureSuggestions(string IndustryCode, LocalizedText IndustryName, IReadOnlyList<string> Departments, IReadOnlyList<SuggestedPosition> Positions);
-public sealed record ApplySuggestionsRequest(bool AllCompanies, List<Guid>? CompanyIds);
-public sealed record SuggestionsAdded(int Departments, int Positions);
 
 /// <summary>
 /// ONB-05, the Org structure step: divisions, departments, positions and units. They share one
 /// shape (code, name, all or chosen companies) and so one set of endpoints, each level describing
-/// only what is its own (<see cref="Level{TItem, TLink, TRequest, TResponse}"/>). An empty step can
-/// add the starting structure suggested for the company's industry.
+/// only what is its own (<see cref="Level{TItem, TLink, TRequest, TResponse}"/>).
 /// </summary>
 public static class StructureEndpoints
 {
@@ -143,67 +138,6 @@ public static class StructureEndpoints
             Apply = (r, u) => u.DepartmentId = r.DepartmentId ?? Guid.Empty,
             ToResponse = u => new UnitResponse(u.Id, u.Code, u.Name, u.DepartmentId, u.AllCompanies, u.Companies.Select(c => c.CompanyId).ToList()),
         });
-
-        group.MapGet("/suggestions", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
-        {
-            CompaniesEndpoints.RequireOrganization(tenant, http);
-            var industryCode = await IndustryAsync(db, ct);
-            var industry = await db.Industries.AsNoTracking().SingleAsync(i => i.Code == industryCode, ct);
-            var items = await db.IndustryStructures.AsNoTracking().Where(s => s.IndustryCode == industryCode).OrderBy(s => s.SortOrder).ToListAsync(ct);
-            return Results.Ok(new StructureSuggestions(industryCode, new LocalizedText(industry.NameEn, industry.NameSw),
-                items.Where(s => s.Kind == "department").Select(s => s.Name).ToList(),
-                items.Where(s => s.Kind == "position").Select(s => new SuggestedPosition(s.Name, s.DepartmentName!)).ToList()));
-        }).Produces<StructureSuggestions>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
-
-        group.MapPost("/suggestions", async (ApplySuggestionsRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
-            TimeProvider clock, CancellationToken ct) =>
-        {
-            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var errors = new Dictionary<string, string>();
-            var companies = await CompaniesAsync(request.AllCompanies, request.CompanyIds, db, errors, ct);
-            if (errors.Count > 0)
-            {
-                throw OnboardingErrors.StructureDetailsInvalid(errors);
-            }
-
-            var industryCode = await IndustryAsync(db, ct);
-            var items = await db.IndustryStructures.AsNoTracking().Where(s => s.IndustryCode == industryCode).OrderBy(s => s.SortOrder).ToListAsync(ct);
-            var departments = await db.Departments.Where(d => d.Status == "active").ToListAsync(ct);
-            var titles = (await db.Positions.Where(p => p.Status == "active").Select(p => p.Name).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var now = clock.GetUtcNow();
-            var (addedDepartments, addedPositions) = (0, 0);
-
-            // Only what isn't there yet, so adding twice changes nothing.
-            foreach (var suggested in items.Where(s => s.Kind == "department"))
-            {
-                if (departments.Any(d => string.Equals(d.Name, suggested.Name, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                var department = New<Department, DepartmentCompany>(organizationId, suggested.Name,
-                    await NextCodeAsync(db.Departments, LocationsEndpoints.Prefix(suggested.Name), ct), request.AllCompanies, companies, now,
-                    (org, item, company, at) => new DepartmentCompany { OrganizationId = org, DepartmentId = item, CompanyId = company, CreatedAt = at });
-                db.Departments.Add(department);
-                departments.Add(department);
-                addedDepartments++;
-            }
-
-            foreach (var suggested in items.Where(s => s.Kind == "position" && !titles.Contains(s.Name)))
-            {
-                var position = New<Position, PositionCompany>(organizationId, suggested.Name,
-                    await NextCodeAsync(db.Positions, LocationsEndpoints.Prefix(suggested.Name), ct), request.AllCompanies, companies, now,
-                    (org, item, company, at) => new PositionCompany { OrganizationId = org, PositionId = item, CompanyId = company, CreatedAt = at });
-                position.DepartmentId = departments.FirstOrDefault(d => string.Equals(d.Name, suggested.DepartmentName, StringComparison.OrdinalIgnoreCase))?.Id;
-                db.Positions.Add(position);
-                addedPositions++;
-            }
-
-            await db.SaveChangesAsync(ct);
-            return Results.Ok(new SuggestionsAdded(addedDepartments, addedPositions));
-        }).Produces<SuggestionsAdded>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
 
         return app;
     }
@@ -439,9 +373,4 @@ public static class StructureEndpoints
             at = tree.GetValueOrDefault(id);
         }
     }
-
-    /// <summary>The industry whose structure is suggested: the first company that has one, else "other".</summary>
-    private static async Task<string> IndustryAsync(OrganizationsDbContext db, CancellationToken ct) =>
-        await db.Companies.AsNoTracking().Where(c => c.Status == "active" && c.IndustryCode != null)
-            .OrderBy(c => c.CreatedAt).Select(c => c.IndustryCode).FirstOrDefaultAsync(ct) ?? "other";
 }

@@ -31,7 +31,6 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<PositionCompany> PositionCompanies => Set<PositionCompany>();
     public DbSet<Unit> Units => Set<Unit>();
     public DbSet<UnitCompany> UnitCompanies => Set<UnitCompany>();
-    public DbSet<IndustryStructure> IndustryStructures => Set<IndustryStructure>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -84,6 +83,5 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Unit>().HasMany(u => u.Companies).WithOne().HasForeignKey(c => c.UnitId);
         model.Entity<Unit>().HasOne<Department>().WithMany().HasForeignKey(u => u.DepartmentId);
         model.Entity<UnitCompany>().HasKey(c => new { c.UnitId, c.CompanyId });
-        model.Entity<IndustryStructure>().HasKey(s => new { s.IndustryCode, s.Kind, s.Name });
     }
 }

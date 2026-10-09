@@ -79,15 +79,6 @@ export const location = (overrides: Record<string, unknown> = {}) => ({
   companyIds: [company().id], mainFor: [company().id], ...overrides,
 })
 
-/** Suggested structure for a restaurant (the seeded data, trimmed to what the screens show). */
-export const suggestions = {
-  industryCode: 'restaurants_bars', industryName: text('Restaurants, bars and clubs'),
-  departments: ['Kitchen', 'Service', 'Bar', 'Admin'],
-  positions: [{ title: 'Chef', department: 'Kitchen' }, { title: 'Cook', department: 'Kitchen' }, { title: 'Kitchen assistant', department: 'Kitchen' },
-    { title: 'Waiter', department: 'Service' }, { title: 'Supervisor', department: 'Service' }, { title: 'Bartender', department: 'Bar' },
-    { title: 'Cashier', department: 'Admin' }, { title: 'Manager', department: 'Admin' }],
-}
-
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -117,7 +108,6 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/structure/departments': () => json(200, []),
     'GET /api/structure/positions': () => json(200, []),
     'GET /api/structure/units': () => json(200, []),
-    'GET /api/structure/suggestions': () => json(200, suggestions),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }

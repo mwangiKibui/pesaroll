@@ -8,7 +8,7 @@ namespace Pesaroll.Organizations.Tests;
 
 /// <summary>
 /// ONB-05, the Org structure step: divisions, departments (in a division, under a parent), positions
-/// and units, each for all or chosen companies, plus a starting structure suggested per industry.
+/// and units, each for all or chosen companies.
 /// </summary>
 public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<OnboardingTests.Api>
 {
@@ -21,9 +21,6 @@ public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<Onbo
     private sealed record Department(Guid Id, string Code, string Name, Guid? DivisionId, Guid? ParentId, string? CostCentre, bool AllCompanies, List<Guid> CompanyIds);
     private sealed record Position(Guid Id, string Code, string Title, Guid? DepartmentId, string? Grade, bool AllCompanies, List<Guid> CompanyIds);
     private sealed record Unit(Guid Id, string Code, string Name, Guid DepartmentId, bool AllCompanies, List<Guid> CompanyIds);
-    private sealed record SuggestedPosition(string Title, string Department);
-    private sealed record Suggestions(string IndustryCode, List<string> Departments, List<SuggestedPosition> Positions);
-    private sealed record Added(int Departments, int Positions);
 
     private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
     private const string Password = "Mombasa-raha-7";
@@ -53,30 +50,6 @@ public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<Onbo
     }
 
     private static async Task<Error> ErrorFrom(HttpResponseMessage res) => (await res.Content.ReadFromJsonAsync<Error>())!;
-
-    [Fact]
-    public async Task A_restaurant_is_offered_its_starting_structure_and_adding_it_twice_adds_nothing_more()
-    {
-        var (client, _, _) = await Onboarded();
-        await AddCompany(client, "Mama Oliech Restaurants Ltd");
-
-        var suggestions = (await client.GetFromJsonAsync<Suggestions>("/api/structure/suggestions"))!;
-
-        Assert.Equal("restaurants_bars", suggestions.IndustryCode);
-        Assert.Equal(["Kitchen", "Service", "Bar", "Admin"], suggestions.Departments);
-        Assert.Contains(new SuggestedPosition("Waiter", "Service"), suggestions.Positions);
-
-        var res = await client.PostAsJsonAsync("/api/structure/suggestions", new { allCompanies = true, companyIds = Array.Empty<Guid>() });
-        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        Assert.Equal(new Added(4, 8), await res.Content.ReadFromJsonAsync<Added>());
-        var departments = (await client.GetFromJsonAsync<List<Department>>("/api/structure/departments"))!;
-        var positions = (await client.GetFromJsonAsync<List<Position>>("/api/structure/positions"))!;
-        Assert.Equal(departments.Single(d => d.Name == "Service").Id, positions.Single(p => p.Title == "Waiter").DepartmentId);
-        Assert.All(departments, d => Assert.True(d.AllCompanies));
-
-        var again = await client.PostAsJsonAsync("/api/structure/suggestions", new { allCompanies = true, companyIds = Array.Empty<Guid>() });
-        Assert.Equal(new Added(0, 0), await again.Content.ReadFromJsonAsync<Added>());
-    }
 
     [Fact]
     public async Task Departments_sit_in_divisions_and_under_other_departments_without_loops()
@@ -220,6 +193,5 @@ public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var res = await b.PostAsJsonAsync("/api/structure/divisions", new { name = "Mine", allCompanies = true, companyIds = Array.Empty<Guid>() });
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
         Assert.Equal("ACC-8001", (await ErrorFrom(res)).Code);
-        Assert.Equal("ACC-8001", (await ErrorFrom(await b.PostAsJsonAsync("/api/structure/suggestions", new { allCompanies = true, companyIds = Array.Empty<Guid>() }))).Code);
     }
 }

@@ -39,30 +39,16 @@ function withStructure(routes: Parameters<typeof fakeApi>[0] = {}) {
   })
 }
 
-it('an empty structure offers the starting structure for the industry, added with one click', async () => {
-  let departments: unknown[] = []
-  const calls = fakeApi({
-    ...signedIn,
-    'GET /api/companies': () => json(200, [restaurant]),
-    'GET /api/structure/departments': () => json(200, departments),
-    'POST /api/structure/suggestions': () => { departments = [ops]; return json(200, { departments: 4, positions: 8 }) },
-  })
+it('the step has a tab per level, Departments first', async () => {
+  fakeApi({ ...signedIn, 'GET /api/companies': () => json(200, [restaurant]) })
   const { container } = renderApp('/setup/structure')
 
   expect(await screen.findByRole('heading', { name: 'How is your organization organised?' })).toBeInTheDocument()
-  const suggested = await screen.findByRole('region', { name: 'Suggested for Restaurants, bars and clubs' })
-  expect(suggested).toHaveTextContent('Kitchen, Service, Bar, Admin')
-  expect(suggested).toHaveTextContent('8 positions, such as Chef, Cook and Kitchen assistant')
+  expect(await screen.findByRole('heading', { name: 'No departments yet' })).toBeInTheDocument()
   expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Divisions', 'Departments', 'Positions', 'Units'])
   expect(screen.getByRole('tab', { name: 'Departments' })).toHaveAttribute('aria-selected', 'true')
-  await expectNoA11yViolations(container)
-
-  await userEvent.click(within(suggested).getByRole('button', { name: 'Add these' }))
-
-  expect(await screen.findByText('Added 4 departments and 8 positions')).toBeInTheDocument()
-  expect(calls.find(c => c.method === 'POST' && c.path === '/api/structure/suggestions')?.body).toEqual({ allCompanies: true, companyIds: [] })
-  expect(await within(panel('Departments')).findByText('Operations')).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: /Suggested for/ })).not.toBeInTheDocument()
+  await expectNoA11yViolations(container)
 })
 
 it('each tab lists its level with what it belongs to', async () => {

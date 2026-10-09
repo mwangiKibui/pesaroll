@@ -64,20 +64,7 @@ create table country_wage_areas (
     primary key (country_code, code)
 );
 
--- A starting org structure per industry (ONB-05): departments, and positions in them. Offered on an
--- empty Org structure step and added only when the person asks.
-create table industry_structures (
-    industry_code    text not null references industries (code),
-    kind             text not null check (kind in ('department', 'position')),
-    name             text not null,
-    department_name  text,                                  -- positions: the suggested department they sit in
-    sort_order       int not null default 0,
-    primary key (industry_code, kind, name),
-    check ((kind = 'position') = (department_name is not null))
-);
-
 grant select on table countries to pesaroll_app;
-grant select on table industry_structures to pesaroll_app;
 grant select on table country_wage_areas to pesaroll_app;
 grant select on table country_company_fields to pesaroll_app;
 grant select on table country_regions to pesaroll_app;
