@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
+import { BulkUpload } from '../components/BulkUpload'
 import { Drawer } from '../components/Drawer'
 import { Modal } from '../components/Modal'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
@@ -42,6 +43,7 @@ export default function ComponentsPage() {
   const toast = useToast()
   const [drawer, setDrawer] = useState(false)
   const [modal, setModal] = useState(false)
+  const [upload, setUpload] = useState(false)
   const [several, setSeveral] = useState<CompanySelection>({ all: false, ids: ['ke'] })
   const [one, setOne] = useState<CompanySelection>({ all: false, ids: ['ug'] })
   const [town, setTown] = useState('nbo')
@@ -108,7 +110,7 @@ export default function ComponentsPage() {
 
         <Section title="Setup page pattern">
           <TableCard title="Locations" count={locations.length} status={<Tag tone="warning">Not saved yet</Tag>}
-            actions={<><Button variant="secondary">Bulk upload</Button><Button onClick={() => setDrawer(true)}>Add location</Button></>}>
+            actions={<><Button variant="secondary" onClick={() => setUpload(true)}>Upload locations</Button><Button onClick={() => setDrawer(true)}>Add location</Button></>}>
             <table>
               <thead><tr><th>Location</th><th>Town</th><th>Applies to</th><th>Main location for</th><th className="text-right!">Actions</th></tr></thead>
               <tbody>
@@ -132,6 +134,17 @@ export default function ComponentsPage() {
             <CompanySelect label="Applies to" companies={companies} value={several} onChange={setSeveral} />
             <Button variant="secondary" onClick={() => setModal(true)}>Open a modal on top</Button>
           </Drawer>
+          {/* Example only: the "file check" finds one problem the first time and none after that. */}
+          {upload && (
+            <BulkUpload<{ name: string }> open title="Upload locations" onClose={() => setUpload(false)} onDownloadTemplate={async () => {}}
+              onCheck={async file => file.name.includes('fixed')
+                ? { rows: [{ name: 'Westlands branch' }, { name: 'Karen branch' }], problems: [] }
+                : { rows: [{ name: 'Westlands branch' }], problems: [{ line: 3, column: 'County', message: '"Atlantis" isn\'t a county we know.' }] }}
+              onImport={async () => { toast.show('2 locations imported'); return null }}
+              labels={{ ready: n => `${n} locations ready`, importButton: n => `Import ${n} locations`, templateHint: 'One row per location. Name a file "fixed" to see it pass.' }}>
+              <p className="m-0 text-muted">The company selector goes here.</p>
+            </BulkUpload>
+          )}
           <Modal open={modal} title="Add paying account" onClose={() => setModal(false)}
             footer={<><Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button><Button onClick={() => setModal(false)}>Add account</Button></>}>
             <TextField label="Account name" placeholder="Your account name" />

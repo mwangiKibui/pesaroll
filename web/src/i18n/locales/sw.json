@@ -147,7 +147,10 @@
     "ONB-3511": "Hatukuweza kupata akaunti hiyo ya kulipa.",
     "ONB-3512": "Baadhi ya maelezo ya eneo hayaonekani sawa. Angalia sehemu zilizowekwa alama.",
     "ONB-3513": "Eneo jingine tayari lina msimbo huu. Chagua mwingine au uache wazi.",
-    "ONB-3514": "Hatukuweza kupata eneo hilo."
+    "ONB-3514": "Hatukuweza kupata eneo hilo.",
+    "ONB-3516": "Hatukuweza kusoma faili hii. Tumia kiolezo (.xlsx) au faili ya .csv yenye safu zilezile.",
+    "ONB-3517": "Faili ni kubwa mno. Pakia hadi maeneo 1000 na MB 2 kwa wakati mmoja.",
+    "ONB-3518": "Baadhi ya mistari inahitaji kurekebishwa. Pakia faili tena kuona ipi."
   },
   "organization": {
     "title": "Shirika lako linaitwaje?",
@@ -332,6 +335,30 @@
       "office": "Ofisi",
       "warehouse": "Ghala",
       "site": "Eneo la kazi"
-    }
+    },
+    "upload": "Pakia maeneo",
+    "applyTo": "Tumia kwa",
+    "templateHint": "Mstari mmoja kwa kila eneo: jina, aina, msimbo (si lazima), kaunti, mji, anwani, na Yes kwenye Main location kwa eneo kuu.",
+    "importMainHint": "Mstari uliowekwa Main location unakuwa eneo kuu la kampuni utakazochagua.",
+    "ready_one": "Eneo {{count}} liko tayari",
+    "ready_other": "Maeneo {{count}} yako tayari",
+    "importButton_one": "Ingiza eneo {{count}}",
+    "importButton_other": "Ingiza maeneo {{count}}",
+    "imported_one": "Eneo {{count}} limeingizwa",
+    "imported_other": "Maeneo {{count}} yameingizwa"
+  },
+  "bulk": {
+    "step1": "1. Pakua kiolezo",
+    "step2": "2. Pakia faili yako",
+    "step3": "3. Chagua zinapotumika",
+    "download": "Pakua kiolezo",
+    "fileHint": "Faili ya .xlsx au .csv yenye safu za kiolezo, hadi mistari 1,000. Hakuna kinachohifadhiwa hadi uingize.",
+    "choose": "Chagua faili",
+    "chooseAnother": "Chagua faili nyingine",
+    "checking": "Inakagua faili…",
+    "fixAndUpload": "Rekebisha mistari hii kwenye faili yako, kisha uipakie tena. Hakuna kilichohifadhiwa.",
+    "problems_one": "Tatizo {{count}} la kurekebisha",
+    "problems_other": "Matatizo {{count}} ya kurekebisha",
+    "row": "Mstari {{line}}"
   }
 }

@@ -110,8 +110,11 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = input instanceof Request ? input : new Request(input, init)
     const path = new URL(req.url).pathname
-    const text = await req.clone().text()
-    calls.push({ method: req.method, path, body: text ? JSON.parse(text) : null, auth: req.headers.get('Authorization') })
+    // JSON bodies are logged parsed; a file upload (multipart) is logged as its form data.
+    const isForm = req.headers.get('Content-Type')?.startsWith('multipart/form-data')
+    const text = isForm ? '' : await req.clone().text()
+    const body = isForm ? await req.clone().formData() : text ? JSON.parse(text) : null
+    calls.push({ method: req.method, path, body, auth: req.headers.get('Authorization') })
     const handler = routes[`${req.method} ${path}`] ?? defaults[`${req.method} ${path}`]
     return handler ? handler(req) : json(404, {})
   }))

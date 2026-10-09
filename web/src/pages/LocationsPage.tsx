@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
+import { BulkUpload } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -60,6 +61,7 @@ export default function LocationsPage() {
   const [editing, setEditing] = useState<Location | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Location | null>(null)
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const ready = companies.data && locations.data && countries.data
   const list = (locations.data ?? []).filter(l => shown.all || l.allCompanies || l.companyIds.some(id => shown.ids.includes(id)))
@@ -85,7 +87,10 @@ export default function LocationsPage() {
     }
   }
 
-  const addButton = <Button onClick={() => setEditing('new')}>{t('locations.add')}</Button>
+  const addButton = <>
+    <Button variant="secondary" onClick={() => setUploading(true)}>{t('locations.upload')}</Button>
+    <Button onClick={() => setEditing('new')}>{t('locations.add')}</Button>
+  </>
 
   return (
     <SetupLayout current="locations" done={done} hasOrganization>
@@ -143,6 +148,7 @@ export default function LocationsPage() {
         </TableCard>
         <div><Button onClick={() => void navigate({ to: '/' })}>{t('locations.continue')}</Button></div>
 
+        {uploading && <UploadLocations companies={companies.data} onClose={() => setUploading(false)} />}
         {editing && (
           <LocationDrawer location={editing === 'new' ? null : editing} companies={companies.data} country={country}
             // A new location serves the companies being shown, as the selector suggests.
@@ -290,5 +296,74 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
         </fieldset>
       </form>
     </Drawer>
+  )
+}
+
+type ImportRow = components['schemas']['LocationImportRow']
+
+/**
+ * Uploading locations (ONB-04 part 2) with the shared BulkUpload drawer: the template, the checked
+ * file, and (with several companies) which companies the new locations serve.
+ */
+function UploadLocations({ companies, onClose }: { companies: Company[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const { api, queryClient } = useServices()
+  const toast = useToast()
+  const [applies, setApplies] = useState<CompanySelection>({ all: true, ids: [] })
+
+  const downloadTemplate = async () => {
+    const { data } = await api.GET('/api/locations/template', { parseAs: 'blob' })
+    if (!data) throw new Error('template')
+    const url = URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'pesaroll-locations-template.xlsx'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const check = async (file: File) => {
+    const { data, error } = await api.POST('/api/locations/import/check', {
+      body: { file } as never,
+      bodySerializer: () => {
+        const form = new FormData()
+        form.append('file', file)
+        return form
+      },
+    })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('check')
+  }
+
+  const importRows = async (rows: ImportRow[]) => {
+    // With one company the locations are simply its own.
+    const body = companies.length === 1
+      ? { rows, allCompanies: false, companyIds: [companies[0].id] }
+      : { rows, allCompanies: applies.all, companyIds: applies.all ? [] : applies.ids }
+    const { data, error } = await api.POST('/api/locations/import', { body })
+    if (data) {
+      void queryClient.invalidateQueries({ queryKey: ['locations'] })
+      toast.show(t('locations.imported', { count: data.imported }))
+      return null
+    }
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('import')
+  }
+
+  return (
+    <BulkUpload<ImportRow> open title={t('locations.upload')} onClose={onClose} onDownloadTemplate={downloadTemplate}
+      onCheck={check} onImport={importRows}
+      labels={{
+        ready: count => t('locations.ready', { count }),
+        importButton: count => t('locations.importButton', { count }),
+        templateHint: t('locations.templateHint'),
+      }}>
+      {companies.length > 1 && <>
+        <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
+          companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+        <p className="m-0 text-hint text-muted">{t('locations.importMainHint')}</p>
+      </>}
+    </BulkUpload>
   )
 }

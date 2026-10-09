@@ -133,7 +133,9 @@ export function SelectField({ label, hint, error, optional, size = 'md', options
       e.preventDefault()
       pick(shown[active])
     } else if (e.key === 'Escape' && open) {
+      // Closes only the list, not a drawer or modal the field sits in.
       e.preventDefault()
+      e.stopPropagation()
       close()
     }
   }
