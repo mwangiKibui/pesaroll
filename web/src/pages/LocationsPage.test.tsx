@@ -141,15 +141,13 @@ it('deleting asks first; a main location is refused with the reason', async () =
   expect(within(table()).getByText('HQ-01')).toBeInTheDocument()
 })
 
-it('Save and continue goes to the dashboard with three steps done', async () => {
+it('Save and continue goes on to the org structure', async () => {
   oneCompany()
   renderApp('/setup/locations')
 
   await userEvent.click(await screen.findByRole('button', { name: 'Save and continue' }))
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
-  expect(await screen.findByText('Finish setting up · 3 of 10')).toBeInTheDocument()
-  expect(screen.getAllByText('Next: Org structure').length).toBeGreaterThan(0)
+  expect(await screen.findByRole('heading', { name: 'How is your organization organised?' })).toBeInTheDocument()
 })
 
 it('uploads locations: template, then a review of every row before importing for the chosen companies', async () => {

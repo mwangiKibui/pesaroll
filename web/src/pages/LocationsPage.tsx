@@ -146,7 +146,7 @@ export default function LocationsPage() {
             </table>
           )}
         </TableCard>
-        <div><Button onClick={() => void navigate({ to: '/' })}>{t('locations.continue')}</Button></div>
+        <div><Button onClick={() => void navigate({ to: '/setup/structure' })}>{t('locations.continue')}</Button></div>
 
         {uploading && <UploadLocations companies={companies.data} country={country} onClose={() => setUploading(false)} />}
         {editing && (

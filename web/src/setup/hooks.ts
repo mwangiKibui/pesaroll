@@ -92,17 +92,55 @@ export function useLocations(enabled = true) {
   })
 }
 
+/** The four levels of the org structure (ONB-05). */
+export type LevelKey = 'divisions' | 'departments' | 'positions' | 'units'
+
+/** An item of any level: positions have a title, the others a name. */
+export interface StructureItem {
+  id: string
+  code: string
+  name?: string
+  title?: string
+  divisionId?: string | null
+  parentId?: string | null
+  costCentre?: string | null
+  departmentId?: string | null
+  grade?: string | null
+  allCompanies: boolean
+  companyIds: string[]
+}
+
+export function useStructure(level: LevelKey, enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['structure', level],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET(`/api/structure/${level}` as '/api/structure/departments')
+      if (error || !data) throw new Error(level)
+      return data as unknown as StructureItem[]
+    },
+  })
+}
+
 /**
  * Which setup steps are done so far (ONB-12 will track all ten on the server). Locations is done
- * once every company has its main location, which it gets when it is added.
+ * once every company has its main location, which it gets when it is added; Org structure once
+ * there are departments or positions.
  */
 export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const companies = useCompanies(hasOrganization)
   const locations = useLocations(hasOrganization && !!companies.data?.length)
+  const departments = useStructure('departments', hasOrganization && !!companies.data?.length)
+  const positions = useStructure('positions', hasOrganization && !!companies.data?.length)
   if (!hasOrganization) return []
   if (!companies.data?.length) return ['organization']
   const mains = new Set((locations.data ?? []).flatMap(l => l.mainFor))
-  return companies.data.every(c => mains.has(c.id)) ? ['organization', 'companies', 'locations'] : ['organization', 'companies']
+  if (!companies.data.every(c => mains.has(c.id))) return ['organization', 'companies']
+  // Org structure is done once it has departments or positions (suggested or the business's own).
+  return departments.data?.length || positions.data?.length
+    ? ['organization', 'companies', 'locations', 'structure']
+    : ['organization', 'companies', 'locations']
 }
 
 /** Where "Finish setting up" leads: the first step with a page that isn't done, else the last one built. */
