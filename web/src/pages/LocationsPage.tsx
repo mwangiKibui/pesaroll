@@ -16,6 +16,7 @@ import { TableCard } from '../components/TableCard'
 import { useToast } from '../components/toast'
 import i18n from '../i18n'
 import { useCompanies, useCountries, useLocations, useSetupDone } from '../setup/hooks'
+import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
 
 type Company = components['schemas']['CompanyResponse']
@@ -146,7 +147,7 @@ export default function LocationsPage() {
             </table>
           )}
         </TableCard>
-        <div><Button onClick={() => void navigate({ to: '/' })}>{t('locations.continue')}</Button></div>
+        <Proceed label={t('setup.proceed', { step: t('setup.steps.structure') })} onProceed={() => void navigate({ to: '/setup/structure' })} />
 
         {uploading && <UploadLocations companies={companies.data} country={country} onClose={() => setUploading(false)} />}
         {editing && (

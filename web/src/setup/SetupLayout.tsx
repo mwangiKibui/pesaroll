@@ -5,7 +5,7 @@ import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonStyles'
 import { Navbar } from '../components/Navbar'
 import { useMe, useSignOut } from './hooks'
-import { setupSteps, type SetupStep } from './steps'
+import { setupPaths, setupSteps, type SetupStep } from './steps'
 
 /**
  * The setup steps (ONB), full width: the navbar (who is signed in, Sign out, and once the
@@ -41,14 +41,24 @@ export function SetupLayout({ current, done, hasOrganization, children }: {
             {setupSteps.map((step, i) => {
               const isDone = done.includes(step.key)
               const isCurrent = step.key === current
+              // Steps with a page are links, done or not, so you can go back and change things; the
+              // others need the organization first.
+              const path = setupPaths[step.key]
+              const linked = path && (hasOrganization || step.key === 'organization')
+              const content = <>
+                <span aria-hidden="true" className={`flex size-6 flex-none items-center justify-center rounded-full text-tag font-semibold ${isDone ? 'bg-brand text-on-brand' : isCurrent ? 'border-2 border-brand text-brand' : 'border border-field-border text-muted'}`}>
+                  {isDone ? '✓' : i + 1}
+                </span>
+                <span className={isCurrent ? 'font-semibold text-ink' : 'text-ink'}>{t(`setup.steps.${step.key}`)}</span>
+                {step.optional && <span className="text-hint text-muted">{t('setup.optional')}</span>}
+              </>
+              const row = `flex min-h-11 items-center gap-2.5 rounded-control px-2 text-label ${isCurrent ? 'bg-brand-soft' : ''}`
               return (
-                <li key={step.key} aria-current={isCurrent ? 'step' : undefined}
-                  className={`flex min-h-11 items-center gap-2.5 rounded-control px-2 text-label ${isCurrent ? 'bg-brand-soft' : ''}`}>
-                  <span aria-hidden="true" className={`flex size-6 flex-none items-center justify-center rounded-full text-tag font-semibold ${isDone ? 'bg-brand text-on-brand' : isCurrent ? 'border-2 border-brand text-brand' : 'border border-field-border text-muted'}`}>
-                    {isDone ? '✓' : i + 1}
-                  </span>
-                  <span className={isCurrent ? 'font-semibold text-ink' : 'text-ink'}>{t(`setup.steps.${step.key}`)}</span>
-                  {step.optional && <span className="text-hint text-muted">{t('setup.optional')}</span>}
+                <li key={step.key} className={linked ? '' : row}>
+                  {linked
+                    // The router marks the link to the page you're on (aria-current="page").
+                    ? <Link to={path} className={`${row} no-underline hover:bg-raised`}>{content}</Link>
+                    : content}
                 </li>
               )
             })}

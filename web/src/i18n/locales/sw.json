@@ -19,7 +19,6 @@
   },
   "company": {
     "all": "Kampuni zote",
-    "allHint": "Pamoja na kampuni zitakazoongezwa baadaye",
     "placeholder": "Chagua kampuni",
     "selected": "{{count}} zimechaguliwa",
     "search": "Tafuta kampuni",
@@ -41,7 +40,8 @@
       "employees": "Wafanyakazi",
       "history": "Historia ya mishahara",
       "team": "Ufikiaji wa timu"
-    }
+    },
+    "proceed": "Endelea kwa {{step}}"
   },
   "theme": {
     "label": "Mwonekano",
@@ -149,7 +149,10 @@
     "ONB-3513": "Eneo jingine tayari lina msimbo huu. Chagua mwingine au uache wazi.",
     "ONB-3514": "Hatukuweza kupata eneo hilo.",
     "ONB-3516": "Hatukuweza kusoma faili hii. Tumia kiolezo (.xlsx) au faili ya .csv yenye safu zilezile.",
-    "ONB-3517": "Faili ni kubwa mno. Pakia hadi maeneo 1000 na MB 2 kwa wakati mmoja."
+    "ONB-3517": "Faili ni kubwa mno. Pakia hadi maeneo 1000 na MB 2 kwa wakati mmoja.",
+    "ONB-3519": "Baadhi ya maelezo hayaonekani sawa. Angalia sehemu zilizowekwa alama.",
+    "ONB-3520": "Kingine tayari kina msimbo huu. Chagua mwingine au uache wazi.",
+    "ONB-3521": "Hatukuweza kupata hicho. Huenda kimefutwa."
   },
   "organization": {
     "title": "Shirika lako linaitwaje?",
@@ -164,8 +167,7 @@
     "createdText": "Kisha, utaongeza kampuni zako.",
     "proceed": "Endelea kwenye dashibodi ya shirika",
     "save": "Hifadhi mabadiliko",
-    "saved": "Jina la shirika limehifadhiwa",
-    "continue": "Endelea kwa kampuni"
+    "saved": "Jina la shirika limehifadhiwa"
   },
   "home": {
     "title": "Karibu, {{name}}",
@@ -202,7 +204,6 @@
     "added": "Kampuni imeongezwa",
     "saved": "Kampuni imehifadhiwa",
     "deleted": "Kampuni imefutwa",
-    "continue": "Hifadhi na uendelee",
     "legalName": "Jina rasmi",
     "legalNamePlaceholder": "Jina lako rasmi",
     "legalNameHint": "Kama lilivyosajiliwa, jinsi linavyoonekana kwenye fomu za kisheria.",
@@ -316,7 +317,6 @@
     "added": "Eneo limeongezwa",
     "saved": "Eneo limehifadhiwa",
     "deleted": "Eneo limefutwa",
-    "continue": "Hifadhi na uendelee",
     "name": "Jina la eneo",
     "namePlaceholder": "Jina la eneo lako",
     "code": "Msimbo",
@@ -369,5 +369,76 @@
     "rowHeader": "Mstari",
     "cell": "{{column}}, mstari {{line}}",
     "removeRow": "Ondoa mstari {{line}}"
+  },
+  "structure": {
+    "title": "Shirika lako limepangwa vipi?",
+    "intro": "Ongeza idara watu wanamofanyia kazi na nafasi wanazoajiriwa. Vitengo vikuu na vitengo vidogo si lazima. Kila kimoja kinaweza kuwa kwa kampuni zote au zilizochaguliwa.",
+    "levels": "Ngazi za muundo wa shirika",
+    "division": "Kitengo kikuu",
+    "partOf": "Sehemu ya",
+    "partOfHint": "Idara ambayo hii iko chini yake. Acha wazi kwa idara ya juu.",
+    "department": "Idara",
+    "sharedHint": "Acha wazi kwa nafasi inayotumika katika idara nyingi, kama Dereva.",
+    "unitDepartmentRequired": "Chagua idara ambayo kitengo hiki kipo.",
+    "codePlaceholder": "Msimbo wako",
+    "codeHint": "Uache wazi tutatengeneza kutoka kwa jina.",
+    "delete": "Futa",
+    "deleteText": "Kitaondolewa kwa kila kampuni inayokitumia.",
+    "divisions": {
+      "tab": "Vitengo vikuu",
+      "column": "Kitengo kikuu",
+      "add": "Ongeza kitengo kikuu",
+      "editTitle": "Hariri kitengo kikuu",
+      "nameLabel": "Jina la kitengo kikuu",
+      "namePlaceholder": "Jina la kitengo chako kikuu",
+      "nameInvalid": "Andika jina la kitengo kikuu (herufi 2 hadi 120).",
+      "added": "Kitengo kikuu kimeongezwa",
+      "saved": "Kitengo kikuu kimehifadhiwa",
+      "deleted": "Kitengo kikuu kimefutwa",
+      "emptyTitle": "Hakuna vitengo vikuu",
+      "emptyText": "Si lazima: panga idara katika kampuni, kama Mikahawa na Upishi."
+    },
+    "departments": {
+      "tab": "Idara",
+      "column": "Idara",
+      "add": "Ongeza idara",
+      "editTitle": "Hariri idara",
+      "nameLabel": "Jina la idara",
+      "namePlaceholder": "Jina la idara yako",
+      "nameInvalid": "Andika jina la idara (herufi 2 hadi 120).",
+      "added": "Idara imeongezwa",
+      "saved": "Idara imehifadhiwa",
+      "deleted": "Idara imefutwa",
+      "emptyTitle": "Bado hakuna idara",
+      "emptyText": "Ongeza idara watu wanamofanyia kazi."
+    },
+    "positions": {
+      "tab": "Nafasi",
+      "column": "Nafasi",
+      "add": "Ongeza nafasi",
+      "editTitle": "Hariri nafasi",
+      "nameLabel": "Jina la nafasi",
+      "namePlaceholder": "Jina la nafasi yako",
+      "nameInvalid": "Andika jina la nafasi (herufi 2 hadi 120).",
+      "added": "Nafasi imeongezwa",
+      "saved": "Nafasi imehifadhiwa",
+      "deleted": "Nafasi imefutwa",
+      "emptyTitle": "Bado hakuna nafasi",
+      "emptyText": "Ongeza kazi watu wanazoajiriwa."
+    },
+    "units": {
+      "tab": "Vitengo",
+      "column": "Kitengo",
+      "add": "Ongeza kitengo",
+      "editTitle": "Hariri kitengo",
+      "nameLabel": "Jina la kitengo",
+      "namePlaceholder": "Jina la kitengo chako",
+      "nameInvalid": "Andika jina la kitengo (herufi 2 hadi 120).",
+      "added": "Kitengo kimeongezwa",
+      "saved": "Kitengo kimehifadhiwa",
+      "deleted": "Kitengo kimefutwa",
+      "emptyTitle": "Hakuna vitengo",
+      "emptyText": "Si lazima: timu au zamu ndani ya idara."
+    }
   }
 }

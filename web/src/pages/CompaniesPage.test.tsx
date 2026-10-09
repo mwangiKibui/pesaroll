@@ -28,7 +28,7 @@ it('with no companies yet, offers the first one, named after the organization an
 
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
   const steps = screen.getByRole('list', { name: 'Setup steps' })
-  expect(within(steps).getByText('Companies').closest('li')).toHaveAttribute('aria-current', 'step')
+  expect(within(steps).getByText('Companies').closest('a')).toHaveAttribute('aria-current', 'page')
   expect(within(steps).getByText('Organization').closest('li')).toHaveTextContent('✓')
   expect(await screen.findByRole('heading', { name: 'Add your first company' })).toBeInTheDocument()
   await expectNoA11yViolations(container)
@@ -210,14 +210,14 @@ it('continuing needs at least one company, then goes on to Locations', async () 
   fakeApi({ ...signedIn, 'GET /api/companies': () => json(200, companies), 'POST /api/companies': () => { companies = [saved]; return json(201, saved) } })
   renderApp('/setup/companies')
 
-  await userEvent.click(await screen.findByRole('button', { name: 'Save and continue' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Proceed to Locations' }))
   expect(await screen.findByText('Add at least one company to continue.')).toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('button', { name: 'Add company' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add company' }))
   await screen.findByText('Company added')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Cancel' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Save and continue' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to Locations' }))
 
   expect(await screen.findByRole('heading', { name: 'Where do your people work?' })).toBeInTheDocument()
 })
@@ -226,7 +226,7 @@ it('the organization step leads on to companies', async () => {
   fakeApi(signedIn)
   renderApp('/setup/organization')
 
-  const link = await screen.findByRole('link', { name: 'Continue to companies' })
+  const link = await screen.findByRole('link', { name: 'Proceed to Companies' })
   // In the name's card, on the right of Save changes.
   expect(link.parentElement).toContainElement(screen.getByRole('button', { name: 'Save changes' }))
   expect(link.closest('form')).not.toBeNull()

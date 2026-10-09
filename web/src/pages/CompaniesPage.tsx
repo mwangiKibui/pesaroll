@@ -18,6 +18,7 @@ import { useToast } from '../components/toast'
 import { PaymentAccounts } from './PaymentAccounts'
 import i18n from '../i18n'
 import { useCompanies, useCountries, useIndustries, useOrganization, useSetupDone } from '../setup/hooks'
+import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
 
 type Company = components['schemas']['CompanyResponse']
@@ -156,7 +157,7 @@ export default function CompaniesPage() {
           </table>
         </TableCard>
       )}
-      <div><Button onClick={proceed}>{t('companies.continue')}</Button></div>
+      <Proceed label={t('setup.proceed', { step: t('setup.steps.locations') })} onProceed={proceed} />
 
       {ready && editing && (
         <CompanyDrawer key={editing === 'new' ? 'new' : editing.id} company={editing === 'new' ? null : editing}

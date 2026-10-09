@@ -104,6 +104,10 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/companies': () => json(200, []),
     'GET /api/banks': () => json(200, banks),
     'GET /api/locations': () => json(200, []),
+    'GET /api/structure/divisions': () => json(200, []),
+    'GET /api/structure/departments': () => json(200, []),
+    'GET /api/structure/positions': () => json(200, []),
+    'GET /api/structure/units': () => json(200, []),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }

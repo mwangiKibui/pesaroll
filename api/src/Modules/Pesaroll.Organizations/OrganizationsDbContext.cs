@@ -23,6 +23,14 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<CountryWageArea> CountryWageAreas => Set<CountryWageArea>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
+    public DbSet<Division> Divisions => Set<Division>();
+    public DbSet<DivisionCompany> DivisionCompanies => Set<DivisionCompany>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<DepartmentCompany> DepartmentCompanies => Set<DepartmentCompany>();
+    public DbSet<Position> Positions => Set<Position>();
+    public DbSet<PositionCompany> PositionCompanies => Set<PositionCompany>();
+    public DbSet<Unit> Units => Set<Unit>();
+    public DbSet<UnitCompany> UnitCompanies => Set<UnitCompany>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -62,5 +70,18 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<LocationCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
         // Tells EF to write a new location before the company that points at it as main.
         model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
+        model.Entity<Division>().HasMany(d => d.Companies).WithOne().HasForeignKey(c => c.DivisionId);
+        model.Entity<DivisionCompany>().HasKey(c => new { c.DivisionId, c.CompanyId });
+        model.Entity<Department>().HasMany(d => d.Companies).WithOne().HasForeignKey(c => c.DepartmentId);
+        model.Entity<Department>().HasOne<Division>().WithMany().HasForeignKey(d => d.DivisionId);
+        model.Entity<Department>().HasOne<Department>().WithMany().HasForeignKey(d => d.ParentId);
+        model.Entity<DepartmentCompany>().HasKey(c => new { c.DepartmentId, c.CompanyId });
+        model.Entity<Position>().Property(p => p.Name).HasColumnName("title");
+        model.Entity<Position>().HasMany(p => p.Companies).WithOne().HasForeignKey(c => c.PositionId);
+        model.Entity<Position>().HasOne<Department>().WithMany().HasForeignKey(p => p.DepartmentId);
+        model.Entity<PositionCompany>().HasKey(c => new { c.PositionId, c.CompanyId });
+        model.Entity<Unit>().HasMany(u => u.Companies).WithOne().HasForeignKey(c => c.UnitId);
+        model.Entity<Unit>().HasOne<Department>().WithMany().HasForeignKey(u => u.DepartmentId);
+        model.Entity<UnitCompany>().HasKey(c => new { c.UnitId, c.CompanyId });
     }
 }

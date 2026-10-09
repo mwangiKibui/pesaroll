@@ -98,7 +98,7 @@ function NameForm({ existing }: { existing?: { id: string; name: string } }) {
         <Button type="submit" busy={isSubmitting}>{existing ? t('organization.save') : t('organization.submit')}</Button>
         {existing && (
           <Link to="/setup/companies" className={buttonClasses('secondary')}>
-            {t('organization.continue')}
+            {t('setup.proceed', { step: t('setup.steps.companies') })}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </Link>
         )}
