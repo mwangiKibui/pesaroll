@@ -28,6 +28,8 @@ public sealed class Company
     public string? PostalCode { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }
+    /// <summary>Its one main location (ONB-04), created as "Head office" with the company.</summary>
+    public Guid? MainLocationId { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -150,4 +152,51 @@ public sealed class CompanyPaymentAccount
     public Guid? ClosedBy { get; set; }
     /// <summary>Set when this row came from editing another (which was closed).</summary>
     public Guid? ReplacesId { get; set; }
+}
+
+/// <summary>A minimum-wage area of a country (ONB-04). Its towns suggest it; rates live in rule packs.</summary>
+public sealed class CountryWageArea
+{
+    public required string CountryCode { get; set; }
+    public required string Code { get; set; }
+    public required string NameEn { get; set; }
+    public required string NameSw { get; set; }
+    public required string DescriptionEn { get; set; }
+    public required string DescriptionSw { get; set; }
+    public List<string> Towns { get; set; } = [];
+    public int SortOrder { get; set; }
+    public bool Active { get; set; }
+}
+
+/// <summary>
+/// Where people work (ONB-04). Serves all the organization's companies (<see cref="AllCompanies"/>)
+/// or those in <see cref="Companies"/>. Timestamps are set by the app: the database's read policy
+/// needs the company links, which don't exist yet when the row is first written.
+/// </summary>
+public sealed class Location
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    /// <summary>head_office, branch, office, warehouse or site.</summary>
+    public string Kind { get; set; } = "branch";
+    public required string CountryCode { get; set; }
+    public string? RegionCode { get; set; }
+    public string? Town { get; set; }
+    public string? AddressLine { get; set; }
+    public string? WageAreaCode { get; set; }
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<LocationCompany> Companies { get; set; } = [];
+}
+
+public sealed class LocationCompany
+{
+    public Guid OrganizationId { get; set; }
+    public Guid LocationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }

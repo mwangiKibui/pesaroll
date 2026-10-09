@@ -90,7 +90,7 @@ export default function CompaniesPage() {
       setNeedOne(true)
       return
     }
-    void navigate({ to: '/' })
+    void navigate({ to: '/setup/locations' })
   }
 
   const addButton = <Button onClick={() => { setNeedOne(false); setEditing('new') }}>{t('companies.add')}</Button>

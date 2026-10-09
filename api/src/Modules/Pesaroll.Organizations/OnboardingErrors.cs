@@ -39,6 +39,18 @@ internal static class OnboardingErrors
     public static AppException PaymentAccountNotFound() =>
         new("ONB-3511", "We couldn't find that paying account.", 404);
 
+    public static AppException LocationDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3512", "Some location details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException LocationCodeTaken() =>
+        new("ONB-3513", "Another location already has this code. Choose a different one or leave it empty.", 409);
+
+    public static AppException LocationNotFound() =>
+        new("ONB-3514", "We couldn't find that location.", 404);
+
+    public static AppException MainLocationNeeded(string companies) =>
+        new("ONB-3515", $"This is the main location of {companies}. Make another location their main location first.", 409);
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }

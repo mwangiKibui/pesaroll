@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useServices } from '../app/services'
-import type { SetupStep } from './steps'
+import { setupPaths, setupSteps, type SetupStep } from './steps'
 
 /** The person signed in, for the navbar. */
 export function useMe() {
@@ -78,9 +78,35 @@ export function useIndustries() {
   })
 }
 
-/** Which setup steps are done so far (ONB-12 will track all ten on the server). */
+/** The organization's locations (ONB-04), each with the companies it serves and is main for. */
+export function useLocations(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['locations'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/locations')
+      if (error || !data) throw new Error('locations')
+      return data
+    },
+  })
+}
+
+/**
+ * Which setup steps are done so far (ONB-12 will track all ten on the server). Locations is done
+ * once every company has its main location, which it gets when it is added.
+ */
 export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const companies = useCompanies(hasOrganization)
+  const locations = useLocations(hasOrganization && !!companies.data?.length)
   if (!hasOrganization) return []
-  return companies.data?.length ? ['organization', 'companies'] : ['organization']
+  if (!companies.data?.length) return ['organization']
+  const mains = new Set((locations.data ?? []).flatMap(l => l.mainFor))
+  return companies.data.every(c => mains.has(c.id)) ? ['organization', 'companies', 'locations'] : ['organization', 'companies']
+}
+
+/** Where "Finish setting up" leads: the first step with a page that isn't done, else the last one built. */
+export function nextSetupPath(done: SetupStep[]) {
+  const built = setupSteps.filter(s => setupPaths[s.key])
+  return setupPaths[(built.find(s => !done.includes(s.key)) ?? built[built.length - 1]).key]!
 }

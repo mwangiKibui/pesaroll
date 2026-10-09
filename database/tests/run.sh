@@ -56,6 +56,9 @@ insert into memberships (id, organization_id, user_id) values
   ('00000000-0000-7000-8000-0000000000c2', '00000000-0000-7000-8000-000000000002', '00000000-0000-7000-8000-0000000000f2');
 SQL
 
+echo "== Deploy again over the seed (post-deploy scripts that fill in existing rows run on real data)"
+tools deploy >/dev/null
+
 echo "== Tests"
 failed=0
 for f in "$DB_DIR"/tests/*.sql; do

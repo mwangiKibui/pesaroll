@@ -4,7 +4,7 @@ import { useServices } from '../app/services'
 import { Loading } from '../components/feedback'
 import { AppShell } from '../components/shells'
 import { Card } from '../components/TableCard'
-import { useMe, useOrganization, useSetupDone, useSignOut } from '../setup/hooks'
+import { nextSetupPath, useMe, useOrganization, useSetupDone, useSignOut } from '../setup/hooks'
 import { setupSteps } from '../setup/steps'
 
 /** Home for someone with an organization. Until the dashboard (DASH) exists: the setup progress. */
@@ -14,13 +14,14 @@ export default function HomePage() {
   const me = useMe()
   const signOut = useSignOut()
   const organization = useOrganization()
-  const done = useSetupDone(!!useSyncExternalStore(auth.subscribe, auth.organizationId)).length
+  const doneSteps = useSetupDone(!!useSyncExternalStore(auth.subscribe, auth.organizationId))
+  const done = doneSteps.length
   const next = t(`setup.steps.${setupSteps[done].key}`)
 
   return (
     <AppShell groups={[{ items: [{ key: 'home', label: t('nav.home'), href: '/' }] }]} current="home"
       organization={organization.data?.name ?? ''} person={me.data?.fullName ?? ''} onSignOut={signOut}
-      setup={{ done, total: setupSteps.length, next, href: '/setup/companies' }}>
+      setup={{ done, total: setupSteps.length, next, href: nextSetupPath(doneSteps) }}>
       <div className="mx-auto flex max-w-3xl flex-col gap-5">
         {me.data && organization.data ? (
           <>

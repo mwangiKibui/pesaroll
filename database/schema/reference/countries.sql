@@ -48,7 +48,24 @@ create table industries (
     active      boolean not null default true
 );
 
+-- Minimum-wage areas (ONB-04): wage orders set rates by area, not county (Nakuru county has a city
+-- and rural areas), so a location records its area. Towns listed here suggest the area; the
+-- rates themselves live in the country's rule packs (PAY-01).
+create table country_wage_areas (
+    country_code    char(2) not null references countries (code),
+    code            text not null check (code ~ '^[a-z][a-z0-9_]*$'),
+    name_en         text not null,
+    name_sw         text not null,
+    description_en  text not null,
+    description_sw  text not null,
+    towns           text[] not null default '{}',
+    sort_order      int not null default 0,
+    active          boolean not null default true,
+    primary key (country_code, code)
+);
+
 grant select on table countries to pesaroll_app;
+grant select on table country_wage_areas to pesaroll_app;
 grant select on table country_company_fields to pesaroll_app;
 grant select on table country_regions to pesaroll_app;
 grant select on table industries to pesaroll_app;

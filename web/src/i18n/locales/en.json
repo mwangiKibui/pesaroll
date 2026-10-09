@@ -144,7 +144,10 @@
     "ONB-3508": "You already have a company with this name.",
     "ONB-3509": "We couldn't find that company.",
     "ONB-3510": "Some paying account details don't look right. Check the fields marked.",
-    "ONB-3511": "We couldn't find that paying account."
+    "ONB-3511": "We couldn't find that paying account.",
+    "ONB-3512": "Some location details don't look right. Check the fields marked.",
+    "ONB-3513": "Another location already has this code. Choose a different one or leave it empty.",
+    "ONB-3514": "We couldn't find that location."
   },
   "organization": {
     "title": "What's your organization called?",
@@ -284,5 +287,51 @@
     "firstIsDefault": "The first account is always the default.",
     "defaultLocked": "To change the default, turn this on for another account.",
     "defaultHint": "Payroll is paid from the default unless you choose another account."
+  },
+  "locations": {
+    "title": "Where do your people work?",
+    "intro": "Add your head office, branches and sites. Each company has one main location; the county and town decide which minimum wages and holidays apply.",
+    "show": "Show companies",
+    "tableTitle": "Locations",
+    "emptyTitle": "No locations for these companies",
+    "emptyText": "Add one, or choose other companies above.",
+    "location": "Location",
+    "townAndCounty": "Town and {{region}}",
+    "appliesTo": "Applies to",
+    "allCompanies": "All companies",
+    "mainFor": "Main location for",
+    "mainHint": "Each company has one main location. Ticking a company here moves its main location to this one.",
+    "mainForCompany": "Main location for {{name}}",
+    "add": "Add location",
+    "addTitle": "Add location",
+    "editTitle": "Edit location",
+    "edit": "Edit {{name}}",
+    "delete": "Delete {{name}}",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteText": "It will be removed for every company that uses it.",
+    "deleteConfirm": "Delete location",
+    "save": "Save changes",
+    "added": "Location added",
+    "saved": "Location saved",
+    "deleted": "Location deleted",
+    "continue": "Save and continue",
+    "name": "Location name",
+    "namePlaceholder": "Your location name",
+    "code": "Code",
+    "codePlaceholder": "Your location code",
+    "codeHint": "Leave it empty and we'll make one, like MOM-01.",
+    "nameInvalid": "Enter the location's name (2 to 120 characters).",
+    "codeInvalid": "Use 2 to 20 letters, numbers or dashes, or leave it empty for us to make one.",
+    "regionRequired": "Choose a {{region}} from the list.",
+    "companiesRequired": "Choose at least one company, or all companies.",
+    "kind": "Type",
+    "kindPlaceholder": "Your location type",
+    "kinds": {
+      "head_office": "Head office",
+      "branch": "Branch",
+      "office": "Office",
+      "warehouse": "Warehouse",
+      "site": "Site"
+    }
   }
 }

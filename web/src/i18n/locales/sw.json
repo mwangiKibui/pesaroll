@@ -144,7 +144,10 @@
     "ONB-3508": "Tayari una kampuni yenye jina hili.",
     "ONB-3509": "Hatukuweza kupata kampuni hiyo.",
     "ONB-3510": "Baadhi ya maelezo ya akaunti ya kulipa hayaonekani sawa. Angalia sehemu zilizowekwa alama.",
-    "ONB-3511": "Hatukuweza kupata akaunti hiyo ya kulipa."
+    "ONB-3511": "Hatukuweza kupata akaunti hiyo ya kulipa.",
+    "ONB-3512": "Baadhi ya maelezo ya eneo hayaonekani sawa. Angalia sehemu zilizowekwa alama.",
+    "ONB-3513": "Eneo jingine tayari lina msimbo huu. Chagua mwingine au uache wazi.",
+    "ONB-3514": "Hatukuweza kupata eneo hilo."
   },
   "organization": {
     "title": "Shirika lako linaitwaje?",
@@ -284,5 +287,51 @@
     "firstIsDefault": "Akaunti ya kwanza huwa kuu kila wakati.",
     "defaultLocked": "Kubadilisha akaunti kuu, washa hili kwa akaunti nyingine.",
     "defaultHint": "Mishahara hulipwa kutoka akaunti kuu isipokuwa uchague nyingine."
+  },
+  "locations": {
+    "title": "Watu wako wanafanya kazi wapi?",
+    "intro": "Ongeza ofisi kuu, matawi na maeneo ya kazi. Kila kampuni ina eneo kuu moja; kaunti na mji huamua mishahara ya chini na sikukuu zinazotumika.",
+    "show": "Onyesha kampuni",
+    "tableTitle": "Maeneo",
+    "emptyTitle": "Hakuna maeneo ya kampuni hizi",
+    "emptyText": "Ongeza moja, au chagua kampuni nyingine hapo juu.",
+    "location": "Eneo",
+    "townAndCounty": "Mji na {{region}}",
+    "appliesTo": "Linatumika kwa",
+    "allCompanies": "Kampuni zote",
+    "mainFor": "Eneo kuu la",
+    "mainHint": "Kila kampuni ina eneo kuu moja. Ukichagua kampuni hapa, eneo lake kuu linahamia hapa.",
+    "mainForCompany": "Eneo kuu la {{name}}",
+    "add": "Ongeza eneo",
+    "addTitle": "Ongeza eneo",
+    "editTitle": "Hariri eneo",
+    "edit": "Hariri {{name}}",
+    "delete": "Futa {{name}}",
+    "deleteTitle": "Futa {{name}}?",
+    "deleteText": "Litaondolewa kwa kila kampuni inayolitumia.",
+    "deleteConfirm": "Futa eneo",
+    "save": "Hifadhi mabadiliko",
+    "added": "Eneo limeongezwa",
+    "saved": "Eneo limehifadhiwa",
+    "deleted": "Eneo limefutwa",
+    "continue": "Hifadhi na uendelee",
+    "name": "Jina la eneo",
+    "namePlaceholder": "Jina la eneo lako",
+    "code": "Msimbo",
+    "codePlaceholder": "Msimbo wa eneo lako",
+    "codeHint": "Uache wazi tutakutengenezea, kama MOM-01.",
+    "nameInvalid": "Andika jina la eneo (herufi 2 hadi 120).",
+    "codeInvalid": "Tumia herufi, nambari au vistari 2 hadi 20, au uache wazi tukutengenezee.",
+    "regionRequired": "Chagua {{region}} kutoka kwenye orodha.",
+    "companiesRequired": "Chagua angalau kampuni moja, au kampuni zote.",
+    "kind": "Aina",
+    "kindPlaceholder": "Aina ya eneo lako",
+    "kinds": {
+      "head_office": "Ofisi kuu",
+      "branch": "Tawi",
+      "office": "Ofisi",
+      "warehouse": "Ghala",
+      "site": "Eneo la kazi"
+    }
   }
 }
