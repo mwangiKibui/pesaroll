@@ -51,6 +51,18 @@ internal static class OnboardingErrors
     public static AppException MainLocationNeeded(string companies) =>
         new("ONB-3515", $"This is the main location of {companies}. Make another location their main location first.", 409);
 
+    public static AppException StructureDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3519", "Some details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException StructureCodeTaken() =>
+        new("ONB-3520", "Another one already has this code. Choose a different one or leave it empty.", 409);
+
+    public static AppException StructureNotFound() =>
+        new("ONB-3521", "We couldn't find that. It may have been deleted.", 404);
+
+    public static AppException StructureInUse(string what, string uses) =>
+        new("ONB-3522", $"{what} still has {uses}. Move or delete them first.", 409);
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }

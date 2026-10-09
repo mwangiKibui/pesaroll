@@ -200,3 +200,136 @@ public sealed class LocationCompany
     public Guid CompanyId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>
+/// The org structure (ONB-05): divisions, departments, positions and units share this shape: a code
+/// unique in their level, a name, and all companies or the ones in <see cref="Companies"/>.
+/// Timestamps are set by the app (the read policy needs the company links, written after the row).
+/// </summary>
+public interface IStructureItem<TLink> : IHasCode where TLink : IStructureLink
+{
+    Guid Id { get; set; }
+    Guid OrganizationId { get; set; }
+    string Name { get; set; }
+    bool AllCompanies { get; set; }
+    string Status { get; set; }
+    DateTimeOffset CreatedAt { get; set; }
+    DateTimeOffset UpdatedAt { get; set; }
+    List<TLink> Companies { get; }
+}
+
+/// <summary>Something with a code that is unique in its kind (PREFIX-01, PREFIX-02… when made up).</summary>
+public interface IHasCode
+{
+    string Code { get; set; }
+}
+
+/// <summary>A company using a structure item that isn't for all companies.</summary>
+public interface IStructureLink
+{
+    Guid OrganizationId { get; set; }
+    Guid CompanyId { get; set; }
+    DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class Division : IStructureItem<DivisionCompany>
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<DivisionCompany> Companies { get; set; } = [];
+}
+
+public sealed class DivisionCompany : IStructureLink
+{
+    public Guid OrganizationId { get; set; }
+    public Guid DivisionId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class Department : IStructureItem<DepartmentCompany>
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public Guid? DivisionId { get; set; }
+    /// <summary>The department this one sits under (Kitchen under Operations); the tree has no loops.</summary>
+    public Guid? ParentId { get; set; }
+    public string? CostCentre { get; set; }
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<DepartmentCompany> Companies { get; set; } = [];
+}
+
+public sealed class DepartmentCompany : IStructureLink
+{
+    public Guid OrganizationId { get; set; }
+    public Guid DepartmentId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>A job people are hired into. <see cref="Name"/> is its title; no department means shared across departments.</summary>
+public sealed class Position : IStructureItem<PositionCompany>
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public Guid? DepartmentId { get; set; }
+    public string? Grade { get; set; }
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<PositionCompany> Companies { get; set; } = [];
+}
+
+public sealed class PositionCompany : IStructureLink
+{
+    public Guid OrganizationId { get; set; }
+    public Guid PositionId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class Unit : IStructureItem<UnitCompany>
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public Guid DepartmentId { get; set; }
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<UnitCompany> Companies { get; set; } = [];
+}
+
+public sealed class UnitCompany : IStructureLink
+{
+    public Guid OrganizationId { get; set; }
+    public Guid UnitId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>A suggested department or position for an industry (ONB-05).</summary>
+public sealed class IndustryStructure
+{
+    public required string IndustryCode { get; set; }
+    public required string Kind { get; set; }
+    public required string Name { get; set; }
+    public string? DepartmentName { get; set; }
+    public int SortOrder { get; set; }
+}
