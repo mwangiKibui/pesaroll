@@ -12,6 +12,8 @@ interface ModalProps {
   children: ReactNode
   /** Cancel, then a button that names the action. */
   footer?: ReactNode
+  /** wide: nearly the whole screen, for reviewing a table (an upload before it is imported). */
+  size?: 'md' | 'wide'
 }
 
 /**
@@ -19,7 +21,7 @@ interface ModalProps {
  * centred dialog, never a drawer on a drawer. It takes Escape and Tab before the drawer does, so
  * Escape closes only the modal and Tab stays inside it; focus returns to the button that opened it.
  */
-export function Modal({ open, title, onClose, children, footer }: ModalProps) {
+export function Modal({ open, title, onClose, children, footer, size = 'md' }: ModalProps) {
   const { t } = useTranslation()
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -43,14 +45,14 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
     <>
       <div aria-hidden="true" className="fixed inset-0 z-[60] bg-scrim" onClick={onClose} />
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="fixed top-1/2 left-1/2 z-[70] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-card bg-card shadow-drawer">
+        className={`fixed top-1/2 left-1/2 z-[70] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-card bg-card shadow-drawer ${size === 'wide' ? 'h-[90dvh] max-w-[1280px]' : 'max-w-xl'}`}>
         <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
           <h2 id={titleId} className="m-0 font-display text-drawer-title text-ink">{title}</h2>
           <IconButton label={t('common.close')} onClick={onClose}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </IconButton>
         </div>
-        <div ref={body} className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">{children}</div>
+        <div ref={body} className={`flex min-h-0 flex-1 flex-col gap-4 p-6 ${size === 'wide' ? 'overflow-hidden' : 'overflow-y-auto'}`}>{children}</div>
         {footer && <div className="flex justify-end gap-3 border-t border-line px-6 py-4">{footer}</div>}
       </div>
     </>,

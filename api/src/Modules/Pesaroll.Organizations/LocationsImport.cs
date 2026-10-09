@@ -10,13 +10,22 @@ using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Organizations;
 
-/// <summary>A checked row: <see cref="Line"/> is its row number in the file (the header is row 1).</summary>
-public sealed record LocationImportRow(int Line, string Name, string Kind, string? Code, string RegionCode, string? Town, string? AddressLine, bool Main);
+/// <summary>
+/// A row as written in the file, for the person to review and edit: <see cref="Line"/> is its row
+/// number in the file (the header is row 1); <see cref="Cells"/> holds the text by column key
+/// (name, kind, code, county, town, address, main).
+/// </summary>
+public sealed record LocationImportRow(int Line, Dictionary<string, string> Cells);
 
-/// <summary>A problem in the file: the row, the template column it is in (when it is about one) and what to fix.</summary>
+/// <summary>A problem: the row (0 for the whole file), the column key it is in (when it is about one) and what to fix.</summary>
 public sealed record LocationImportProblem(int Line, string? Column, string Message);
 
-public sealed record LocationImportCheck(IReadOnlyList<LocationImportRow> Rows, IReadOnlyList<LocationImportProblem> Problems);
+/// <summary>A file read: every row (problems and all, to be fixed in the review) and its problems.</summary>
+public sealed record LocationImportRead(IReadOnlyList<LocationImportRow> Rows, IReadOnlyList<LocationImportProblem> Problems);
+
+public sealed record LocationImportRowsRequest(List<LocationImportRow>? Rows);
+
+public sealed record LocationImportCheck(IReadOnlyList<LocationImportProblem> Problems);
 
 public sealed record LocationImportRequest(List<LocationImportRow>? Rows, bool AllCompanies, List<Guid>? CompanyIds);
 
@@ -24,26 +33,29 @@ public sealed record LocationImportResult(int Imported);
 
 /// <summary>
 /// ONB-04 part 2, uploading locations (the first user of the BulkUpload pattern): download the
-/// template, upload a filled copy to check it, then import the checked rows for the chosen
-/// companies in one go. The rules are the same as adding a location by hand; the import checks
-/// the rows again, so nothing the browser sends is trusted.
+/// template, upload a filled copy (read back row by row for the person to review and edit), check
+/// the edited rows, then import them for the chosen companies in one go. The rules are the same as
+/// adding a location by hand; the import checks the rows again, so nothing the browser sends is trusted.
 /// </summary>
 public static class LocationsImport
 {
     public const int MaxRows = 1000;
     public const long MaxBytes = 2 * 1024 * 1024;
 
-    // The template's columns, in order; files are read by these names, so columns can move.
-    private const string NameColumn = "Location name", TypeColumn = "Type", CodeColumn = "Code", CountyColumn = "County",
-        TownColumn = "Town", AddressColumn = "Address", MainColumn = "Main location";
-    private static readonly string[] Columns = [NameColumn, TypeColumn, CodeColumn, CountyColumn, TownColumn, AddressColumn, MainColumn];
+    // The template's columns: key and header, in order. Files are read by header, so columns can move.
+    private const string NameColumn = "name", TypeColumn = "kind", CodeColumn = "code", CountyColumn = "county",
+        TownColumn = "town", AddressColumn = "address", MainColumn = "main";
+    private static readonly (string Key, string Header)[] Columns =
+    [
+        (NameColumn, "Location name"), (TypeColumn, "Type"), (CodeColumn, "Code"), (CountyColumn, "County"),
+        (TownColumn, "Town"), (AddressColumn, "Address"), (MainColumn, "Main location"),
+    ];
 
     private static readonly Dictionary<string, string> KindLabels = new()
     {
         ["head_office"] = "Head office", ["branch"] = "Branch", ["office"] = "Office", ["warehouse"] = "Warehouse", ["site"] = "Site",
     };
 
-    private sealed record RawRow(int Line, Dictionary<string, string> Cells);
 
     public static IEndpointRouteBuilder MapLocationsImportEndpoints(this IEndpointRouteBuilder app)
     {
@@ -56,7 +68,7 @@ public static class LocationsImport
             return Results.File(Template(regions.Select(r => r.Name).ToList()), Xlsx, "pesaroll-locations-template.xlsx");
         }).Produces(StatusCodes.Status200OK, contentType: Xlsx).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
-        import.MapPost("/import/check", async (IFormFile file, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        import.MapPost("/import/read", async (IFormFile file, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
@@ -65,10 +77,22 @@ public static class LocationsImport
                 throw TooBig();
             }
 
-            var raw = await ReadAsync(file, ct);
-            return Results.Ok(await CheckAsync(raw, db, ct));
+            var rows = await ReadAsync(file, ct);
+            var (_, problems) = await CheckAsync(rows, db, ct);
+            return Results.Ok(new LocationImportRead(rows, problems));
         }).DisableAntiforgery()   // the origin check (OriginCheckMiddleware) protects it, as for JSON requests
-          .Produces<LocationImportCheck>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<LocationImportRead>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+
+        import.MapPost("/import/check", async (LocationImportRowsRequest request, OrganizationsDbContext db, TenantContext tenant,
+            HttpContext http, CancellationToken ct) =>
+        {
+            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            var rows = Limit(request.Rows);
+            var (_, problems) = await CheckAsync(rows, db, ct);
+            return Results.Ok(new LocationImportCheck(problems));
+        }).Produces<LocationImportCheck>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
 
         import.MapPost("/import", async (LocationImportRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
@@ -76,27 +100,18 @@ public static class LocationsImport
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var rows = request.Rows ?? [];
-            if (rows.Count > MaxRows)
-            {
-                throw TooBig();
-            }
-
             var companies = await ChosenCompaniesAsync(request, db, ct);
-            var raw = rows.Select(r => new RawRow(r.Line, new Dictionary<string, string>
+            var (valid, problems) = await CheckAsync(Limit(request.Rows), db, ct);
+            if (problems.Count > 0)
             {
-                [NameColumn] = r.Name, [TypeColumn] = r.Kind, [CodeColumn] = r.Code ?? "", [CountyColumn] = r.RegionCode,
-                [TownColumn] = r.Town ?? "", [AddressColumn] = r.AddressLine ?? "", [MainColumn] = r.Main ? "Yes" : "No",
-            })).ToList();
-            var check = await CheckAsync(raw, db, ct);
-            if (check.Problems.Count > 0)
-            {
-                throw new AppException("ONB-3518", "Some rows need fixing. Upload the file again to see which.");
+                var lines = problems.Select(p => p.Line).Distinct().ToList();
+                var which = lines.Count == 1 ? $"Row {lines[0]} needs" : $"Rows {string.Join(", ", lines.Take(5))}{(lines.Count > 5 ? "…" : "")} need";
+                throw new AppException("ONB-3518", $"{which} fixing. Check them and try again.");
             }
 
             var now = clock.GetUtcNow();
             var countryCode = companies[0].CountryCode;
-            foreach (var row in check.Rows)
+            foreach (var row in valid)
             {
                 var location = new Location
                 {
@@ -134,7 +149,7 @@ public static class LocationsImport
             }
 
             await db.SaveChangesAsync(ct);   // one save: every row or none
-            return Results.Ok(new LocationImportResult(check.Rows.Count));
+            return Results.Ok(new LocationImportResult(valid.Count));
         }).Produces<LocationImportResult>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
 
@@ -157,7 +172,7 @@ public static class LocationsImport
         var lists = book.AddWorksheet("Lists");
         for (var c = 0; c < Columns.Length; c++)
         {
-            sheet.Cell(1, c + 1).Value = Columns[c];
+            sheet.Cell(1, c + 1).Value = Columns[c].Header;
         }
 
         sheet.Row(1).Style.Font.Bold = true;
@@ -181,7 +196,7 @@ public static class LocationsImport
     }
 
     /// <summary>The file's rows by column name: the first sheet of an .xlsx, or a .csv. Empty rows are skipped.</summary>
-    private static async Task<List<RawRow>> ReadAsync(IFormFile file, CancellationToken ct)
+    private static async Task<List<LocationImportRow>> ReadAsync(IFormFile file, CancellationToken ct)
     {
         await using var stream = file.OpenReadStream();
         using var copy = new MemoryStream();
@@ -196,22 +211,22 @@ public static class LocationsImport
 
         // The header finds the columns; a file without the two that can't be guessed isn't ours.
         var header = table[0].Select(h => h.Trim()).ToList();
-        var index = Columns.ToDictionary(c => c, c => header.FindIndex(h => string.Equals(h, c, StringComparison.OrdinalIgnoreCase)));
+        var index = Columns.ToDictionary(c => c.Key, c => header.FindIndex(h => string.Equals(h, c.Header, StringComparison.OrdinalIgnoreCase)));
         if (index[NameColumn] < 0 || index[CountyColumn] < 0)
         {
             throw Unreadable();
         }
 
-        var rows = new List<RawRow>();
+        var rows = new List<LocationImportRow>();
         for (var r = 1; r < table.Count; r++)
         {
-            var cells = Columns.ToDictionary(c => c, c => index[c] >= 0 && index[c] < table[r].Count ? table[r][index[c]].Trim() : "");
+            var cells = Columns.ToDictionary(c => c.Key, c => index[c.Key] >= 0 && index[c.Key] < table[r].Count ? table[r][index[c.Key]].Trim() : "");
             if (cells.Values.All(string.IsNullOrEmpty))
             {
                 continue;
             }
 
-            rows.Add(new RawRow(r + 1, cells));
+            rows.Add(new LocationImportRow(r + 1, cells));
             if (rows.Count > MaxRows)
             {
                 throw TooBig();
@@ -288,19 +303,34 @@ public static class LocationsImport
         return await db.CountryRegions.AsNoTracking().Where(r => r.CountryCode == country).OrderBy(r => r.Name).ToListAsync(ct);
     }
 
+    private sealed record ValidRow(int Line, string Name, string Kind, string? Code, string RegionCode, string? Town, string? AddressLine, bool Main);
+
+    /// <summary>Rows sent back for checking or importing: at most <see cref="MaxRows"/>, missing cells read as empty.</summary>
+    private static List<LocationImportRow> Limit(List<LocationImportRow>? rows)
+    {
+        if (rows is { Count: > MaxRows })
+        {
+            throw TooBig();
+        }
+
+        return (rows ?? []).Select(r => new LocationImportRow(r.Line,
+            Columns.ToDictionary(c => c.Key, c => r.Cells?.GetValueOrDefault(c.Key)?.Trim() ?? ""))).ToList();
+    }
+
     /// <summary>Each row checked with the rules for adding a location by hand, plus the file's own (codes and one main row).</summary>
-    private static async Task<LocationImportCheck> CheckAsync(List<RawRow> raw, OrganizationsDbContext db, CancellationToken ct)
+    private static async Task<(List<ValidRow> Rows, List<LocationImportProblem> Problems)> CheckAsync(
+        List<LocationImportRow> raw, OrganizationsDbContext db, CancellationToken ct)
     {
         if (raw.Count == 0)
         {
-            return new LocationImportCheck([], [new LocationImportProblem(0, null, "The file has no locations.")]);
+            return ([], [new LocationImportProblem(0, null, "The file has no locations.")]);
         }
 
         var regions = await RegionsAsync(db, ct);
         var taken = (await db.Locations.Where(l => l.Status == "active").Select(l => l.Code).ToListAsync(ct)).ToHashSet();
         var seenCodes = new HashSet<string>();
         var mainSeen = false;
-        var rows = new List<LocationImportRow>();
+        var rows = new List<ValidRow>();
         var problems = new List<LocationImportProblem>();
 
         foreach (var row in raw)
@@ -341,12 +371,12 @@ public static class LocationsImport
 
             if (problems.Count == before)
             {
-                rows.Add(new LocationImportRow(row.Line, name, kind!, code, region!.Code, town.Length == 0 ? null : town,
+                rows.Add(new ValidRow(row.Line, name, kind!, code, region!.Code, town.Length == 0 ? null : town,
                     address.Length == 0 ? null : address, main == true));
             }
         }
 
-        return new LocationImportCheck(rows, problems);
+        return (rows, problems);
     }
 
     private static async Task<List<Company>> ChosenCompaniesAsync(LocationImportRequest request, OrganizationsDbContext db, CancellationToken ct)

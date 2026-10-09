@@ -9,8 +9,9 @@ using Npgsql;
 namespace Pesaroll.Organizations.Tests;
 
 /// <summary>
-/// ONB-04 part 2: uploading locations. Download the template, upload a filled copy to check it
-/// (problems listed by row), then import the checked rows for chosen companies, all or nothing.
+/// ONB-04 part 2: uploading locations. Download the template, upload a filled copy (its rows come
+/// back as written, with problems by row and column) to review and edit, check the edited rows, then
+/// import them for chosen companies, all or nothing.
 /// </summary>
 public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixture<OnboardingTests.Api>
 {
@@ -19,9 +20,13 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
     private sealed record Created(Org Organization, Token Token);
     private sealed record Error(string Code, string Message, string Reference, Dictionary<string, string>? Fields);
     private sealed record Company(Guid Id, string LegalName);
-    private sealed record Row(int Line, string Name, string Kind, string? Code, string RegionCode, string? Town, string? AddressLine, bool Main);
+    private sealed record Row(int Line, Dictionary<string, string> Cells);
     private sealed record Problem(int Line, string? Column, string Message);
     private sealed record Checked(List<Row> Rows, List<Problem> Problems);
+    private sealed record RowsChecked(List<Problem> Problems);
+
+    private static Row R(int line, string name, string kind = "", string code = "", string county = "Nairobi", string town = "", string address = "", string main = "") =>
+        new(line, new() { ["name"] = name, ["kind"] = kind, ["code"] = code, ["county"] = county, ["town"] = town, ["address"] = address, ["main"] = main });
     private sealed record ImportResult(int Imported);
     private sealed record Location(Guid Id, string Code, string Name, string Kind, string? RegionCode, string? Town, string? WageAreaCode,
         bool AllCompanies, List<Guid> CompanyIds, List<Guid> MainFor);
@@ -67,7 +72,7 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
         var content = new ByteArrayContent(file);
         content.Headers.ContentType = new MediaTypeHeaderValue(type);
         form.Add(content, "file", name);
-        return await client.PostAsync("/api/locations/import/check", form);
+        return await client.PostAsync("/api/locations/import/read", form);
     }
 
     private static async Task<Error> ErrorFrom(HttpResponseMessage res) => (await res.Content.ReadFromJsonAsync<Error>())!;
@@ -93,7 +98,7 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
     }
 
     [Fact]
-    public async Task A_good_file_is_checked_and_its_rows_come_back_ready_to_import()
+    public async Task A_good_file_comes_back_row_by_row_as_written()
     {
         var (client, _, _) = await Onboarded();
         await AddCompany(client, "Oliech Restaurants Ltd");
@@ -106,10 +111,10 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var check = (await res.Content.ReadFromJsonAsync<Checked>())!;
         Assert.Empty(check.Problems);
-        Assert.Equal([
-            new Row(2, "Westlands branch", "branch", null, "047", "Westlands", null, false),
-            new Row(3, "Mombasa shop", "warehouse", "MSA-09", "001", "Mombasa", "Digo Road", true),
-        ], check.Rows);
+        // The rows come back as written (trimmed), for the person to review; the checks read the labels.
+        Assert.Equal([2, 3], check.Rows.Select(r => r.Line));
+        Assert.Equal(R(2, "Westlands branch", "Branch", "", "Nairobi", "Westlands", "", "No").Cells, check.Rows[0].Cells);
+        Assert.Equal(R(3, "Mombasa shop", "warehouse", "msa-09", "mombasa", "Mombasa", "Digo Road", "Yes").Cells, check.Rows[1].Cells);
     }
 
     [Fact]
@@ -128,9 +133,10 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
 
         Assert.Equal(new (int, string?)[]
         {
-            (2, "Location name"), (3, "Type"), (3, "County"), (5, "Code"), (5, "Main location"), (6, "Code"), (6, "Main location"),
+            (2, "name"), (3, "kind"), (3, "county"), (5, "code"), (5, "main"), (6, "code"), (6, "main"),
         }, check.Problems.Select(p => (p.Line, p.Column)).ToArray());
-        Assert.Contains("Atlantis", check.Problems.Single(p => p.Line == 3 && p.Column == "County").Message);
+        Assert.Contains("Atlantis", check.Problems.Single(p => p.Line == 3 && p.Column == "county").Message);
+        Assert.Equal(5, check.Rows.Count);   // every row comes back, problems and all, to be fixed in place
     }
 
     [Fact]
@@ -144,7 +150,7 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
         var check = (await (await Check(client, Encoding.UTF8.GetBytes(csv), "locations.csv", "text/csv")).Content.ReadFromJsonAsync<Checked>())!;
 
         Assert.Empty(check.Problems);
-        Assert.Equal("Karen Road, 2nd floor", Assert.Single(check.Rows).AddressLine);
+        Assert.Equal("Karen Road, 2nd floor", Assert.Single(check.Rows).Cells["address"]);
     }
 
     [Fact]
@@ -170,6 +176,22 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
     }
 
     [Fact]
+    public async Task Edited_rows_are_checked_again_without_a_file()
+    {
+        var (client, _, _) = await Onboarded();
+        await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var res = await client.PostAsJsonAsync("/api/locations/import/check", new
+        {
+            rows = new[] { R(2, "Westlands branch", "Branch"), R(3, "Atlantis office", "Castle", county: "Atlantis"), R(4, "Fixed shop", county: "Kisumu") },
+        });
+
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var check = (await res.Content.ReadFromJsonAsync<RowsChecked>())!;
+        Assert.Equal(new (int, string?)[] { (3, "kind"), (3, "county") }, check.Problems.Select(p => (p.Line, p.Column)).ToArray());
+    }
+
+    [Fact]
     public async Task Importing_saves_every_row_for_the_chosen_companies_and_the_main_row_becomes_their_main()
     {
         var (client, _, _) = await Onboarded();
@@ -179,7 +201,7 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
             ["Westlands branch", "Branch", null, "Nairobi", "Westlands", null, "No"],
             ["Mombasa shop", "Warehouse", null, "Mombasa", "Mombasa", "Digo Road", "Yes"]))).Content.ReadFromJsonAsync<Checked>())!;
 
-        var res = await client.PostAsJsonAsync("/api/locations/import", new { rows = check.Rows, allCompanies = false, companyIds = new[] { a.Id } });
+        var res = await client.PostAsJsonAsync("/api/locations/import", new { rows = check.Rows, allCompanies = false, companyIds = new[] { a.Id } });   // the rows as reviewed
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         Assert.Equal(2, (await res.Content.ReadFromJsonAsync<ImportResult>())!.Imported);
@@ -218,20 +240,18 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
 
         var res = await client.PostAsJsonAsync("/api/locations/import", new
         {
-            rows = new[]
-            {
-                new Row(2, "Westlands branch", "branch", null, "047", null, null, false),
-                new Row(3, "Nowhere shop", "branch", null, "999", null, null, false),
-            },
+            rows = new[] { R(2, "Westlands branch"), R(3, "Nowhere shop", county: "Atlantis") },
             allCompanies = false, companyIds = new[] { a.Id },
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        Assert.Equal("ONB-3518", (await ErrorFrom(res)).Code);
+        var error = await ErrorFrom(res);
+        Assert.Equal("ONB-3518", error.Code);
+        Assert.Contains("Row 3", error.Message);
         Assert.Equal(before, (await client.GetFromJsonAsync<List<Location>>("/api/locations"))!.Count);
         var noCompanies = await client.PostAsJsonAsync("/api/locations/import", new
         {
-            rows = new[] { new Row(2, "Westlands branch", "branch", null, "047", null, null, false) }, allCompanies = false, companyIds = Array.Empty<Guid>(),
+            rows = new[] { R(2, "Westlands branch") }, allCompanies = false, companyIds = Array.Empty<Guid>(),
         });
         Assert.Equal("ONB-3512", (await ErrorFrom(noCompanies)).Code);
     }

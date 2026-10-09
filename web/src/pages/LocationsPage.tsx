@@ -148,7 +148,7 @@ export default function LocationsPage() {
         </TableCard>
         <div><Button onClick={() => void navigate({ to: '/' })}>{t('locations.continue')}</Button></div>
 
-        {uploading && <UploadLocations companies={companies.data} onClose={() => setUploading(false)} />}
+        {uploading && <UploadLocations companies={companies.data} country={country} onClose={() => setUploading(false)} />}
         {editing && (
           <LocationDrawer location={editing === 'new' ? null : editing} companies={companies.data} country={country}
             // A new location serves the companies being shown, as the selector suggests.
@@ -302,14 +302,26 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
 type ImportRow = components['schemas']['LocationImportRow']
 
 /**
- * Uploading locations (ONB-04 part 2) with the shared BulkUpload drawer: the template, the checked
- * file, and (with several companies) which companies the new locations serve.
+ * Uploading locations (ONB-04 part 2) with the shared BulkUpload: the template, then a review of
+ * every row of the file (editable, with the problems in their cells) and, with several companies,
+ * which companies the new locations serve.
  */
-function UploadLocations({ companies, onClose }: { companies: Company[]; onClose: () => void }) {
+function UploadLocations({ companies, country, onClose }: { companies: Company[]; country: Country; onClose: () => void }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
   const [applies, setApplies] = useState<CompanySelection>({ all: true, ids: [] })
+
+  // The template's columns; list columns hold the same words as its dropdowns.
+  const columns = [
+    { key: 'name', label: t('locations.name') },
+    { key: 'kind', label: t('locations.kind'), options: locationKinds.map(k => ({ value: t(`locations.kinds.${k}`, { lng: 'en' }), label: t(`locations.kinds.${k}`) })) },
+    { key: 'code', label: t('locations.code') },
+    { key: 'county', label: local(country.regionLabel), options: country.regions.map(r => ({ value: r.name, label: r.name })) },
+    { key: 'town', label: t('companies.town') },
+    { key: 'address', label: t('locations.addressColumn') },
+    { key: 'main', label: t('locations.mainColumn'), options: [{ value: 'Yes', label: t('locations.yes') }, { value: 'No', label: t('locations.no') }] },
+  ]
 
   const downloadTemplate = async () => {
     const { data } = await api.GET('/api/locations/template', { parseAs: 'blob' })
@@ -322,8 +334,8 @@ function UploadLocations({ companies, onClose }: { companies: Company[]; onClose
     URL.revokeObjectURL(url)
   }
 
-  const check = async (file: File) => {
-    const { data, error } = await api.POST('/api/locations/import/check', {
+  const read = async (file: File) => {
+    const { data, error } = await api.POST('/api/locations/import/read', {
       body: { file } as never,
       bodySerializer: () => {
         const form = new FormData()
@@ -331,6 +343,13 @@ function UploadLocations({ companies, onClose }: { companies: Company[]; onClose
         return form
       },
     })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('read')
+  }
+
+  const check = async (rows: ImportRow[]) => {
+    const { data, error } = await api.POST('/api/locations/import/check', { body: { rows } })
     if (data) return data
     if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
     throw new Error('check')
@@ -352,16 +371,18 @@ function UploadLocations({ companies, onClose }: { companies: Company[]; onClose
   }
 
   return (
-    <BulkUpload<ImportRow> open title={t('locations.upload')} onClose={onClose} onDownloadTemplate={downloadTemplate}
-      onCheck={check} onImport={importRows}
+    <BulkUpload open title={t('locations.upload')} columns={columns} onClose={onClose} onDownloadTemplate={downloadTemplate}
+      onRead={read} onCheck={check} onImport={importRows}
       labels={{
-        ready: count => t('locations.ready', { count }),
+        review: count => t('locations.review', { count }),
         importButton: count => t('locations.importButton', { count }),
         templateHint: t('locations.templateHint'),
       }}>
       {companies.length > 1 && <>
-        <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
-          companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+        <div className="max-w-sm">
+          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
+            companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+        </div>
         <p className="m-0 text-hint text-muted">{t('locations.importMainHint')}</p>
       </>}
     </BulkUpload>

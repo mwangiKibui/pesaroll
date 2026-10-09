@@ -31,7 +31,7 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('ONB-3515',  'ONB',  'warning', 'This is the main location of {companies}. Make another location their main location first.', 'customer', 'Every company keeps exactly one main location: it can''t be deleted or unticked until another location is made main.'),
   ('ONB-3516',  'ONB',  'warning', 'We couldn''t read this file. Use the template (.xlsx) or a .csv file with the same columns.', 'customer', 'The upload isn''t an Excel or CSV file, or has no Location name and County columns.'),
   ('ONB-3517',  'ONB',  'warning', 'The file is too big. Upload up to 1000 locations and 2 MB at a time.', 'customer', 'More than 1,000 rows or 2 MB; split the file.'),
-  ('ONB-3518',  'ONB',  'warning', 'Some rows need fixing. Upload the file again to see which.', 'customer', 'The rows sent to import failed the checks (they are checked again on import); upload the file again for the list of problems.'),
+  ('ONB-3518',  'ONB',  'warning', 'Row {n} needs fixing. Check them and try again.', 'customer', 'The rows sent to import failed the checks (they are checked again on import); the review shows each problem in its cell.'),
   ('PAY-2001',  'PAY',  'error',   '{employee} has no KRA PIN, so PAYE can''t be filed.', 'customer', 'Add the KRA PIN on the employee''s profile, then rerun.'),
   ('PAY-2002',  'PAY',  'error',   '{employee}''s pay is below the minimum wage for {location}.', 'customer', 'Confirm pay and location; the run can''t be approved below the minimum.'),
   ('BILL-6001', 'BILL', 'warning', 'This company has more than {limit} active employees. Choose a plan to approve this pay run.', 'customer', 'Explain the plans; check for complimentary access first.'),

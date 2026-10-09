@@ -149,8 +149,7 @@
     "ONB-3513": "Another location already has this code. Choose a different one or leave it empty.",
     "ONB-3514": "We couldn't find that location.",
     "ONB-3516": "We couldn't read this file. Use the template (.xlsx) or a .csv file with the same columns.",
-    "ONB-3517": "The file is too big. Upload up to 1000 locations and 2 MB at a time.",
-    "ONB-3518": "Some rows need fixing. Upload the file again to see which."
+    "ONB-3517": "The file is too big. Upload up to 1000 locations and 2 MB at a time."
   },
   "organization": {
     "title": "What's your organization called?",
@@ -340,25 +339,35 @@
     "applyTo": "Apply to",
     "templateHint": "One row per location: name, type, code (optional), county, town, address, and Yes in Main location for the one that should be the main location.",
     "importMainHint": "The row marked Main location becomes the main location of the companies you choose.",
-    "ready_one": "{{count}} location ready",
-    "ready_other": "{{count}} locations ready",
     "importButton_one": "Import {{count}} location",
     "importButton_other": "Import {{count}} locations",
     "imported_one": "{{count}} location imported",
-    "imported_other": "{{count}} locations imported"
+    "imported_other": "{{count}} locations imported",
+    "review_one": "Review {{count}} location",
+    "review_other": "Review {{count}} locations",
+    "mainColumn": "Main location",
+    "yes": "Yes",
+    "no": "No",
+    "addressColumn": "Address"
   },
   "bulk": {
     "step1": "1. Download the template",
     "step2": "2. Upload your file",
-    "step3": "3. Choose where they apply",
     "download": "Download template",
-    "fileHint": "An .xlsx or .csv file with the template's columns, up to 1,000 rows. Nothing is saved until you import.",
+    "fileHint": "An .xlsx or .csv file with the template's columns, up to 1,000 rows. You'll review and fix the rows before anything is saved.",
     "choose": "Choose a file",
     "chooseAnother": "Choose another file",
     "checking": "Checking the file…",
-    "fixAndUpload": "Fix these rows in your file, then upload it again. Nothing has been saved.",
-    "problems_one": "{{count}} problem to fix",
-    "problems_other": "{{count}} problems to fix",
-    "row": "Row {{line}}"
+    "back": "Back to the file",
+    "search": "Search rows",
+    "searchPlaceholder": "Your search",
+    "toFix_one": "{{count}} row needs fixing.",
+    "toFix_other": "{{count}} rows need fixing.",
+    "onlyProblems": "Only rows to fix",
+    "showing": "Showing {{shown}} of {{total}}",
+    "rows": "Rows to import",
+    "rowHeader": "Row",
+    "cell": "{{column}}, row {{line}}",
+    "removeRow": "Remove row {{line}}"
   }
 }

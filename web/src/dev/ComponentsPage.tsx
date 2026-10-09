@@ -134,14 +134,17 @@ export default function ComponentsPage() {
             <CompanySelect label="Applies to" companies={companies} value={several} onChange={setSeveral} />
             <Button variant="secondary" onClick={() => setModal(true)}>Open a modal on top</Button>
           </Drawer>
-          {/* Example only: the "file check" finds one problem the first time and none after that. */}
+          {/* Example only: the file reads back with one problem; fix it in the review and import. */}
           {upload && (
-            <BulkUpload<{ name: string }> open title="Upload locations" onClose={() => setUpload(false)} onDownloadTemplate={async () => {}}
-              onCheck={async file => file.name.includes('fixed')
-                ? { rows: [{ name: 'Westlands branch' }, { name: 'Karen branch' }], problems: [] }
-                : { rows: [{ name: 'Westlands branch' }], problems: [{ line: 3, column: 'County', message: '"Atlantis" isn\'t a county we know.' }] }}
-              onImport={async () => { toast.show('2 locations imported'); return null }}
-              labels={{ ready: n => `${n} locations ready`, importButton: n => `Import ${n} locations`, templateHint: 'One row per location. Name a file "fixed" to see it pass.' }}>
+            <BulkUpload open title="Upload locations" onClose={() => setUpload(false)} onDownloadTemplate={async () => {}}
+              columns={[{ key: 'name', label: 'Location name' }, { key: 'county', label: 'County', options: [{ value: 'Nairobi', label: 'Nairobi' }, { value: 'Mombasa', label: 'Mombasa' }] }]}
+              onRead={async () => ({
+                rows: [{ line: 2, cells: { name: 'Westlands branch', county: 'Nairobi' } }, { line: 3, cells: { name: 'Atlantis office', county: 'Atlantis' } }],
+                problems: [{ line: 3, column: 'county', message: '"Atlantis" isn\'t a county we know.' }],
+              })}
+              onCheck={async rows => ({ problems: rows.filter(r => !['Nairobi', 'Mombasa'].includes(r.cells.county)).map(r => ({ line: r.line, column: 'county', message: 'Choose a county from the list.' })) })}
+              onImport={async rows => { toast.show(`${rows.length} locations imported`); return null }}
+              labels={{ review: n => `Review ${n} locations`, importButton: n => `Import ${n} locations`, templateHint: 'One row per location.' }}>
               <p className="m-0 text-muted">The company selector goes here.</p>
             </BulkUpload>
           )}

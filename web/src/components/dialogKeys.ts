@@ -8,6 +8,8 @@ export const focusable = 'a[href], button:not([disabled]), input:not([disabled])
  */
 export function trapKeys(e: KeyboardEvent, panel: HTMLElement | null, close: () => void) {
   if (e.key === 'Escape') {
+    // An open dropdown inside the dialog closes first; the next Escape closes the dialog.
+    if ((e.target as HTMLElement | null)?.getAttribute?.('aria-expanded') === 'true') return
     e.preventDefault()
     e.stopPropagation()
     close()

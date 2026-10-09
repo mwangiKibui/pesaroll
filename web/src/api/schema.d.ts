@@ -1502,7 +1502,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/locations/import/check": {
+    "/api/locations/import/read": {
         parameters: {
             query?: never;
             header?: never;
@@ -1523,6 +1523,72 @@ export interface paths {
                     "multipart/form-data": {
                         file: components["schemas"]["IFormFile"];
                     };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LocationImportRead"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/locations/import/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LocationImportRowsRequest"];
                 };
             };
             responses: {
@@ -1728,7 +1794,6 @@ export interface components {
             sw: string;
         };
         LocationImportCheck: {
-            rows: components["schemas"]["LocationImportRow"][];
             problems: components["schemas"]["LocationImportProblem"][];
         };
         LocationImportProblem: {
@@ -1736,6 +1801,10 @@ export interface components {
             line: number | string;
             column: null | string;
             message: string;
+        };
+        LocationImportRead: {
+            rows: components["schemas"]["LocationImportRow"][];
+            problems: components["schemas"]["LocationImportProblem"][];
         };
         LocationImportRequest: {
             rows: null | components["schemas"]["LocationImportRow"][];
@@ -1749,13 +1818,12 @@ export interface components {
         LocationImportRow: {
             /** Format: int32 */
             line: number | string;
-            name: string;
-            kind: string;
-            code: null | string;
-            regionCode: string;
-            town: null | string;
-            addressLine: null | string;
-            main: boolean;
+            cells: {
+                [key: string]: string;
+            };
+        };
+        LocationImportRowsRequest: {
+            rows: null | components["schemas"]["LocationImportRow"][];
         };
         LocationRequest: {
             code: null | string;
