@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
+import { BulkUpload, type BulkUploadRow } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -101,6 +102,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   const [editing, setEditing] = useState<StructureItem | 'new' | null>(null)
   const [deleting, setDeleting] = useState<StructureItem | null>(null)
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const nameOf = (key: LevelKey, id?: string | null) => {
     const found = all[key].data?.find(i => i.id === id)
     return found ? label(found) : null
@@ -144,7 +146,10 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   return (
     <>
       <TableCard title={t(`structure.${level}.tab`)} count={items.length}
-        actions={<Button onClick={() => setEditing('new')}>{t(`structure.${level}.add`)}</Button>}>
+        actions={<>
+          <Button variant="secondary" onClick={() => setUploading(true)}>{t(`structure.${level}.upload`)}</Button>
+          <Button onClick={() => setEditing('new')}>{t(`structure.${level}.add`)}</Button>
+        </>}>
         {items.length === 0 ? <EmptyState title={t(`structure.${level}.emptyTitle`)}>{t(`structure.${level}.emptyText`)}</EmptyState> : (
           <table>
             <thead>
@@ -178,6 +183,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
           </table>
         )}
       </TableCard>
+      {uploading && <UploadLevel level={level} all={all} companies={companies} onClose={() => setUploading(false)} />}
       {editing && (
         <ItemDrawer level={level} item={editing === 'new' ? null : editing} all={all} companies={companies}
           defaultApplies={defaultApplies} onClose={() => setEditing(null)} />
@@ -308,5 +314,92 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
         )}
       </form>
     </Drawer>
+  )
+}
+
+/**
+ * Uploading one level (ONB-05 part 2) with the shared BulkUpload: the template, a review of every
+ * row (up to 5,000, 100 a page), and, with several companies, which companies they serve. Rows name
+ * their division or department; departments may name one further up or down the same file.
+ */
+function UploadLevel({ level, all, companies, onClose }: { level: LevelKey; all: AllLevels; companies: Company[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const { api, queryClient } = useServices()
+  const toast = useToast()
+  const [applies, setApplies] = useState<CompanySelection>({ all: true, ids: [] })
+  const names = (key: LevelKey) => (all[key].data ?? []).map(i => ({ value: label(i), label: label(i) }))
+  const name = { key: 'name', label: t(`structure.${level}.nameLabel`) }
+  const code = { key: 'code', label: t('locations.code') }
+  const department = { key: 'department', label: t('structure.department'), options: names('departments') }
+  const columns = {
+    divisions: [name, code],
+    departments: [name, code, { key: 'division', label: t('structure.division'), options: names('divisions') }, { key: 'parent', label: t('structure.partOf'), options: names('departments') }],
+    positions: [name, code, department],
+    units: [name, code, department],
+  }[level]
+  type Path = '/api/structure/departments/import'
+
+  const downloadTemplate = async () => {
+    const { data } = await api.GET(`/api/structure/${level}/template` as '/api/structure/departments/template', { parseAs: 'blob' })
+    if (!data) throw new Error('template')
+    const url = URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `pesaroll-${level}-template.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const read = async (file: File) => {
+    const { data, error } = await api.POST(`/api/structure/${level}/import/read` as '/api/structure/departments/import/read', {
+      body: { file } as never,
+      bodySerializer: () => {
+        const form = new FormData()
+        form.append('file', file)
+        return form
+      },
+    })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('read')
+  }
+
+  const check = async (rows: BulkUploadRow[]) => {
+    const { data, error } = await api.POST(`/api/structure/${level}/import/check` as '/api/structure/departments/import/check', { body: { rows } as never })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('check')
+  }
+
+  const importRows = async (rows: BulkUploadRow[]) => {
+    // With one company the rows are simply its own.
+    const body = companies.length === 1
+      ? { rows, allCompanies: false, companyIds: [companies[0].id] }
+      : { rows, allCompanies: applies.all, companyIds: applies.all ? [] : applies.ids }
+    const { data, error } = await api.POST(`/api/structure/${level}/import` as Path, { body: body as never })
+    if (data) {
+      void queryClient.invalidateQueries({ queryKey: ['structure'] })
+      toast.show(t(`structure.${level}.imported`, { count: data.imported }))
+      return null
+    }
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('import')
+  }
+
+  return (
+    <BulkUpload open title={t(`structure.${level}.upload`)} columns={columns} onClose={onClose} onDownloadTemplate={downloadTemplate}
+      onRead={read} onCheck={check} onImport={importRows}
+      labels={{
+        review: count => t(`structure.${level}.review`, { count }),
+        importButton: count => t(`structure.${level}.importButton`, { count }),
+        templateHint: t(`structure.${level}.templateHint`),
+      }}>
+      {companies.length > 1 && (
+        <div className="max-w-sm">
+          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
+            companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+        </div>
+      )}
+    </BulkUpload>
   )
 }

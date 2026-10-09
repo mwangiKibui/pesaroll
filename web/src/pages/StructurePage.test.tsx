@@ -180,3 +180,36 @@ it('the setup steps in the sidebar are links to their pages, done or not', async
   await userEvent.click(within(steps).getByRole('link', { name: /Companies/ }))
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
 })
+
+it('each tab uploads its level through the review, here departments under ones in the same file', async () => {
+  const rows = [
+    { line: 2, cells: { name: 'Grill', code: '', division: '', parent: 'Kitchen' } },
+    { line: 3, cells: { name: 'Pastry', code: 'PAS', division: 'Restaurants', parent: '' } },
+  ]
+  const calls = withStructure({
+    'POST /api/structure/departments/import/read': () => json(200, { rows, problems: [] }),
+    'POST /api/structure/departments/import/check': () => json(200, { problems: [] }),
+    'POST /api/structure/departments/import': () => json(200, { imported: 2 }),
+  })
+  renderApp('/setup/structure')
+
+  await screen.findByRole('region', { name: 'Departments' })
+  await userEvent.click(within(panel('Departments')).getByRole('button', { name: 'Upload departments' }))
+  const upload = screen.getByRole('dialog', { name: 'Upload departments' })
+  await userEvent.upload(within(upload).getByLabelText('Choose a file'), new File(['x'], 'departments.xlsx'))
+  const review = await screen.findByRole('dialog', { name: 'Review 2 departments' })
+  expect(within(review).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Row', 'Department name', 'Code', 'Division', 'Part of', 'Actions'])
+  expect(within(review).getByRole('combobox', { name: 'Part of, row 2' })).toHaveValue('Kitchen')
+  await userEvent.click(within(review).getByRole('button', { name: 'Import 2 departments' }))
+
+  expect(await screen.findByText('2 departments imported')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/structure/departments/import')?.body)
+    .toEqual({ rows, allCompanies: false, companyIds: [restaurant.id] })
+
+  await tab('Positions')
+  expect(within(panel('Positions')).getByRole('button', { name: 'Upload positions' })).toBeInTheDocument()
+  await tab('Units')
+  expect(within(panel('Units')).getByRole('button', { name: 'Upload units' })).toBeInTheDocument()
+  await tab('Divisions')
+  expect(within(panel('Divisions')).getByRole('button', { name: 'Upload divisions' })).toBeInTheDocument()
+})

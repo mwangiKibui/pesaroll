@@ -300,7 +300,7 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
   )
 }
 
-type ImportRow = components['schemas']['LocationImportRow']
+type ImportRow = components['schemas']['ImportRow']
 
 /**
  * Uploading locations (ONB-04 part 2) with the shared BulkUpload: the template, then a review of

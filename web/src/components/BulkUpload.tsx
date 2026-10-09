@@ -51,6 +51,9 @@ interface BulkUploadProps {
 const isError = (value: unknown): value is ApiError => typeof value === 'object' && value !== null && 'code' in value && 'reference' in value
 const keyOf = (line: number | string, column?: string | null) => `${line}:${column ?? ''}`
 
+/** Rows shown at a time in the review, so files of thousands of rows stay quick to show and edit. */
+const PAGE = 100
+
 /**
  * Uploading many records at once, the same everywhere (locations now; departments, positions and
  * employees later). A drawer: 1 download the template, 2 upload the filled file. Then a large
@@ -68,6 +71,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const [reviewBanner, setReviewBanner] = useState<ApiError | 'network' | null>(null)
   const [busy, setBusy] = useState<'template' | 'read' | 'import' | null>(null)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
   // The rows that needed fixing when "Only rows to fix" was ticked: fixed rows stay in view until it is unticked.
   const [onlyProblems, setOnlyProblems] = useState<Set<string> | null>(null)
 
@@ -92,6 +96,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     if (!result) return
     setProblems(result.problems)
     setSearch('')
+    setPage(0)
     setOnlyProblems(null)
     // A file with rows opens the review; one with none says why, here.
     setRows(result.rows.length > 0 ? result.rows : null)
@@ -128,6 +133,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const shown = (rows ?? []).filter(r =>
     (!onlyProblems || onlyProblems.has(String(r.line)))
     && (!search.trim() || matches(`${r.line} ${Object.values(r.cells).join(' ')}`, search)))
+  // Search and the filter look across every row; the table shows one page of what they find.
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE))
+  const at = Math.min(page, pages - 1)
+  const onPage = shown.slice(at * PAGE, at * PAGE + PAGE)
   const step = 'm-0 text-label font-semibold text-ink'
 
   return (
@@ -176,11 +185,11 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         <div className="flex flex-wrap items-end gap-4">
           <div className="w-full max-w-sm">
             <TextField type="search" label={t('bulk.search')} placeholder={t('bulk.searchPlaceholder')} hideLabel
-              value={search} onChange={e => setSearch(e.target.value)} />
+              value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
           </div>
           {linesWithProblems.size > 0 && <Notice>{t('bulk.toFix', { count: linesWithProblems.size })}</Notice>}
           {(linesWithProblems.size > 0 || onlyProblems) && <>
-            <Checkbox label={t('bulk.onlyProblems')} checked={!!onlyProblems} onChange={e => setOnlyProblems(e.target.checked ? new Set(linesWithProblems) : null)} />
+            <Checkbox label={t('bulk.onlyProblems')} checked={!!onlyProblems} onChange={e => { setOnlyProblems(e.target.checked ? new Set(linesWithProblems) : null); setPage(0) }} />
           </>}
           <span className="ml-auto text-label text-muted">{t('bulk.showing', { shown: shown.length, total: rows?.length ?? 0 })}</span>
         </div>
@@ -196,7 +205,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
               </tr>
             </thead>
             <tbody>
-              {shown.map(r => (
+              {onPage.map(r => (
                 <tr key={r.line} className={linesWithProblems.has(String(r.line)) ? 'bg-warning-soft' : ''}>
                   <td className="border-b border-line-soft px-3 py-2 align-top font-mono text-muted">
                     {r.line}
@@ -225,6 +234,13 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
             </tbody>
           </table>
         </div>
+        {(rows?.length ?? 0) > PAGE && (
+          <nav aria-label={t('bulk.pages')} className="flex items-center justify-end gap-3">
+            <span className="text-label text-muted">{t('bulk.page', { page: at + 1, pages })}</span>
+            <Button variant="secondary" disabled={at === 0} onClick={() => setPage(at - 1)}>{t('bulk.previous')}</Button>
+            <Button variant="secondary" disabled={at >= pages - 1} onClick={() => setPage(at + 1)}>{t('bulk.next')}</Button>
+          </nav>
+        )}
       </Modal>
     </>
   )

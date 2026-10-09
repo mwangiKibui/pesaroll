@@ -63,7 +63,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3514 | We couldn't find that location. | Customer | The location doesn't exist, was deleted, or belongs to another organization. |
 | ONB-3515 | This is the main location of {companies}. Make another location their main location first. | Customer | Every company keeps exactly one main location: it can't be deleted or unticked until another location is made main. |
 | ONB-3516 | We couldn't read this file. Use the template (.xlsx) or a .csv file with the same columns. | Customer | The upload isn't an Excel or CSV file, or has no Location name and County columns. |
-| ONB-3517 | The file is too big. Upload up to 1000 locations and 2 MB at a time. | Customer | More than 1,000 rows or 2 MB; split the file. |
+| ONB-3517 | The file is too big. Upload up to {max} {things} and {MB} MB at a time. | Customer | Locations: 1,000 rows, 2 MB. Divisions, departments, positions and units: 5,000 rows, 5 MB. Split the file. |
 | ONB-3518 | Row {n} needs fixing. Check them and try again. | Customer | The rows sent to import failed the checks (they are checked again on import); the review shows each problem in its cell. |
 | ONB-3519 | Some details don't look right. Check the fields marked. | Customer | An org structure detail failed its check; fields says which (name or title, code, division, part of, department, companies). |
 | ONB-3520 | Another one already has this code. Choose a different one or leave it empty. | Customer | Codes are unique per level (division, department, position, unit) in the organization. |

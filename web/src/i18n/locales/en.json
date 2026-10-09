@@ -149,7 +149,6 @@
     "ONB-3513": "Another location already has this code. Choose a different one or leave it empty.",
     "ONB-3514": "We couldn't find that location.",
     "ONB-3516": "We couldn't read this file. Use the template (.xlsx) or a .csv file with the same columns.",
-    "ONB-3517": "The file is too big. Upload up to 1000 locations and 2 MB at a time.",
     "ONB-3519": "Some details don't look right. Check the fields marked.",
     "ONB-3520": "Another one already has this code. Choose a different one or leave it empty.",
     "ONB-3521": "We couldn't find that. It may have been deleted."
@@ -368,7 +367,11 @@
     "rows": "Rows to import",
     "rowHeader": "Row",
     "cell": "{{column}}, row {{line}}",
-    "removeRow": "Remove row {{line}}"
+    "removeRow": "Remove row {{line}}",
+    "pages": "Pages of rows",
+    "page": "Page {{page}} of {{pages}}",
+    "previous": "Previous page",
+    "next": "Next page"
   },
   "structure": {
     "title": "How is your organization organised?",
@@ -396,7 +399,15 @@
       "saved": "Division saved",
       "deleted": "Division deleted",
       "emptyTitle": "No divisions",
-      "emptyText": "Optional: group departments across companies, like Restaurants and Catering."
+      "emptyText": "Optional: group departments across companies, like Restaurants and Catering.",
+      "upload": "Upload divisions",
+      "templateHint": "One row per division: its name and, if you like, a code.",
+      "review_one": "Review {{count}} division",
+      "review_other": "Review {{count}} divisions",
+      "importButton_one": "Import {{count}} division",
+      "importButton_other": "Import {{count}} divisions",
+      "imported_one": "{{count}} division imported",
+      "imported_other": "{{count}} divisions imported"
     },
     "departments": {
       "tab": "Departments",
@@ -410,7 +421,15 @@
       "saved": "Department saved",
       "deleted": "Department deleted",
       "emptyTitle": "No departments yet",
-      "emptyText": "Add the departments people work in."
+      "emptyText": "Add the departments people work in.",
+      "upload": "Upload departments",
+      "templateHint": "One row per department: name, code (optional), division (optional) and Part of: the department it sits under, which can be another row of the file.",
+      "review_one": "Review {{count}} department",
+      "review_other": "Review {{count}} departments",
+      "importButton_one": "Import {{count}} department",
+      "importButton_other": "Import {{count}} departments",
+      "imported_one": "{{count}} department imported",
+      "imported_other": "{{count}} departments imported"
     },
     "positions": {
       "tab": "Positions",
@@ -424,7 +443,15 @@
       "saved": "Position saved",
       "deleted": "Position deleted",
       "emptyTitle": "No positions yet",
-      "emptyText": "Add the jobs people are hired into."
+      "emptyText": "Add the jobs people are hired into.",
+      "upload": "Upload positions",
+      "templateHint": "One row per position: title, code (optional) and the department it is in (leave it empty for a position used across departments).",
+      "review_one": "Review {{count}} position",
+      "review_other": "Review {{count}} positions",
+      "importButton_one": "Import {{count}} position",
+      "importButton_other": "Import {{count}} positions",
+      "imported_one": "{{count}} position imported",
+      "imported_other": "{{count}} positions imported"
     },
     "units": {
       "tab": "Units",
@@ -438,7 +465,15 @@
       "saved": "Unit saved",
       "deleted": "Unit deleted",
       "emptyTitle": "No units",
-      "emptyText": "Optional: teams or shifts inside a department."
+      "emptyText": "Optional: teams or shifts inside a department.",
+      "upload": "Upload units",
+      "templateHint": "One row per unit: name, code (optional) and the department it is in.",
+      "review_one": "Review {{count}} unit",
+      "review_other": "Review {{count}} units",
+      "importButton_one": "Import {{count}} unit",
+      "importButton_other": "Import {{count}} units",
+      "imported_one": "{{count}} unit imported",
+      "imported_other": "{{count}} units imported"
     }
   }
 }
