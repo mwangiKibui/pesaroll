@@ -141,11 +141,11 @@ it('deleting asks first; a main location is refused with the reason', async () =
   expect(within(table()).getByText('HQ-01')).toBeInTheDocument()
 })
 
-it('Save and continue goes on to the org structure', async () => {
+it('Proceed goes on to the org structure', async () => {
   oneCompany()
   renderApp('/setup/locations')
 
-  await userEvent.click(await screen.findByRole('button', { name: 'Save and continue' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Proceed to Org structure' }))
 
   expect(await screen.findByRole('heading', { name: 'How is your organization organised?' })).toBeInTheDocument()
 })

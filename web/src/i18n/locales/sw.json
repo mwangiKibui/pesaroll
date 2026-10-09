@@ -41,7 +41,8 @@
       "employees": "Wafanyakazi",
       "history": "Historia ya mishahara",
       "team": "Ufikiaji wa timu"
-    }
+    },
+    "proceed": "Endelea kwa {{step}}"
   },
   "theme": {
     "label": "Mwonekano",
@@ -167,8 +168,7 @@
     "createdText": "Kisha, utaongeza kampuni zako.",
     "proceed": "Endelea kwenye dashibodi ya shirika",
     "save": "Hifadhi mabadiliko",
-    "saved": "Jina la shirika limehifadhiwa",
-    "continue": "Endelea kwa kampuni"
+    "saved": "Jina la shirika limehifadhiwa"
   },
   "home": {
     "title": "Karibu, {{name}}",
@@ -205,7 +205,6 @@
     "added": "Kampuni imeongezwa",
     "saved": "Kampuni imehifadhiwa",
     "deleted": "Kampuni imefutwa",
-    "continue": "Hifadhi na uendelee",
     "legalName": "Jina rasmi",
     "legalNamePlaceholder": "Jina lako rasmi",
     "legalNameHint": "Kama lilivyosajiliwa, jinsi linavyoonekana kwenye fomu za kisheria.",
@@ -319,7 +318,6 @@
     "added": "Eneo limeongezwa",
     "saved": "Eneo limehifadhiwa",
     "deleted": "Eneo limefutwa",
-    "continue": "Hifadhi na uendelee",
     "name": "Jina la eneo",
     "namePlaceholder": "Jina la eneo lako",
     "code": "Msimbo",
@@ -377,7 +375,6 @@
     "title": "Shirika lako limepangwa vipi?",
     "intro": "Ongeza idara watu wanamofanyia kazi na nafasi wanazoajiriwa. Vitengo vikuu na vitengo vidogo si lazima. Kila kimoja kinaweza kuwa kwa kampuni zote au zilizochaguliwa.",
     "levels": "Ngazi za muundo wa shirika",
-    "continue": "Hifadhi na uendelee",
     "suggestedFor": "Inapendekezwa kwa {{industry}}",
     "suggestedDepartments": "Idara: {{names}}",
     "suggestedPositions_one": "Nafasi {{count}}, {{examples}}",

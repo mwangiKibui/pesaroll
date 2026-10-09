@@ -41,7 +41,8 @@
       "employees": "Employees",
       "history": "Payroll history",
       "team": "Team access"
-    }
+    },
+    "proceed": "Proceed to {{step}}"
   },
   "theme": {
     "label": "Theme",
@@ -167,8 +168,7 @@
     "createdText": "Next, you'll add your companies.",
     "proceed": "Proceed to Org Dashboard",
     "save": "Save changes",
-    "saved": "Organization name saved",
-    "continue": "Continue to companies"
+    "saved": "Organization name saved"
   },
   "home": {
     "title": "Karibu, {{name}}",
@@ -205,7 +205,6 @@
     "added": "Company added",
     "saved": "Company saved",
     "deleted": "Company deleted",
-    "continue": "Save and continue",
     "legalName": "Legal name",
     "legalNamePlaceholder": "Your legal name",
     "legalNameHint": "As registered, the way it appears on statutory returns.",
@@ -319,7 +318,6 @@
     "added": "Location added",
     "saved": "Location saved",
     "deleted": "Location deleted",
-    "continue": "Save and continue",
     "name": "Location name",
     "namePlaceholder": "Your location name",
     "code": "Code",
@@ -377,7 +375,6 @@
     "title": "How is your organization organised?",
     "intro": "Add the departments people work in and the positions they're hired into. Divisions and units are optional. Each can be for all companies or chosen ones.",
     "levels": "Org structure levels",
-    "continue": "Save and continue",
     "suggestedFor": "Suggested for {{industry}}",
     "suggestedDepartments": "Departments: {{names}}",
     "suggestedPositions_one": "{{count}} position, {{examples}}",

@@ -171,11 +171,11 @@ it('with several companies, the selector filters every tab', async () => {
   expect(within(panel('Departments')).getByText('OPE-01')).toBeInTheDocument()   // for all companies
 })
 
-it('Save and continue goes to the dashboard with four steps done', async () => {
+it('Proceed goes to the dashboard with four steps done', async () => {
   withStructure()
   renderApp('/setup/structure')
 
-  await userEvent.click(await screen.findByRole('button', { name: 'Save and continue' }))
+  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Org Dashboard' }))
 
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
   expect(await screen.findByText('Finish setting up · 4 of 10')).toBeInTheDocument()

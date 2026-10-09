@@ -17,6 +17,7 @@ import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import i18n from '../i18n'
 import { useCompanies, useSetupDone, useStructure, type LevelKey, type StructureItem } from '../setup/hooks'
+import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
 
 type Company = components['schemas']['CompanyResponse']
@@ -85,7 +86,8 @@ export default function StructurePage() {
             </TabPanel>
           ))}
         </div>
-        <div><Button onClick={() => void navigate({ to: '/' })}>{t('structure.continue')}</Button></div>
+        {/* Payroll schedules (ONB-06) isn't built yet, so the dashboard comes next. */}
+        <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
       </>}
     </SetupLayout>
   )
