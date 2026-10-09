@@ -28,7 +28,7 @@ it('with no companies yet, offers the first one, named after the organization an
 
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
   const steps = screen.getByRole('list', { name: 'Setup steps' })
-  expect(within(steps).getByText('Companies').closest('li')).toHaveAttribute('aria-current', 'step')
+  expect(within(steps).getByText('Companies').closest('a')).toHaveAttribute('aria-current', 'page')
   expect(within(steps).getByText('Organization').closest('li')).toHaveTextContent('✓')
   expect(await screen.findByRole('heading', { name: 'Add your first company' })).toBeInTheDocument()
   await expectNoA11yViolations(container)

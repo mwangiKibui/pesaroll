@@ -40,7 +40,7 @@ it('lists the head office made with the company; with one company there is no co
     .toEqual(['Head officeHQ-01', 'Head office', 'Nairobi, Nairobi', 'Mama Oliech Restaurant Ltd', 'Mama Oliech Restaurant Ltd'])
   expect(screen.queryByRole('button', { name: /Show companies/ })).not.toBeInTheDocument()
   const steps = screen.getByRole('list', { name: 'Setup steps' })
-  expect(within(steps).getByText('Locations').closest('li')).toHaveAttribute('aria-current', 'step')
+  expect(within(steps).getByText('Locations').closest('a')).toHaveAttribute('aria-current', 'page')
   expect(within(steps).getByText('Locations').closest('li')).toHaveTextContent('✓')
   await expectNoA11yViolations(container)
 })

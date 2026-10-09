@@ -181,3 +181,18 @@ it('Save and continue goes to the dashboard with four steps done', async () => {
   expect(await screen.findByText('Finish setting up · 4 of 10')).toBeInTheDocument()
   expect(screen.getAllByText('Next: Payroll schedules').length).toBeGreaterThan(0)
 })
+
+it('the setup steps in the sidebar are links to their pages, done or not', async () => {
+  withStructure()
+  renderApp('/setup/structure')
+  const steps = await screen.findByRole('list', { name: 'Setup steps' })
+
+  expect(within(steps).getByRole('link', { name: /Organization/ })).toHaveAttribute('href', '/setup/organization')
+  expect(within(steps).getByRole('link', { name: /Companies/ })).toHaveAttribute('href', '/setup/companies')
+  expect(within(steps).getByRole('link', { name: /Locations/ })).toHaveAttribute('href', '/setup/locations')
+  expect(within(steps).getByRole('link', { name: /Org structure/ })).toHaveAttribute('aria-current', 'page')
+  expect(within(steps).queryByRole('link', { name: /Payroll schedules/ })).not.toBeInTheDocument()   // not built yet
+
+  await userEvent.click(within(steps).getByRole('link', { name: /Companies/ }))
+  expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
+})

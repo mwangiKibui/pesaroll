@@ -17,7 +17,7 @@ it('asks for the organization name, with the setup steps and who is signed in', 
   expect(screen.getByRole('textbox', { name: 'Organization name' })).toHaveAttribute('placeholder', 'Your organization name')
   const steps = screen.getByRole('list', { name: 'Setup steps' })
   expect(within(steps).getAllByRole('listitem')).toHaveLength(10)
-  expect(within(steps).getByText('Organization').closest('li')).toHaveAttribute('aria-current', 'step')
+  expect(within(steps).getByText('Organization').closest('a')).toHaveAttribute('aria-current', 'page')
   const navbar = screen.getByRole('banner')
   expect(await within(navbar).findByText('Wanjiru Kamau')).toBeInTheDocument()
   expect(within(navbar).getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
