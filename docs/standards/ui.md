@@ -86,6 +86,7 @@ Colour tokens (light / dark):
 ## Forms and errors
 
 - Labels above fields, hints below in secondary text, "optional" beside the label; required fields carry no marker.
+- **Action buttons on steps lead with an icon** left of their words: a plus for Add, an upload arrow for Upload, a download arrow for Download template (`components/icons.tsx`). Add comes before Upload. On a tabbed step (Org structure) one Add and one Upload sit on the tab row, on the right, and ask for the type first ("What are you adding?", "Choose what to upload"), starting on the tab you're on.
 - Buttons say what they do: "Send code", "Verify and continue", never "Submit" or "OK". While waiting, a button is `busy`.
 - Choosing from a list uses the searchable `SelectField`, with a placeholder like any field ("Your county").
 - A field's error appears under it and is read out with it (`TextField error=…`).

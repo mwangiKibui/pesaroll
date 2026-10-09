@@ -350,8 +350,8 @@
     "addressColumn": "Address"
   },
   "bulk": {
-    "step1": "1. Download the template",
-    "step2": "2. Upload your file",
+    "step1": "Download the template",
+    "step2": "Upload your file",
     "download": "Download template",
     "fileHint": "An .xlsx or .csv file with the template's columns, up to 1,000 rows. You'll review and fix the rows before anything is saved.",
     "choose": "Choose a file",
@@ -400,7 +400,6 @@
       "deleted": "Division deleted",
       "emptyTitle": "No divisions",
       "emptyText": "Optional: group departments across companies, like Restaurants and Catering.",
-      "upload": "Upload divisions",
       "templateHint": "One row per division: its name and, if you like, a code.",
       "review_one": "Review {{count}} division",
       "review_other": "Review {{count}} divisions",
@@ -422,7 +421,6 @@
       "deleted": "Department deleted",
       "emptyTitle": "No departments yet",
       "emptyText": "Add the departments people work in.",
-      "upload": "Upload departments",
       "templateHint": "One row per department: name, code (optional), division (optional) and Part of: the department it sits under, which can be another row of the file.",
       "review_one": "Review {{count}} department",
       "review_other": "Review {{count}} departments",
@@ -444,7 +442,6 @@
       "deleted": "Position deleted",
       "emptyTitle": "No positions yet",
       "emptyText": "Add the jobs people are hired into.",
-      "upload": "Upload positions",
       "templateHint": "One row per position: title, code (optional) and the department it is in (leave it empty for a position used across departments).",
       "review_one": "Review {{count}} position",
       "review_other": "Review {{count}} positions",
@@ -466,7 +463,6 @@
       "deleted": "Unit deleted",
       "emptyTitle": "No units",
       "emptyText": "Optional: teams or shifts inside a department.",
-      "upload": "Upload units",
       "templateHint": "One row per unit: name, code (optional) and the department it is in.",
       "review_one": "Review {{count}} unit",
       "review_other": "Review {{count}} units",
@@ -474,6 +470,10 @@
       "importButton_other": "Import {{count}} units",
       "imported_one": "{{count}} unit imported",
       "imported_other": "{{count}} units imported"
-    }
+    },
+    "add": "Add structure",
+    "upload": "Upload structure",
+    "whatAdding": "What are you adding?",
+    "whatUploading": "Choose what to upload"
   }
 }

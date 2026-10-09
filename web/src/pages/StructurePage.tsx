@@ -11,7 +11,8 @@ import { CompanySelect, type CompanySelection } from '../components/CompanySelec
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice } from '../components/feedback'
-import { SelectField, TextField } from '../components/fields'
+import { RadioGroup, SelectField, TextField } from '../components/fields'
+import { PlusIcon, UploadIcon } from '../components/icons'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
@@ -52,6 +53,8 @@ export default function StructurePage() {
   const done = useSetupDone(true)
   const [tab, setTab] = useState<LevelKey>('departments')
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
+  const [adding, setAdding] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const ready = companies.data && levels.every(l => data[l].data)
   const visible = (items: StructureItem[]) => items.filter(i => shown.all || i.allCompanies || i.companyIds.some(id => shown.ids.includes(id)))
@@ -72,14 +75,24 @@ export default function StructurePage() {
           </div>
         )}
         <div className="flex flex-col gap-4">
-          <Tabs id={tabsId} label={t('structure.levels')} current={tab} onChange={key => setTab(key as LevelKey)}
-            tabs={levels.map(l => ({ key: l, label: t(`structure.${l}.tab`) }))} />
+          {/* One Add and one Upload for every level, on the tab row; both start on the tab you're on. */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Tabs id={tabsId} label={t('structure.levels')} current={tab} onChange={key => setTab(key as LevelKey)}
+              tabs={levels.map(l => ({ key: l, label: t(`structure.${l}.tab`) }))} />
+            <div className="ml-auto flex gap-2">
+              <Button onClick={() => setAdding(true)}><PlusIcon />{t('structure.add')}</Button>
+              <Button variant="secondary" onClick={() => setUploading(true)}><UploadIcon />{t('structure.upload')}</Button>
+            </div>
+          </div>
           {levels.map(l => (
             <TabPanel key={l} id={tabsId} tab={l} current={tab}>
               <LevelTable level={l} items={visible(data[l].data!)} all={data} companies={companies.data} defaultApplies={defaultApplies} />
             </TabPanel>
           ))}
         </div>
+        {adding && <ItemDrawer initialLevel={tab} item={null} all={data} companies={companies.data} defaultApplies={defaultApplies}
+          onClose={() => setAdding(false)} />}
+        {uploading && <UploadStructure initialLevel={tab} all={data} companies={companies.data} onClose={() => setUploading(false)} />}
         {/* Payroll schedules (ONB-06) isn't built yet, so the dashboard comes next. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
       </>}
@@ -99,10 +112,9 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const [editing, setEditing] = useState<StructureItem | 'new' | null>(null)
+  const [editing, setEditing] = useState<StructureItem | null>(null)
   const [deleting, setDeleting] = useState<StructureItem | null>(null)
   const [busy, setBusy] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const nameOf = (key: LevelKey, id?: string | null) => {
     const found = all[key].data?.find(i => i.id === id)
     return found ? label(found) : null
@@ -145,11 +157,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
 
   return (
     <>
-      <TableCard title={t(`structure.${level}.tab`)} count={items.length}
-        actions={<>
-          <Button variant="secondary" onClick={() => setUploading(true)}>{t(`structure.${level}.upload`)}</Button>
-          <Button onClick={() => setEditing('new')}>{t(`structure.${level}.add`)}</Button>
-        </>}>
+      <TableCard title={t(`structure.${level}.tab`)} count={items.length}>
         {items.length === 0 ? <EmptyState title={t(`structure.${level}.emptyTitle`)}>{t(`structure.${level}.emptyText`)}</EmptyState> : (
           <table>
             <thead>
@@ -183,9 +191,8 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
           </table>
         )}
       </TableCard>
-      {uploading && <UploadLevel level={level} all={all} companies={companies} onClose={() => setUploading(false)} />}
       {editing && (
-        <ItemDrawer level={level} item={editing === 'new' ? null : editing} all={all} companies={companies}
+        <ItemDrawer initialLevel={level} item={editing} all={all} companies={companies}
           defaultApplies={defaultApplies} onClose={() => setEditing(null)} />
       )}
       <ConfirmDialog open={!!deleting} title={t('locations.deleteTitle', { name: deleting ? label(deleting) : '' })}
@@ -196,8 +203,9 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   )
 }
 
-function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
-  level: LevelKey
+/** Adding asks for the type first (Division, Department, Position or Unit); editing keeps the item's. */
+function ItemDrawer({ initialLevel, item, all, companies, defaultApplies, onClose }: {
+  initialLevel: LevelKey
   item: StructureItem | null
   all: AllLevels
   companies: Company[]
@@ -208,8 +216,9 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
   const { api, queryClient } = useServices()
   const toast = useToast()
   const formId = useId()
+  const [level, setLevel] = useState<LevelKey>(initialLevel)
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
-  const { register, handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, control, setError, clearErrors, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
       name: item ? label(item) : '',
       code: item?.code ?? '',
@@ -283,7 +292,7 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
   )
 
   return (
-    <Drawer open title={t(item ? `structure.${level}.editTitle` : `structure.${level}.add`)} onClose={onClose}
+    <Drawer open title={item ? t(`structure.${level}.editTitle`) : t('structure.add')} onClose={onClose}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{item ? t('locations.save') : t(`structure.${level}.add`)}</Button>
@@ -291,6 +300,11 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
+        {!item && (
+          <RadioGroup label={t('structure.whatAdding')} name={`${formId}-kind`} value={level}
+            onChange={value => { setLevel(value as LevelKey); clearErrors() }}
+            options={levels.map(l => ({ value: l, label: t(`structure.${l}.column`) }))} />
+        )}
         <TextField label={t(`structure.${level}.nameLabel`)} placeholder={t(`structure.${level}.namePlaceholder`)} maxLength={120}
           error={errors.name?.message} {...register('name')} />
         <TextField label={t('locations.code')} placeholder={t('structure.codePlaceholder')} optional hint={t('structure.codeHint')}
@@ -322,7 +336,25 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
  * row (up to 5,000, 100 a page), and, with several companies, which companies they serve. Rows name
  * their division or department; departments may name one further up or down the same file.
  */
-function UploadLevel({ level, all, companies, onClose }: { level: LevelKey; all: AllLevels; companies: Company[]; onClose: () => void }) {
+function UploadStructure({ initialLevel, all, companies, onClose }: { initialLevel: LevelKey; all: AllLevels; companies: Company[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const [level, setLevel] = useState<LevelKey>(initialLevel)
+  // Choosing another type starts the upload over, with that type's template and columns.
+  return <UploadLevel key={level} level={level} all={all} companies={companies} onClose={onClose}
+    firstStep={{
+      title: t('structure.whatUploading'),
+      content: <RadioGroup label={t('structure.whatUploading')} name="upload-kind" value={level} onChange={value => setLevel(value as LevelKey)}
+        options={levels.map(l => ({ value: l, label: t(`structure.${l}.tab`) }))} />,
+    }} />
+}
+
+function UploadLevel({ level, all, companies, onClose, firstStep }: {
+  level: LevelKey
+  all: AllLevels
+  companies: Company[]
+  onClose: () => void
+  firstStep: { title: string; content: ReactNode }
+}) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
@@ -387,7 +419,7 @@ function UploadLevel({ level, all, companies, onClose }: { level: LevelKey; all:
   }
 
   return (
-    <BulkUpload open title={t(`structure.${level}.upload`)} columns={columns} onClose={onClose} onDownloadTemplate={downloadTemplate}
+    <BulkUpload open title={t('structure.upload')} firstStep={firstStep} columns={columns} onClose={onClose} onDownloadTemplate={downloadTemplate}
       onRead={read} onCheck={check} onImport={importRows}
       labels={{
         review: count => t(`structure.${level}.review`, { count }),

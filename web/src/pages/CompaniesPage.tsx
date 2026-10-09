@@ -7,6 +7,7 @@ import { z } from 'zod'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
+import { PlusIcon } from '../components/icons'
 import { Button, IconButton } from '../components/Button'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
@@ -94,7 +95,7 @@ export default function CompaniesPage() {
     void navigate({ to: '/setup/locations' })
   }
 
-  const addButton = <Button onClick={() => { setNeedOne(false); setEditing('new') }}>{t('companies.add')}</Button>
+  const addButton = <Button onClick={() => { setNeedOne(false); setEditing('new') }}><PlusIcon />{t('companies.add')}</Button>
 
   return (
     <SetupLayout current="companies" done={done} hasOrganization>

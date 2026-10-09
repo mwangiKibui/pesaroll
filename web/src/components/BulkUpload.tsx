@@ -5,6 +5,7 @@ import { buttonClasses } from './buttonStyles'
 import { Drawer } from './Drawer'
 import { FormErrorBanner, Notice, type ApiError } from './feedback'
 import { Checkbox, SelectField, TextField } from './fields'
+import { DownloadIcon } from './icons'
 import { Modal } from './Modal'
 import { matches } from './search'
 
@@ -46,6 +47,8 @@ interface BulkUploadProps {
   }
   /** Where the rows apply (the company selector), shown above the review table; left out when there is nothing to choose. */
   children?: ReactNode
+  /** A step before the template (what to upload, when one button uploads several kinds). */
+  firstStep?: { title: string; content: ReactNode }
 }
 
 const isError = (value: unknown): value is ApiError => typeof value === 'object' && value !== null && 'code' in value && 'reference' in value
@@ -61,7 +64,7 @@ const PAGE = 100
  * searchable, scrolling under a fixed header, with problems in their cells. Import checks the
  * edited rows again and saves them all, or shows what is still wrong; nothing is imported blindly.
  */
-export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children }: BulkUploadProps) {
+export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep }: BulkUploadProps) {
   const { t } = useTranslation()
   const inputId = useId()
   const [file, setFile] = useState<File | null>(null)
@@ -138,6 +141,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const at = Math.min(page, pages - 1)
   const onPage = shown.slice(at * PAGE, at * PAGE + PAGE)
   const step = 'm-0 text-label font-semibold text-ink'
+  const n = firstStep ? 1 : 0
 
   return (
     <>
@@ -146,18 +150,25 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={banner} />}
 
+        {firstStep && (
+          <section className="flex flex-col gap-2 border-b border-line pb-4">
+            <h3 className={step}>{`1. ${firstStep.title}`}</h3>
+            {firstStep.content}
+          </section>
+        )}
+
         <section className="flex flex-col gap-2">
-          <h3 className={step}>{t('bulk.step1')}</h3>
+          <h3 className={step}>{`${n + 1}. ${t('bulk.step1')}`}</h3>
           <p className="m-0 text-hint text-muted">{labels.templateHint}</p>
           <div>
             <Button variant="secondary" busy={busy === 'template'} onClick={() => void attempt('template', setBanner, onDownloadTemplate)}>
-              {t('bulk.download')}
+              <DownloadIcon />{t('bulk.download')}
             </Button>
           </div>
         </section>
 
         <section className="flex flex-col gap-2 border-t border-line pt-4">
-          <h3 className={step}>{t('bulk.step2')}</h3>
+          <h3 className={step}>{`${n + 2}. ${t('bulk.step2')}`}</h3>
           <p className="m-0 text-hint text-muted">{t('bulk.fileHint')}</p>
           <div className="flex flex-wrap items-center gap-3">
             {/* A real file input, hidden behind a button-looking label so it can be styled. */}

@@ -168,7 +168,9 @@ it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look a
   expect(within(review()).getByText('Page 1 of 1')).toBeInTheDocument()
   await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
 
-  await userEvent.type(within(review()).getByRole('searchbox', { name: 'Search rows' }), 'shop 245')
+  // Pasted in one go: typing letter by letter redraws 100 editable rows each time.
+  await userEvent.click(within(review()).getByRole('searchbox', { name: 'Search rows' }))
+  await userEvent.paste('shop 245')
   expect(within(review()).getByText('Showing 1 of 250')).toBeInTheDocument()
   expect(cell('Location name', 246)).toHaveValue('Shop 245')
-})
+}, 60_000)

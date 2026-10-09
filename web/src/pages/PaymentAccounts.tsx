@@ -6,6 +6,7 @@ import type { TFunction } from 'i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
+import { PlusIcon } from '../components/icons'
 import { Button, IconButton } from '../components/Button'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
@@ -95,7 +96,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
   }
 
   const list = accounts.data ?? []
-  const addButton = <Button onClick={() => setEditing('new')}>{t('payingAccounts.add')}</Button>
+  const addButton = <Button onClick={() => setEditing('new')}><PlusIcon />{t('payingAccounts.add')}</Button>
   return (
     <div className="flex flex-col gap-3">
       <p className="m-0 text-hint text-muted">{t('payingAccounts.intro')}</p>
