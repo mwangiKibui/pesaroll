@@ -174,3 +174,28 @@ it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look a
   expect(within(review()).getByText('Showing 1 of 250')).toBeInTheDocument()
   expect(cell('Location name', 246)).toHaveValue('Shop 245')
 }, 60_000)
+
+it('what a row names that does not exist yet is noted as "will be created", and does not stop the import', async () => {
+  const withNotes: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Kericho shop', 'Kericho'), row(4, 'Kericho depot', 'kericho')],
+    problems: [],
+    notes: [
+      { line: 3, column: 'county', message: 'No county called "Kericho" yet: it will be created.' },
+      { line: 4, column: 'county', message: 'No county called "kericho" yet: it will be created.' },
+    ],
+  }
+  const importRows = vi.fn(async () => null)
+  const { container } = render(<Page read={async () => withNotes} check={async () => ({ problems: [], notes: withNotes.notes })} importRows={importRows} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await screen.findByRole('dialog', { name: 'Review 3 locations' })
+
+  expect(cell('County', 3)).toHaveValue('Kericho')
+  expect(cell('County', 3)).toHaveAccessibleDescription('No county called "Kericho" yet: it will be created.')
+  expect(cell('County', 3)).not.toHaveAttribute('aria-invalid')
+  expect(within(review()).getByText('1 new item will be created when you import.')).toBeInTheDocument()   // the same name once
+  expect(within(review()).queryByText(/needs fixing/)).not.toBeInTheDocument()
+  await expectNoA11yViolations(container)
+
+  await userEvent.click(within(review()).getByRole('button', { name: 'Import 3 locations' }))
+  expect(importRows).toHaveBeenCalled()
+})

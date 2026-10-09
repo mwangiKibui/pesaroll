@@ -18,9 +18,10 @@ export interface BulkUploadRow { line: number | string; cells: Record<string, st
 /** A problem the server found: its row (0 for the whole file), the column key and what to fix. */
 export interface BulkUploadProblem { line: number | string; column?: string | null; message: string }
 
-export interface BulkUploadRead { rows: BulkUploadRow[]; problems: BulkUploadProblem[] }
+/** notes: what rows name that doesn't exist yet and will be created on import (not a problem). */
+export interface BulkUploadRead { rows: BulkUploadRow[]; problems: BulkUploadProblem[]; notes?: BulkUploadProblem[] }
 
-export interface BulkUploadCheck { problems: BulkUploadProblem[] }
+export interface BulkUploadCheck { problems: BulkUploadProblem[]; notes?: BulkUploadProblem[] }
 
 interface BulkUploadProps {
   open: boolean
@@ -70,6 +71,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const [file, setFile] = useState<File | null>(null)
   const [rows, setRows] = useState<BulkUploadRow[] | null>(null)
   const [problems, setProblems] = useState<BulkUploadProblem[]>([])
+  const [notes, setNotes] = useState<BulkUploadProblem[]>([])
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const [reviewBanner, setReviewBanner] = useState<ApiError | 'network' | null>(null)
   const [busy, setBusy] = useState<'template' | 'read' | 'import' | null>(null)
@@ -98,6 +100,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     if (isError(result)) return setBanner(result)
     if (!result) return
     setProblems(result.problems)
+    setNotes(result.notes ?? [])
     setSearch('')
     setPage(0)
     setOnlyProblems(null)
@@ -108,11 +111,13 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const edit = (line: number | string, column: string, value: string) => {
     setRows(list => list?.map(r => (r.line === line ? { ...r, cells: { ...r.cells, [column]: value } } : r)) ?? null)
     setProblems(list => list.filter(p => keyOf(p.line, p.column) !== keyOf(line, column)))
+    setNotes(list => list.filter(p => keyOf(p.line, p.column) !== keyOf(line, column)))
   }
 
   const remove = (line: number | string) => {
     setRows(list => list?.filter(r => r.line !== line) ?? null)
     setProblems(list => list.filter(p => p.line !== line))
+    setNotes(list => list.filter(p => p.line !== line))
   }
 
   const importRows = async () => {
@@ -120,6 +125,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     const done = await attempt('import', setReviewBanner, async () => {
       const check = await onCheck(rows)
       if (isError(check)) return check
+      setNotes(check.notes ?? [])
       if (check.problems.length > 0) {
         setProblems(check.problems)
         return 'problems' as const
@@ -131,6 +137,12 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   }
 
   const problemAt = new Map(problems.map(p => [keyOf(p.line, p.column), p.message]))
+  const noteAt = new Map(notes.map(n => [keyOf(n.line, n.column), n.message]))
+  // Each new name once, however many rows use it (ignoring case).
+  const toCreate = new Set(notes.map(n => {
+    const cell = rows?.find(r => String(r.line) === String(n.line))?.cells[n.column ?? ''] ?? n.message
+    return `${n.column}:${cell.trim().toLowerCase()}`
+  })).size
   const linesWithProblems = new Set(problems.filter(p => Number(p.line) > 0).map(p => String(p.line)))
   const fileProblems = problems.filter(p => Number(p.line) === 0)
   const shown = (rows ?? []).filter(r =>
@@ -199,6 +211,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
               value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
           </div>
           {linesWithProblems.size > 0 && <Notice>{t('bulk.toFix', { count: linesWithProblems.size })}</Notice>}
+          {toCreate > 0 && <Notice tone="brand">{t('bulk.toCreate', { count: toCreate })}</Notice>}
           {(linesWithProblems.size > 0 || onlyProblems) && <>
             <Checkbox label={t('bulk.onlyProblems')} checked={!!onlyProblems} onChange={e => { setOnlyProblems(e.target.checked ? new Set(linesWithProblems) : null); setPage(0) }} />
           </>}
@@ -225,12 +238,14 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                   {columns.map(c => {
                     const label = t('bulk.cell', { column: c.label, line: r.line })
                     const error = problemAt.get(keyOf(r.line, c.key))
+                    // A name that will be created reads under the cell, without marking it wrong.
+                    const note = error ? undefined : noteAt.get(keyOf(r.line, c.key))
                     return (
                       <td key={c.key} className="border-b border-line-soft px-2 py-1.5 align-top">
                         {c.options
-                          ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} options={c.options}
+                          ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} options={c.options}
                               value={r.cells[c.key] ?? ''} onChange={value => edit(r.line, c.key, value)} />
-                          : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error}
+                          : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note}
                               value={r.cells[c.key] ?? ''} onChange={e => edit(r.line, c.key, e.target.value)} />}
                       </td>
                     )

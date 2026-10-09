@@ -54,7 +54,7 @@ public static class LocationsImport
         return await db.CountryRegions.AsNoTracking().Where(r => r.CountryCode == country).OrderBy(r => r.Name).ToListAsync(ct);
     }
 
-    private static async Task<(List<ValidRow> Rows, List<ImportProblem> Problems)> CheckAsync(List<ImportRow> raw, OrganizationsDbContext db, CancellationToken ct)
+    private static async Task<(List<ValidRow> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)> CheckAsync(List<ImportRow> raw, OrganizationsDbContext db, CancellationToken ct)
     {
         var regions = await RegionsAsync(db, ct);
         var taken = (await db.Locations.Where(l => l.Status == "active").Select(l => l.Code).ToListAsync(ct)).ToHashSet();
@@ -106,7 +106,7 @@ public static class LocationsImport
             }
         }
 
-        return (rows, problems);
+        return (rows, problems, []);   // locations name nothing that could be created
     }
 
     private static async Task<int> SaveAsync(List<ValidRow> valid, ImportRequest request, Guid organizationId, OrganizationsDbContext db,

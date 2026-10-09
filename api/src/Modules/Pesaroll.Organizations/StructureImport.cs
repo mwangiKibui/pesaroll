@@ -8,9 +8,11 @@ namespace Pesaroll.Organizations;
 
 /// <summary>
 /// ONB-05 part 2, uploading divisions, departments, positions and units with the shared spreadsheet
-/// import, up to 5,000 rows a file. Rows name what they belong to by name or code: a division, a
-/// department that exists, or (for departments) one further up or down the same file. The rules are
-/// those of adding one by hand, plus the file's own: codes unique in the file, no loops.
+/// import, up to 5,000 rows a file. Rows name what they belong to (a division, a department) by code
+/// or name: an existing one, another row of the same file (departments), or one that doesn't exist
+/// yet, which is shown as a note in the review and created on import, so a business needn't add the
+/// higher levels first. The rules are those of adding one by hand, plus the file's own: codes unique
+/// in the file, no loops.
 /// </summary>
 public static class StructureImport
 {
@@ -18,8 +20,12 @@ public static class StructureImport
     private const int MaxMegabytes = 5;
     private const string Name = "name", Code = "code", Division = "division", Parent = "parent", Department = "department";
 
-    /// <summary>A checked row: its references resolved to existing ids or, for departments, to rows of the file.</summary>
-    private sealed record ValidRow(int Line, string Name, string? Code, Guid? DivisionId, Guid? DepartmentId, int? ParentLine);
+    /// <summary>
+    /// A checked row with its references: an existing id, a row of the file (ParentLine), or a name to
+    /// create on import (New…). For departments, DepartmentId is an existing parent.
+    /// </summary>
+    private sealed record ValidRow(int Line, string Name, string? Code, Guid? DivisionId, string? NewDivision,
+        Guid? DepartmentId, string? NewDepartment, int? ParentLine);
 
     public static IEndpointRouteBuilder MapStructureImportEndpoints(this IEndpointRouteBuilder app)
     {
@@ -32,36 +38,37 @@ public static class StructureImport
                 (org, item, company, at) => new DivisionCompany { OrganizationId = org, DivisionId = item, CompanyId = company, CreatedAt = at }, null, ct)));
 
         SpreadsheetImport.MapImport(group, "/departments", Spec("departments", "department",
-            [new(Name, "Department name"), new(Code, "Code"), new(Division, "Division"), new(Parent, "Part of")],
+            [new(Name, "Department name"), new(Code, "Code"), new(Division, "Division", Open: true), new(Parent, "Part of", Open: true)],
             choices: async (db, ct) => new Dictionary<string, List<string>>
             {
                 [Division] = await db.Divisions.Where(d => d.Status == "active").OrderBy(d => d.Name).Select(d => d.Name).ToListAsync(ct),
-                [Parent] = await db.Departments.Where(d => d.Status == "active").OrderBy(d => d.Name).Select(d => d.Name).ToListAsync(ct),
+                [Parent] = await DepartmentNamesAsync(db, ct),
             },
             codes: db => db.Departments.Where(d => d.Status == "active").Select(d => d.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Departments, db.Departments.Select(d => d.Code),
                 (org, item, company, at) => new DepartmentCompany { OrganizationId = org, DepartmentId = item, CompanyId = company, CreatedAt = at },
-                (department, row, byLine) =>
+                async (department, row, byLine, create) =>
                 {
-                    department.DivisionId = row.DivisionId;
-                    department.ParentId = row.ParentLine is int line ? byLine[line].Id : row.DepartmentId;
+                    department.DivisionId = row.NewDivision is { } division ? await create.DivisionAsync(division) : row.DivisionId;
+                    department.ParentId = row.ParentLine is int line ? byLine[line].Id
+                        : row.NewDepartment is { } parent ? await create.DepartmentAsync(parent) : row.DepartmentId;
                 }, ct)));
 
         SpreadsheetImport.MapImport(group, "/positions", Spec("positions", "position",
-            [new(Name, "Position title"), new(Code, "Code"), new(Department, "Department")],
+            [new(Name, "Position title"), new(Code, "Code"), new(Department, "Department", Open: true)],
             choices: async (db, ct) => new Dictionary<string, List<string>> { [Department] = await DepartmentNamesAsync(db, ct) },
             codes: db => db.Positions.Where(p => p.Status == "active").Select(p => p.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Positions, db.Positions.Select(p => p.Code),
                 (org, item, company, at) => new PositionCompany { OrganizationId = org, PositionId = item, CompanyId = company, CreatedAt = at },
-                (position, row, _) => position.DepartmentId = row.DepartmentId, ct)));
+                async (position, row, _, create) => position.DepartmentId = row.NewDepartment is { } name ? await create.DepartmentAsync(name) : row.DepartmentId, ct)));
 
         SpreadsheetImport.MapImport(group, "/units", Spec("units", "unit",
-            [new(Name, "Unit name"), new(Code, "Code"), new(Department, "Department")],
+            [new(Name, "Unit name"), new(Code, "Code"), new(Department, "Department", Open: true)],
             choices: async (db, ct) => new Dictionary<string, List<string>> { [Department] = await DepartmentNamesAsync(db, ct) },
             codes: db => db.Units.Where(u => u.Status == "active").Select(u => u.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Units, db.Units.Select(u => u.Code),
                 (org, item, company, at) => new UnitCompany { OrganizationId = org, UnitId = item, CompanyId = company, CreatedAt = at },
-                (unit, row, _) => unit.DepartmentId = row.DepartmentId!.Value, ct),
+                async (unit, row, _, create) => unit.DepartmentId = row.NewDepartment is { } name ? await create.DepartmentAsync(name) : row.DepartmentId!.Value, ct),
             departmentRequired: true));
 
         return app;
@@ -86,11 +93,22 @@ public static class StructureImport
         Save = save,
     };
 
-    /// <summary>A department or division by code first, then by name; "" when nothing matches, null when several names do.</summary>
     private sealed record Ref(Guid Id, string Code, string Name);
 
-    private static async Task<(List<ValidRow> Rows, List<ImportProblem> Problems)> CheckAsync(List<ImportRow> raw, string thing, HashSet<string> columns,
-        IQueryable<string> existingCodes, bool departmentRequired, OrganizationsDbContext db, CancellationToken ct)
+    /// <summary>What a reference found: an existing id, nothing (it will be created), or several names (a problem).</summary>
+    private enum Found { One, None, Several }
+
+    private static (Found Found, Guid? Id) Find(List<Ref> items, string text)
+    {
+        var byCode = items.Where(i => string.Equals(i.Code, text, StringComparison.OrdinalIgnoreCase)).ToList();
+        var matches = byCode.Count > 0 ? byCode : items.Where(i => string.Equals(i.Name, text, StringComparison.OrdinalIgnoreCase)).ToList();
+        return matches.Count switch { 1 => (Found.One, matches[0].Id), 0 => (Found.None, null), _ => (Found.Several, null) };
+    }
+
+    private sealed record Checked(ImportRow Row, string Name, string? Code, Guid? DivisionId, string? NewDivision, Guid? DepartmentId, string? NewDepartment);
+
+    private static async Task<(List<ValidRow> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)> CheckAsync(List<ImportRow> raw, string thing,
+        HashSet<string> columns, IQueryable<string> existingCodes, bool departmentRequired, OrganizationsDbContext db, CancellationToken ct)
     {
         var taken = (await existingCodes.ToListAsync(ct)).ToHashSet();
         var divisions = columns.Contains(Division)
@@ -98,12 +116,29 @@ public static class StructureImport
         var departments = columns.Contains(Parent) || columns.Contains(Department)
             ? await db.Departments.Where(d => d.Status == "active").Select(d => new Ref(d.Id, d.Code, d.Name)).ToListAsync(ct) : [];
         var problems = new List<ImportProblem>();
+        var notes = new List<ImportProblem>();
         var seenCodes = new HashSet<string>();
-        var checkedRows = new List<(ImportRow Row, string Name, string? Code, Guid? DivisionId, Guid? DepartmentId, string ParentText, bool Ok)>();
+        var rows = new List<Checked>();
+
+        // An existing division or department, or a note that it will be created; several matching names is a problem.
+        (Guid? Id, string? New) Resolve(List<Ref> items, string text, string what, string column, int line)
+        {
+            var (found, id) = Find(items, text);
+            switch (found)
+            {
+                case Found.One:
+                    return (id, null);
+                case Found.None:
+                    notes.Add(new ImportProblem(line, column, $"No {what} called \"{text}\" yet: it will be created."));
+                    return (null, text);
+                default:
+                    problems.Add(new ImportProblem(line, column, $"More than one {what} is called \"{text}\". Use its code."));
+                    return (null, null);
+            }
+        }
 
         foreach (var row in raw)
         {
-            var before = problems.Count;
             void Problem(string column, string message) => problems.Add(new ImportProblem(row.Line, column, message));
 
             var name = row.Cells[Name];
@@ -117,42 +152,46 @@ public static class StructureImport
                 else if (!seenCodes.Add(code)) Problem(Code, $"Another row in the file has the code {code}.");
             }
 
-            Guid? divisionId = null;
-            if (columns.Contains(Division) && row.Cells[Division].Length > 0)
-            {
-                divisionId = Find(divisions, row.Cells[Division], "division", Division, Problem);
-            }
+            var (divisionId, newDivision) = columns.Contains(Division) && row.Cells[Division].Length > 0
+                ? Resolve(divisions, row.Cells[Division], "division", Division, row.Line) : (null, null);
 
-            Guid? departmentId = null;
+            (Guid? departmentId, string? newDepartment) = (null, null);
             if (columns.Contains(Department))
             {
-                if (row.Cells[Department].Length > 0) departmentId = Find(departments, row.Cells[Department], "department", Department, Problem);
+                if (row.Cells[Department].Length > 0) (departmentId, newDepartment) = Resolve(departments, row.Cells[Department], "department", Department, row.Line);
                 else if (departmentRequired) Problem(Department, $"Choose the department this {thing} is in.");
             }
 
-            checkedRows.Add((row, name, code, divisionId, departmentId, columns.Contains(Parent) ? row.Cells[Parent] : "", problems.Count == before));
+            rows.Add(new Checked(row, name, code, divisionId, newDivision, departmentId, newDepartment));
         }
 
-        // Departments may sit under another row of the file (by its code, then its name) or an existing department.
+        // Departments may sit under another row of the file (by its code, then its name), an existing
+        // department, or one that will be created.
         var parentLines = new Dictionary<int, int>();
-        var parentIds = new Dictionary<int, Guid>();
         if (columns.Contains(Parent))
         {
-            foreach (var (row, _, _, _, _, text, _) in checkedRows.Where(r => r.ParentText.Length > 0))
+            for (var i = 0; i < rows.Count; i++)
             {
-                var inFile = checkedRows.Where(r => string.Equals(r.Code, text, StringComparison.OrdinalIgnoreCase)).ToList();
-                if (inFile.Count == 0) inFile = checkedRows.Where(r => string.Equals(r.Name, text, StringComparison.OrdinalIgnoreCase)).ToList();
+                var text = rows[i].Row.Cells[Parent];
+                if (text.Length == 0)
+                {
+                    continue;
+                }
+
+                var inFile = rows.Where(r => string.Equals(r.Code, text, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (inFile.Count == 0) inFile = rows.Where(r => string.Equals(r.Name, text, StringComparison.OrdinalIgnoreCase)).ToList();
                 if (inFile.Count == 1)
                 {
-                    parentLines[row.Line] = inFile[0].Row.Line;
+                    parentLines[rows[i].Row.Line] = inFile[0].Row.Line;
                 }
                 else if (inFile.Count > 1)
                 {
-                    problems.Add(new ImportProblem(row.Line, Parent, $"More than one row is called \"{text}\". Use its code."));
+                    problems.Add(new ImportProblem(rows[i].Row.Line, Parent, $"More than one row is called \"{text}\". Use its code."));
                 }
-                else if (Find(departments, text, "department", Parent, (c, m) => problems.Add(new ImportProblem(row.Line, c, m))) is Guid id)
+                else
                 {
-                    parentIds[row.Line] = id;
+                    var (id, created) = Resolve(departments, text, "department", Parent, rows[i].Row.Line);
+                    rows[i] = rows[i] with { DepartmentId = id, NewDepartment = created };
                 }
             }
 
@@ -171,39 +210,67 @@ public static class StructureImport
             }
         }
 
-        // For departments, DepartmentId carries an existing parent; ParentLine a parent in the file.
         var bad = problems.Select(p => p.Line).ToHashSet();
-        var valid = new List<ValidRow>();
-        foreach (var r in checkedRows.Where(r => !bad.Contains(r.Row.Line)))
-        {
-            Guid? existingParent = parentIds.TryGetValue(r.Row.Line, out var parentId) ? parentId : null;
-            int? parentLine = parentLines.TryGetValue(r.Row.Line, out var line) ? line : null;
-            valid.Add(new ValidRow(r.Row.Line, r.Name, r.Code, r.DivisionId, columns.Contains(Parent) ? existingParent : r.DepartmentId, parentLine));
-        }
-
-        return (valid, problems);
+        var valid = rows.Where(r => !bad.Contains(r.Row.Line))
+            .Select(r => new ValidRow(r.Row.Line, r.Name, r.Code, r.DivisionId, r.NewDivision, r.DepartmentId, r.NewDepartment,
+                parentLines.TryGetValue(r.Row.Line, out var line) ? line : null))
+            .ToList();
+        return (valid, problems, notes);
     }
 
-    /// <summary>A division or department by its code, then by its name; a problem when none or several match.</summary>
-    private static Guid? Find(List<Ref> items, string text, string what, string column, Action<string, string> problem)
+    /// <summary>
+    /// Makes the divisions and departments an import names but that don't exist yet, once per name
+    /// (ignoring case), for the same companies as the import, with made-up codes.
+    /// </summary>
+    private sealed class Creator(OrganizationsDbContext db, Guid organizationId, ImportRequest request, List<Company> companies, DateTimeOffset now, CancellationToken ct)
     {
-        var byCode = items.Where(i => string.Equals(i.Code, text, StringComparison.OrdinalIgnoreCase)).ToList();
-        var matches = byCode.Count > 0 ? byCode : items.Where(i => string.Equals(i.Name, text, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (matches.Count == 1)
+        private readonly Dictionary<string, Guid> divisions = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Guid> departments = new(StringComparer.OrdinalIgnoreCase);
+        private SpreadsheetImport.CodeMaker? divisionCodes;
+        private SpreadsheetImport.CodeMaker? departmentCodes;
+
+        public async Task<Guid> DivisionAsync(string name)
         {
-            return matches[0].Id;
+            if (divisions.TryGetValue(name, out var id)) return id;
+            divisionCodes ??= new(await db.Divisions.Select(d => d.Code).ToListAsync(ct));
+            var division = New<Division, DivisionCompany>(name, divisionCodes,
+                (org, item, company, at) => new DivisionCompany { OrganizationId = org, DivisionId = item, CompanyId = company, CreatedAt = at });
+            db.Divisions.Add(division);
+            return divisions[name] = division.Id;
         }
 
-        problem(column, matches.Count == 0
-            ? $"There's no {what} called \"{text}\". Add it first, or choose one from the list."
-            : $"More than one {what} is called \"{text}\". Use its code.");
-        return null;
+        public async Task<Guid> DepartmentAsync(string name)
+        {
+            if (departments.TryGetValue(name, out var id)) return id;
+            departmentCodes ??= new([.. await db.Departments.Select(d => d.Code).ToListAsync(ct), .. db.Departments.Local.Select(d => d.Code)]);
+            var department = New<Department, DepartmentCompany>(name, departmentCodes,
+                (org, item, company, at) => new DepartmentCompany { OrganizationId = org, DepartmentId = item, CompanyId = company, CreatedAt = at });
+            db.Departments.Add(department);
+            return departments[name] = department.Id;
+        }
+
+        private TItem New<TItem, TLink>(string name, SpreadsheetImport.CodeMaker codes, Func<Guid, Guid, Guid, DateTimeOffset, TLink> link)
+            where TItem : class, IStructureItem<TLink>, new()
+            where TLink : class, IStructureLink
+        {
+            var item = new TItem
+            {
+                Id = Guid.CreateVersion7(), OrganizationId = organizationId, Code = codes.Next(LocationsEndpoints.Prefix(name)), Name = name,
+                AllCompanies = request.AllCompanies, CreatedAt = now, UpdatedAt = now,
+            };
+            if (!request.AllCompanies)
+            {
+                item.Companies.AddRange(companies.Select(c => link(organizationId, item.Id, c.Id, now)));
+            }
+
+            return item;
+        }
     }
 
-    /// <summary>Saves the rows in one go: codes made up where empty, linked to the chosen companies, references resolved.</summary>
+    /// <summary>Saves the rows in one go: codes made up where empty, linked to the chosen companies, references resolved or created.</summary>
     private static async Task<int> SaveAsync<TItem, TLink>(List<ValidRow> rows, ImportRequest request, Guid organizationId, OrganizationsDbContext db,
         DateTimeOffset now, DbSet<TItem> items, IQueryable<string> allCodes, Func<Guid, Guid, Guid, DateTimeOffset, TLink> link,
-        Action<TItem, ValidRow, Dictionary<int, TItem>>? apply, CancellationToken ct)
+        Func<TItem, ValidRow, Dictionary<int, TItem>, Creator, Task>? apply, CancellationToken ct)
         where TItem : class, IStructureItem<TLink>, new()
         where TLink : class, IStructureLink
     {
@@ -235,13 +302,17 @@ public static class StructureImport
             byLine[row.Line] = item;
         }
 
+        items.AddRange(byLine.Values);
+        var creator = new Creator(db, organizationId, request, companies, now, ct);
         foreach (var row in rows)
         {
-            apply?.Invoke(byLine[row.Line], row, byLine);
+            if (apply is not null)
+            {
+                await apply(byLine[row.Line], row, byLine, creator);
+            }
         }
 
-        items.AddRange(byLine.Values);
-        await db.SaveChangesAsync(ct);   // one save: every row or none
+        await db.SaveChangesAsync(ct);   // one save: every row (and what they needed created) or none
         return rows.Count;
     }
 }

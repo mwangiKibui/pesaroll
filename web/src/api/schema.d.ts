@@ -3775,6 +3775,7 @@ export interface components {
         IFormFile: string;
         ImportCheck: {
             problems: components["schemas"]["ImportProblem"][];
+            notes: components["schemas"]["ImportProblem"][];
         };
         ImportProblem: {
             /** Format: int32 */
@@ -3785,6 +3786,7 @@ export interface components {
         ImportRead: {
             rows: components["schemas"]["ImportRow"][];
             problems: components["schemas"]["ImportProblem"][];
+            notes: components["schemas"]["ImportProblem"][];
         };
         ImportRequest: {
             rows: null | components["schemas"]["ImportRow"][];

@@ -371,7 +371,9 @@
     "pages": "Kurasa za mistari",
     "page": "Ukurasa {{page}} kati ya {{pages}}",
     "previous": "Ukurasa uliopita",
-    "next": "Ukurasa unaofuata"
+    "next": "Ukurasa unaofuata",
+    "toCreate_one": "Kipengele kipya {{count}} kitaundwa utakapoingiza.",
+    "toCreate_other": "Vipengele vipya {{count}} vitaundwa utakapoingiza."
   },
   "structure": {
     "title": "Shirika lako limepangwa vipi?",

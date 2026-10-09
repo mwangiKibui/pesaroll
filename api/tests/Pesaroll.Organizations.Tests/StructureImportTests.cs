@@ -22,7 +22,7 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
     private sealed record Company(Guid Id, string LegalName);
     private sealed record Row(int Line, Dictionary<string, string> Cells);
     private sealed record Problem(int Line, string? Column, string Message);
-    private sealed record Read(List<Row> Rows, List<Problem> Problems);
+    private sealed record Read(List<Row> Rows, List<Problem> Problems, List<Problem> Notes);
     private sealed record ImportResult(int Imported);
     private sealed record Item(Guid Id, string Code, string? Name, string? Title, Guid? DivisionId, Guid? ParentId, Guid? DepartmentId, bool AllCompanies, List<Guid> CompanyIds);
 
@@ -94,8 +94,9 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         var lists = book.Worksheet("Lists");
         Assert.Equal(["Restaurants"], lists.Column(1).CellsUsed().Select(c => c.GetString()));
         Assert.Equal(["Operations"], lists.Column(2).CellsUsed().Select(c => c.GetString()));
-        Assert.True(sheet.Cell(2, 3).HasDataValidation);
-        Assert.True(sheet.Cell(2, 4).HasDataValidation);
+        // Suggestions only: a new name can be typed (it is created on import).
+        Assert.False(sheet.Cell(2, 3).GetDataValidation().ShowErrorMessage);
+        Assert.False(sheet.Cell(2, 4).GetDataValidation().ShowErrorMessage);
         foreach (var level in new[] { "divisions", "positions", "units" })
         {
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/structure/{level}/template")).StatusCode);
@@ -127,6 +128,31 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
     }
 
     [Fact]
+    public async Task Divisions_and_departments_a_file_names_but_that_dont_exist_yet_are_created_on_import()
+    {
+        var (client, company) = await Onboarded();
+
+        var read = await ReadOk(client, "departments", Workbook(Departments,
+            ["Kitchen", null, "Restaurants", "Operations"],
+            ["Bar", null, "restaurants", null],
+            ["Laundry", null, "Housekeeping", null]));
+
+        Assert.Empty(read.Problems);
+        Assert.Equal(new (int, string?)[] { (2, "division"), (2, "parent"), (3, "division"), (4, "division") },
+            read.Notes.Select(n => (n.Line, n.Column)).ToArray());
+        Assert.Equal(3, (await (await Import(client, "departments", read.Rows, company)).Content.ReadFromJsonAsync<ImportResult>())!.Imported);
+
+        var divisions = (await client.GetFromJsonAsync<List<Item>>("/api/structure/divisions"))!;
+        Assert.Equal(["Housekeeping", "Restaurants"], divisions.Select(d => d.Name).Order());
+        var departments = (await client.GetFromJsonAsync<List<Item>>("/api/structure/departments"))!;
+        var ops = departments.Single(d => d.Name == "Operations");
+        var kitchen = departments.Single(d => d.Name == "Kitchen");
+        Assert.Equal((ops.Id, divisions.Single(d => d.Name == "Restaurants").Id), (kitchen.ParentId!.Value, kitchen.DivisionId!.Value));
+        Assert.Equal(kitchen.DivisionId, departments.Single(d => d.Name == "Bar").DivisionId);
+        Assert.Equal([company.Id], ops.CompanyIds);
+    }
+
+    [Fact]
     public async Task Problems_are_listed_by_row_and_column()
     {
         var (client, _) = await Onboarded();
@@ -144,9 +170,12 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
 
         Assert.Equal(new (int, string?)[]
         {
-            (3, "name"), (4, "division"), (4, "parent"), (5, "parent"), (6, "parent"), (7, "code"), (9, "code"),
+            (3, "name"), (5, "parent"), (6, "parent"), (7, "code"), (9, "code"),
         }, read.Problems.Select(p => (p.Line, p.Column)).ToArray());
         Assert.Contains("loop", read.Problems.Single(p => p.Line == 5).Message);
+        // What isn't there yet isn't a problem: it will be created.
+        Assert.Equal(new (int, string?)[] { (4, "division"), (4, "parent") }, read.Notes.Select(n => (n.Line, n.Column)).ToArray());
+        Assert.Contains("will be created", read.Notes[0].Message);
     }
 
     [Fact]
@@ -155,12 +184,19 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         var (client, company) = await Onboarded();
         var kitchen = await Post<Item>(client, "/api/structure/departments", new { code = "KIT", name = "Kitchen", allCompanies = true, companyIds = Array.Empty<Guid>() });
 
-        var positions = await ReadOk(client, "positions", Workbook(Positions, ["Cook", null, "kitchen"], ["Driver", null, null], ["Spy", null, "Nowhere"]));
-        Assert.Equal([(4, "department")], positions.Problems.Select(p => (p.Line, p.Column)));
-        await Import(client, "positions", positions.Rows.Take(2).ToList(), company);
+        var positions = await ReadOk(client, "positions", Workbook(Positions,
+            ["Cook", null, "kitchen"], ["Driver", null, null], ["Waiter", null, "Service"], ["Host", null, "service"]));
+        Assert.Empty(positions.Problems);
+        Assert.Equal([(4, "department"), (5, "department")], positions.Notes.Select(n => (n.Line, n.Column)));
+        await Import(client, "positions", positions.Rows, company);
         var saved = (await client.GetFromJsonAsync<List<Item>>("/api/structure/positions"))!;
         Assert.Equal(kitchen.Id, saved.Single(p => p.Title == "Cook").DepartmentId);
         Assert.Null(saved.Single(p => p.Title == "Driver").DepartmentId);
+        // "Service" was created once, for the same companies, and both positions sit in it.
+        var service = Assert.Single((await client.GetFromJsonAsync<List<Item>>("/api/structure/departments"))!, d => d.Name == "Service");
+        Assert.Equal([company.Id], service.CompanyIds);
+        Assert.Equal(service.Id, saved.Single(p => p.Title == "Waiter").DepartmentId);
+        Assert.Equal(service.Id, saved.Single(p => p.Title == "Host").DepartmentId);
 
         var units = await ReadOk(client, "units", Workbook(["Unit name", "Code", "Department"], ["Morning shift", null, "KIT"], ["Night shift", null, null]));
         Assert.Equal([(3, "department")], units.Problems.Select(p => (p.Line, p.Column)));

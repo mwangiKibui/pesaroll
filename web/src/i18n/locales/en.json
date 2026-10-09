@@ -371,7 +371,9 @@
     "pages": "Pages of rows",
     "page": "Page {{page}} of {{pages}}",
     "previous": "Previous page",
-    "next": "Next page"
+    "next": "Next page",
+    "toCreate_one": "{{count}} new item will be created when you import.",
+    "toCreate_other": "{{count}} new items will be created when you import."
   },
   "structure": {
     "title": "How is your organization organised?",

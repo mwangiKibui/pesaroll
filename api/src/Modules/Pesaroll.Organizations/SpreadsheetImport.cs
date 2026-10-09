@@ -18,19 +18,25 @@ public sealed record ImportRow(int Line, Dictionary<string, string> Cells);
 /// <summary>A problem: the row (0 for the whole file), the column key it is in (when it is about one) and what to fix.</summary>
 public sealed record ImportProblem(int Line, string? Column, string Message);
 
-/// <summary>A file read: every row (problems and all, to be fixed in the review) and its problems.</summary>
-public sealed record ImportRead(IReadOnlyList<ImportRow> Rows, IReadOnlyList<ImportProblem> Problems);
+/// <summary>
+/// A file read: every row (problems and all, to be fixed in the review), its problems, and notes:
+/// things the rows name that don't exist yet and will be created on import (a new division).
+/// </summary>
+public sealed record ImportRead(IReadOnlyList<ImportRow> Rows, IReadOnlyList<ImportProblem> Problems, IReadOnlyList<ImportProblem> Notes);
 
 public sealed record ImportRowsRequest(List<ImportRow>? Rows);
 
-public sealed record ImportCheck(IReadOnlyList<ImportProblem> Problems);
+public sealed record ImportCheck(IReadOnlyList<ImportProblem> Problems, IReadOnlyList<ImportProblem> Notes);
 
 public sealed record ImportRequest(List<ImportRow>? Rows, bool AllCompanies, List<Guid>? CompanyIds);
 
 public sealed record ImportResult(int Imported);
 
-/// <summary>A template column: its key in a row's cells and its header in the file.</summary>
-public sealed record ImportColumn(string Key, string Header);
+/// <summary>
+/// A template column: its key in a row's cells and its header in the file. Open: its dropdown only
+/// suggests (a new name may be typed, and is created on import); otherwise the file must use the list.
+/// </summary>
+public sealed record ImportColumn(string Key, string Header, bool Open = false);
 
 /// <summary>
 /// What one kind of record (locations, departments…) tells the shared import: its columns, its
@@ -47,8 +53,8 @@ public sealed class ImportSpec<TValid>
     public required int MaxMegabytes { get; init; }
     /// <summary>The template's dropdowns: choices by column key.</summary>
     public required Func<OrganizationsDbContext, CancellationToken, Task<Dictionary<string, List<string>>>> Choices { get; init; }
-    /// <summary>Checks the rows (the same rules as adding one by hand): the valid rows, or problems.</summary>
-    public required Func<List<ImportRow>, OrganizationsDbContext, CancellationToken, Task<(List<TValid> Rows, List<ImportProblem> Problems)>> Check { get; init; }
+    /// <summary>Checks the rows (the same rules as adding one by hand): the valid rows, problems, and notes of what will be created.</summary>
+    public required Func<List<ImportRow>, OrganizationsDbContext, CancellationToken, Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)>> Check { get; init; }
     /// <summary>Saves the checked rows for the chosen companies; returns how many were saved.</summary>
     public required Func<List<TValid>, ImportRequest, Guid, OrganizationsDbContext, DateTimeOffset, CancellationToken, Task<int>> Save { get; init; }
 }
@@ -82,8 +88,8 @@ public static class SpreadsheetImport
             }
 
             var rows = await ReadAsync(file, spec, ct);
-            var (_, problems) = await CheckAsync(spec, rows, db, ct);
-            return Results.Ok(new ImportRead(rows, problems));
+            var (_, problems, notes) = await CheckAsync(spec, rows, db, ct);
+            return Results.Ok(new ImportRead(rows, problems, notes));
         }).DisableAntiforgery()   // the origin check (OriginCheckMiddleware) protects it, as for JSON requests
           .Produces<ImportRead>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
@@ -93,8 +99,8 @@ public static class SpreadsheetImport
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (_, problems) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
-            return Results.Ok(new ImportCheck(problems));
+            var (_, problems, notes) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
+            return Results.Ok(new ImportCheck(problems, notes));
         }).Produces<ImportCheck>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
 
@@ -103,7 +109,7 @@ public static class SpreadsheetImport
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (valid, problems) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
+            var (valid, problems, _) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
             if (problems.Count > 0)
             {
                 throw RowsNeedFixing(problems);
@@ -114,18 +120,20 @@ public static class SpreadsheetImport
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
     }
 
-    private static async Task<(List<TValid> Rows, List<ImportProblem> Problems)> CheckAsync<TValid>(
+    private static async Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)> CheckAsync<TValid>(
         ImportSpec<TValid> spec, List<ImportRow> rows, OrganizationsDbContext db, CancellationToken ct)
     {
         if (rows.Count == 0)
         {
-            return ([], [new ImportProblem(0, null, $"The file has no {spec.Things}.")]);
+            return ([], [new ImportProblem(0, null, $"The file has no {spec.Things}.")], []);
         }
 
-        // Problems in file order: by row, then by column.
-        var (valid, problems) = await spec.Check(rows, db, ct);
+        // In file order: by row, then by column.
+        var (valid, problems, notes) = await spec.Check(rows, db, ct);
         var order = spec.Columns.Select((c, i) => (c.Key, i)).ToDictionary(c => c.Key, c => c.i);
-        return (valid, problems.OrderBy(p => p.Line).ThenBy(p => p.Column is null ? -1 : order.GetValueOrDefault(p.Column, 99)).ToList());
+        List<ImportProblem> Sorted(List<ImportProblem> list) =>
+            list.OrderBy(p => p.Line).ThenBy(p => p.Column is null ? -1 : order.GetValueOrDefault(p.Column, 99)).ToList();
+        return (valid, Sorted(problems), Sorted(notes));
     }
 
     private static AppException Unreadable() =>
@@ -162,7 +170,10 @@ public static class SpreadsheetImport
             for (var i = 0; i < options.Count; i++) lists.Cell(i + 1, listColumn).Value = options[i];
             if (options.Count > 0)
             {
-                sheet.Range(2, c + 1, last, c + 1).CreateDataValidation().List(lists.Range(1, listColumn, options.Count, listColumn));
+                var validation = sheet.Range(2, c + 1, last, c + 1).CreateDataValidation();
+                validation.List(lists.Range(1, listColumn, options.Count, listColumn));
+                // Open columns suggest; a new name is fine and is created on import.
+                validation.ShowErrorMessage = !spec.Columns[c].Open;
             }
         }
 
