@@ -4,7 +4,7 @@ import { matches } from './search'
 
 export interface Company { id: string; name: string; code: string }
 
-/** all = every company, including ones added later; otherwise the chosen ids. */
+/** all = every company ticked, which also covers companies added later; otherwise the chosen ids. */
 export interface CompanySelection { all: boolean; ids: string[] }
 
 interface CompanySelectProps {
@@ -14,18 +14,14 @@ interface CompanySelectProps {
   onChange: (value: CompanySelection) => void
   /** Several companies (checkboxes) or one (round options). */
   multiple?: boolean
-  /** Offer "All companies" first. Only when choosing several. */
-  allowAll?: boolean
   placeholder?: string
 }
-
-const ALL = '__all__'
 
 /**
  * The company selector: on every list and setup screen where companies can differ.
  * A button opens a list with a search box on top: typing filters, arrows move, Enter picks, Escape closes.
  */
-export function CompanySelect({ label, companies, value, onChange, multiple = true, allowAll = multiple, placeholder }: CompanySelectProps) {
+export function CompanySelect({ label, companies, value, onChange, multiple = true, placeholder }: CompanySelectProps) {
   const { t } = useTranslation()
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -35,15 +31,12 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
   const search = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
 
-  const showAll = multiple && allowAll
-  // While searching, "All companies" steps aside so the matches come first.
-  const options = [...(showAll && !query.trim() ? [ALL] : []),
-    ...companies.filter(c => matches(`${c.name} ${c.code}`, query)).map(c => c.id)]
-  const isOn = (cid: string) => (showAll && value.all) || value.ids.includes(cid)
+  const options = companies.filter(c => matches(`${c.name} ${c.code}`, query)).map(c => c.id)
+  const isOn = (cid: string) => (multiple && value.all) || value.ids.includes(cid)
   const picked = companies.filter(c => isOn(c.id))
 
   let summary = placeholder ?? t('company.placeholder')
-  if (showAll && value.all) summary = t('company.all')
+  if (multiple && companies.length > 1 && picked.length === companies.length) summary = t('company.all')
   else if (picked.length === 1) summary = `${picked[0].name} · ${picked[0].code}`
   else if (picked.length > 1) summary = t('company.selected', { count: picked.length })
 
@@ -58,17 +51,14 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
   const close = () => { setOpen(false); setQuery(''); button.current?.focus() }
 
   const pick = (option: string) => {
-    if (option === ALL) {
-      onChange(value.all ? { all: false, ids: [] } : { all: true, ids: companies.map(c => c.id) })
-      return
-    }
     if (!multiple) {
       onChange({ all: false, ids: [option] })
       close()
       return
     }
+    // Every company ticked means all of them, including companies added later.
     const ids = companies.map(c => c.id).filter(cid => (cid === option ? !isOn(cid) : isOn(cid)))
-    onChange({ all: false, ids })
+    onChange(ids.length === companies.length ? { all: true, ids } : { all: false, ids })
   }
 
   const onListKey = (e: KeyboardEvent) => {
@@ -107,17 +97,15 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
           <ul id={`${id}-list`} role="listbox" aria-labelledby={`${id}-label`} aria-multiselectable={multiple}
             className="m-0 flex max-h-64 list-none flex-col gap-0.5 overflow-y-auto p-0">
             {options.map((option, i) => {
-              const on = option === ALL ? value.all : isOn(option)
+              const on = isOn(option)
               const company = companies.find(c => c.id === option)
               return (
                 <li key={option} id={`${id}-opt-${i}`} role="option" aria-selected={on} onClick={() => pick(option)} onMouseEnter={() => setActive(i)}
                   // Keep focus in the search box, so keys (Escape) still reach the list.
                   onMouseDown={e => e.preventDefault()}
-                  className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control px-3 text-body text-ink ${i === active ? 'bg-raised' : ''} ${option === ALL ? 'border-b border-line-soft' : ''}`}>
+                  className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control px-3 text-body text-ink ${i === active ? 'bg-raised' : ''}`}>
                   {box(on)}
-                  {option === ALL
-                    ? <span className="flex flex-col py-1"><strong className="font-semibold">{t('company.all')}</strong><span className="text-tag text-muted">{t('company.allHint')}</span></span>
-                    : <><span className="min-w-0 flex-1">{company?.name}</span><span className="text-tag text-muted">{company?.code}</span></>}
+                  <span className="min-w-0 flex-1">{company?.name}</span><span className="text-tag text-muted">{company?.code}</span>
                 </li>
               )
             })}

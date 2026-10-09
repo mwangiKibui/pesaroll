@@ -262,7 +262,6 @@ public sealed class Department : IStructureItem<DepartmentCompany>
     public Guid? DivisionId { get; set; }
     /// <summary>The department this one sits under (Kitchen under Operations); the tree has no loops.</summary>
     public Guid? ParentId { get; set; }
-    public string? CostCentre { get; set; }
     public bool AllCompanies { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }
@@ -286,7 +285,6 @@ public sealed class Position : IStructureItem<PositionCompany>
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public Guid? DepartmentId { get; set; }
-    public string? Grade { get; set; }
     public bool AllCompanies { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }

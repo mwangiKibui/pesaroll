@@ -24,7 +24,6 @@ create table departments (
     name             text not null check (char_length(btrim(name)) between 2 and 120),
     division_id      uuid,
     parent_id        uuid check (parent_id <> id),              -- builds a tree: Kitchen under Operations
-    cost_centre      text check (char_length(cost_centre) <= 40), -- kept for accounting exports later
     all_companies    boolean not null default false,
     status           text not null default 'active' check (status in ('active', 'archived')),
     created_at       timestamptz not null default now(),
@@ -42,7 +41,6 @@ create table positions (
     code             text not null check (code ~ '^[A-Z0-9][A-Z0-9-]{1,19}$'),
     title            text not null check (char_length(btrim(title)) between 2 and 120),
     department_id    uuid,                                       -- none: shared across departments
-    grade            text check (char_length(grade) <= 20),       -- G4, 3, Senior: approvals and pay bands later
     all_companies    boolean not null default false,
     status           text not null default 'active' check (status in ('active', 'archived')),
     created_at       timestamptz not null default now(),

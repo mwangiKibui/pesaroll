@@ -51,8 +51,7 @@ it('with several companies, the selector filters the table to the chosen company
   expect(await within(await screen.findByRole('region', { name: 'Locations' })).findByText('HQ-02')).toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('button', { name: /Show companies/ }))
-  await userEvent.click(screen.getByRole('option', { name: /All companies/ }))
-  await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Ltd/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Mama Oliech Restaurant Ltd/ }))   // untick: only Catering stays
   await userEvent.keyboard('{Escape}')
 
   expect(within(table()).getByText('HQ-02')).toBeInTheDocument()
@@ -179,10 +178,9 @@ it('uploads locations: template, then a review of every row before importing for
     .toEqual(['Row', 'Location name', 'Type', 'Code', 'County', 'Town', 'Address', 'Main location', 'Actions'])
   expect(within(review).getByRole('combobox', { name: 'Type, row 3' })).toHaveValue('Warehouse')
 
-  // All companies by default; choose only the restaurant.
+  // Every company is ticked to start with; untick Catering so only the restaurant stays.
   await userEvent.click(within(review).getByRole('button', { name: /Apply to/ }))
-  await userEvent.click(screen.getByRole('option', { name: /All companies/ }))
-  await userEvent.click(screen.getByRole('option', { name: /Mama Oliech Restaurant Ltd/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Ltd/ }))
   await userEvent.keyboard('{Escape}')
   expect(within(review).getByText(/The row marked Main location becomes the main location of the companies you choose/)).toBeInTheDocument()
   await userEvent.click(within(review).getByRole('button', { name: 'Import 2 locations' }))

@@ -13,11 +13,11 @@ namespace Pesaroll.Organizations;
 public sealed record DivisionRequest(string? Code, string? Name, bool AllCompanies, List<Guid>? CompanyIds);
 public sealed record DivisionResponse(Guid Id, string Code, string Name, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
 
-public sealed record DepartmentRequest(string? Code, string? Name, Guid? DivisionId, Guid? ParentId, string? CostCentre, bool AllCompanies, List<Guid>? CompanyIds);
-public sealed record DepartmentResponse(Guid Id, string Code, string Name, Guid? DivisionId, Guid? ParentId, string? CostCentre, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
+public sealed record DepartmentRequest(string? Code, string? Name, Guid? DivisionId, Guid? ParentId, bool AllCompanies, List<Guid>? CompanyIds);
+public sealed record DepartmentResponse(Guid Id, string Code, string Name, Guid? DivisionId, Guid? ParentId, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
 
-public sealed record PositionRequest(string? Code, string? Title, Guid? DepartmentId, string? Grade, bool AllCompanies, List<Guid>? CompanyIds);
-public sealed record PositionResponse(Guid Id, string Code, string Title, Guid? DepartmentId, string? Grade, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
+public sealed record PositionRequest(string? Code, string? Title, Guid? DepartmentId, bool AllCompanies, List<Guid>? CompanyIds);
+public sealed record PositionResponse(Guid Id, string Code, string Title, Guid? DepartmentId, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
 
 public sealed record UnitRequest(string? Code, string? Name, Guid? DepartmentId, bool AllCompanies, List<Guid>? CompanyIds);
 public sealed record UnitResponse(Guid Id, string Code, string Name, Guid DepartmentId, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
@@ -73,19 +73,13 @@ public static class StructureEndpoints
                         errors["parentId"] = "A department can't sit under itself or one of its own departments.";
                     }
                 }
-
-                if (r.CostCentre?.Trim().Length > 40)
-                {
-                    errors["costCentre"] = "Use up to 40 characters.";
-                }
             },
             Apply = (r, d) =>
             {
                 d.DivisionId = r.DivisionId;
                 d.ParentId = r.ParentId;
-                d.CostCentre = string.IsNullOrWhiteSpace(r.CostCentre) ? null : r.CostCentre.Trim();
             },
-            ToResponse = d => new DepartmentResponse(d.Id, d.Code, d.Name, d.DivisionId, d.ParentId, d.CostCentre, d.AllCompanies, d.Companies.Select(c => c.CompanyId).ToList()),
+            ToResponse = d => new DepartmentResponse(d.Id, d.Code, d.Name, d.DivisionId, d.ParentId, d.AllCompanies, d.Companies.Select(c => c.CompanyId).ToList()),
             InUse = async (db, d, ct) => Uses(
                 (await db.Departments.CountAsync(x => x.ParentId == d.Id, ct), "department"),
                 (await db.Positions.CountAsync(x => x.DepartmentId == d.Id, ct), "position"),
@@ -106,18 +100,9 @@ public static class StructureEndpoints
                 {
                     errors["departmentId"] = "Choose a department from the list.";
                 }
-
-                if (r.Grade?.Trim().Length > 20)
-                {
-                    errors["grade"] = "Use up to 20 characters.";
-                }
             },
-            Apply = (r, p) =>
-            {
-                p.DepartmentId = r.DepartmentId;
-                p.Grade = string.IsNullOrWhiteSpace(r.Grade) ? null : r.Grade.Trim();
-            },
-            ToResponse = p => new PositionResponse(p.Id, p.Code, p.Name, p.DepartmentId, p.Grade, p.AllCompanies, p.Companies.Select(c => c.CompanyId).ToList()),
+            Apply = (r, p) => p.DepartmentId = r.DepartmentId,
+            ToResponse = p => new PositionResponse(p.Id, p.Code, p.Name, p.DepartmentId, p.AllCompanies, p.Companies.Select(c => c.CompanyId).ToList()),
         });
 
         MapLevel(group, new Level<Unit, UnitCompany, UnitRequest, UnitResponse>

@@ -65,7 +65,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3516 | We couldn't read this file. Use the template (.xlsx) or a .csv file with the same columns. | Customer | The upload isn't an Excel or CSV file, or has no Location name and County columns. |
 | ONB-3517 | The file is too big. Upload up to 1000 locations and 2 MB at a time. | Customer | More than 1,000 rows or 2 MB; split the file. |
 | ONB-3518 | Row {n} needs fixing. Check them and try again. | Customer | The rows sent to import failed the checks (they are checked again on import); the review shows each problem in its cell. |
-| ONB-3519 | Some details don't look right. Check the fields marked. | Customer | An org structure detail failed its check; fields says which (name or title, code, division, part of, department, cost centre, grade, companies). |
+| ONB-3519 | Some details don't look right. Check the fields marked. | Customer | An org structure detail failed its check; fields says which (name or title, code, division, part of, department, companies). |
 | ONB-3520 | Another one already has this code. Choose a different one or leave it empty. | Customer | Codes are unique per level (division, department, position, unit) in the organization. |
 | ONB-3521 | We couldn't find that. It may have been deleted. | Customer | The division, department, position or unit doesn't exist, was deleted, or belongs to another organization. |
 | ONB-3522 | {name} still has {what uses it}. Move or delete them first. | Customer | A division with departments, or a department with sub-departments, positions or units, can't be deleted. |

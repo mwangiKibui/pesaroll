@@ -29,9 +29,7 @@ interface Values {
   code: string
   divisionId: string
   parentId: string
-  costCentre: string
   departmentId: string
-  grade: string
   applies: CompanySelection
 }
 
@@ -136,11 +134,9 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
     departments: [
       { header: t('structure.division'), cell: (i: StructureItem) => nameOf('divisions', i.divisionId) ?? none },
       { header: t('structure.partOf'), cell: (i: StructureItem) => nameOf('departments', i.parentId) ?? none },
-      { header: t('structure.costCentre'), cell: (i: StructureItem) => i.costCentre ?? none },
     ],
     positions: [
       { header: t('structure.department'), cell: (i: StructureItem) => nameOf('departments', i.departmentId) ?? none },
-      { header: t('structure.grade'), cell: (i: StructureItem) => i.grade ?? none },
     ],
     units: [{ header: t('structure.department'), cell: (i: StructureItem) => nameOf('departments', i.departmentId) ?? none }],
   }[level]
@@ -213,9 +209,7 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
       code: item?.code ?? '',
       divisionId: item?.divisionId ?? '',
       parentId: item?.parentId ?? '',
-      costCentre: item?.costCentre ?? '',
       departmentId: item?.departmentId ?? '',
-      grade: item?.grade ?? '',
       applies: item ? { all: item.allCompanies, ids: item.allCompanies ? companies.map(c => c.id) : item.companyIds } : defaultApplies,
     },
   })
@@ -243,8 +237,8 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
     const orNull = (s: string) => s.trim() || null
     const body = {
       divisions: { ...common, name: v.name.trim() },
-      departments: { ...common, name: v.name.trim(), divisionId: orNull(v.divisionId), parentId: orNull(v.parentId), costCentre: orNull(v.costCentre) },
-      positions: { ...common, title: v.name.trim(), departmentId: orNull(v.departmentId), grade: orNull(v.grade) },
+      departments: { ...common, name: v.name.trim(), divisionId: orNull(v.divisionId), parentId: orNull(v.parentId) },
+      positions: { ...common, title: v.name.trim(), departmentId: orNull(v.departmentId) },
       units: { ...common, name: v.name.trim(), departmentId: orNull(v.departmentId) },
     }[level]
     try {
@@ -267,8 +261,8 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
     if (!isApiError(error)) return setBanner('network')
     if (error.code === 'ONB-3520') return setError('code', { message: errorMessage(t, error) })
     const fields: Record<string, FieldPath<Values>> = {
-      name: 'name', title: 'name', code: 'code', divisionId: 'divisionId', parentId: 'parentId', costCentre: 'costCentre',
-      departmentId: 'departmentId', grade: 'grade', companyIds: 'applies',
+      name: 'name', title: 'name', code: 'code', divisionId: 'divisionId', parentId: 'parentId',
+      departmentId: 'departmentId', companyIds: 'applies',
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
@@ -298,13 +292,9 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
         {level === 'departments' && <>
           {select('divisionId', t('structure.division'), 'divisions', true)}
           {select('parentId', t('structure.partOf'), 'departments', true, t('structure.partOfHint'))}
-          <TextField label={t('structure.costCentre')} placeholder={t('structure.costCentrePlaceholder')} optional maxLength={40}
-            error={errors.costCentre?.message} {...register('costCentre')} />
         </>}
         {level === 'positions' && <>
           {select('departmentId', t('structure.department'), 'departments', true, t('structure.sharedHint'))}
-          <TextField label={t('structure.grade')} placeholder={t('structure.gradePlaceholder')} optional maxLength={20}
-            error={errors.grade?.message} {...register('grade')} />
         </>}
         {level === 'units' && select('departmentId', t('structure.department'), 'departments', false)}
         {companies.length > 1 && (

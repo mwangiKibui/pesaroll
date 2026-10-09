@@ -18,8 +18,8 @@ public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<Onbo
     private sealed record Error(string Code, string Message, string Reference, Dictionary<string, string>? Fields);
     private sealed record Company(Guid Id, string LegalName);
     private sealed record Division(Guid Id, string Code, string Name, bool AllCompanies, List<Guid> CompanyIds);
-    private sealed record Department(Guid Id, string Code, string Name, Guid? DivisionId, Guid? ParentId, string? CostCentre, bool AllCompanies, List<Guid> CompanyIds);
-    private sealed record Position(Guid Id, string Code, string Title, Guid? DepartmentId, string? Grade, bool AllCompanies, List<Guid> CompanyIds);
+    private sealed record Department(Guid Id, string Code, string Name, Guid? DivisionId, Guid? ParentId, bool AllCompanies, List<Guid> CompanyIds);
+    private sealed record Position(Guid Id, string Code, string Title, Guid? DepartmentId, bool AllCompanies, List<Guid> CompanyIds);
     private sealed record Unit(Guid Id, string Code, string Name, Guid DepartmentId, bool AllCompanies, List<Guid> CompanyIds);
 
     private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
@@ -60,11 +60,11 @@ public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var ops = await Post<Department>(client, "/api/structure/departments",
             new { name = "Operations", divisionId = division.Id, allCompanies = false, companyIds = new[] { a.Id } });
         var kitchen = await Post<Department>(client, "/api/structure/departments",
-            new { code = "kit", name = "Kitchen", parentId = ops.Id, costCentre = "CC-100", allCompanies = false, companyIds = new[] { a.Id } });
+            new { code = "kit", name = "Kitchen", parentId = ops.Id, allCompanies = false, companyIds = new[] { a.Id } });
 
         Assert.Equal(("RES-01", "OPE-01", "KIT"), (division.Code, ops.Code, kitchen.Code));
         Assert.Equal((division.Id, (Guid?)null), (ops.DivisionId, ops.ParentId));
-        Assert.Equal((ops.Id, "CC-100"), (kitchen.ParentId, kitchen.CostCentre));
+        Assert.Equal(ops.Id, kitchen.ParentId);
 
         var loop = await client.PatchAsJsonAsync($"/api/structure/departments/{ops.Id}",
             new { code = ops.Code, name = "Operations", parentId = kitchen.Id, allCompanies = false, companyIds = new[] { a.Id } });
@@ -83,11 +83,11 @@ public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var kitchen = await Post<Department>(client, "/api/structure/departments", new { name = "Kitchen", allCompanies = true, companyIds = Array.Empty<Guid>() });
 
         var cook = await Post<Position>(client, "/api/structure/positions",
-            new { title = "Cook", departmentId = kitchen.Id, grade = "G3", allCompanies = true, companyIds = Array.Empty<Guid>() });
+            new { title = "Cook", departmentId = kitchen.Id, allCompanies = true, companyIds = Array.Empty<Guid>() });
         var clerk = await Post<Position>(client, "/api/structure/positions", new { title = "Clerk", allCompanies = false, companyIds = new[] { a.Id } });
         var shift = await Post<Unit>(client, "/api/structure/units", new { name = "Morning shift", departmentId = kitchen.Id, allCompanies = true, companyIds = Array.Empty<Guid>() });
 
-        Assert.Equal((kitchen.Id, "G3", "COO-01"), (cook.DepartmentId!.Value, cook.Grade, cook.Code));
+        Assert.Equal((kitchen.Id, "COO-01"), (cook.DepartmentId!.Value, cook.Code));
         Assert.Null(clerk.DepartmentId);
         Assert.Equal(kitchen.Id, shift.DepartmentId);
         var noDepartment = await ErrorFrom(await client.PostAsJsonAsync("/api/structure/units", new { name = "Night shift", allCompanies = true, companyIds = Array.Empty<Guid>() }));
@@ -152,11 +152,11 @@ public sealed class StructureTests(OnboardingTests.Api api) : IClassFixture<Onbo
         Assert.DoesNotContain((await client.GetFromJsonAsync<List<Department>>($"/api/structure/departments?companyId={b.Id}"))!, d => d.Id == bar.Id);
 
         var res = await client.PatchAsJsonAsync($"/api/structure/departments/{bar.Id}",
-            new { code = bar.Code, name = "Bar and lounge", costCentre = "CC-200", allCompanies = false, companyIds = new[] { b.Id } });
+            new { code = bar.Code, name = "Bar and lounge", allCompanies = false, companyIds = new[] { b.Id } });
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var edited = (await res.Content.ReadFromJsonAsync<Department>())!;
-        Assert.Equal(("Bar and lounge", "CC-200"), (edited.Name, edited.CostCentre));
+        Assert.Equal("Bar and lounge", edited.Name);
         Assert.Equal([b.Id], edited.CompanyIds);
         Assert.Contains((await client.GetFromJsonAsync<List<Department>>($"/api/structure/departments?companyId={b.Id}"))!, d => d.Id == bar.Id);
     }

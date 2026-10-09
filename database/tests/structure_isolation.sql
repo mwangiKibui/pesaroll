@@ -22,10 +22,10 @@ begin
   perform set_config('app.company_ids', ke1 || ',' || ug1, true);
   insert into divisions (id, organization_id, code, name, all_companies) values (div, org1, 'RES', 'Restaurants', true);
   insert into departments (id, organization_id, code, name, division_id) values (ops, org1, 'OPS', 'Operations', div);
-  insert into departments (id, organization_id, code, name, parent_id, cost_centre) values (kit, org1, 'KIT', 'Kitchen', ops, 'CC-100');
+  insert into departments (id, organization_id, code, name, parent_id) values (kit, org1, 'KIT', 'Kitchen', ops);
   insert into departments (id, organization_id, code, name, parent_id) values (grill, org1, 'GRL', 'Grill', kit);
   insert into department_companies (organization_id, department_id, company_id) values (org1, ops, ke1), (org1, kit, ke1), (org1, grill, ke1);
-  insert into positions (id, organization_id, code, title, department_id, grade) values (cook, org1, 'COOK', 'Cook', kit, 'G3');
+  insert into positions (id, organization_id, code, title, department_id) values (cook, org1, 'COOK', 'Cook', kit);
   insert into positions (id, organization_id, code, title, all_companies) values (shared_pos, org1, 'CLK', 'Clerk', true);
   insert into position_companies (organization_id, position_id, company_id) values (org1, cook, ke1);
   insert into units (id, organization_id, code, name, department_id) values (team, org1, 'AM', 'Morning shift', kit);

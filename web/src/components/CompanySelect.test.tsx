@@ -10,7 +10,7 @@ const companies = [
   { id: 'ug', name: 'Oliech Catering Uganda', code: 'UG' },
 ]
 
-function Harness({ multiple = true, initial = { all: false, ids: ['ke'] } }: { multiple?: boolean; initial?: CompanySelection }) {
+function Harness({ multiple = true, initial = { all: true, ids: [] } }: { multiple?: boolean; initial?: CompanySelection }) {
   const [value, setValue] = useState<CompanySelection>(initial)
   return (
     <>
@@ -20,37 +20,37 @@ function Harness({ multiple = true, initial = { all: false, ids: ['ke'] } }: { m
   )
 }
 
-it('shows what is chosen and opens a list of companies', async () => {
+it('starts with every company ticked and no separate "All companies" option', async () => {
   const { container } = render(<Harness />)
   const field = screen.getByRole('button', { name: /Companies/ })
-  expect(field).toHaveTextContent('Mama Oliech Restaurants · KE')
+  expect(field).toHaveTextContent('All companies')
   expect(field).toHaveAttribute('aria-expanded', 'false')
 
   await userEvent.click(field)
 
   expect(field).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getByRole('listbox')).toHaveAttribute('aria-multiselectable', 'true')
-  expect(screen.getByRole('option', { name: /All companies/ })).toHaveTextContent('Includes companies added later')
-  expect(screen.getByRole('option', { name: /Mama Oliech Restaurants/ })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Mama Oliech RestaurantsKE', 'Oliech Catering UgandaUG'])
+  expect(screen.getAllByRole('option').every(o => o.getAttribute('aria-selected') === 'true')).toBe(true)
   await expectNoA11yViolations(container)
 })
 
-it('picks several, then all', async () => {
+it('unticking narrows the choice; ticking every company again means all of them', async () => {
   render(<Harness />)
   await userEvent.click(screen.getByRole('button', { name: /Companies/ }))
 
   await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Uganda/ }))
-  expect(screen.getByRole('status')).toHaveTextContent('ke,ug')
-  expect(screen.getByRole('button', { name: /Companies/ })).toHaveTextContent('2 selected')
+  expect(screen.getByRole('status')).toHaveTextContent('ke')
+  expect(screen.getByRole('button', { name: /Companies/ })).toHaveTextContent('Mama Oliech Restaurants · KE')
 
-  await userEvent.click(screen.getByRole('option', { name: /All companies/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Uganda/ }))
   expect(screen.getByRole('status')).toHaveTextContent('all')
+  expect(screen.getByRole('button', { name: /Companies/ })).toHaveTextContent('All companies')
 })
 
 it('for one company it closes as soon as one is picked', async () => {
-  render(<Harness multiple={false} />)
+  render(<Harness multiple={false} initial={{ all: false, ids: ['ke'] }} />)
   await userEvent.click(screen.getByRole('button', { name: /Companies/ }))
-  expect(screen.queryByRole('option', { name: /All companies/ })).not.toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Uganda/ }))
 
@@ -59,12 +59,12 @@ it('for one company it closes as soon as one is picked', async () => {
 })
 
 it('works from the keyboard: arrows move, Enter picks, Escape closes', async () => {
-  render(<Harness />)
+  render(<Harness initial={{ all: false, ids: ['ke'] }} />)
   screen.getByRole('button', { name: /Companies/ }).focus()
 
   await userEvent.keyboard('{Enter}')
-  await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
-  expect(screen.getByRole('status')).toHaveTextContent('ke,ug')
+  await userEvent.keyboard('{ArrowDown}{Enter}')
+  expect(screen.getByRole('status')).toHaveTextContent('all')
 
   await userEvent.keyboard('{Escape}')
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
@@ -72,7 +72,7 @@ it('works from the keyboard: arrows move, Enter picks, Escape closes', async () 
 })
 
 it('a search box at the top of the list filters the companies', async () => {
-  const { container } = render(<Harness />)
+  const { container } = render(<Harness initial={{ all: false, ids: ['ke'] }} />)
   await userEvent.click(screen.getByRole('button', { name: /Companies/ }))
 
   const search = screen.getByRole('combobox', { name: 'Search companies' })
@@ -82,7 +82,7 @@ it('a search box at the top of the list filters the companies', async () => {
 
   expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual([expect.stringContaining('Oliech Catering Uganda')])
   await userEvent.keyboard('{Enter}')
-  expect(screen.getByRole('status')).toHaveTextContent('ke,ug')
+  expect(screen.getByRole('status')).toHaveTextContent('all')
 
   await userEvent.clear(search)
   await userEvent.type(search, 'zzz')

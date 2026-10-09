@@ -12,9 +12,9 @@ const restaurant = company({ industryCode: 'restaurants_bars' })
 const catering = company({ id: '0199c0de-0000-7000-8000-00000000c002', legalName: 'Oliech Catering Ltd', tradingName: null })
 const all = { allCompanies: true, companyIds: [] }
 const division = { id: 'dv1', code: 'RES-01', name: 'Restaurants', ...all }
-const ops = { id: 'dp1', code: 'OPE-01', name: 'Operations', divisionId: 'dv1', parentId: null, costCentre: null, ...all }
-const kitchen = { id: 'dp2', code: 'KIT-01', name: 'Kitchen', divisionId: null, parentId: 'dp1', costCentre: 'CC-100', ...all }
-const cook = { id: 'ps1', code: 'COO-01', title: 'Cook', departmentId: 'dp2', grade: 'G3', ...all }
+const ops = { id: 'dp1', code: 'OPE-01', name: 'Operations', divisionId: 'dv1', parentId: null, ...all }
+const kitchen = { id: 'dp2', code: 'KIT-01', name: 'Kitchen', divisionId: null, parentId: 'dp1', ...all }
+const cook = { id: 'ps1', code: 'COO-01', title: 'Cook', departmentId: 'dp2', ...all }
 const shift = { id: 'un1', code: 'MOR-01', name: 'Morning shift', departmentId: 'dp2', ...all }
 
 const drawer = () => screen.getByRole('dialog')
@@ -58,13 +58,13 @@ it('each tab lists its level with what it belongs to', async () => {
   const departments = await screen.findByRole('region', { name: 'Departments' })
   expect(await within(departments).findByText('Kitchen')).toBeInTheDocument()
   expect(within(departments).getAllByRole('columnheader').map(h => h.textContent))
-    .toEqual(['Department', 'Division', 'Part of', 'Cost centre', 'Applies to', 'Actions'])
+    .toEqual(['Department', 'Division', 'Part of', 'Applies to', 'Actions'])
   const row = within(departments).getByText('KIT-01').closest('tr')!
-  expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 5)).toEqual(['KitchenKIT-01', '—', 'Operations', 'CC-100', 'All companies'])
+  expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 4)).toEqual(['KitchenKIT-01', '—', 'Operations', 'All companies'])
 
   await tab('Positions')
   const positions = screen.getByRole('region', { name: 'Positions' })
-  expect(within(positions).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Position', 'Department', 'Grade', 'Applies to', 'Actions'])
+  expect(within(positions).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Position', 'Department', 'Applies to', 'Actions'])
   expect(within(positions).getByText('COO-01').closest('tr')).toHaveTextContent('Kitchen')
   await tab('Units')
   expect(within(screen.getByRole('region', { name: 'Units' })).getByText('Morning shift').closest('tr')).toHaveTextContent('Kitchen')
@@ -82,17 +82,16 @@ it('adds a department in a division and under another department', async () => {
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Department name' }), 'Grill')
   await choose('Division optional', 'res', 'Restaurants')
   await choose('Part of optional', 'kit', 'Kitchen')
-  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Cost centre optional' }), 'cc-110')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add department' }))
 
   expect(await screen.findByText('Department added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/structure/departments')?.body).toMatchObject({
-    name: 'Grill', code: null, divisionId: 'dv1', parentId: 'dp2', costCentre: 'cc-110', allCompanies: false, companyIds: [restaurant.id],
+    name: 'Grill', code: null, divisionId: 'dv1', parentId: 'dp2', allCompanies: false, companyIds: [restaurant.id],
   })
 })
 
 it('positions can be shared; a unit must be in a department', async () => {
-  const calls = withStructure({ 'POST /api/structure/positions': () => json(201, { ...cook, id: 'ps2', title: 'Clerk', departmentId: null, grade: null }) })
+  const calls = withStructure({ 'POST /api/structure/positions': () => json(201, { ...cook, id: 'ps2', title: 'Clerk', departmentId: null }) })
   renderApp('/setup/structure')
   await userEvent.click(await screen.findByRole('tab', { name: 'Positions' }))
 
@@ -149,8 +148,7 @@ it('with several companies, the selector filters every tab', async () => {
   expect(await within(await screen.findByRole('region', { name: 'Departments' })).findByText('BAR-01')).toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('button', { name: /Show companies/ }))
-  await userEvent.click(screen.getByRole('option', { name: /All companies/ }))
-  await userEvent.click(screen.getByRole('option', { name: /Mama Oliech Restaurant Ltd/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Ltd/ }))   // untick: only the restaurant stays
   await userEvent.keyboard('{Escape}')
 
   expect(within(panel('Departments')).queryByText('BAR-01')).not.toBeInTheDocument()

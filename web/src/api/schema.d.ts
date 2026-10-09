@@ -2766,7 +2766,6 @@ export interface components {
             divisionId: null | string;
             /** Format: uuid */
             parentId: null | string;
-            costCentre: null | string;
             allCompanies: boolean;
             companyIds: null | string[];
         };
@@ -2779,7 +2778,6 @@ export interface components {
             divisionId: null | string;
             /** Format: uuid */
             parentId: null | string;
-            costCentre: null | string;
             allCompanies: boolean;
             companyIds: string[];
         };
@@ -2930,7 +2928,6 @@ export interface components {
             title: null | string;
             /** Format: uuid */
             departmentId: null | string;
-            grade: null | string;
             allCompanies: boolean;
             companyIds: null | string[];
         };
@@ -2941,7 +2938,6 @@ export interface components {
             title: string;
             /** Format: uuid */
             departmentId: null | string;
-            grade: null | string;
             allCompanies: boolean;
             companyIds: string[];
         };

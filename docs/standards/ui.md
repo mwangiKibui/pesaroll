@@ -66,7 +66,7 @@ Colour tokens (light / dark):
   - Lists inside a drawer (a company's paying accounts) are a table; adding to them opens a `Modal` on top (a centred dialog, never a drawer on a drawer). Escape closes only the modal.
 - **Uploading many records (`BulkUpload`), the same for every import on every platform:** an "Upload <things>" button beside "Add <thing>" opens a drawer with 1 download the template (Excel, dropdowns from the same data as the screen) and 2 upload the filled file (.xlsx or .csv). Nothing is ever imported blindly: the file opens in a **large review modal** (`Modal size="wide"`) showing every column and row of the spreadsheet in an editable table (list columns as searchable dropdowns), with a search box, "Only rows to fix", a fixed header and its own scrolling, problems shown in their cells, and a remove-row button. Where the rows apply (the company selector, whose list scrolls) sits above the table. "Import N <things>" checks the edited rows on the server again and saves them all or none, then a toast.
 - **Company selector (`CompanySelect`)** on every list and setup screen where companies can differ:
-  - "All companies" first ("Includes companies added later")
+  - every company ticked by default; no separate "All companies" option. Every company ticked means all of them, including companies added later; unticking narrows the choice
   - checkboxes for several, round options for one
   - a search box at the top of the list, like every dropdown (rule 6)
 - **Suggest, don't ask:**

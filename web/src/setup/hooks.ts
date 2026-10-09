@@ -103,9 +103,7 @@ export interface StructureItem {
   title?: string
   divisionId?: string | null
   parentId?: string | null
-  costCentre?: string | null
   departmentId?: string | null
-  grade?: string | null
   allCompanies: boolean
   companyIds: string[]
 }
