@@ -147,7 +147,9 @@
     "ONB-3511": "Hatukuweza kupata akaunti hiyo ya kulipa.",
     "ONB-3512": "Baadhi ya maelezo ya eneo hayaonekani sawa. Angalia sehemu zilizowekwa alama.",
     "ONB-3513": "Eneo jingine tayari lina msimbo huu. Chagua mwingine au uache wazi.",
-    "ONB-3514": "Hatukuweza kupata eneo hilo."
+    "ONB-3514": "Hatukuweza kupata eneo hilo.",
+    "ONB-3516": "Hatukuweza kusoma faili hii. Tumia kiolezo (.xlsx) au faili ya .csv yenye safu zilezile.",
+    "ONB-3517": "Faili ni kubwa mno. Pakia hadi maeneo 1000 na MB 2 kwa wakati mmoja."
   },
   "organization": {
     "title": "Shirika lako linaitwaje?",
@@ -332,6 +334,40 @@
       "office": "Ofisi",
       "warehouse": "Ghala",
       "site": "Eneo la kazi"
-    }
+    },
+    "upload": "Pakia maeneo",
+    "applyTo": "Tumia kwa",
+    "templateHint": "Mstari mmoja kwa kila eneo: jina, aina, msimbo (si lazima), kaunti, mji, anwani, na Yes kwenye Main location kwa eneo kuu.",
+    "importMainHint": "Mstari uliowekwa Main location unakuwa eneo kuu la kampuni utakazochagua.",
+    "importButton_one": "Ingiza eneo {{count}}",
+    "importButton_other": "Ingiza maeneo {{count}}",
+    "imported_one": "Eneo {{count}} limeingizwa",
+    "imported_other": "Maeneo {{count}} yameingizwa",
+    "review_one": "Kagua eneo {{count}}",
+    "review_other": "Kagua maeneo {{count}}",
+    "mainColumn": "Eneo kuu",
+    "yes": "Ndiyo",
+    "no": "Hapana",
+    "addressColumn": "Anwani"
+  },
+  "bulk": {
+    "step1": "1. Pakua kiolezo",
+    "step2": "2. Pakia faili yako",
+    "download": "Pakua kiolezo",
+    "fileHint": "Faili ya .xlsx au .csv yenye safu za kiolezo, hadi mistari 1,000. Utakagua na kurekebisha mistari kabla ya kuhifadhi chochote.",
+    "choose": "Chagua faili",
+    "chooseAnother": "Chagua faili nyingine",
+    "checking": "Inakagua faili…",
+    "back": "Rudi kwenye faili",
+    "search": "Tafuta mistari",
+    "searchPlaceholder": "Utafutaji wako",
+    "toFix_one": "Mstari {{count}} unahitaji kurekebishwa.",
+    "toFix_other": "Mistari {{count}} inahitaji kurekebishwa.",
+    "onlyProblems": "Mistari ya kurekebisha pekee",
+    "showing": "Inaonyesha {{shown}} kati ya {{total}}",
+    "rows": "Mistari ya kuingiza",
+    "rowHeader": "Mstari",
+    "cell": "{{column}}, mstari {{line}}",
+    "removeRow": "Ondoa mstari {{line}}"
   }
 }

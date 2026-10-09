@@ -6,7 +6,8 @@ import { expectNoA11yViolations } from '../test/a11y'
 import { Button } from './Button'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Drawer } from './Drawer'
-import { TextField } from './fields'
+import { CompanySelect } from './CompanySelect'
+import { SelectField, TextField } from './fields'
 import { Modal } from './Modal'
 
 /** A drawer with a button that opens a modal on top, like adding a paying account to a company. */
@@ -72,4 +73,30 @@ it('a confirmation asked from a drawer closes on Escape without closing the draw
 
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   expect(screen.getByRole('dialog', { name: 'Edit company' })).toBeInTheDocument()
+})
+
+it('Escape in a dropdown inside a drawer closes only the dropdown', async () => {
+  function Form() {
+    const [town, setTown] = useState('')
+    const [shown, setShown] = useState({ all: true, ids: [] as string[] })
+    const [open, setOpen] = useState(true)
+    return (
+      <Drawer open={open} title="Add location" onClose={() => setOpen(false)}>
+        <SelectField label="Town" placeholder="Your town" options={[{ value: 'nbo', label: 'Nairobi' }]} value={town} onChange={setTown} />
+        <CompanySelect label="Apply to" companies={[{ id: 'ke', name: 'Mama Oliech', code: 'KE' }]} value={shown} onChange={setShown} />
+      </Drawer>
+    )
+  }
+  render(<Form />)
+
+  await userEvent.click(screen.getByRole('combobox', { name: 'Town' }))
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  expect(screen.getByRole('dialog', { name: 'Add location' })).toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('button', { name: /Apply to/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Mama Oliech/ }))   // focus stays in the list
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  expect(screen.getByRole('dialog', { name: 'Add location' })).toBeInTheDocument()
 })

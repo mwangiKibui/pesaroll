@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
+import { BulkUpload } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -60,6 +61,7 @@ export default function LocationsPage() {
   const [editing, setEditing] = useState<Location | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Location | null>(null)
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const ready = companies.data && locations.data && countries.data
   const list = (locations.data ?? []).filter(l => shown.all || l.allCompanies || l.companyIds.some(id => shown.ids.includes(id)))
@@ -85,7 +87,10 @@ export default function LocationsPage() {
     }
   }
 
-  const addButton = <Button onClick={() => setEditing('new')}>{t('locations.add')}</Button>
+  const addButton = <>
+    <Button variant="secondary" onClick={() => setUploading(true)}>{t('locations.upload')}</Button>
+    <Button onClick={() => setEditing('new')}>{t('locations.add')}</Button>
+  </>
 
   return (
     <SetupLayout current="locations" done={done} hasOrganization>
@@ -143,6 +148,7 @@ export default function LocationsPage() {
         </TableCard>
         <div><Button onClick={() => void navigate({ to: '/' })}>{t('locations.continue')}</Button></div>
 
+        {uploading && <UploadLocations companies={companies.data} country={country} onClose={() => setUploading(false)} />}
         {editing && (
           <LocationDrawer location={editing === 'new' ? null : editing} companies={companies.data} country={country}
             // A new location serves the companies being shown, as the selector suggests.
@@ -290,5 +296,95 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
         </fieldset>
       </form>
     </Drawer>
+  )
+}
+
+type ImportRow = components['schemas']['LocationImportRow']
+
+/**
+ * Uploading locations (ONB-04 part 2) with the shared BulkUpload: the template, then a review of
+ * every row of the file (editable, with the problems in their cells) and, with several companies,
+ * which companies the new locations serve.
+ */
+function UploadLocations({ companies, country, onClose }: { companies: Company[]; country: Country; onClose: () => void }) {
+  const { t } = useTranslation()
+  const { api, queryClient } = useServices()
+  const toast = useToast()
+  const [applies, setApplies] = useState<CompanySelection>({ all: true, ids: [] })
+
+  // The template's columns; list columns hold the same words as its dropdowns.
+  const columns = [
+    { key: 'name', label: t('locations.name') },
+    { key: 'kind', label: t('locations.kind'), options: locationKinds.map(k => ({ value: t(`locations.kinds.${k}`, { lng: 'en' }), label: t(`locations.kinds.${k}`) })) },
+    { key: 'code', label: t('locations.code') },
+    { key: 'county', label: local(country.regionLabel), options: country.regions.map(r => ({ value: r.name, label: r.name })) },
+    { key: 'town', label: t('companies.town') },
+    { key: 'address', label: t('locations.addressColumn') },
+    { key: 'main', label: t('locations.mainColumn'), options: [{ value: 'Yes', label: t('locations.yes') }, { value: 'No', label: t('locations.no') }] },
+  ]
+
+  const downloadTemplate = async () => {
+    const { data } = await api.GET('/api/locations/template', { parseAs: 'blob' })
+    if (!data) throw new Error('template')
+    const url = URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'pesaroll-locations-template.xlsx'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const read = async (file: File) => {
+    const { data, error } = await api.POST('/api/locations/import/read', {
+      body: { file } as never,
+      bodySerializer: () => {
+        const form = new FormData()
+        form.append('file', file)
+        return form
+      },
+    })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('read')
+  }
+
+  const check = async (rows: ImportRow[]) => {
+    const { data, error } = await api.POST('/api/locations/import/check', { body: { rows } })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('check')
+  }
+
+  const importRows = async (rows: ImportRow[]) => {
+    // With one company the locations are simply its own.
+    const body = companies.length === 1
+      ? { rows, allCompanies: false, companyIds: [companies[0].id] }
+      : { rows, allCompanies: applies.all, companyIds: applies.all ? [] : applies.ids }
+    const { data, error } = await api.POST('/api/locations/import', { body })
+    if (data) {
+      void queryClient.invalidateQueries({ queryKey: ['locations'] })
+      toast.show(t('locations.imported', { count: data.imported }))
+      return null
+    }
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('import')
+  }
+
+  return (
+    <BulkUpload open title={t('locations.upload')} columns={columns} onClose={onClose} onDownloadTemplate={downloadTemplate}
+      onRead={read} onCheck={check} onImport={importRows}
+      labels={{
+        review: count => t('locations.review', { count }),
+        importButton: count => t('locations.importButton', { count }),
+        templateHint: t('locations.templateHint'),
+      }}>
+      {companies.length > 1 && <>
+        <div className="max-w-sm">
+          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
+            companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+        </div>
+        <p className="m-0 text-hint text-muted">{t('locations.importMainHint')}</p>
+      </>}
+    </BulkUpload>
   )
 }

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useId, useRef, useState, type InputHTMLAttribute
 import { useTranslation } from 'react-i18next'
 import { matches } from './search'
 
-type Size = 'md' | 'lg'
+type Size = 'sm' | 'md' | 'lg'
 
 interface FieldProps {
   label: ReactNode
@@ -12,12 +12,14 @@ interface FieldProps {
   error?: ReactNode
   /** Writes "optional" beside the label. Required fields carry no marker. */
   optional?: boolean
-  /** lg: the phone portal's 52 px fields. */
+  /** lg: the phone portal's 52 px fields; sm: cells of an editable table (36 px). */
   size?: Size
+  /** The label is read out but not shown: a table cell, where the column header says what it is. */
+  hideLabel?: boolean
 }
 
 const control = 'w-full rounded-control border border-field-border bg-card px-3 text-ink placeholder:text-muted aria-invalid:border-danger-ink'
-const controlSize: Record<Size, string> = { md: 'min-h-11 text-body', lg: 'min-h-[52px] text-lg' }
+const controlSize: Record<Size, string> = { sm: 'min-h-9 text-label', md: 'min-h-11 text-body', lg: 'min-h-[52px] text-lg' }
 
 function useFieldIds(hint: unknown, error: unknown) {
   const id = useId()
@@ -27,11 +29,11 @@ function useFieldIds(hint: unknown, error: unknown) {
   return { id, hintId, errorId, describedBy }
 }
 
-function Field({ id, label, hint, hintId, error, errorId, optional, children }: FieldProps & { id: string; hintId: string; errorId: string; children: ReactNode }) {
+function Field({ id, label, hint, hintId, error, errorId, optional, hideLabel, children }: FieldProps & { id: string; hintId: string; errorId: string; children: ReactNode }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-label font-medium text-ink">
+      <label htmlFor={id} className={hideLabel ? 'sr-only' : 'text-label font-medium text-ink'}>
         {label}
         {optional && <> <span className="ml-1 font-normal text-muted">{t('common.optional')}</span></>}
       </label>
@@ -49,10 +51,10 @@ type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, '
   end?: ReactNode
 }
 
-export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, error, optional, size = 'md', end, className = '', ...input }, ref) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, error, optional, size = 'md', hideLabel, end, className = '', ...input }, ref) {
   const ids = useFieldIds(hint, error)
   return (
-    <Field {...ids} label={label} hint={hint} error={error} optional={optional}>
+    <Field {...ids} label={label} hint={hint} error={error} optional={optional} hideLabel={hideLabel}>
       <div className="relative">
         <input ref={ref} id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
           className={`${control} ${controlSize[size]} ${end ? 'pr-12' : ''} ${className}`} {...input} />
@@ -81,7 +83,7 @@ interface SelectFieldProps extends FieldProps {
  * Typing filters the options (case and accents don't count), arrows move, Enter picks,
  * Escape closes. Emptying an optional one clears it; a required one keeps its choice.
  */
-export function SelectField({ label, hint, error, optional, size = 'md', options, placeholder, value, onChange, onBlur, name, disabled, ref }: SelectFieldProps) {
+export function SelectField({ label, hint, error, optional, size = 'md', hideLabel, options, placeholder, value, onChange, onBlur, name, disabled, ref }: SelectFieldProps) {
   const { t } = useTranslation()
   const ids = useFieldIds(hint, error)
   const listId = `${ids.id}-list`
@@ -133,19 +135,22 @@ export function SelectField({ label, hint, error, optional, size = 'md', options
       e.preventDefault()
       pick(shown[active])
     } else if (e.key === 'Escape' && open) {
+      // Closes only the list, not a drawer or modal the field sits in.
       e.preventDefault()
+      e.stopPropagation()
       close()
     }
   }
 
   return (
-    <Field {...ids} label={label} hint={hint} error={error} optional={optional}>
+    <Field {...ids} label={label} hint={hint} error={error} optional={optional} hideLabel={hideLabel}>
       <div className="relative">
         <input ref={ref} id={ids.id} name={name} type="text" role="combobox" autoComplete="off" disabled={disabled}
           aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
           aria-activedescendant={open && shown[active] ? `${listId}-${active}` : undefined}
           aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
-          placeholder={placeholder} value={query ?? chosen?.label ?? ''}
+          // A value not in the list (typed in an uploaded file) stays visible, to be fixed.
+          placeholder={placeholder} value={query ?? chosen?.label ?? value}
           onChange={e => { setQuery(e.target.value); setActive(0); setOpen(true) }}
           onClick={openList} onKeyDown={onKeyDown} onBlur={leave}
           className={`${control} ${controlSize[size]} cursor-pointer pr-10`} />

@@ -1,11 +1,13 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
 import { apiError, company, fakeApi, json, location, orgToken } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
+// The template downloads through a temporary link to a blob.
+beforeEach(() => { URL.createObjectURL = vi.fn(() => 'blob:template'); URL.revokeObjectURL = vi.fn() })
 
 const signedIn = { 'POST /api/auth/refresh': () => orgToken() }
 const restaurant = company()
@@ -148,4 +150,66 @@ it('Save and continue goes to the dashboard with three steps done', async () => 
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
   expect(await screen.findByText('Finish setting up · 3 of 10')).toBeInTheDocument()
   expect(screen.getAllByText('Next: Org structure').length).toBeGreaterThan(0)
+})
+
+it('uploads locations: template, then a review of every row before importing for the chosen companies', async () => {
+  let locations = [hq, cateringHq]
+  const cells = (name: string, kind: string, county: string, main: string) => ({ name, kind, code: '', county, town: '', address: '', main })
+  const rows = [{ line: 2, cells: cells('Westlands branch', 'Branch', 'Nairobi', 'No') }, { line: 3, cells: cells('Mombasa shop', 'Warehouse', 'Mombasa', 'Yes') }]
+  const calls = fakeApi({
+    ...signedIn,
+    'GET /api/companies': () => json(200, [restaurant, catering]),
+    'GET /api/locations': () => json(200, locations),
+    'GET /api/locations/template': () => new Response('xlsx', { status: 200, headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } }),
+    'POST /api/locations/import/read': () => json(200, { rows, problems: [] }),
+    'POST /api/locations/import/check': () => json(200, { problems: [] }),
+    'POST /api/locations/import': () => { locations = [hq, cateringHq, location({ id: 'x1', code: 'WES-01', name: 'Westlands branch', kind: 'branch', mainFor: [] })]; return json(200, { imported: 2 }) },
+  })
+  renderApp('/setup/locations')
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Upload locations' }))
+  const upload = screen.getByRole('dialog', { name: 'Upload locations' })
+  await userEvent.click(within(upload).getByRole('button', { name: 'Download template' }))
+  expect(calls.some(c => c.method === 'GET' && c.path === '/api/locations/template')).toBe(true)
+  await vi.waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled())
+
+  await userEvent.upload(within(upload).getByLabelText('Choose a file'), new File(['x'], 'branches.xlsx'))
+  const review = await screen.findByRole('dialog', { name: 'Review 2 locations' })
+  const sent = calls.find(c => c.path === '/api/locations/import/read')!
+  expect(((sent.body as FormData).get('file') as Blob).size).toBe(1)   // the file went as form data
+  expect(within(review).getAllByRole('columnheader').map(h => h.textContent))
+    .toEqual(['Row', 'Location name', 'Type', 'Code', 'County', 'Town', 'Address', 'Main location', 'Actions'])
+  expect(within(review).getByRole('combobox', { name: 'Type, row 3' })).toHaveValue('Warehouse')
+
+  // All companies by default; choose only the restaurant.
+  await userEvent.click(within(review).getByRole('button', { name: /Apply to/ }))
+  await userEvent.click(screen.getByRole('option', { name: /All companies/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Mama Oliech Restaurant Ltd/ }))
+  await userEvent.keyboard('{Escape}')
+  expect(within(review).getByText(/The row marked Main location becomes the main location of the companies you choose/)).toBeInTheDocument()
+  await userEvent.click(within(review).getByRole('button', { name: 'Import 2 locations' }))
+
+  expect(await screen.findByText('2 locations imported')).toBeInTheDocument()
+  expect(calls.find(c => c.path === '/api/locations/import/check')?.body).toEqual({ rows })
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/locations/import')?.body).toEqual({ rows, allCompanies: false, companyIds: [restaurant.id] })
+  expect(await within(table()).findByText('WES-01')).toBeInTheDocument()
+})
+
+it('with one company, the review has no company choice', async () => {
+  const rows = [{ line: 2, cells: { name: 'Karen branch', kind: '', code: '', county: 'Nairobi', town: '', address: '', main: '' } }]
+  const calls = oneCompany({
+    'POST /api/locations/import/read': () => json(200, { rows, problems: [] }),
+    'POST /api/locations/import/check': () => json(200, { problems: [] }),
+    'POST /api/locations/import': () => json(200, { imported: 1 }),
+  })
+  renderApp('/setup/locations')
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Upload locations' }))
+  await userEvent.upload(within(screen.getByRole('dialog', { name: 'Upload locations' })).getByLabelText('Choose a file'), new File(['x'], 'branches.csv'))
+  const review = await screen.findByRole('dialog', { name: 'Review 1 location' })
+  expect(within(review).queryByRole('button', { name: /Apply to/ })).not.toBeInTheDocument()
+  await userEvent.click(within(review).getByRole('button', { name: 'Import 1 location' }))
+
+  expect(await screen.findByText('1 location imported')).toBeInTheDocument()
+  expect(calls.find(c => c.path === '/api/locations/import')?.body).toMatchObject({ allCompanies: false, companyIds: [restaurant.id] })
 })

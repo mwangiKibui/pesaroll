@@ -77,7 +77,8 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
     else if (e.key === 'Home') { e.preventDefault(); setActive(0) }
     else if (e.key === 'End') { e.preventDefault(); setActive(options.length - 1) }
     else if (e.key === 'Enter') { e.preventDefault(); if (options[active]) pick(options[active]) }
-    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); close() }
+    // Escape closes only the list, not a drawer or modal around it.
+    else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); close() }
   }
 
   const box = (on: boolean) => (
@@ -110,6 +111,8 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
               const company = companies.find(c => c.id === option)
               return (
                 <li key={option} id={`${id}-opt-${i}`} role="option" aria-selected={on} onClick={() => pick(option)} onMouseEnter={() => setActive(i)}
+                  // Keep focus in the search box, so keys (Escape) still reach the list.
+                  onMouseDown={e => e.preventDefault()}
                   className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control px-3 text-body text-ink ${i === active ? 'bg-raised' : ''} ${option === ALL ? 'border-b border-line-soft' : ''}`}>
                   {box(on)}
                   {option === ALL
