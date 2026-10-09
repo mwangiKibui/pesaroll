@@ -30,6 +30,13 @@ begin
     raise exception 'two locations in one organization share a code';
   exception when unique_violation then null;
   end;
+  -- A location's type: branch unless said otherwise, and only the known types.
+  if (select kind from locations where id = shop) <> 'branch' then raise exception 'a location should default to a branch'; end if;
+  begin
+    insert into locations (id, organization_id, code, name, country_code, kind) values ('00000000-0000-7000-8000-000000000107', org1, 'XX-3', 'Castle', 'KE', 'castle');
+    raise exception 'a location of an unknown type was saved';
+  exception when check_violation then null;
+  end;
   begin
     insert into locations (id, organization_id, code, name, country_code, region_code) values ('00000000-0000-7000-8000-000000000105', org1, 'XX-1', 'Nowhere', 'KE', '999');
     raise exception 'a location in an unknown county was saved';

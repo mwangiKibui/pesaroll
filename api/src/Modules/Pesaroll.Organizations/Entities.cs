@@ -179,6 +179,8 @@ public sealed class Location
     public Guid OrganizationId { get; set; }
     public required string Code { get; set; }
     public required string Name { get; set; }
+    /// <summary>head_office, branch, office, warehouse or site.</summary>
+    public string Kind { get; set; } = "branch";
     public required string CountryCode { get; set; }
     public string? RegionCode { get; set; }
     public string? Town { get; set; }

@@ -7,6 +7,8 @@ create table locations (
     organization_id  uuid not null references organizations (id),
     code             text not null check (code ~ '^[A-Z0-9][A-Z0-9-]{1,19}$'),   -- NBO-HQ, MSA-01
     name             text not null check (char_length(btrim(name)) between 2 and 120),
+    kind             text not null default 'branch'
+                     check (kind in ('head_office', 'branch', 'office', 'warehouse', 'site')),
     country_code     char(2) not null references countries (code),
     region_code      text,                                  -- county (country_regions)
     town             text,

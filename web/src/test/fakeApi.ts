@@ -74,7 +74,7 @@ export const equityAccount = (overrides: Record<string, unknown> = {}) => ({
 
 /** A location as the API returns it; by default the company's Head office and its main location. */
 export const location = (overrides: Record<string, unknown> = {}) => ({
-  id: '0199c0de-0000-7000-8000-00000000d001', code: 'HQ-01', name: 'Head office', countryCode: 'KE', regionCode: '047', town: 'Nairobi',
+  id: '0199c0de-0000-7000-8000-00000000d001', code: 'HQ-01', name: 'Head office', kind: 'head_office', countryCode: 'KE', regionCode: '047', town: 'Nairobi',
   addressLine: 'Marcus Garvey Road', wageAreaCode: 'cities', allCompanies: false,
   companyIds: [company().id], mainFor: [company().id], ...overrides,
 })

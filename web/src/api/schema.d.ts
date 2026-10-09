@@ -1552,6 +1552,7 @@ export interface components {
         LocationRequest: {
             code: null | string;
             name: null | string;
+            kind: null | string;
             regionCode: null | string;
             town: null | string;
             addressLine: null | string;
@@ -1565,6 +1566,7 @@ export interface components {
             id: string;
             code: string;
             name: string;
+            kind: string;
             countryCode: string;
             regionCode: null | string;
             town: null | string;

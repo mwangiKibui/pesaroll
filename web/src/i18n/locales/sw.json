@@ -323,6 +323,15 @@
     "nameInvalid": "Andika jina la eneo (herufi 2 hadi 120).",
     "codeInvalid": "Tumia herufi, nambari au vistari 2 hadi 20, au uache wazi tukutengenezee.",
     "regionRequired": "Chagua {{region}} kutoka kwenye orodha.",
-    "companiesRequired": "Chagua angalau kampuni moja, au kampuni zote."
+    "companiesRequired": "Chagua angalau kampuni moja, au kampuni zote.",
+    "kind": "Aina",
+    "kindPlaceholder": "Aina ya eneo lako",
+    "kinds": {
+      "head_office": "Ofisi kuu",
+      "branch": "Tawi",
+      "office": "Ofisi",
+      "warehouse": "Ghala",
+      "site": "Eneo la kazi"
+    }
   }
 }

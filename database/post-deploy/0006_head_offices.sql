@@ -6,8 +6,8 @@ with missing as (
     from companies c
     where c.main_location_id is null and c.status = 'active'
 ), made as (
-    insert into locations (id, organization_id, code, name, country_code, region_code, town, address_line, wage_area_code)
-    select m.location_id, m.organization_id, 'HQ-' || upper(left(md5(m.company_id::text), 6)), 'Head office',
+    insert into locations (id, organization_id, code, name, kind, country_code, region_code, town, address_line, wage_area_code)
+    select m.location_id, m.organization_id, 'HQ-' || upper(left(md5(m.company_id::text), 6)), 'Head office', 'head_office',
            m.country_code, m.region_code, m.town, m.address_line,
            (select a.code from country_wage_areas a
             where a.country_code = m.country_code and m.town is not null and lower(m.town) = any (select lower(t) from unnest(a.towns) t))

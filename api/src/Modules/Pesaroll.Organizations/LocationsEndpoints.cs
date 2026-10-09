@@ -15,11 +15,11 @@ namespace Pesaroll.Organizations;
 /// (<see cref="AllCompanies"/>) or <see cref="CompanyIds"/>, and is the main location of <see cref="MainFor"/>.
 /// </summary>
 public sealed record LocationRequest(
-    string? Code, string? Name, string? RegionCode, string? Town, string? AddressLine, string? WageAreaCode,
+    string? Code, string? Name, string? Kind, string? RegionCode, string? Town, string? AddressLine, string? WageAreaCode,
     bool AllCompanies, List<Guid>? CompanyIds, List<Guid>? MainFor);
 
 public sealed record LocationResponse(
-    Guid Id, string Code, string Name, string CountryCode, string? RegionCode, string? Town, string? AddressLine,
+    Guid Id, string Code, string Name, string Kind, string CountryCode, string? RegionCode, string? Town, string? AddressLine,
     string? WageAreaCode, bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<Guid> MainFor);
 
 public sealed record WageAreaResponse(string Code, LocalizedText Name, LocalizedText Description, IReadOnlyList<string> Towns);
@@ -31,6 +31,9 @@ public sealed record WageAreaResponse(string Code, LocalizedText Name, Localized
 /// </summary>
 public static class LocationsEndpoints
 {
+    /// <summary>The types a location can be; a new one is a branch unless said otherwise.</summary>
+    public static readonly string[] Kinds = ["head_office", "branch", "office", "warehouse", "site"];
+
     public static IEndpointRouteBuilder MapLocationsEndpoints(this IEndpointRouteBuilder app)
     {
         var locations = app.MapGroup("/api/locations").WithTags("Locations");
@@ -143,6 +146,7 @@ public static class LocationsEndpoints
             OrganizationId = company.OrganizationId,
             Code = await NextCodeAsync(db, "HQ", ct),
             Name = "Head office",
+            Kind = "head_office",
             CountryCode = company.CountryCode,
             RegionCode = company.RegionCode,
             Town = company.Town,
@@ -190,7 +194,7 @@ public static class LocationsEndpoints
     }
 
     private sealed record ValidLocation(
-        string? Code, string Name, string CountryCode, string? RegionCode, string? Town, string? AddressLine, string? WageAreaCode,
+        string? Code, string Name, string Kind, string CountryCode, string? RegionCode, string? Town, string? AddressLine, string? WageAreaCode,
         bool AllCompanies, List<Guid> CompanyIds, List<Guid> MainFor);
 
     private static async Task<ValidLocation> ValidateAsync(LocationRequest request, OrganizationsDbContext db, CancellationToken ct)
@@ -200,6 +204,12 @@ public static class LocationsEndpoints
         if (name.Length is < 2 or > 120)
         {
             errors["name"] = "Enter the location's name (2 to 120 characters).";
+        }
+
+        var kind = string.IsNullOrWhiteSpace(request.Kind) ? "branch" : request.Kind.Trim();
+        if (!Kinds.Contains(kind))
+        {
+            errors["kind"] = "Choose the type from the list.";
         }
 
         var code = string.IsNullOrWhiteSpace(request.Code) ? null : request.Code.Trim().ToUpperInvariant();
@@ -253,12 +263,13 @@ public static class LocationsEndpoints
             throw OnboardingErrors.LocationDetailsInvalid(errors);
         }
 
-        return new ValidLocation(code, name, countryCode, region, Limit(request.Town, 100), Limit(request.AddressLine, 200), wageArea,
+        return new ValidLocation(code, name, kind, countryCode, region, Limit(request.Town, 100), Limit(request.AddressLine, 200), wageArea,
             request.AllCompanies, request.AllCompanies ? [] : chosen, mainFor);
     }
 
     private static void Apply(Location location, ValidLocation valid, DateTimeOffset now)
     {
+        location.Kind = valid.Kind;
         location.RegionCode = valid.RegionCode;
         location.Town = valid.Town;
         location.AddressLine = valid.AddressLine;
@@ -298,7 +309,7 @@ public static class LocationsEndpoints
         .GroupBy(c => c.Main).ToDictionary(g => g.Key, g => g.Select(c => c.Id).ToList());
 
     private static LocationResponse ToResponse(Location l, Dictionary<Guid, List<Guid>> mains) => new(
-        l.Id, l.Code, l.Name, l.CountryCode, l.RegionCode, l.Town, l.AddressLine, l.WageAreaCode, l.AllCompanies,
+        l.Id, l.Code, l.Name, l.Kind, l.CountryCode, l.RegionCode, l.Town, l.AddressLine, l.WageAreaCode, l.AllCompanies,
         l.Companies.Select(c => c.CompanyId).ToList(), mains.GetValueOrDefault(l.Id) ?? []);
 
     private static string? Limit(string? value, int max)

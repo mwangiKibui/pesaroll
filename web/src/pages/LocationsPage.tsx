@@ -24,6 +24,7 @@ type Text = components['schemas']['LocalizedText']
 
 interface Values {
   name: string
+  kind: string
   code: string
   regionCode: string
   town: string
@@ -34,6 +35,9 @@ interface Values {
 
 const local = (text: Text) => (i18n.language === 'sw' ? text.sw : text.en)
 const none = <span className="text-muted">—</span>
+
+/** The types a location can be (same list as the API). */
+const locationKinds = ['head_office', 'branch', 'office', 'warehouse', 'site'] as const
 
 /** The companies a location serves: all of them, or the chosen ones. */
 const served = (all: boolean, ids: string[], companies: Company[]) => (all ? companies : companies.filter(c => ids.includes(c.id)))
@@ -102,6 +106,7 @@ export default function LocationsPage() {
               <thead>
                 <tr>
                   <th scope="col">{t('locations.location')}</th>
+                  <th scope="col">{t('locations.kind')}</th>
                   <th scope="col">{t('locations.townAndCounty', { region: local(country.regionLabel).toLowerCase() })}</th>
                   <th scope="col">{t('locations.appliesTo')}</th>
                   <th scope="col">{t('locations.mainFor')}</th>
@@ -117,6 +122,7 @@ export default function LocationsPage() {
                         <span className="block font-medium text-ink">{l.name}</span>
                         <span className="block font-mono text-hint text-muted">{l.code}</span>
                       </td>
+                      <td>{t(`locations.kinds.${l.kind}`)}</td>
                       <td>{[l.town, region].filter(Boolean).join(', ') || none}</td>
                       <td>{l.allCompanies ? t('locations.allCompanies') : companyNames(l.companyIds) || none}</td>
                       <td>{companyNames(l.mainFor) || none}</td>
@@ -169,6 +175,7 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
   const { register, handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
       name: location?.name ?? '',
+      kind: location?.kind ?? 'branch',
       code: location?.code ?? '',
       regionCode: location?.regionCode ?? '',
       town: location?.town ?? '',
@@ -197,6 +204,7 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
     const body = {
       code: v.code.trim() ? v.code.trim().toUpperCase() : null,
       name: v.name.trim(),
+      kind: v.kind,
       regionCode: v.regionCode,
       town: v.town.trim() || null,
       addressLine: v.addressLine.trim() || null,
@@ -227,7 +235,7 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
     if (!isApiError(error)) return setBanner('network')
     if (error.code === 'ONB-3513') return setError('code', { message: errorMessage(t, error) })
     const fields: Record<string, FieldPath<Values>> = {
-      name: 'name', code: 'code', regionCode: 'regionCode', town: 'town', companyIds: 'applies', mainFor: 'mainFor',
+      name: 'name', kind: 'kind', code: 'code', regionCode: 'regionCode', town: 'town', companyIds: 'applies', mainFor: 'mainFor',
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
@@ -245,6 +253,10 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
         <TextField label={t('locations.name')} placeholder={t('locations.namePlaceholder')} maxLength={120}
           error={errors.name?.message} {...register('name')} />
+        <Controller control={control} name="kind" render={({ field }) => (
+          <SelectField label={t('locations.kind')} placeholder={t('locations.kindPlaceholder')} error={errors.kind?.message}
+            options={locationKinds.map(k => ({ value: k, label: t(`locations.kinds.${k}`) }))} {...field} />
+        )} />
         <TextField label={t('locations.code')} placeholder={t('locations.codePlaceholder')} optional hint={t('locations.codeHint')}
           maxLength={20} autoCapitalize="characters" error={errors.code?.message} {...register('code')} />
         <Controller control={control} name="regionCode" render={({ field }) => (

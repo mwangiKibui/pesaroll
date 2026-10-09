@@ -323,6 +323,15 @@
     "nameInvalid": "Enter the location's name (2 to 120 characters).",
     "codeInvalid": "Use 2 to 20 letters, numbers or dashes, or leave it empty for us to make one.",
     "regionRequired": "Choose a {{region}} from the list.",
-    "companiesRequired": "Choose at least one company, or all companies."
+    "companiesRequired": "Choose at least one company, or all companies.",
+    "kind": "Type",
+    "kindPlaceholder": "Your location type",
+    "kinds": {
+      "head_office": "Head office",
+      "branch": "Branch",
+      "office": "Office",
+      "warehouse": "Warehouse",
+      "site": "Site"
+    }
   }
 }

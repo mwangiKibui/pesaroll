@@ -20,7 +20,7 @@ public sealed class LocationsTests(OnboardingTests.Api api) : IClassFixture<Onbo
     private sealed record WageArea(string Code, Text Name, Text Description, List<string> Towns);
     private sealed record Country(string Code, List<WageArea> WageAreas);
     private sealed record Company(Guid Id, string LegalName);
-    private sealed record Location(Guid Id, string Code, string Name, string CountryCode, string? RegionCode, string? Town,
+    private sealed record Location(Guid Id, string Code, string Name, string Kind, string CountryCode, string? RegionCode, string? Town,
         string? AddressLine, string? WageAreaCode, bool AllCompanies, List<Guid> CompanyIds, List<Guid> MainFor);
 
     private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
@@ -74,8 +74,8 @@ public sealed class LocationsTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var company = await AddCompany(client, "Mama Oliech Restaurants Ltd");
 
         var hq = Assert.Single(await Locations(client));
-        Assert.Equal(("Head office", "KE", "047", "Nairobi", "Moi Avenue", "cities"),
-            (hq.Name, hq.CountryCode, hq.RegionCode, hq.Town, hq.AddressLine, hq.WageAreaCode));
+        Assert.Equal(("Head office", "head_office", "KE", "047", "Nairobi", "Moi Avenue", "cities"),
+            (hq.Name, hq.Kind, hq.CountryCode, hq.RegionCode, hq.Town, hq.AddressLine, hq.WageAreaCode));
         Assert.Matches("^[A-Z0-9][A-Z0-9-]{1,19}$", hq.Code);
         Assert.Equal([company.Id], hq.CompanyIds);
         Assert.Equal([company.Id], hq.MainFor);
@@ -92,7 +92,7 @@ public sealed class LocationsTests(OnboardingTests.Api api) : IClassFixture<Onbo
 
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
         var shop = (await res.Content.ReadFromJsonAsync<Location>())!;
-        Assert.Equal(("MOM-01", "cities"), (shop.Code, shop.WageAreaCode));
+        Assert.Equal(("MOM-01", "cities", "branch"), (shop.Code, shop.WageAreaCode, shop.Kind));   // a branch unless said otherwise
         Assert.Equal([a.Id, b.Id], shop.CompanyIds.Order());
         Assert.Equal([b.Id], shop.MainFor);
 
@@ -113,10 +113,11 @@ public sealed class LocationsTests(OnboardingTests.Api api) : IClassFixture<Onbo
         await AddCompany(client, "Oliech Restaurants Ltd");
         var store = (await (await client.PostAsJsonAsync("/api/locations", new
         {
-            name = "Central store", regionCode = "022", town = "Ruiru", wageAreaCode = "municipalities", allCompanies = true,
+            name = "Central store", kind = "warehouse", regionCode = "022", town = "Ruiru", wageAreaCode = "municipalities", allCompanies = true,
             companyIds = Array.Empty<Guid>(), mainFor = Array.Empty<Guid>(),
         })).Content.ReadFromJsonAsync<Location>())!;
         Assert.True(store.AllCompanies);
+        Assert.Equal("warehouse", store.Kind);
 
         var later = await AddCompany(client, "Oliech Bakery Ltd");
 
@@ -139,6 +140,11 @@ public sealed class LocationsTests(OnboardingTests.Api api) : IClassFixture<Onbo
         Assert.Equal("ONB-3512", error.Code);
         Assert.Equal(["companyIds", "name", "regionCode", "wageAreaCode"], error.Fields!.Keys.Order());   // an unknown area is still refused
 
+        var kind = await ErrorFrom(await client.PostAsJsonAsync("/api/locations", new
+        {
+            name = "Castle", kind = "castle", regionCode = "047", allCompanies = false, companyIds = new[] { a.Id }, mainFor = Array.Empty<Guid>(),
+        }));
+        Assert.Equal(["kind"], kind.Fields!.Keys);
         var code = await ErrorFrom(await client.PostAsJsonAsync("/api/locations", Shop([a.Id], [], code: "bad code!")));
         Assert.Equal(["code"], code.Fields!.Keys);
         var main = await ErrorFrom(await client.PostAsJsonAsync("/api/locations", Shop([a.Id], [b.Id])));
