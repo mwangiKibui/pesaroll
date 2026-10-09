@@ -172,14 +172,14 @@ public static class LocationsEndpoints
     }
 
     /// <summary>"MOM" from Mombasa: the first three letters of the town (or name); "LOC" when there are none.</summary>
-    private static string Prefix(string text)
+    internal static string Prefix(string text)
     {
         var letters = new string(text.Where(char.IsAsciiLetter).Take(3).ToArray()).ToUpperInvariant();
         return letters.Length >= 2 ? letters : "LOC";
     }
 
     /// <summary>The first free PREFIX-01, PREFIX-02… in the organization.</summary>
-    private static async Task<string> NextCodeAsync(OrganizationsDbContext db, string prefix, CancellationToken ct)
+    internal static async Task<string> NextCodeAsync(OrganizationsDbContext db, string prefix, CancellationToken ct)
     {
         var taken = (await db.Locations.Where(l => l.Code.StartsWith(prefix + "-")).Select(l => l.Code).ToListAsync(ct))
             .Concat(db.Locations.Local.Select(l => l.Code)).ToHashSet();
