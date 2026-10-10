@@ -92,9 +92,14 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         Assert.Equal(Departments, Enumerable.Range(1, 4).Select(c => sheet.Cell(1, c).GetString()));
         // Division and Part of are plain cells: a name, existing or new (created on import).
         Assert.All(Enumerable.Range(1, 4), c => Assert.False(sheet.Cell(2, c).HasDataValidation));
-        foreach (var level in new[] { "divisions", "positions", "units" })
+        // Positions and units type their department the same way; no level's template has a dropdown.
+        foreach (var (level, header) in new[] { ("divisions", "Division name"), ("positions", "Position title"), ("units", "Unit name") })
         {
-            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/structure/{level}/template")).StatusCode);
+            var other = await client.GetAsync($"/api/structure/{level}/template");
+            using var otherBook = new XLWorkbook(await other.Content.ReadAsStreamAsync());
+            var otherSheet = otherBook.Worksheet(1);
+            Assert.Equal(header, otherSheet.Cell(1, 1).GetString());
+            Assert.All(Enumerable.Range(1, 3), c => Assert.False(otherSheet.Cell(2, c).HasDataValidation));
         }
     }
 
