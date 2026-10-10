@@ -47,24 +47,27 @@ public static class StructureImport
                 {
                     department.DivisionId = row.NewDivision is { } division ? await create.DivisionAsync(division) : row.DivisionId;
                     department.ParentId = row.ParentLine is int line ? byLine[line].Id
-                        : row.NewDepartment is { } parent ? await create.DepartmentAsync(parent) : row.DepartmentId;
+                        // A new "Part of" department goes in the same division as the row naming it.
+                        : row.NewDepartment is { } parent ? await create.DepartmentAsync(parent, department.DivisionId) : row.DepartmentId;
                 }, ct)));
 
         SpreadsheetImport.MapImport(group, "/positions", Spec("positions", "position",
-            [new(Name, "Position title"), new(Code, "Code"), new(Department, "Department")],
+            [new(Name, "Position title"), new(Code, "Code"), new(Department, "Department"), new(Division, "Division")],
             choices: NoChoices,
             codes: db => db.Positions.Where(p => p.Status == "active").Select(p => p.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Positions, db.Positions.Select(p => p.Code),
                 (org, item, company, at) => new PositionCompany { OrganizationId = org, PositionId = item, CompanyId = company, CreatedAt = at },
-                async (position, row, _, create) => position.DepartmentId = row.NewDepartment is { } name ? await create.DepartmentAsync(name) : row.DepartmentId, ct)));
+                async (position, row, _, create) => position.DepartmentId = row.NewDepartment is { } name
+                    ? await create.DepartmentAsync(name, row.DivisionId, row.NewDivision) : row.DepartmentId, ct)));
 
         SpreadsheetImport.MapImport(group, "/units", Spec("units", "unit",
-            [new(Name, "Unit name"), new(Code, "Code"), new(Department, "Department")],
+            [new(Name, "Unit name"), new(Code, "Code"), new(Department, "Department"), new(Division, "Division")],
             choices: NoChoices,
             codes: db => db.Units.Where(u => u.Status == "active").Select(u => u.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Units, db.Units.Select(u => u.Code),
                 (org, item, company, at) => new UnitCompany { OrganizationId = org, UnitId = item, CompanyId = company, CreatedAt = at },
-                async (unit, row, _, create) => unit.DepartmentId = row.NewDepartment is { } name ? await create.DepartmentAsync(name) : row.DepartmentId!.Value, ct),
+                async (unit, row, _, create) => unit.DepartmentId = row.NewDepartment is { } name
+                    ? await create.DepartmentAsync(name, row.DivisionId, row.NewDivision) : row.DepartmentId!.Value, ct),
             departmentRequired: true));
 
         return app;
@@ -90,7 +93,8 @@ public static class StructureImport
         Save = save,
     };
 
-    private sealed record Ref(Guid Id, string Code, string Name);
+    /// <summary>A division or department; DivisionId is a department's division.</summary>
+    private sealed record Ref(Guid Id, string Code, string Name, Guid? DivisionId = null);
 
     /// <summary>What a reference found: an existing id, nothing (it will be created), or several names (a problem).</summary>
     private enum Found { One, None, Several }
@@ -111,7 +115,7 @@ public static class StructureImport
         var divisions = columns.Contains(Division)
             ? await db.Divisions.Where(d => d.Status == "active").Select(d => new Ref(d.Id, d.Code, d.Name)).ToListAsync(ct) : [];
         var departments = columns.Contains(Parent) || columns.Contains(Department)
-            ? await db.Departments.Where(d => d.Status == "active").Select(d => new Ref(d.Id, d.Code, d.Name)).ToListAsync(ct) : [];
+            ? await db.Departments.Where(d => d.Status == "active").Select(d => new Ref(d.Id, d.Code, d.Name, d.DivisionId)).ToListAsync(ct) : [];
         var problems = new List<ImportProblem>();
         var notes = new List<ImportProblem>();
         var seenCodes = new HashSet<string>();
@@ -149,14 +153,48 @@ public static class StructureImport
                 else if (!seenCodes.Add(code)) Problem(Code, $"Another row in the file has the code {code}.");
             }
 
-            var (divisionId, newDivision) = columns.Contains(Division) && row.Cells[Division].Length > 0
-                ? Resolve(divisions, row.Cells[Division], "division", Division, row.Line) : (null, null);
-
+            (Guid? divisionId, string? newDivision) = (null, null);
             (Guid? departmentId, string? newDepartment) = (null, null);
             if (columns.Contains(Department))
             {
-                if (row.Cells[Department].Length > 0) (departmentId, newDepartment) = Resolve(departments, row.Cells[Department], "department", Department, row.Line);
-                else if (departmentRequired) Problem(Department, $"Choose the department this {thing} is in.");
+                // Positions and units: a department and, optionally, the division it is (or will be) in.
+                var departmentText = row.Cells[Department];
+                var divisionText = row.Cells[Division];
+                if (departmentText.Length == 0)
+                {
+                    if (departmentRequired) Problem(Department, $"Choose the department this {thing} is in.");
+                    if (divisionText.Length > 0) Problem(Division, "Name the department too, or leave Division empty: a division only says where a department sits.");
+                }
+                else
+                {
+                    var (found, id) = Find(departments, departmentText);
+                    if (found == Found.Several)
+                    {
+                        Problem(Department, $"More than one department is called \"{departmentText}\". Use its code.");
+                    }
+                    else if (found == Found.One)
+                    {
+                        departmentId = id;
+                        var department = departments.Single(d => d.Id == id);
+                        if (divisionText.Length > 0 && !(Find(divisions, divisionText) is (Found.One, var given) && given == department.DivisionId))
+                        {
+                            var current = divisions.FirstOrDefault(d => d.Id == department.DivisionId)?.Name;
+                            Problem(Division, current is null
+                                ? $"{department.Name} isn't in a division. Leave Division empty."
+                                : $"{department.Name} is in {current}, not \"{divisionText}\". Leave Division empty or change it to {current}.");
+                        }
+                    }
+                    else
+                    {
+                        notes.Add(new ImportProblem(row.Line, Department, $"No department called \"{departmentText}\" yet: it will be created."));
+                        newDepartment = departmentText;
+                        if (divisionText.Length > 0) (divisionId, newDivision) = Resolve(divisions, divisionText, "division", Division, row.Line);
+                    }
+                }
+            }
+            else if (columns.Contains(Division) && row.Cells[Division].Length > 0)
+            {
+                (divisionId, newDivision) = Resolve(divisions, row.Cells[Division], "division", Division, row.Line);
             }
 
             rows.Add(new Checked(row, name, code, divisionId, newDivision, departmentId, newDepartment));
@@ -207,6 +245,35 @@ public static class StructureImport
             }
         }
 
+        // A new department is created once, in one division: rows naming it with different divisions are a problem;
+        // rows naming it without one take the division another row gives.
+        if (columns.Contains(Department))
+        {
+            foreach (var group in rows.Select((r, i) => (r, i)).Where(x => x.r.NewDepartment is not null)
+                .GroupBy(x => x.r.NewDepartment!, StringComparer.OrdinalIgnoreCase))
+            {
+                var given = group.Where(x => x.r.Row.Cells[Division].Length > 0).ToList();
+                if (given.Select(x => x.r.Row.Cells[Division]).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+                {
+                    foreach (var (r, _) in given)
+                    {
+                        problems.Add(new ImportProblem(r.Row.Line, Division,
+                            $"Rows give the new department \"{group.Key}\" different divisions. Use the same one, or leave it empty on the others."));
+                    }
+                }
+                else if (given.Count > 0)
+                {
+                    foreach (var (r, i) in group)
+                    {
+                        rows[i] = r with { DivisionId = given[0].r.DivisionId, NewDivision = given[0].r.NewDivision };
+                    }
+                }
+            }
+        }
+
+        // A cell with a problem doesn't also say it will be created.
+        notes = notes.Where(n => !problems.Any(p => p.Line == n.Line && p.Column == n.Column)).ToList();
+
         var bad = problems.Select(p => p.Line).ToHashSet();
         var valid = rows.Where(r => !bad.Contains(r.Row.Line))
             .Select(r => new ValidRow(r.Row.Line, r.Name, r.Code, r.DivisionId, r.NewDivision, r.DepartmentId, r.NewDepartment,
@@ -236,12 +303,14 @@ public static class StructureImport
             return divisions[name] = division.Id;
         }
 
-        public async Task<Guid> DepartmentAsync(string name)
+        /// <summary>A department, created in its division (an existing one, or a new one by name) the first time.</summary>
+        public async Task<Guid> DepartmentAsync(string name, Guid? divisionId = null, string? newDivision = null)
         {
             if (departments.TryGetValue(name, out var id)) return id;
             departmentCodes ??= new([.. await db.Departments.Select(d => d.Code).ToListAsync(ct), .. db.Departments.Local.Select(d => d.Code)]);
             var department = New<Department, DepartmentCompany>(name, departmentCodes,
                 (org, item, company, at) => new DepartmentCompany { OrganizationId = org, DepartmentId = item, CompanyId = company, CreatedAt = at });
+            department.DivisionId = newDivision is not null ? await DivisionAsync(newDivision) : divisionId;
             db.Departments.Add(department);
             return departments[name] = department.Id;
         }

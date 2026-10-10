@@ -57,7 +57,8 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
     }
 
     private static readonly string[] Departments = ["Department name", "Code", "Division", "Part of"];
-    private static readonly string[] Positions = ["Position title", "Code", "Department"];
+    private static readonly string[] Positions = ["Position title", "Code", "Department", "Division"];
+    private static readonly string[] Units = ["Unit name", "Code", "Department", "Division"];
 
     private static async Task<HttpResponseMessage> ReadFile(HttpClient client, string level, byte[] file, string name = "x.xlsx", string type = Xlsx)
     {
@@ -93,13 +94,15 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         // Division and Part of are plain cells: a name, existing or new (created on import).
         Assert.All(Enumerable.Range(1, 4), c => Assert.False(sheet.Cell(2, c).HasDataValidation));
         // Positions and units type their department the same way; no level's template has a dropdown.
-        foreach (var (level, header) in new[] { ("divisions", "Division name"), ("positions", "Position title"), ("units", "Unit name") })
+        // Each template carries the whole chain above it: positions and units name their department and its division.
+        foreach (var (level, headers) in new[] { ("divisions", new[] { "Division name", "Code" }), ("positions", Positions), ("units", Units) })
         {
             var other = await client.GetAsync($"/api/structure/{level}/template");
             using var otherBook = new XLWorkbook(await other.Content.ReadAsStreamAsync());
             var otherSheet = otherBook.Worksheet(1);
-            Assert.Equal(header, otherSheet.Cell(1, 1).GetString());
-            Assert.All(Enumerable.Range(1, 3), c => Assert.False(otherSheet.Cell(2, c).HasDataValidation));
+            Assert.Equal(headers, Enumerable.Range(1, headers.Length).Select(c => otherSheet.Cell(1, c).GetString()));
+            Assert.Equal("", otherSheet.Cell(1, headers.Length + 1).GetString());
+            Assert.All(Enumerable.Range(1, headers.Length), c => Assert.False(otherSheet.Cell(2, c).HasDataValidation));
         }
     }
 
@@ -150,6 +153,39 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         Assert.Equal((ops.Id, divisions.Single(d => d.Name == "Restaurants").Id), (kitchen.ParentId!.Value, kitchen.DivisionId!.Value));
         Assert.Equal(kitchen.DivisionId, departments.Single(d => d.Name == "Bar").DivisionId);
         Assert.Equal([company.Id], ops.CompanyIds);
+    }
+
+    [Fact]
+    public async Task Positions_and_units_can_name_a_new_department_and_the_division_it_belongs_in()
+    {
+        var (client, company) = await Onboarded();
+        var kitchen = await Post<Item>(client, "/api/structure/departments", new { code = "KIT", name = "Kitchen", allCompanies = true, companyIds = Array.Empty<Guid>() });
+
+        var positions = await ReadOk(client, "positions", Workbook(Positions,
+            ["Waiter", null, "Service", "Restaurants"],      // new department in a new division
+            ["Host", null, "service", null],                // the same new department; its division comes from the row above
+            ["Cook", null, "Kitchen", null]));              // an existing department as it is
+        Assert.Empty(positions.Problems);
+        Assert.Equal(new (int, string?)[] { (2, "department"), (2, "division"), (3, "department") }, positions.Notes.Select(n => (n.Line, n.Column)).ToArray());
+        await Import(client, "positions", positions.Rows, company);
+
+        var division = Assert.Single((await client.GetFromJsonAsync<List<Item>>("/api/structure/divisions"))!);
+        var service = Assert.Single((await client.GetFromJsonAsync<List<Item>>("/api/structure/departments"))!, d => d.Name == "Service");
+        Assert.Equal(("Restaurants", division.Id), (division.Name!, service.DivisionId!.Value));
+        var saved = (await client.GetFromJsonAsync<List<Item>>("/api/structure/positions"))!;
+        Assert.Equal(service.Id, saved.Single(p => p.Title == "Host").DepartmentId);
+        Assert.Equal(kitchen.Id, saved.Single(p => p.Title == "Cook").DepartmentId);
+
+        var units = await ReadOk(client, "units", Workbook(Units,
+            ["Morning shift", null, "Kitchen", "Catering"],  // Kitchen isn't in Catering
+            ["Grill team", null, "Grill", "Restaurants"],    // new department in an existing division: fine
+            ["Night shift", null, "Bakery", "Catering"],     // the same new department with two divisions
+            ["Late shift", null, "Bakery", "Restaurants"]));
+        Assert.Equal(new (int, string?)[] { (2, "division"), (4, "division"), (5, "division") }, units.Problems.Select(p => (p.Line, p.Column)).ToArray());
+        Assert.Contains("Kitchen isn't in a division", units.Problems[0].Message);
+
+        var shared = await ReadOk(client, "positions", Workbook(Positions, ["Driver", null, null, "Restaurants"]));
+        Assert.Equal([(2, "division")], shared.Problems.Select(p => (p.Line, p.Column)));
     }
 
     [Fact]

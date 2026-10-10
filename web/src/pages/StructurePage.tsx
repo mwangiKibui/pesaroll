@@ -365,8 +365,9 @@ function UploadLevel({ level, companies, onClose, firstStep }: {
   const columns = {
     divisions: [name, code],
     departments: [name, code, { key: 'division', label: t('structure.division') }, { key: 'parent', label: t('structure.partOf') }],
-    positions: [name, code, department],
-    units: [name, code, department],
+    // The division a position's or unit's department is (or will be) in.
+    positions: [name, code, department, { key: 'division', label: t('structure.division') }],
+    units: [name, code, department, { key: 'division', label: t('structure.division') }],
   }[level]
   type Path = '/api/structure/departments/import'
 

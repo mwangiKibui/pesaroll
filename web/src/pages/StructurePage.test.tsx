@@ -199,6 +199,7 @@ it('each tab uploads its level through the review, here departments under ones i
     'POST /api/structure/departments/import/check': () => json(200, { problems: [] }),
     'POST /api/structure/departments/import': () => json(200, { imported: 2 }),
     'GET /api/structure/positions/template': () => new Response('xlsx', { status: 200 }),
+    'POST /api/structure/units/import/read': () => json(200, { rows: [{ line: 2, cells: { name: 'Night shift', code: '', department: 'Bakery', division: 'Restaurants' } }], problems: [], notes: [] }),
   })
   URL.createObjectURL = vi.fn(() => 'blob:template')
   URL.revokeObjectURL = vi.fn()
@@ -219,6 +220,17 @@ it('each tab uploads its level through the review, here departments under ones i
   expect(await screen.findByText('2 departments imported')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/structure/departments/import')?.body)
     .toEqual({ rows, allCompanies: false, companyIds: [restaurant.id] })
+
+  // Positions and units name their department and the division it is (or will be) in.
+  calls.length = 0
+  await userEvent.click(screen.getByRole('button', { name: 'Upload structure' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByRole('radio', { name: 'Units' }))
+  await userEvent.upload(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByLabelText('Choose a file'), new File(['x'], 'units.xlsx'))
+  const units = await screen.findByRole('dialog', { name: 'Review 1 unit' })
+  expect(within(units).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Row', 'Unit name', 'Code', 'Department', 'Division', 'Actions'])
+  expect(within(units).getByRole('textbox', { name: 'Division, row 2' })).toHaveValue('Restaurants')
+  await userEvent.click(within(units).getByRole('button', { name: 'Back to the file' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByRole('button', { name: 'Cancel' }))
 
   // Another type: its own template and endpoint.
   await userEvent.click(screen.getByRole('button', { name: 'Upload structure' }))
