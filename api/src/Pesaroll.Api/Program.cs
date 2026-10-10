@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
 using Pesaroll.Identity;
+using Pesaroll.Notifications;
 using Pesaroll.Organizations;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Jobs;
@@ -33,6 +34,8 @@ builder.Services.AddIdentityModule(connectionString, builder.Configuration);
 builder.Services.AddFieldEncryption(builder.Configuration);
 // The API queues background work; the worker runs it (PLAT-04).
 builder.Services.AddPesarollJobs(connectionString, runJobs: false);
+// Email and SMS (NTF-01): queued here, sent by the worker.
+builder.Services.AddNotificationsModule(connectionString, builder.Configuration, builder.Environment.IsProduction());
 
 // The API only runs behind Caddy, which sets the client's address and scheme.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

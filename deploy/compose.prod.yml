@@ -20,6 +20,14 @@ services:
     #   Encryption__Keys__0__Secret=<base64>
     # Losing it makes stored account numbers unreadable: keep it in the password manager too.
     # To change it, put the new key at 0 and keep the old one at 1 until old values are re-encrypted.
+    # .env must also set email and SMS (NTF-01; the API and worker refuse to start otherwise):
+    #   Notifications__Email__Provider=postmark
+    #   Notifications__Email__Postmark__ServerToken=<Postmark server API token>
+    #   Notifications__Email__Postmark__From=Pesaroll <no-reply@pesaroll.co.ke>
+    #   Notifications__Sms__Provider=africastalking
+    #   Notifications__Sms__AfricasTalking__Username=<app username>
+    #   Notifications__Sms__AfricasTalking__ApiKey=<API key>
+    #   Notifications__Sms__AfricasTalking__SenderId=<approved sender ID; leave out until approved>
     restart: unless-stopped
   worker:
     image: registry.digitalocean.com/pesaroll/worker:${VERSION}

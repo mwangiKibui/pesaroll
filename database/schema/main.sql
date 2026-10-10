@@ -18,6 +18,7 @@
 \i tenancy/pay_schedule_companies.sql
 \i tenancy/structure.sql
 \i tenancy/structure_companies.sql
+\i tenancy/notifications.sql
 \i identity/memberships.sql
 \i identity/users_policies.sql
 \i identity/sessions.sql

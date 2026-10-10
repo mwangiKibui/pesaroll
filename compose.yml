@@ -9,6 +9,7 @@
 #   docker compose run --rm db-tools plan
 #
 # App: http://localhost:5173   API: http://localhost:8080 (Swagger: /swagger)   Database: localhost:55432
+# Emails sent locally: http://localhost:8025 (Mailpit)
 services:
   db:
     image: postgres:18
@@ -48,6 +49,10 @@ services:
     environment:
       ConnectionStrings__Pesaroll: Host=db;Database=pesaroll;Username=pesaroll;Password=pesaroll
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
+      # Email to Mailpit (http://localhost:8025), SMS to the log: nothing leaves your machine (NTF-01).
+      Notifications__Email__Provider: smtp
+      Notifications__Email__Smtp__Host: mailpit
+      Notifications__Sms__Provider: log
     ports: ["8080:8080"]
     volumes:
       - .:/src
@@ -64,12 +69,20 @@ services:
     environment:
       ConnectionStrings__Pesaroll: Host=db;Database=pesaroll;Username=pesaroll;Password=pesaroll
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
+      # Email to Mailpit (http://localhost:8025), SMS to the log: nothing leaves your machine (NTF-01).
+      Notifications__Email__Provider: smtp
+      Notifications__Email__Smtp__Host: mailpit
+      Notifications__Sms__Provider: log
     volumes:
       - .:/src
       - nuget:/root/.nuget/packages
     depends_on:
       db: { condition: service_healthy }
       db-tools: { condition: service_completed_successfully }
+
+  mailpit:
+    image: axllent/mailpit:v1.31.2      # a local inbox: every email the app sends lands here
+    ports: ["8025:8025"]                # http://localhost:8025
 
   web:
     image: node:22-alpine
