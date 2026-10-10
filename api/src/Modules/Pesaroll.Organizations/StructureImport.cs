@@ -32,18 +32,14 @@ public static class StructureImport
         var group = app.MapGroup("/api/structure").WithTags("Org structure");
 
         SpreadsheetImport.MapImport(group, "/divisions", Spec("divisions", "division", [new(Name, "Division name"), new(Code, "Code")],
-            choices: (_, _) => Task.FromResult(new Dictionary<string, List<string>>()),
+            choices: NoChoices,
             codes: db => db.Divisions.Where(d => d.Status == "active").Select(d => d.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Divisions, db.Divisions.Select(d => d.Code),
                 (org, item, company, at) => new DivisionCompany { OrganizationId = org, DivisionId = item, CompanyId = company, CreatedAt = at }, null, ct)));
 
         SpreadsheetImport.MapImport(group, "/departments", Spec("departments", "department",
-            [new(Name, "Department name"), new(Code, "Code"), new(Division, "Division", Open: true), new(Parent, "Part of", Open: true)],
-            choices: async (db, ct) => new Dictionary<string, List<string>>
-            {
-                [Division] = await db.Divisions.Where(d => d.Status == "active").OrderBy(d => d.Name).Select(d => d.Name).ToListAsync(ct),
-                [Parent] = await DepartmentNamesAsync(db, ct),
-            },
+            [new(Name, "Department name"), new(Code, "Code"), new(Division, "Division"), new(Parent, "Part of")],
+            choices: NoChoices,
             codes: db => db.Departments.Where(d => d.Status == "active").Select(d => d.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Departments, db.Departments.Select(d => d.Code),
                 (org, item, company, at) => new DepartmentCompany { OrganizationId = org, DepartmentId = item, CompanyId = company, CreatedAt = at },
@@ -55,16 +51,16 @@ public static class StructureImport
                 }, ct)));
 
         SpreadsheetImport.MapImport(group, "/positions", Spec("positions", "position",
-            [new(Name, "Position title"), new(Code, "Code"), new(Department, "Department", Open: true)],
-            choices: async (db, ct) => new Dictionary<string, List<string>> { [Department] = await DepartmentNamesAsync(db, ct) },
+            [new(Name, "Position title"), new(Code, "Code"), new(Department, "Department")],
+            choices: NoChoices,
             codes: db => db.Positions.Where(p => p.Status == "active").Select(p => p.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Positions, db.Positions.Select(p => p.Code),
                 (org, item, company, at) => new PositionCompany { OrganizationId = org, PositionId = item, CompanyId = company, CreatedAt = at },
                 async (position, row, _, create) => position.DepartmentId = row.NewDepartment is { } name ? await create.DepartmentAsync(name) : row.DepartmentId, ct)));
 
         SpreadsheetImport.MapImport(group, "/units", Spec("units", "unit",
-            [new(Name, "Unit name"), new(Code, "Code"), new(Department, "Department", Open: true)],
-            choices: async (db, ct) => new Dictionary<string, List<string>> { [Department] = await DepartmentNamesAsync(db, ct) },
+            [new(Name, "Unit name"), new(Code, "Code"), new(Department, "Department")],
+            choices: NoChoices,
             codes: db => db.Units.Where(u => u.Status == "active").Select(u => u.Code),
             save: (rows, request, org, db, now, ct) => SaveAsync(rows, request, org, db, now, db.Units, db.Units.Select(u => u.Code),
                 (org, item, company, at) => new UnitCompany { OrganizationId = org, UnitId = item, CompanyId = company, CreatedAt = at },
@@ -74,8 +70,9 @@ public static class StructureImport
         return app;
     }
 
-    private static Task<List<string>> DepartmentNamesAsync(OrganizationsDbContext db, CancellationToken ct) =>
-        db.Departments.Where(d => d.Status == "active").OrderBy(d => d.Name).Select(d => d.Name).ToListAsync(ct);
+    // What a row belongs to is typed as a name (or code), existing or new, so the template has no dropdowns.
+    private static Task<Dictionary<string, List<string>>> NoChoices(OrganizationsDbContext db, CancellationToken ct) =>
+        Task.FromResult(new Dictionary<string, List<string>>());
 
     private static ImportSpec<ValidRow> Spec(string things, string thing, IReadOnlyList<ImportColumn> columns,
         Func<OrganizationsDbContext, CancellationToken, Task<Dictionary<string, List<string>>>> choices,

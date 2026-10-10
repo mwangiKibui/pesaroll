@@ -32,11 +32,8 @@ public sealed record ImportRequest(List<ImportRow>? Rows, bool AllCompanies, Lis
 
 public sealed record ImportResult(int Imported);
 
-/// <summary>
-/// A template column: its key in a row's cells and its header in the file. Open: its dropdown only
-/// suggests (a new name may be typed, and is created on import); otherwise the file must use the list.
-/// </summary>
-public sealed record ImportColumn(string Key, string Header, bool Open = false);
+/// <summary>A template column: its key in a row's cells and its header in the file.</summary>
+public sealed record ImportColumn(string Key, string Header);
 
 /// <summary>
 /// What one kind of record (locations, departments…) tells the shared import: its columns, its
@@ -170,10 +167,7 @@ public static class SpreadsheetImport
             for (var i = 0; i < options.Count; i++) lists.Cell(i + 1, listColumn).Value = options[i];
             if (options.Count > 0)
             {
-                var validation = sheet.Range(2, c + 1, last, c + 1).CreateDataValidation();
-                validation.List(lists.Range(1, listColumn, options.Count, listColumn));
-                // Open columns suggest; a new name is fine and is created on import.
-                validation.ShowErrorMessage = !spec.Columns[c].Open;
+                sheet.Range(2, c + 1, last, c + 1).CreateDataValidation().List(lists.Range(1, listColumn, options.Count, listColumn));
             }
         }
 

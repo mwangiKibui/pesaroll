@@ -78,11 +78,10 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         (await (await client.PostAsJsonAsync(path, body)).Content.ReadFromJsonAsync<T>())!;
 
     [Fact]
-    public async Task Each_level_has_a_template_with_dropdowns_of_what_rows_can_belong_to()
+    public async Task Each_level_has_a_template_where_what_rows_belong_to_is_typed_as_a_name()
     {
         var (client, _) = await Onboarded();
         await Post<Item>(client, "/api/structure/divisions", new { name = "Restaurants", allCompanies = true, companyIds = Array.Empty<Guid>() });
-        await Post<Item>(client, "/api/structure/departments", new { name = "Operations", allCompanies = true, companyIds = Array.Empty<Guid>() });
 
         var res = await client.GetAsync("/api/structure/departments/template");
 
@@ -91,12 +90,8 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         using var book = new XLWorkbook(await res.Content.ReadAsStreamAsync());
         var sheet = book.Worksheet(1);
         Assert.Equal(Departments, Enumerable.Range(1, 4).Select(c => sheet.Cell(1, c).GetString()));
-        var lists = book.Worksheet("Lists");
-        Assert.Equal(["Restaurants"], lists.Column(1).CellsUsed().Select(c => c.GetString()));
-        Assert.Equal(["Operations"], lists.Column(2).CellsUsed().Select(c => c.GetString()));
-        // Suggestions only: a new name can be typed (it is created on import).
-        Assert.False(sheet.Cell(2, 3).GetDataValidation().ShowErrorMessage);
-        Assert.False(sheet.Cell(2, 4).GetDataValidation().ShowErrorMessage);
+        // Division and Part of are plain cells: a name, existing or new (created on import).
+        Assert.All(Enumerable.Range(1, 4), c => Assert.False(sheet.Cell(2, c).HasDataValidation));
         foreach (var level in new[] { "divisions", "positions", "units" })
         {
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/structure/{level}/template")).StatusCode);

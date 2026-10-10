@@ -92,7 +92,7 @@ export default function StructurePage() {
         </div>
         {adding && <ItemDrawer initialLevel={tab} item={null} all={data} companies={companies.data} defaultApplies={defaultApplies}
           onClose={() => setAdding(false)} />}
-        {uploading && <UploadStructure initialLevel={tab} all={data} companies={companies.data} onClose={() => setUploading(false)} />}
+        {uploading && <UploadStructure initialLevel={tab} companies={companies.data} onClose={() => setUploading(false)} />}
         {/* Payroll schedules (ONB-06) isn't built yet, so the dashboard comes next. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
       </>}
@@ -336,11 +336,11 @@ function ItemDrawer({ initialLevel, item, all, companies, defaultApplies, onClos
  * row (up to 5,000, 100 a page), and, with several companies, which companies they serve. Rows name
  * their division or department; departments may name one further up or down the same file.
  */
-function UploadStructure({ initialLevel, all, companies, onClose }: { initialLevel: LevelKey; all: AllLevels; companies: Company[]; onClose: () => void }) {
+function UploadStructure({ initialLevel, companies, onClose }: { initialLevel: LevelKey; companies: Company[]; onClose: () => void }) {
   const { t } = useTranslation()
   const [level, setLevel] = useState<LevelKey>(initialLevel)
   // Choosing another type starts the upload over, with that type's template and columns.
-  return <UploadLevel key={level} level={level} all={all} companies={companies} onClose={onClose}
+  return <UploadLevel key={level} level={level} companies={companies} onClose={onClose}
     firstStep={{
       title: t('structure.whatUploading'),
       content: <RadioGroup label={t('structure.whatUploading')} name="upload-kind" value={level} onChange={value => setLevel(value as LevelKey)}
@@ -348,9 +348,8 @@ function UploadStructure({ initialLevel, all, companies, onClose }: { initialLev
     }} />
 }
 
-function UploadLevel({ level, all, companies, onClose, firstStep }: {
+function UploadLevel({ level, companies, onClose, firstStep }: {
   level: LevelKey
-  all: AllLevels
   companies: Company[]
   onClose: () => void
   firstStep: { title: string; content: ReactNode }
@@ -359,13 +358,13 @@ function UploadLevel({ level, all, companies, onClose, firstStep }: {
   const { api, queryClient } = useServices()
   const toast = useToast()
   const [applies, setApplies] = useState<CompanySelection>({ all: true, ids: [] })
-  const names = (key: LevelKey) => (all[key].data ?? []).map(i => ({ value: label(i), label: label(i) }))
   const name = { key: 'name', label: t(`structure.${level}.nameLabel`) }
   const code = { key: 'code', label: t('locations.code') }
-  const department = { key: 'department', label: t('structure.department'), options: names('departments') }
+  // What a row belongs to is typed: an existing name or a new one (created on import).
+  const department = { key: 'department', label: t('structure.department') }
   const columns = {
     divisions: [name, code],
-    departments: [name, code, { key: 'division', label: t('structure.division'), options: names('divisions') }, { key: 'parent', label: t('structure.partOf'), options: names('departments') }],
+    departments: [name, code, { key: 'division', label: t('structure.division') }, { key: 'parent', label: t('structure.partOf') }],
     positions: [name, code, department],
     units: [name, code, department],
   }[level]

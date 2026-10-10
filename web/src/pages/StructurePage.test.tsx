@@ -213,7 +213,7 @@ it('each tab uploads its level through the review, here departments under ones i
   await userEvent.upload(within(upload).getByLabelText('Choose a file'), new File(['x'], 'departments.xlsx'))
   const review = await screen.findByRole('dialog', { name: 'Review 2 departments' })
   expect(within(review).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Row', 'Department name', 'Code', 'Division', 'Part of', 'Actions'])
-  expect(within(review).getByRole('combobox', { name: 'Part of, row 2' })).toHaveValue('Kitchen')
+  expect(within(review).getByRole('textbox', { name: 'Part of, row 2' })).toHaveValue('Kitchen')   // typed, not picked
   await userEvent.click(within(review).getByRole('button', { name: 'Import 2 departments' }))
 
   expect(await screen.findByText('2 departments imported')).toBeInTheDocument()
