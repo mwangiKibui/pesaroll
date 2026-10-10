@@ -1575,8 +1575,11 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    frequency?: string;
                     payDayRule?: string;
                     payDay?: number | string;
+                    payWeekday?: number | string;
+                    firstPayDate?: string;
                 };
                 header?: never;
                 path?: never;
@@ -4203,6 +4206,14 @@ export interface components {
             payDay: null | number | string;
             /** Format: int32 */
             cutoffDay: null | number | string;
+            /** Format: int32 */
+            payWeekday: null | number | string;
+            /** Format: date */
+            firstPayDate: null | string;
+            /** Format: int32 */
+            cutoffDaysBefore: null | number | string;
+            /** Format: time */
+            payTime: null | string;
             allCompanies: boolean;
             companyIds: null | string[];
             defaultFor: null | string[];
@@ -4212,11 +4223,19 @@ export interface components {
             id: string;
             name: string;
             frequency: string;
-            payDayRule: string;
+            payDayRule: null | string;
             /** Format: int32 */
             payDay: null | number | string;
             /** Format: int32 */
-            cutoffDay: number | string;
+            cutoffDay: null | number | string;
+            /** Format: int32 */
+            payWeekday: null | number | string;
+            /** Format: date */
+            firstPayDate: null | string;
+            /** Format: int32 */
+            cutoffDaysBefore: null | number | string;
+            /** Format: time */
+            payTime: null | string;
             allCompanies: boolean;
             companyIds: string[];
             defaultFor: string[];

@@ -9,27 +9,32 @@ using Pesaroll.Shared.Tenancy;
 namespace Pesaroll.Organizations;
 
 /// <summary>
-/// Adding or editing a payroll schedule. <see cref="PayDay"/> is only for a fixed day. It serves all
-/// companies (<see cref="AllCompanies"/>) or <see cref="CompanyIds"/>, and is the default of <see cref="DefaultFor"/>.
+/// Adding or editing a payroll schedule. Only the fields of its <see cref="Frequency"/> are kept:
+/// monthly <see cref="PayDayRule"/>, <see cref="PayDay"/> (a fixed day) and <see cref="CutoffDay"/>;
+/// weekly <see cref="PayWeekday"/> and <see cref="CutoffDaysBefore"/>; fortnightly those and
+/// <see cref="FirstPayDate"/>; daily <see cref="PayTime"/>. It serves all companies
+/// (<see cref="AllCompanies"/>) or <see cref="CompanyIds"/>, and is the default of <see cref="DefaultFor"/>.
 /// </summary>
 public sealed record PayScheduleRequest(
     string? Name, string? Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
+    int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
     bool AllCompanies, List<Guid>? CompanyIds, List<Guid>? DefaultFor);
 
 public sealed record PayScheduleResponse(
-    Guid Id, string Name, string Frequency, string PayDayRule, int? PayDay, int CutoffDay,
+    Guid Id, string Name, string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
+    int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
     bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<Guid> DefaultFor, IReadOnlyList<DateOnly> NextPayDates);
 
 /// <summary>
-/// ONB-06, the Payroll schedules step: how often and when people are paid. Each company has one
+/// ONB-06, the Payroll schedules step: how often (monthly, weekly, every two weeks or daily) and when people are paid. Each company has one
 /// default schedule (the suggested "Monthly", last working day, cut-off on the 25th, made with the
 /// first company for all companies); a schedule serves chosen companies or all of them. Pay runs
 /// (PAY-03) build their periods and pay dates from these.
 /// </summary>
 public static class PaySchedulesEndpoints
 {
-    /// <summary>How often a schedule pays; weekly and daily come with shift work in Release 3.</summary>
-    public static readonly string[] Frequencies = ["monthly"];
+    /// <summary>How often a schedule pays.</summary>
+    public static readonly string[] Frequencies = ["monthly", "weekly", "fortnightly", "daily"];
 
     public static IEndpointRouteBuilder MapPaySchedulesEndpoints(this IEndpointRouteBuilder app)
     {
@@ -52,17 +57,18 @@ public static class PaySchedulesEndpoints
         }).Produces<List<PayScheduleResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         // The next pay dates for a pay day, shown while someone fills in a schedule.
-        schedules.MapGet("/pay-dates", (string? payDayRule, int? payDay, TenantContext tenant, HttpContext http, TimeProvider clock) =>
+        schedules.MapGet("/pay-dates", (string? frequency, string? payDayRule, int? payDay, int? payWeekday, DateOnly? firstPayDate,
+            TenantContext tenant, HttpContext http, TimeProvider clock) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             var errors = new Dictionary<string, string>();
-            var (rule, day) = PayDay(payDayRule, payDay, errors);
+            var timing = Timing(new PayScheduleRequest(null, frequency, payDayRule, payDay, null, payWeekday, firstPayDate, null, null, true, null, null), errors);
             if (errors.Count > 0)
             {
                 throw OnboardingErrors.ScheduleDetailsInvalid(errors);
             }
 
-            return Results.Ok(PayDates.Next(PayDates.TodayInKenya(clock.GetUtcNow()), rule, day));
+            return Results.Ok(NextPayDates(timing, PayDates.TodayInKenya(clock.GetUtcNow())));
         }).Produces<List<DateOnly>>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         schedules.MapPost("/", async (PayScheduleRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
@@ -162,8 +168,11 @@ public static class PaySchedulesEndpoints
         return (new PaySchedule { Id = Guid.CreateVersion7(), OrganizationId = organizationId, Name = name, AllCompanies = true, CreatedAt = now, UpdatedAt = now }, true);
     }
 
-    private sealed record ValidSchedule(
-        string Name, string Frequency, string PayDayRule, int? PayDay, int CutoffDay, bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor);
+    /// <summary>When a schedule pays: its frequency and that frequency's fields only.</summary>
+    private sealed record ValidTiming(
+        string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay, int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime);
+
+    private sealed record ValidSchedule(string Name, ValidTiming Timing, bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor);
 
     private static async Task<ValidSchedule> ValidateAsync(PayScheduleRequest request, OrganizationsDbContext db, CancellationToken ct)
     {
@@ -174,19 +183,7 @@ public static class PaySchedulesEndpoints
             errors["name"] = "Enter the schedule's name (2 to 60 characters).";
         }
 
-        var frequency = string.IsNullOrWhiteSpace(request.Frequency) ? "monthly" : request.Frequency.Trim();
-        if (!Frequencies.Contains(frequency))
-        {
-            errors["frequency"] = "Choose how often from the list.";
-        }
-
-        var (rule, day) = PayDay(request.PayDayRule, request.PayDay, errors);
-        var cutoff = request.CutoffDay ?? 25;
-        if (cutoff is < 1 or > 28)
-        {
-            errors["cutoffDay"] = "Choose a cut-off day from 1 to 28.";
-        }
-
+        var timing = Timing(request, errors);
         var companies = await db.Companies.AsNoTracking().Where(c => c.Status == "active").ToListAsync(ct);
         var chosen = (request.CompanyIds ?? []).Distinct().ToList();
         var serves = request.AllCompanies ? companies : companies.Where(c => chosen.Contains(c.Id)).ToList();
@@ -210,38 +207,88 @@ public static class PaySchedulesEndpoints
             throw OnboardingErrors.ScheduleDetailsInvalid(errors);
         }
 
-        return new ValidSchedule(name, frequency, rule, day, cutoff, request.AllCompanies, request.AllCompanies ? [] : chosen, defaultFor);
+        return new ValidSchedule(name, timing, request.AllCompanies, request.AllCompanies ? [] : chosen, defaultFor);
     }
 
-    /// <summary>The pay day rule (last working day unless said) and, only for a fixed day, the day.</summary>
-    private static (string Rule, int? Day) PayDay(string? payDayRule, int? payDay, Dictionary<string, string> errors)
+    /// <summary>
+    /// The frequency (monthly unless said) and its own fields, with sensible defaults: the last
+    /// working day and the 25th; Friday and two days before; 5 pm. Fields of other frequencies are dropped.
+    /// </summary>
+    private static ValidTiming Timing(PayScheduleRequest request, Dictionary<string, string> errors)
     {
-        var rule = string.IsNullOrWhiteSpace(payDayRule) ? PayDates.LastWorkingDay : payDayRule.Trim();
-        if (!PayDates.Rules.Contains(rule))
+        var frequency = string.IsNullOrWhiteSpace(request.Frequency) ? "monthly" : request.Frequency.Trim();
+        switch (frequency)
         {
-            errors["payDayRule"] = "Choose when people are paid from the list.";
-            return (PayDates.LastWorkingDay, null);
-        }
+            case "monthly":
+                var rule = string.IsNullOrWhiteSpace(request.PayDayRule) ? PayDates.LastWorkingDay : request.PayDayRule.Trim();
+                if (!PayDates.Rules.Contains(rule))
+                {
+                    errors["payDayRule"] = "Choose when people are paid from the list.";
+                    rule = PayDates.LastWorkingDay;
+                }
 
-        if (rule != PayDates.FixedDay)
-        {
-            return (rule, null);
-        }
+                var day = rule == PayDates.FixedDay ? request.PayDay : null;
+                if (rule == PayDates.FixedDay && day is not (>= 1 and <= 28))
+                {
+                    errors["payDay"] = "Choose a pay day from 1 to 28.";
+                }
 
-        if (payDay is not (>= 1 and <= 28))
-        {
-            errors["payDay"] = "Choose a pay day from 1 to 28.";
-        }
+                var cutoff = request.CutoffDay ?? 25;
+                if (cutoff is < 1 or > 28)
+                {
+                    errors["cutoffDay"] = "Choose a cut-off day from 1 to 28.";
+                }
 
-        return (rule, payDay);
+                return new ValidTiming(frequency, rule, day, cutoff, null, null, null, null);
+            case "weekly" or "fortnightly":
+                var weekday = request.PayWeekday ?? 5;
+                if (weekday is < 1 or > 5)
+                {
+                    errors["payWeekday"] = "Choose a pay day from Monday to Friday.";
+                }
+
+                var weekly = frequency == "weekly";
+                var before = request.CutoffDaysBefore ?? 2;
+                if (before < 0 || before > (weekly ? 6 : 13))
+                {
+                    errors["cutoffDaysBefore"] = weekly ? "Choose a cut-off from the pay day to 6 days before." : "Choose a cut-off from the pay day to 13 days before.";
+                }
+
+                var first = weekly ? null : request.FirstPayDate;
+                if (!weekly && !errors.ContainsKey("payWeekday") && (first is null || IsoWeekday(first.Value) != weekday))
+                {
+                    errors["firstPayDate"] = "Choose the first pay date, on the pay day.";
+                }
+
+                return new ValidTiming(frequency, null, null, null, weekday, first, before, null);
+            case "daily":
+                return new ValidTiming(frequency, null, null, null, null, null, null, request.PayTime ?? new TimeOnly(17, 0));
+            default:
+                errors["frequency"] = "Choose how often from the list.";
+                return new ValidTiming("monthly", PayDates.LastWorkingDay, null, 25, null, null, null, null);
+        }
     }
+
+    private static int IsoWeekday(DateOnly date) => date.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)date.DayOfWeek;
+
+    private static IReadOnlyList<DateOnly> NextPayDates(ValidTiming t, DateOnly today) => t.Frequency switch
+    {
+        "weekly" => PayDates.Weekly(today, (DayOfWeek)(t.PayWeekday!.Value % 7)),
+        "fortnightly" => PayDates.Fortnightly(today, t.FirstPayDate!.Value),
+        "daily" => PayDates.Daily(today),
+        _ => PayDates.Next(today, t.PayDayRule!, t.PayDay),
+    };
 
     private static void Apply(PaySchedule schedule, ValidSchedule valid, DateTimeOffset now)
     {
-        schedule.Frequency = valid.Frequency;
-        schedule.PayDayRule = valid.PayDayRule;
-        schedule.PayDay = valid.PayDay;
-        schedule.CutoffDay = valid.CutoffDay;
+        schedule.Frequency = valid.Timing.Frequency;
+        schedule.PayDayRule = valid.Timing.PayDayRule;
+        schedule.PayDay = valid.Timing.PayDay;
+        schedule.CutoffDay = valid.Timing.CutoffDay;
+        schedule.PayWeekday = valid.Timing.PayWeekday;
+        schedule.FirstPayDate = valid.Timing.FirstPayDate;
+        schedule.CutoffDaysBefore = valid.Timing.CutoffDaysBefore;
+        schedule.PayTime = valid.Timing.PayTime;
         schedule.AllCompanies = valid.AllCompanies;
         schedule.UpdatedAt = now;
         foreach (var companyId in valid.CompanyIds.Where(id => !schedule.Companies.Any(c => c.CompanyId == id)))
@@ -277,7 +324,7 @@ public static class PaySchedulesEndpoints
         .GroupBy(c => c.Default).ToDictionary(g => g.Key, g => g.Select(c => c.Id).ToList());
 
     private static PayScheduleResponse ToResponse(PaySchedule s, Dictionary<Guid, List<Guid>> defaults, DateOnly today) => new(
-        s.Id, s.Name, s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.AllCompanies,
-        s.Companies.Select(c => c.CompanyId).ToList(), defaults.GetValueOrDefault(s.Id) ?? [],
-        PayDates.Next(today, s.PayDayRule, s.PayDay));
+        s.Id, s.Name, s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime,
+        s.AllCompanies, s.Companies.Select(c => c.CompanyId).ToList(), defaults.GetValueOrDefault(s.Id) ?? [],
+        NextPayDates(new ValidTiming(s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime), today));
 }

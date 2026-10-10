@@ -72,6 +72,80 @@ it('with several companies, the selector filters the table to the chosen company
   expect(within(table()).queryByText('Mid-month')).not.toBeInTheDocument()
 })
 
+const weekly = schedule({
+  id: '0199c0de-0000-7000-8000-00000000f004', name: 'Casuals weekly', frequency: 'weekly', payDayRule: null, cutoffDay: null, payWeekday: 5, cutoffDaysBefore: 2,
+  allCompanies: false, companyIds: [restaurant.id], defaultFor: [], nextPayDates: ['2026-10-16', '2026-10-23', '2026-10-30'],
+})
+const fortnightly = schedule({
+  id: '0199c0de-0000-7000-8000-00000000f005', name: 'Fortnightly', frequency: 'fortnightly', payDayRule: null, cutoffDay: null, payWeekday: 3, firstPayDate: '2026-10-14',
+  cutoffDaysBefore: 0, allCompanies: false, companyIds: [restaurant.id], defaultFor: [], nextPayDates: ['2026-10-14', '2026-10-28', '2026-11-11'],
+})
+const daily = schedule({
+  id: '0199c0de-0000-7000-8000-00000000f006', name: 'Casuals daily', frequency: 'daily', payDayRule: null, cutoffDay: null, payTime: '17:00:00',
+  allCompanies: false, companyIds: [restaurant.id], defaultFor: [], nextPayDates: ['2026-10-12', '2026-10-13', '2026-10-14'],
+})
+
+it('shows weekly, every-two-weeks and daily schedules in their own words', async () => {
+  oneCompany({ 'GET /api/pay-schedules': () => json(200, [monthly, weekly, fortnightly, daily]) })
+  renderApp('/setup/schedules')
+  await screen.findByRole('region', { name: 'Payroll schedules' })
+  const cells = async (name: string) =>
+    within((await within(table()).findByRole('button', { name: `Edit ${name}` })).closest('tr')!).getAllByRole('cell').map(c => c.textContent).slice(1, 4)
+
+  expect(await cells('Casuals weekly')).toEqual(['Weekly', 'Every Friday', '2 days before'])
+  expect(await cells('Fortnightly')).toEqual(['Every two weeks', 'Every other Wednesday', 'On the pay day'])
+  expect(await cells('Casuals daily')).toEqual(['Daily', 'Working days, 5:00 pm', '—'])
+})
+
+it('adds a schedule every two weeks, starting on one of the next two pay days', async () => {
+  const calls = oneCompany({
+    'GET /api/pay-schedules/pay-dates': req => {
+      const q = new URL(req.url).searchParams
+      if (q.get('frequency') === 'weekly') return json(200, ['2026-10-16', '2026-10-23', '2026-10-30'])
+      if (q.get('frequency') === 'fortnightly') return json(200, q.get('firstPayDate') === '2026-10-23' ? ['2026-10-23', '2026-11-06', '2026-11-20'] : ['2026-10-16', '2026-10-30', '2026-11-13'])
+      return json(200, ['2026-10-30', '2026-11-30', '2026-12-31'])
+    },
+    'POST /api/pay-schedules': () => json(201, fortnightly),
+  })
+  renderApp('/setup/schedules')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add schedule' }))
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Schedule name' }), 'Fortnightly')
+  await userEvent.clear(within(drawer()).getByRole('combobox', { name: 'How often' }))
+  await choose('How often', 'two', 'Every two weeks')
+
+  expect(within(drawer()).queryByRole('radio', { name: 'Last working day' })).not.toBeInTheDocument()
+  expect(within(drawer()).getByRole('combobox', { name: 'Pay day' })).toHaveValue('Friday')
+  expect(within(drawer()).getByRole('combobox', { name: 'Cut-off' })).toHaveValue('2 days before')
+  await choose('First pay date', '23', 'Fri 23 Oct 2026')
+  expect(await within(drawer()).findByText('Fri 6 Nov 2026')).toBeInTheDocument()
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add schedule' }))
+
+  expect(await screen.findByText('Schedule added')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-schedules')?.body).toMatchObject({
+    name: 'Fortnightly', frequency: 'fortnightly', payWeekday: 5, firstPayDate: '2026-10-23', cutoffDaysBefore: 2, payDayRule: null, cutoffDay: null, payTime: null,
+  })
+})
+
+it('a daily schedule asks only for the pay time', async () => {
+  const calls = oneCompany({ 'POST /api/pay-schedules': () => json(201, daily) })
+  renderApp('/setup/schedules')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add schedule' }))
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Schedule name' }), 'Casuals daily')
+  await userEvent.clear(within(drawer()).getByRole('combobox', { name: 'How often' }))
+  await choose('How often', 'dai', 'Daily')
+
+  expect(within(drawer()).queryByRole('combobox', { name: /Cut-off/ })).not.toBeInTheDocument()
+  expect(within(drawer()).getByRole('combobox', { name: 'Pay time' })).toHaveValue('5:00 pm')
+  await userEvent.clear(within(drawer()).getByRole('combobox', { name: 'Pay time' }))
+  await choose('Pay time', '6:30', '6:30 pm')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add schedule' }))
+
+  expect(await screen.findByText('Schedule added')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-schedules')?.body).toMatchObject({
+    frequency: 'daily', payTime: '18:30', payDayRule: null, cutoffDay: null, payWeekday: null, cutoffDaysBefore: null,
+  })
+})
+
 it('adds a schedule on a fixed day, showing its next pay dates before saving', async () => {
   let schedules = [monthly]
   const added = schedule({ id: '0199c0de-0000-7000-8000-00000000f003', name: 'Mid-month', payDayRule: 'fixed_day', payDay: 15, allCompanies: false, companyIds: [restaurant.id], defaultFor: [] })
@@ -97,7 +171,8 @@ it('adds a schedule on a fixed day, showing its next pay dates before saving', a
 
   expect(await screen.findByText('Schedule added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-schedules')?.body).toMatchObject({
-    name: 'Mid-month', frequency: 'monthly', payDayRule: 'fixed_day', payDay: 15, cutoffDay: 25, allCompanies: false, companyIds: [restaurant.id], defaultFor: [],
+    name: 'Mid-month', frequency: 'monthly', payDayRule: 'fixed_day', payDay: 15, cutoffDay: 25, payWeekday: null, firstPayDate: null, cutoffDaysBefore: null,
+    payTime: null, allCompanies: false, companyIds: [restaurant.id], defaultFor: [],
   })
   expect(await within(table()).findByText('Mid-month')).toBeInTheDocument()
 })

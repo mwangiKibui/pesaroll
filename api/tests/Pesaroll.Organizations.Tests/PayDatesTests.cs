@@ -42,6 +42,30 @@ public sealed class PayDatesTests
     }
 
     [Fact]
+    public void Weekly_pays_on_the_weekday_from_today_on()
+    {
+        Assert.Equal([D("2026-10-16"), D("2026-10-23"), D("2026-10-30")], PayDates.Weekly(D("2026-10-10"), DayOfWeek.Friday));
+        Assert.Equal(D("2026-10-16"), PayDates.Weekly(D("2026-10-16"), DayOfWeek.Friday)[0]);   // pay day itself counts
+        Assert.Equal([D("2026-10-12"), D("2026-10-19"), D("2026-10-26")], PayDates.Weekly(D("2026-10-10"), DayOfWeek.Monday));
+    }
+
+    [Fact]
+    public void Every_two_weeks_counts_from_the_first_pay_date()
+    {
+        Assert.Equal([D("2026-10-16"), D("2026-10-30"), D("2026-11-13")], PayDates.Fortnightly(D("2026-10-10"), D("2026-10-16")));
+        Assert.Equal([D("2026-10-30"), D("2026-11-13"), D("2026-11-27")], PayDates.Fortnightly(D("2026-10-17"), D("2026-10-16")));
+        Assert.Equal([D("2026-10-16"), D("2026-10-30"), D("2026-11-13")], PayDates.Fortnightly(D("2026-10-10"), D("2026-09-18")));   // started earlier
+        Assert.Equal([D("2026-12-25"), D("2027-01-08"), D("2027-01-22")], PayDates.Fortnightly(D("2026-10-10"), D("2026-12-25")));   // starts later
+    }
+
+    [Fact]
+    public void Daily_pays_every_working_day()
+    {
+        Assert.Equal([D("2026-10-12"), D("2026-10-13"), D("2026-10-14")], PayDates.Daily(D("2026-10-10")));   // from a Saturday
+        Assert.Equal([D("2026-10-16"), D("2026-10-19"), D("2026-10-20")], PayDates.Daily(D("2026-10-16")));   // Friday, then Monday
+    }
+
+    [Fact]
     public void Today_in_Kenya_is_three_hours_ahead_of_UTC() =>
         Assert.Equal(D("2026-10-11"), PayDates.TodayInKenya(new DateTimeOffset(2026, 10, 10, 21, 30, 0, TimeSpan.Zero)));
 }

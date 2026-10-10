@@ -34,8 +34,69 @@ begin
   exception when unique_violation then null;
   end;
   begin
-    insert into pay_schedules (id, organization_id, name, frequency) values ('00000000-0000-7000-8000-000000000306', org1, 'Weekly', 'weekly');
-    raise exception 'a weekly schedule was saved before Release 3';
+    insert into pay_schedules (id, organization_id, name, frequency) values ('00000000-0000-7000-8000-000000000306', org1, 'Hourly', 'hourly');
+    raise exception 'an hourly schedule was saved';
+  exception when check_violation then null;
+  end;
+  -- Daily: every working day at a pay time (reminders count hours back from it); nothing else.
+  insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_time)
+  values ('00000000-0000-7000-8000-000000000318', org1, 'Casuals daily', 'daily', null, null, '17:00');
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day)
+    values ('00000000-0000-7000-8000-000000000319', org1, 'No time', 'daily', null, null);
+    raise exception 'a daily schedule was saved without its pay time';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, pay_time) values ('00000000-0000-7000-8000-000000000320', org1, 'Monthly at five', '17:00');
+    raise exception 'a monthly schedule took a pay time';
+  exception when check_violation then null;
+  end;
+  -- Weekly and every two weeks: a weekday (Monday 1 to Friday 5) and a cut-off in days before it;
+  -- every two weeks also its first pay date, on that weekday. No monthly rule or day of the month.
+  insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, pay_weekday, cutoff_day, cutoff_days_before)
+  values ('00000000-0000-7000-8000-000000000310', org1, 'Casuals weekly', 'weekly', null, 5, null, 2);
+  insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, pay_weekday, first_pay_date, cutoff_day, cutoff_days_before)
+  values ('00000000-0000-7000-8000-000000000311', org1, 'Fortnightly', 'fortnightly', null, 5, '2026-10-16', null, 3);
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, pay_weekday, cutoff_day, cutoff_days_before)
+    values ('00000000-0000-7000-8000-000000000312', org1, 'Saturdays', 'weekly', null, 6, null, 2);
+    raise exception 'a weekly schedule paying on a Saturday was saved';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, pay_weekday, cutoff_day)
+    values ('00000000-0000-7000-8000-000000000321', org1, 'No cut-off', 'weekly', null, 5, null);
+    raise exception 'a weekly schedule was saved without its cut-off';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, pay_weekday, cutoff_day, cutoff_days_before)
+    values ('00000000-0000-7000-8000-000000000313', org1, 'Late weekly', 'weekly', null, 5, null, 7);
+    raise exception 'a weekly cut-off a week or more before pay day was saved';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_weekday, cutoff_days_before)
+    values ('00000000-0000-7000-8000-000000000314', org1, 'Half monthly', 'weekly', 5, 2);
+    raise exception 'a weekly schedule kept a monthly pay day rule and cut-off day';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, pay_weekday, cutoff_day, cutoff_days_before)
+    values ('00000000-0000-7000-8000-000000000315', org1, 'No start', 'fortnightly', null, 5, null, 2);
+    raise exception 'an every-two-weeks schedule was saved without its first pay date';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, pay_weekday, first_pay_date, cutoff_day, cutoff_days_before)
+    values ('00000000-0000-7000-8000-000000000316', org1, 'Wrong start', 'fortnightly', null, 5, '2026-10-15', null, 2);
+    raise exception 'an every-two-weeks first pay date off its weekday was saved';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, pay_weekday) values ('00000000-0000-7000-8000-000000000317', org1, 'Monthly Friday', 5);
+    raise exception 'a monthly schedule took a weekday';
   exception when check_violation then null;
   end;
   begin

@@ -480,7 +480,7 @@
   },
   "schedules": {
     "title": "Unawalipa watu wako lini?",
-    "intro": "Kila kampuni ina ratiba yake ya msingi, ambayo wafanyakazi wake hupata isipokuwa uchague nyingine. Tumeweka ya Kila mwezi, inayolipwa siku ya mwisho ya kazi.",
+    "intro": "Kila kampuni ina ratiba yake ya msingi, ambayo wafanyakazi wake hupata isipokuwa uchague nyingine. Tumeweka ya Kila mwezi, inayolipwa siku ya mwisho ya kazi. Ongeza ratiba za kila wiki, kila wiki mbili au kila siku kwa wanaolipwa mara nyingi zaidi.",
     "show": "Onyesha kampuni",
     "tableTitle": "Ratiba za mishahara",
     "emptyTitle": "Hakuna ratiba za kampuni hizi",
@@ -512,7 +512,10 @@
     "frequency": "Mara ngapi",
     "frequencyPlaceholder": "Mara mnazolipa",
     "frequencies": {
-      "monthly": "Kila mwezi"
+      "monthly": "Kila mwezi",
+      "weekly": "Kila wiki",
+      "fortnightly": "Kila wiki mbili",
+      "daily": "Kila siku"
     },
     "payDayRule": "Watu wanalipwa lini",
     "rules": {
@@ -537,6 +540,29 @@
     "day_ordinal_two": "Tarehe {{count}}",
     "day_ordinal_few": "Tarehe {{count}}",
     "day_ordinal_other": "Tarehe {{count}}",
-    "companiesRequired": "Chagua angalau kampuni moja, au kampuni zote."
+    "companiesRequired": "Chagua angalau kampuni moja, au kampuni zote.",
+    "weekdays": {
+      "1": "Jumatatu",
+      "2": "Jumanne",
+      "3": "Jumatano",
+      "4": "Alhamisi",
+      "5": "Ijumaa"
+    },
+    "everyWeekday": "Kila {{day}}",
+    "everyOtherWeekday": "{{day}} moja baada ya nyingine",
+    "workingDaysAt": "Siku za kazi, {{time}}",
+    "payWeekday": "Siku ya malipo",
+    "firstPayDate": "Tarehe ya kwanza ya malipo",
+    "firstPayDatePlaceholder": "Tarehe yako ya kwanza ya malipo",
+    "firstPayDateHint": "Wiki mbili zinahesabiwa kuanzia tarehe hii.",
+    "firstPayDateInvalid": "Chagua tarehe ya kwanza ya malipo.",
+    "cutoffBefore": "Mwisho wa mabadiliko",
+    "cutoffBeforeHint": "Saa za ziada, likizo na mabadiliko mengine baada ya mwisho huu yanaingia kwenye mishahara inayofuata.",
+    "onPayDay": "Siku ya malipo",
+    "daysBefore_one": "Siku {{count}} kabla",
+    "daysBefore_other": "Siku {{count}} kabla",
+    "payTime": "Saa ya malipo",
+    "payTimePlaceholder": "Saa yako ya malipo",
+    "payTimeHint": "Malipo ya kila siku ni kila siku ya kazi; hakuna mwisho wa mabadiliko."
   }
 }

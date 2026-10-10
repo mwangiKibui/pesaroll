@@ -480,7 +480,7 @@
   },
   "schedules": {
     "title": "When do you pay your people?",
-    "intro": "Each company has a default schedule, which its employees get unless you choose another. We've set up Monthly, paid on the last working day.",
+    "intro": "Each company has a default schedule, which its employees get unless you choose another. We've set up Monthly, paid on the last working day. Add weekly, every-two-weeks or daily schedules for people paid more often.",
     "show": "Show companies",
     "tableTitle": "Payroll schedules",
     "emptyTitle": "No schedules for these companies",
@@ -512,7 +512,10 @@
     "frequency": "How often",
     "frequencyPlaceholder": "Your pay frequency",
     "frequencies": {
-      "monthly": "Monthly"
+      "monthly": "Monthly",
+      "weekly": "Weekly",
+      "fortnightly": "Every two weeks",
+      "daily": "Daily"
     },
     "payDayRule": "When people are paid",
     "rules": {
@@ -537,6 +540,29 @@
     "day_ordinal_two": "{{count}}nd",
     "day_ordinal_few": "{{count}}rd",
     "day_ordinal_other": "{{count}}th",
-    "companiesRequired": "Choose at least one company, or all companies."
+    "companiesRequired": "Choose at least one company, or all companies.",
+    "weekdays": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday"
+    },
+    "everyWeekday": "Every {{day}}",
+    "everyOtherWeekday": "Every other {{day}}",
+    "workingDaysAt": "Working days, {{time}}",
+    "payWeekday": "Pay day",
+    "firstPayDate": "First pay date",
+    "firstPayDatePlaceholder": "Your first pay date",
+    "firstPayDateHint": "Every two weeks counts from this date.",
+    "firstPayDateInvalid": "Choose the first pay date.",
+    "cutoffBefore": "Cut-off",
+    "cutoffBeforeHint": "Overtime, leave and other changes after the cut-off go into the next payroll.",
+    "onPayDay": "On the pay day",
+    "daysBefore_one": "{{count}} day before",
+    "daysBefore_other": "{{count}} days before",
+    "payTime": "Pay time",
+    "payTimePlaceholder": "Your pay time",
+    "payTimeHint": "Daily pay runs every working day; there's no cut-off."
   }
 }

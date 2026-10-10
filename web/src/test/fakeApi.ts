@@ -82,7 +82,7 @@ export const location = (overrides: Record<string, unknown> = {}) => ({
 /** A payroll schedule as the API returns it; by default the suggested Monthly, the company's default. */
 export const schedule = (overrides: Record<string, unknown> = {}) => ({
   id: '0199c0de-0000-7000-8000-00000000f001', name: 'Monthly', frequency: 'monthly', payDayRule: 'last_working_day', payDay: null, cutoffDay: 25,
-  allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], ...overrides,
+  payWeekday: null, firstPayDate: null, cutoffDaysBefore: null, payTime: null, allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], ...overrides,
 })
 
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */

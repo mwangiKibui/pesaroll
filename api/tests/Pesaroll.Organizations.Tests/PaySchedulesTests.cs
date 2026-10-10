@@ -18,7 +18,8 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
     private sealed record Created(Org Organization, Token Token);
     private sealed record Error(string Code, string Message, string Reference, Dictionary<string, string>? Fields);
     private sealed record Company(Guid Id, string LegalName);
-    private sealed record Schedule(Guid Id, string Name, string Frequency, string PayDayRule, int? PayDay, int CutoffDay,
+    private sealed record Schedule(Guid Id, string Name, string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
+        int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
         bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor, List<DateOnly> NextPayDates);
 
     private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
@@ -114,17 +115,66 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
 
         var res = await client.PostAsJsonAsync("/api/pay-schedules", new
         {
-            name = "M", frequency = "weekly", payDayRule = "fixed_day", payDay = (int?)null, cutoffDay = 31,
+            name = "M", frequency = "monthly", payDayRule = "fixed_day", payDay = (int?)null, cutoffDay = 31,
             allCompanies = false, companyIds = new[] { a.Id }, defaultFor = new[] { b.Id },
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
         var error = await ErrorFrom(res);
         Assert.Equal("ONB-3524", error.Code);
-        Assert.Equal(["cutoffDay", "defaultFor", "frequency", "name", "payDay"], error.Fields!.Keys.Order());
+        Assert.Equal(["cutoffDay", "defaultFor", "name", "payDay"], error.Fields!.Keys.Order());
+
+        var hourly = await client.PostAsJsonAsync("/api/pay-schedules", new { name = "Hourly", frequency = "hourly", allCompanies = true });
+        Assert.Equal("frequency", Assert.Single((await ErrorFrom(hourly)).Fields!.Keys));
+
+        // Weekly and every two weeks pay on a weekday; every two weeks starts on that weekday.
+        var weekend = await client.PostAsJsonAsync("/api/pay-schedules", new
+        {
+            name = "Fortnightly", frequency = "fortnightly", payWeekday = 6, firstPayDate = "2026-10-15", cutoffDaysBefore = 14, allCompanies = true,
+        });
+        Assert.Equal(["cutoffDaysBefore", "payWeekday"], (await ErrorFrom(weekend)).Fields!.Keys.Order());
+        var offDay = await client.PostAsJsonAsync("/api/pay-schedules", new
+        {
+            name = "Fortnightly", frequency = "fortnightly", payWeekday = 5, firstPayDate = "2026-10-15", cutoffDaysBefore = 2, allCompanies = true,
+        });
+        Assert.Equal("firstPayDate", Assert.Single((await ErrorFrom(offDay)).Fields!.Keys));
 
         var none = await client.PostAsJsonAsync("/api/pay-schedules", MidMonth([], []));
         Assert.Equal("companyIds", Assert.Single((await ErrorFrom(none)).Fields!.Keys));
+    }
+
+    [Fact]
+    public async Task Weekly_every_two_weeks_and_daily_schedules_keep_only_their_own_fields()
+    {
+        var (client, _, _) = await Onboarded();
+        var a = await AddCompany(client, "Oliech Restaurants Ltd");
+        async Task<Schedule> Add(object body) =>
+            (await (await client.PostAsJsonAsync("/api/pay-schedules", body)).Content.ReadFromJsonAsync<Schedule>())!;
+
+        var weekly = await Add(new
+        {
+            name = "Casuals weekly", frequency = "weekly", payDayRule = "fixed_day", payDay = 15, cutoffDay = 20, payWeekday = 5, cutoffDaysBefore = 2,
+            allCompanies = false, companyIds = new[] { a.Id },
+        });
+        var fortnightly = await Add(new
+        {
+            name = "Every two weeks", frequency = "fortnightly", payWeekday = 5, firstPayDate = "2026-10-16", cutoffDaysBefore = 3,
+            allCompanies = false, companyIds = new[] { a.Id },
+        });
+        var daily = await Add(new { name = "Casuals daily", frequency = "daily", payTime = "17:30", allCompanies = false, companyIds = new[] { a.Id } });
+
+        Assert.Equal(("weekly", (string?)null, (int?)null, (int?)null, (int?)5, (int?)2),
+            (weekly.Frequency, weekly.PayDayRule, weekly.PayDay, weekly.CutoffDay, weekly.PayWeekday, weekly.CutoffDaysBefore));
+        Assert.All(weekly.NextPayDates, d => Assert.Equal(DayOfWeek.Friday, d.DayOfWeek));
+        Assert.Equal(7, weekly.NextPayDates[1].DayNumber - weekly.NextPayDates[0].DayNumber);
+        Assert.Equal((DateOnly?)DateOnly.Parse("2026-10-16"), fortnightly.FirstPayDate);
+        Assert.Equal(14, fortnightly.NextPayDates[1].DayNumber - fortnightly.NextPayDates[0].DayNumber);
+        Assert.Equal(0, (fortnightly.NextPayDates[0].DayNumber - DateOnly.Parse("2026-10-16").DayNumber) % 14);
+        Assert.Equal(("daily", (TimeOnly?)new TimeOnly(17, 30), (int?)null, (int?)null), (daily.Frequency, daily.PayTime, daily.CutoffDay, daily.CutoffDaysBefore));
+        Assert.All(daily.NextPayDates, d => Assert.DoesNotContain(d.DayOfWeek, new[] { DayOfWeek.Saturday, DayOfWeek.Sunday }));
+
+        var preview = (await client.GetFromJsonAsync<List<DateOnly>>("/api/pay-schedules/pay-dates?frequency=weekly&payWeekday=1"))!;
+        Assert.All(preview, d => Assert.Equal(DayOfWeek.Monday, d.DayOfWeek));
     }
 
     [Fact]
