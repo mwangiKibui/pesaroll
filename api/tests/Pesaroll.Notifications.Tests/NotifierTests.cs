@@ -87,11 +87,11 @@ public sealed class NotifierTests
         await scope.ServiceProvider.GetRequiredService<NotificationJob>().SendAsync(id, organizationId ?? world.OrganizationId, CancellationToken.None);
     }
 
-    private static async Task<Notification> Read(World world, Guid id)
+    private static async Task<Delivery> Read(World world, Guid id)
     {
         using var scope = world.Services.CreateScope();
         scope.ServiceProvider.GetRequiredService<TenantContext>().Set(world.OrganizationId, []);
-        return await scope.ServiceProvider.GetRequiredService<NotificationsDbContext>().Notifications.AsNoTracking().SingleAsync(n => n.Id == id);
+        return await scope.ServiceProvider.GetRequiredService<NotificationsDbContext>().Deliveries.AsNoTracking().SingleAsync(n => n.Id == id);
     }
 
     [Fact]

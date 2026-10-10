@@ -7,8 +7,8 @@ using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Notifications;
 
-/// <summary>An email or SMS for an organization (database/schema/tenancy/notifications.sql).</summary>
-public sealed class Notification
+/// <summary>An email or SMS for an organization (database/schema/tenancy/notification_deliveries.sql).</summary>
+public sealed class Delivery
 {
     public Guid Id { get; set; }
     public Guid OrganizationId { get; set; }
@@ -35,10 +35,13 @@ public sealed class Notification
 
 public sealed class NotificationsDbContext(DbContextOptions<NotificationsDbContext> options) : DbContext(options)
 {
-    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<Delivery> Deliveries => Set<Delivery>();
 
-    protected override void OnModelCreating(ModelBuilder model) =>
-        model.Entity<Notification>().Property(n => n.Data).HasColumnType("jsonb");
+    protected override void OnModelCreating(ModelBuilder model)
+    {
+        model.Entity<Delivery>().ToTable("notification_deliveries");
+        model.Entity<Delivery>().Property(n => n.Data).HasColumnType("jsonb");
+    }
 }
 
 /// <summary>A message to send: by email or sms, to whom, and which template with which values.</summary>
@@ -74,15 +77,15 @@ public sealed class Notifier(NotificationsDbContext db, TenantContext tenant, IB
         Templates.Render(message.Template, message.Language, message.Data);   // fails now, not in the worker, if a value is missing
 
         var now = clock.GetUtcNow();
-        var notification = new Notification
+        var delivery = new Delivery
         {
             Id = Guid.CreateVersion7(), OrganizationId = organizationId, Channel = message.Channel, Recipient = recipient,
             Template = message.Template, Data = JsonSerializer.Serialize(message.Data), Language = message.Language, CreatedAt = now, UpdatedAt = now,
         };
-        db.Notifications.Add(notification);
+        db.Deliveries.Add(delivery);
         await db.SaveChangesAsync(ct);
-        jobs.Enqueue<NotificationJob>(job => job.SendAsync(notification.Id, organizationId, CancellationToken.None));
-        return notification.Id;
+        jobs.Enqueue<NotificationJob>(job => job.SendAsync(delivery.Id, organizationId, CancellationToken.None));
+        return delivery.Id;
     }
 }
 
@@ -97,45 +100,45 @@ public sealed class NotificationJob(
     public const int MaxAttempts = 5;
 
     [AutomaticRetry(Attempts = MaxAttempts - 1)]
-    public async Task SendAsync(Guid notificationId, Guid organizationId, CancellationToken ct)
+    public async Task SendAsync(Guid deliveryId, Guid organizationId, CancellationToken ct)
     {
         tenant.Set(organizationId, []);
-        var notification = await db.Notifications.SingleOrDefaultAsync(n => n.Id == notificationId, ct);
-        if (notification is not { Status: "queued" })
+        var delivery = await db.Deliveries.SingleOrDefaultAsync(n => n.Id == deliveryId, ct);
+        if (delivery is not { Status: "queued" })
         {
             return;   // another organization's, already sent, or given up on
         }
 
-        var data = JsonSerializer.Deserialize<Dictionary<string, string>>(notification.Data) ?? [];
-        var message = Templates.Render(notification.Template, notification.Language, data);
-        notification.Attempts++;
-        notification.UpdatedAt = clock.GetUtcNow();
+        var data = JsonSerializer.Deserialize<Dictionary<string, string>>(delivery.Data) ?? [];
+        var message = Templates.Render(delivery.Template, delivery.Language, data);
+        delivery.Attempts++;
+        delivery.UpdatedAt = clock.GetUtcNow();
         try
         {
-            var sent = notification.Channel == "sms"
-                ? await sms.SendAsync(notification.Recipient, message, ct)
-                : await email.SendAsync(notification.Recipient, message, ct);
-            notification.Status = "sent";
-            notification.Units = sent.Units;
-            notification.ProviderMessageId = sent.ProviderId;
-            notification.SentAt = clock.GetUtcNow();
-            notification.Error = null;
-            notification.ErrorCode = null;
+            var sent = delivery.Channel == "sms"
+                ? await sms.SendAsync(delivery.Recipient, message, ct)
+                : await email.SendAsync(delivery.Recipient, message, ct);
+            delivery.Status = "sent";
+            delivery.Units = sent.Units;
+            delivery.ProviderMessageId = sent.ProviderId;
+            delivery.SentAt = clock.GetUtcNow();
+            delivery.Error = null;
+            delivery.ErrorCode = null;
             await db.SaveChangesAsync(CancellationToken.None);
         }
         catch (DeliveryException error)
         {
-            notification.Error = error.Message;
-            notification.ErrorCode = notification.Channel == "sms" ? NotificationErrors.SmsNotDelivered : NotificationErrors.EmailNotDelivered;
-            var last = notification.Attempts >= MaxAttempts;
+            delivery.Error = error.Message;
+            delivery.ErrorCode = delivery.Channel == "sms" ? NotificationErrors.SmsNotDelivered : NotificationErrors.EmailNotDelivered;
+            var last = delivery.Attempts >= MaxAttempts;
             if (last)
             {
-                notification.Status = "failed";
+                delivery.Status = "failed";
             }
 
             await db.SaveChangesAsync(CancellationToken.None);
             logger.LogWarning("{Channel} to {To} refused (attempt {Attempt}): {Reason}",
-                notification.Channel, Recipients.Mask(notification.Recipient), notification.Attempts, error.Message);
+                delivery.Channel, Recipients.Mask(delivery.Recipient), delivery.Attempts, error.Message);
             if (!last)
             {
                 throw;
@@ -155,7 +158,7 @@ public static class Usage
     {
         var start = new DateTimeOffset(year, month, 1, 0, 0, 0, Kenya);
         var (from, to) = (start.ToUniversalTime(), start.AddMonths(1).ToUniversalTime());   // timestamptz takes UTC
-        var rows = await db.Notifications
+        var rows = await db.Deliveries
             .Where(n => n.Status == "sent" && n.SentAt >= from && n.SentAt < to)
             .GroupBy(n => n.Channel)
             .Select(g => new { Channel = g.Key, Messages = g.Count(), Units = g.Sum(n => n.Units ?? 0) })

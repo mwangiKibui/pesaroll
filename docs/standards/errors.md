@@ -76,8 +76,8 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3526 | We couldn't find that schedule. It may have been deleted. | Customer | The payroll schedule doesn't exist, was deleted, or belongs to another organization. |
 | ONB-3527 | This is the default schedule of {companies}. Make another schedule their default first. | Customer | Every company keeps one default schedule; tick Default for on another schedule, then delete or untick this one. |
 | NTF-0501 | Enter a valid email address, or a Kenyan mobile number like 0712 345 678. | Customer | A message's recipient isn't a Kenyan mobile number (07…, 01…, +254…) or a plain email address. |
-| NTF-0502 | We couldn't deliver an email to {recipient}. | Support | Postmark kept refusing it (5 attempts); notifications.error has its reason (inactive recipient, bounced, bad address). Check the address with the customer. |
-| NTF-0503 | We couldn't deliver an SMS to {recipient}. | Support | Africa's Talking kept refusing it (5 attempts); notifications.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance. |
+| NTF-0502 | We couldn't deliver an email to {recipient}. | Support | Postmark kept refusing it (5 attempts); notification_deliveries.error has its reason (inactive recipient, bounced, bad address). Check the address with the customer. |
+| NTF-0503 | We couldn't deliver an SMS to {recipient}. | Support | Africa's Talking kept refusing it (5 attempts); notification_deliveries.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance. |
 | PAY-2001 | {employee} has no KRA PIN, so PAYE can't be filed. | Customer | Add the KRA PIN on the employee's profile, then rerun. |
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |

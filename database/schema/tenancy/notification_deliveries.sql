@@ -1,9 +1,11 @@
 -- Every email and SMS Pesaroll sends for an organization (NTF-01), such as payroll reminders
--- (ONB-06). The worker sends each one (Postmark for email, Africa's Talking for SMS) and records
--- how it went. Sent messages are also the usage billing counts (BILL-10): units are what the
--- provider bills, SMS parts or 1 for an email. Once queued, only the delivery fields change and
--- nothing is deleted. Templates never carry salaries; data holds only the values they fill in.
-create table notifications (
+-- (ONB-06), to a user or to any address or number someone entered. In-app notifications for users
+-- (NTF-03) get their own table, notifications; a delivery will then point at one. The worker sends
+-- each delivery (Postmark for email, Africa's Talking for SMS) and records how it went. Sent
+-- deliveries are also the usage billing counts (BILL-10): units are what the provider bills, SMS
+-- parts or 1 for an email. Once queued, only the delivery fields change and nothing is deleted.
+-- Templates never carry salaries; data holds only the values they fill in.
+create table notification_deliveries (
     id                   uuid primary key,
     organization_id      uuid not null references organizations (id),
     channel              text not null check (channel in ('email', 'sms')),
@@ -24,12 +26,12 @@ create table notifications (
 );
 
 -- Monthly usage per organization and channel.
-create index notifications_usage on notifications (organization_id, channel, sent_at) where status = 'sent';
+create index notification_deliveries_usage on notification_deliveries (organization_id, channel, sent_at) where status = 'sent';
 
-alter table notifications enable row level security;
+alter table notification_deliveries enable row level security;
 
-create policy notifications_tenant on notifications
+create policy notification_deliveries_tenant on notification_deliveries
     using (organization_id = app_org_id());
 
-grant select, insert on table notifications to pesaroll_app;
-grant update (status, attempts, units, provider_message_id, error_code, error, updated_at, sent_at) on table notifications to pesaroll_app;
+grant select, insert on table notification_deliveries to pesaroll_app;
+grant update (status, attempts, units, provider_message_id, error_code, error, updated_at, sent_at) on table notification_deliveries to pesaroll_app;

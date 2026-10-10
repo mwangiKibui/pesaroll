@@ -12,42 +12,42 @@ declare
 begin
   perform set_config('app.org_id', org1::text, true);
   perform set_config('app.company_ids', '', true);
-  insert into notifications (id, organization_id, channel, recipient, template, data)
+  insert into notification_deliveries (id, organization_id, channel, recipient, template, data)
   values (mail, org1, 'email', 'wanjiru@example.com', 'payroll_reminder', '{"schedule": "Monthly"}'),
          (sms, org1, 'sms', '+254712345678', 'payroll_reminder', '{}');
-  if (select status from notifications where id = mail) <> 'queued' then raise exception 'a new message should be queued'; end if;
+  if (select status from notification_deliveries where id = mail) <> 'queued' then raise exception 'a new message should be queued'; end if;
 
-  update notifications set status = 'sent', units = 2, provider_message_id = 'ATXid_1', sent_at = now(), attempts = 1 where id = sms;
+  update notification_deliveries set status = 'sent', units = 2, provider_message_id = 'ATXid_1', sent_at = now(), attempts = 1 where id = sms;
   begin
-    update notifications set status = 'sent', sent_at = now() where id = mail;
+    update notification_deliveries set status = 'sent', sent_at = now() where id = mail;
     raise exception 'a message was marked sent without its billed units';
   exception when check_violation then null;
   end;
   begin
-    insert into notifications (id, organization_id, channel, recipient, template) values ('00000000-0000-7000-8000-000000000403', org1, 'fax', '+254712345678', 'payroll_reminder');
+    insert into notification_deliveries (id, organization_id, channel, recipient, template) values ('00000000-0000-7000-8000-000000000403', org1, 'fax', '+254712345678', 'payroll_reminder');
     raise exception 'a message on an unknown channel was saved';
   exception when check_violation then null;
   end;
   begin
-    update notifications set recipient = 'someone@else.com' where id = mail;
+    update notification_deliveries set recipient = 'someone@else.com' where id = mail;
     raise exception 'a queued message''s recipient was changed';
   exception when insufficient_privilege then null;
   end;
   begin
-    delete from notifications where id = sms;
+    delete from notification_deliveries where id = sms;
     raise exception 'a message was deleted';
   exception when insufficient_privilege then null;
   end;
 
   -- Organization two sees and changes nothing of organization one's.
   perform set_config('app.org_id', org2::text, true);
-  if exists (select 1 from notifications where id in (mail, sms)) then raise exception 'org two sees org one''s messages'; end if;
-  update notifications set status = 'failed' where id = mail;
+  if exists (select 1 from notification_deliveries where id in (mail, sms)) then raise exception 'org two sees org one''s messages'; end if;
+  update notification_deliveries set status = 'failed' where id = mail;
   perform set_config('app.org_id', org1::text, true);
-  if (select status from notifications where id = mail) <> 'queued' then raise exception 'org two changed org one''s message'; end if;
+  if (select status from notification_deliveries where id = mail) <> 'queued' then raise exception 'org two changed org one''s message'; end if;
   begin
     perform set_config('app.org_id', org2::text, true);
-    insert into notifications (id, organization_id, channel, recipient, template) values ('00000000-0000-7000-8000-000000000404', org1, 'sms', '+254712345678', 'payroll_reminder');
+    insert into notification_deliveries (id, organization_id, channel, recipient, template) values ('00000000-0000-7000-8000-000000000404', org1, 'sms', '+254712345678', 'payroll_reminder');
     raise exception 'org two queued a message as org one';
   exception when insufficient_privilege then null;
   end;
