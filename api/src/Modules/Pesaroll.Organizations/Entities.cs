@@ -30,6 +30,8 @@ public sealed class Company
     public string? Email { get; set; }
     /// <summary>Its one main location (ONB-04), created as "Head office" with the company.</summary>
     public Guid? MainLocationId { get; set; }
+    /// <summary>The schedule its employees get unless told otherwise (ONB-06); the suggested "Monthly" to start.</summary>
+    public Guid? DefaultPayScheduleId { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -197,6 +199,46 @@ public sealed class LocationCompany
 {
     public Guid OrganizationId { get; set; }
     public Guid LocationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>
+/// How often and when people are paid (ONB-06): monthly, weekly, every two weeks or daily, on the
+/// days <see cref="PayDates"/> gives, for all companies or the ones in <see cref="Companies"/>.
+/// </summary>
+public sealed class PaySchedule
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public required string Name { get; set; }
+    /// <summary>monthly, weekly, fortnightly or daily; each has its own fields below and none of the others'.</summary>
+    public string Frequency { get; set; } = "monthly";
+    /// <summary>Monthly: last_working_day, last_day or fixed_day.</summary>
+    public string? PayDayRule { get; set; } = PayDates.LastWorkingDay;
+    /// <summary>Monthly: the day of the month (1 to 28) for a fixed day; empty otherwise.</summary>
+    public int? PayDay { get; set; }
+    /// <summary>Monthly: the day of the month (1 to 28) after which changes go into next month.</summary>
+    public int? CutoffDay { get; set; } = 25;
+    /// <summary>Weekly and fortnightly: the weekday paid, Monday 1 to Friday 5.</summary>
+    public int? PayWeekday { get; set; }
+    /// <summary>Fortnightly: the first pay date, from which every other week counts.</summary>
+    public DateOnly? FirstPayDate { get; set; }
+    /// <summary>Weekly and fortnightly: how many days before the pay day changes close.</summary>
+    public int? CutoffDaysBefore { get; set; }
+    /// <summary>Daily: when in the day people are paid (reminders count hours back from it).</summary>
+    public TimeOnly? PayTime { get; set; }
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<PayScheduleCompany> Companies { get; set; } = [];
+}
+
+public sealed class PayScheduleCompany
+{
+    public Guid OrganizationId { get; set; }
+    public Guid PayScheduleId { get; set; }
     public Guid CompanyId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

@@ -23,6 +23,8 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<CountryWageArea> CountryWageAreas => Set<CountryWageArea>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
+    public DbSet<PaySchedule> PaySchedules => Set<PaySchedule>();
+    public DbSet<PayScheduleCompany> PayScheduleCompanies => Set<PayScheduleCompany>();
     public DbSet<Division> Divisions => Set<Division>();
     public DbSet<DivisionCompany> DivisionCompanies => Set<DivisionCompany>();
     public DbSet<Department> Departments => Set<Department>();
@@ -70,6 +72,11 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<LocationCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
         // Tells EF to write a new location before the company that points at it as main.
         model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
+        model.Entity<PaySchedule>().HasMany(s => s.Companies).WithOne().HasForeignKey(c => c.PayScheduleId);
+        model.Entity<PayScheduleCompany>().HasKey(c => new { c.PayScheduleId, c.CompanyId });
+        model.Entity<PayScheduleCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
+        // Tells EF to write a new schedule before the company that points at it as default.
+        model.Entity<Company>().HasOne<PaySchedule>().WithMany().HasForeignKey(c => c.DefaultPayScheduleId);
         model.Entity<Division>().HasMany(d => d.Companies).WithOne().HasForeignKey(c => c.DivisionId);
         model.Entity<DivisionCompany>().HasKey(c => new { c.DivisionId, c.CompanyId });
         model.Entity<Department>().HasMany(d => d.Companies).WithOne().HasForeignKey(c => c.DepartmentId);

@@ -12,8 +12,10 @@
 \i identity/signup_role_check.sql
 \i tenancy/organizations.sql
 \i tenancy/locations.sql
+\i tenancy/pay_schedules.sql
 \i tenancy/companies.sql
 \i tenancy/location_companies.sql
+\i tenancy/pay_schedule_companies.sql
 \i tenancy/structure.sql
 \i tenancy/structure_companies.sql
 \i identity/memberships.sql

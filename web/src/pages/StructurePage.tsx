@@ -94,7 +94,7 @@ export default function StructurePage() {
           onClose={() => setAdding(false)} />}
         {uploading && <UploadStructure initialLevel={tab} companies={companies.data} onClose={() => setUploading(false)} />}
         {/* Payroll schedules (ONB-06) isn't built yet, so the dashboard comes next. */}
-        <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
+        <Proceed label={t('setup.proceed', { step: t('setup.steps.schedules') })} onProceed={() => void navigate({ to: '/setup/schedules' })} />
       </>}
     </SetupLayout>
   )

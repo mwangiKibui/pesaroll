@@ -79,6 +79,12 @@ export const location = (overrides: Record<string, unknown> = {}) => ({
   companyIds: [company().id], mainFor: [company().id], ...overrides,
 })
 
+/** A payroll schedule as the API returns it; by default the suggested Monthly, the company's default. */
+export const schedule = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000f001', name: 'Monthly', frequency: 'monthly', payDayRule: 'last_working_day', payDay: null, cutoffDay: 25,
+  payWeekday: null, firstPayDate: null, cutoffDaysBefore: null, payTime: null, allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], ...overrides,
+})
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -108,6 +114,7 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/structure/departments': () => json(200, []),
     'GET /api/structure/positions': () => json(200, []),
     'GET /api/structure/units': () => json(200, []),
+    'GET /api/pay-schedules': () => json(200, []),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }

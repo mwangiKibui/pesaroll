@@ -63,6 +63,18 @@ internal static class OnboardingErrors
     public static AppException StructureInUse(string what, string uses) =>
         new("ONB-3522", $"{what} still has {uses}. Move or delete them first.", 409);
 
+    public static AppException ScheduleDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3524", "Some schedule details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException ScheduleNameTaken() =>
+        new("ONB-3525", "You already have a schedule with this name.", 409);
+
+    public static AppException ScheduleNotFound() =>
+        new("ONB-3526", "We couldn't find that schedule. It may have been deleted.", 404);
+
+    public static AppException DefaultScheduleNeeded(string companies) =>
+        new("ONB-3527", $"This is the default schedule of {companies}. Make another schedule their default first.", 409);
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }
