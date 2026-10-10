@@ -4,7 +4,7 @@
 #   docker compose down -v           # stop and wipe the local database
 #
 # Startup order: db (healthy) -> db-tools deploys the schema and reference data, then exits
-# -> api -> web. Every `up` re-deploys the schema, which is a no-op when nothing changed.
+# -> api and worker (background jobs) -> web. Every `up` re-deploys the schema, which is a no-op when nothing changed.
 # To see what a schema change would do without applying it:
 #   docker compose run --rm db-tools plan
 #
@@ -55,6 +55,21 @@ services:
     depends_on:
       db: { condition: service_healthy }
       db-tools: { condition: service_completed_successfully }   # schema in place before the API starts
+
+  worker:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src
+    # Runs queued and recurring jobs (PLAT-04); restarts on every change like the API.
+    command: dotnet watch run --no-hot-reload --project api/src/Pesaroll.Worker
+    environment:
+      ConnectionStrings__Pesaroll: Host=db;Database=pesaroll;Username=pesaroll;Password=pesaroll
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    volumes:
+      - .:/src
+      - nuget:/root/.nuget/packages
+    depends_on:
+      db: { condition: service_healthy }
+      db-tools: { condition: service_completed_successfully }
 
   web:
     image: node:22-alpine
