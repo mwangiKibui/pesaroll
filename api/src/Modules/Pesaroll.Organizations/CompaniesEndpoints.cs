@@ -109,6 +109,14 @@ public static class CompaniesEndpoints
             var headOffice = await LocationsEndpoints.HeadOfficeAsync(db, company, clock.GetUtcNow(), ct);
             company.MainLocationId = headOffice.Id;
             db.Locations.Add(headOffice);
+            // Its default payroll schedule (ONB-06): the one for all companies, or the suggested "Monthly".
+            var (schedule, isNew) = await PaySchedulesEndpoints.DefaultForNewCompanyAsync(db, organizationId, clock.GetUtcNow(), ct);
+            if (isNew)
+            {
+                db.PaySchedules.Add(schedule);
+            }
+
+            company.DefaultPayScheduleId = schedule.Id;
             db.Companies.Add(company);
             await SaveAsync(db, ct);
 
@@ -169,16 +177,21 @@ public static class CompaniesEndpoints
             var company = await db.Companies.SingleOrDefaultAsync(c => c.Id == id && c.Status == "active", ct)
                 ?? throw OnboardingErrors.CompanyNotFound();
             await RequireOnboarder(db, userId, organizationId, ct);
-            // Locations only this company used go with it; shared ones stay for the others.
+            // Locations and schedules only this company used go with it; shared ones stay for the others.
             var onlyItsOwn = await db.Locations
                 .Where(l => !l.AllCompanies && l.Companies.Any(c => c.CompanyId == id) && l.Companies.All(c => c.CompanyId == id))
                 .ToListAsync(ct);
-            // Locations first, while their links still make them visible (row-level security), then the
-            // company, its numbers and links (on delete cascade).
+            var onlyItsSchedules = await db.PaySchedules
+                .Where(s => !s.AllCompanies && s.Companies.Any(c => c.CompanyId == id) && s.Companies.All(c => c.CompanyId == id))
+                .ToListAsync(ct);
+            // Locations and schedules first, while their links still make them visible (row-level
+            // security), then the company, its numbers and links (on delete cascade).
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             company.MainLocationId = null;
+            company.DefaultPayScheduleId = null;
             await db.SaveChangesAsync(ct);
             db.Locations.RemoveRange(onlyItsOwn);
+            db.PaySchedules.RemoveRange(onlyItsSchedules);
             await db.SaveChangesAsync(ct);
             db.Companies.Remove(company);
             await db.SaveChangesAsync(ct);

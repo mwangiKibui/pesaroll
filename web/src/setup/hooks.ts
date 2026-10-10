@@ -121,24 +121,43 @@ export function useStructure(level: LevelKey, enabled = true) {
   })
 }
 
+/** The organization's payroll schedules (ONB-06), each with the companies it serves and is default for. */
+export function useSchedules(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['schedules'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/pay-schedules')
+      if (error || !data) throw new Error('schedules')
+      return data
+    },
+  })
+}
+
 /**
  * Which setup steps are done so far (ONB-12 will track all ten on the server). Locations is done
  * once every company has its main location, which it gets when it is added; Org structure once
- * there are departments or positions.
+ * there are departments or positions; Payroll schedules once every company has a default schedule.
  */
 export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const companies = useCompanies(hasOrganization)
-  const locations = useLocations(hasOrganization && !!companies.data?.length)
-  const departments = useStructure('departments', hasOrganization && !!companies.data?.length)
-  const positions = useStructure('positions', hasOrganization && !!companies.data?.length)
+  const some = hasOrganization && !!companies.data?.length
+  const locations = useLocations(some)
+  const departments = useStructure('departments', some)
+  const positions = useStructure('positions', some)
+  const schedules = useSchedules(some)
   if (!hasOrganization) return []
   if (!companies.data?.length) return ['organization']
   const mains = new Set((locations.data ?? []).flatMap(l => l.mainFor))
   if (!companies.data.every(c => mains.has(c.id))) return ['organization', 'companies']
   // Org structure is done once it has departments or positions (suggested or the business's own).
-  return departments.data?.length || positions.data?.length
-    ? ['organization', 'companies', 'locations', 'structure']
-    : ['organization', 'companies', 'locations']
+  if (!departments.data?.length && !positions.data?.length) return ['organization', 'companies', 'locations']
+  // Payroll schedules once every company has its default (the suggested Monthly, made with the company).
+  const defaults = new Set((schedules.data ?? []).flatMap(s => s.defaultFor))
+  return companies.data.every(c => defaults.has(c.id))
+    ? ['organization', 'companies', 'locations', 'structure', 'schedules']
+    : ['organization', 'companies', 'locations', 'structure']
 }
 
 /** Where "Finish setting up" leads: the first step with a page that isn't done, else the last one built. */

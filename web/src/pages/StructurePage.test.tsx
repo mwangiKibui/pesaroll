@@ -163,15 +163,13 @@ it('with several companies, the selector filters every tab', async () => {
   expect(within(panel('Departments')).getByText('OPE-01')).toBeInTheDocument()   // for all companies
 })
 
-it('Proceed goes to the dashboard with four steps done', async () => {
+it('Proceed goes on to the payroll schedules', async () => {
   withStructure()
   renderApp('/setup/structure')
 
-  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Org Dashboard' }))
+  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Payroll schedules' }))
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
-  expect(await screen.findByText('Finish setting up · 4 of 10')).toBeInTheDocument()
-  expect(screen.getAllByText('Next: Payroll schedules').length).toBeGreaterThan(0)
+  expect(await screen.findByRole('heading', { name: 'When do you pay your people?' })).toBeInTheDocument()
 })
 
 it('the setup steps in the sidebar are links to their pages, done or not', async () => {
@@ -183,7 +181,8 @@ it('the setup steps in the sidebar are links to their pages, done or not', async
   expect(within(steps).getByRole('link', { name: /Companies/ })).toHaveAttribute('href', '/setup/companies')
   expect(within(steps).getByRole('link', { name: /Locations/ })).toHaveAttribute('href', '/setup/locations')
   expect(within(steps).getByRole('link', { name: /Org structure/ })).toHaveAttribute('aria-current', 'page')
-  expect(within(steps).queryByRole('link', { name: /Payroll schedules/ })).not.toBeInTheDocument()   // not built yet
+  expect(within(steps).getByRole('link', { name: /Payroll schedules/ })).toHaveAttribute('href', '/setup/schedules')
+  expect(within(steps).queryByRole('link', { name: /Pay items/ })).not.toBeInTheDocument()   // not built yet
 
   await userEvent.click(within(steps).getByRole('link', { name: /Companies/ }))
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
