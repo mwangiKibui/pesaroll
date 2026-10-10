@@ -41,6 +41,7 @@ For staging or production, run the same image with that database's `PGHOST`, `PG
 - **Not as root.** The tools image runs as the `postgres` user.
 - **A second plan must be empty.** `tests/run.sh` fails if a plan right after a deploy shows any change; that's how we catch schema files that don't round-trip.
 - **Reference data that a new foreign key points to must exist first.** Post-deploy scripts run after the schema is applied, so on a database that already has rows, a new foreign key to a freshly created reference table would fail. In that case add a pre-deploy script that creates and fills the reference table first (with the same definition as its schema file).
+- **The job queue is the one exception.** Background jobs (PLAT-04) use Hangfire, which creates and upgrades its own tables in the `hangfire` schema when the worker starts. pgschema only manages `public` (`--schema public`), so it never sees or changes them, and no customer data goes there: jobs carry ids, and the code they run reads customer data through the app role and row-level security. In production the database user needs permission to create that schema the first time.
 - **Renames need a pre-deploy script.** pgschema sees a renamed column as a drop and an add; copy the data in a pre-deploy script first.
 
 ## Conventions

@@ -13,5 +13,6 @@
     <Project Path="tests/Pesaroll.Identity.Tests/Pesaroll.Identity.Tests.csproj" />
     <Project Path="tests/Pesaroll.Organizations.Tests/Pesaroll.Organizations.Tests.csproj" />
     <Project Path="tests/Pesaroll.Payroll.Engine.Tests/Pesaroll.Payroll.Engine.Tests.csproj" />
+    <Project Path="tests/Pesaroll.Shared.Tests/Pesaroll.Shared.Tests.csproj" />
   </Folder>
 </Solution>

@@ -3,6 +3,7 @@ using Microsoft.OpenApi;
 using Pesaroll.Identity;
 using Pesaroll.Organizations;
 using Pesaroll.Shared.Errors;
+using Pesaroll.Shared.Jobs;
 using Pesaroll.Shared.Security;
 using Pesaroll.Shared.Web;
 
@@ -30,6 +31,8 @@ builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document,
 builder.Services.AddOrganizationsModule(connectionString);
 builder.Services.AddIdentityModule(connectionString, builder.Configuration);
 builder.Services.AddFieldEncryption(builder.Configuration);
+// The API queues background work; the worker runs it (PLAT-04).
+builder.Services.AddPesarollJobs(connectionString, runJobs: false);
 
 // The API only runs behind Caddy, which sets the client's address and scheme.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
