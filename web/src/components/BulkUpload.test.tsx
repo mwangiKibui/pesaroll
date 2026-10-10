@@ -142,3 +142,60 @@ it('a file the server refuses stays in the drawer; a failed import shows in the 
   await userEvent.click(await within(await screen.findByRole('dialog', { name: /Review/ })).findByRole('button', { name: 'Import 2 locations' }))
   expect(await within(review()).findByRole('alert')).toHaveTextContent('AB12CD34')
 })
+
+it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look across every page', async () => {
+  const big: BulkUploadRead = {
+    rows: Array.from({ length: 250 }, (_, i) => row(i + 2, `Shop ${i + 1}`, 'Nairobi')),
+    problems: [{ line: 240, column: 'county', message: 'Choose a county from the list.' }],
+  }
+  render(<Page read={async () => big} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await screen.findByRole('dialog', { name: 'Review 250 locations' })
+
+  expect(within(review()).getAllByRole('row')).toHaveLength(101)                 // the header and 100 rows
+  expect(within(review()).getByText('Page 1 of 3')).toBeInTheDocument()
+  expect(within(review()).getByRole('button', { name: 'Previous page' })).toBeDisabled()
+  await userEvent.click(within(review()).getByRole('button', { name: 'Next page' }))
+  await userEvent.click(within(review()).getByRole('button', { name: 'Next page' }))
+  expect(within(review()).getByText('Page 3 of 3')).toBeInTheDocument()
+  expect(within(review()).getAllByRole('row')).toHaveLength(51)
+  expect(within(review()).getByRole('button', { name: 'Next page' })).toBeDisabled()
+
+  // The problem is on page 3; the filter finds it from anywhere and starts at page 1.
+  await userEvent.click(within(review()).getByRole('button', { name: 'Previous page' }))
+  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  expect(within(review()).getAllByRole('row')).toHaveLength(2)
+  expect(within(review()).getByText('Page 1 of 1')).toBeInTheDocument()
+  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+
+  // Pasted in one go: typing letter by letter redraws 100 editable rows each time.
+  await userEvent.click(within(review()).getByRole('searchbox', { name: 'Search rows' }))
+  await userEvent.paste('shop 245')
+  expect(within(review()).getByText('Showing 1 of 250')).toBeInTheDocument()
+  expect(cell('Location name', 246)).toHaveValue('Shop 245')
+}, 60_000)
+
+it('what a row names that does not exist yet is noted as "will be created", and does not stop the import', async () => {
+  const withNotes: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Kericho shop', 'Kericho'), row(4, 'Kericho depot', 'kericho')],
+    problems: [],
+    notes: [
+      { line: 3, column: 'county', message: 'No county called "Kericho" yet: it will be created.' },
+      { line: 4, column: 'county', message: 'No county called "kericho" yet: it will be created.' },
+    ],
+  }
+  const importRows = vi.fn(async () => null)
+  const { container } = render(<Page read={async () => withNotes} check={async () => ({ problems: [], notes: withNotes.notes })} importRows={importRows} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await screen.findByRole('dialog', { name: 'Review 3 locations' })
+
+  expect(cell('County', 3)).toHaveValue('Kericho')
+  expect(cell('County', 3)).toHaveAccessibleDescription('No county called "Kericho" yet: it will be created.')
+  expect(cell('County', 3)).not.toHaveAttribute('aria-invalid')
+  expect(within(review()).getByText('1 new item will be created when you import.')).toBeInTheDocument()   // the same name once
+  expect(within(review()).queryByText(/needs fixing/)).not.toBeInTheDocument()
+  await expectNoA11yViolations(container)
+
+  await userEvent.click(within(review()).getByRole('button', { name: 'Import 3 locations' }))
+  expect(importRows).toHaveBeenCalled()
+})

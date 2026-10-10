@@ -5,12 +5,14 @@ import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
+import { BulkUpload, type BulkUploadRow } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice } from '../components/feedback'
-import { SelectField, TextField } from '../components/fields'
+import { RadioGroup, SelectField, TextField } from '../components/fields'
+import { PlusIcon, UploadIcon } from '../components/icons'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
@@ -51,6 +53,8 @@ export default function StructurePage() {
   const done = useSetupDone(true)
   const [tab, setTab] = useState<LevelKey>('departments')
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
+  const [adding, setAdding] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const ready = companies.data && levels.every(l => data[l].data)
   const visible = (items: StructureItem[]) => items.filter(i => shown.all || i.allCompanies || i.companyIds.some(id => shown.ids.includes(id)))
@@ -71,14 +75,24 @@ export default function StructurePage() {
           </div>
         )}
         <div className="flex flex-col gap-4">
-          <Tabs id={tabsId} label={t('structure.levels')} current={tab} onChange={key => setTab(key as LevelKey)}
-            tabs={levels.map(l => ({ key: l, label: t(`structure.${l}.tab`) }))} />
+          {/* One Add and one Upload for every level, on the tab row; both start on the tab you're on. */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Tabs id={tabsId} label={t('structure.levels')} current={tab} onChange={key => setTab(key as LevelKey)}
+              tabs={levels.map(l => ({ key: l, label: t(`structure.${l}.tab`) }))} />
+            <div className="ml-auto flex gap-2">
+              <Button onClick={() => setAdding(true)}><PlusIcon />{t('structure.add')}</Button>
+              <Button variant="secondary" onClick={() => setUploading(true)}><UploadIcon />{t('structure.upload')}</Button>
+            </div>
+          </div>
           {levels.map(l => (
             <TabPanel key={l} id={tabsId} tab={l} current={tab}>
               <LevelTable level={l} items={visible(data[l].data!)} all={data} companies={companies.data} defaultApplies={defaultApplies} />
             </TabPanel>
           ))}
         </div>
+        {adding && <ItemDrawer initialLevel={tab} item={null} all={data} companies={companies.data} defaultApplies={defaultApplies}
+          onClose={() => setAdding(false)} />}
+        {uploading && <UploadStructure initialLevel={tab} companies={companies.data} onClose={() => setUploading(false)} />}
         {/* Payroll schedules (ONB-06) isn't built yet, so the dashboard comes next. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
       </>}
@@ -98,7 +112,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const [editing, setEditing] = useState<StructureItem | 'new' | null>(null)
+  const [editing, setEditing] = useState<StructureItem | null>(null)
   const [deleting, setDeleting] = useState<StructureItem | null>(null)
   const [busy, setBusy] = useState(false)
   const nameOf = (key: LevelKey, id?: string | null) => {
@@ -143,8 +157,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
 
   return (
     <>
-      <TableCard title={t(`structure.${level}.tab`)} count={items.length}
-        actions={<Button onClick={() => setEditing('new')}>{t(`structure.${level}.add`)}</Button>}>
+      <TableCard title={t(`structure.${level}.tab`)} count={items.length}>
         {items.length === 0 ? <EmptyState title={t(`structure.${level}.emptyTitle`)}>{t(`structure.${level}.emptyText`)}</EmptyState> : (
           <table>
             <thead>
@@ -179,7 +192,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
         )}
       </TableCard>
       {editing && (
-        <ItemDrawer level={level} item={editing === 'new' ? null : editing} all={all} companies={companies}
+        <ItemDrawer initialLevel={level} item={editing} all={all} companies={companies}
           defaultApplies={defaultApplies} onClose={() => setEditing(null)} />
       )}
       <ConfirmDialog open={!!deleting} title={t('locations.deleteTitle', { name: deleting ? label(deleting) : '' })}
@@ -190,8 +203,9 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   )
 }
 
-function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
-  level: LevelKey
+/** Adding asks for the type first (Division, Department, Position or Unit); editing keeps the item's. */
+function ItemDrawer({ initialLevel, item, all, companies, defaultApplies, onClose }: {
+  initialLevel: LevelKey
   item: StructureItem | null
   all: AllLevels
   companies: Company[]
@@ -202,8 +216,9 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
   const { api, queryClient } = useServices()
   const toast = useToast()
   const formId = useId()
+  const [level, setLevel] = useState<LevelKey>(initialLevel)
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
-  const { register, handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, control, setError, clearErrors, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
       name: item ? label(item) : '',
       code: item?.code ?? '',
@@ -277,7 +292,7 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
   )
 
   return (
-    <Drawer open title={t(item ? `structure.${level}.editTitle` : `structure.${level}.add`)} onClose={onClose}
+    <Drawer open title={item ? t(`structure.${level}.editTitle`) : t('structure.add')} onClose={onClose}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{item ? t('locations.save') : t(`structure.${level}.add`)}</Button>
@@ -285,6 +300,11 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
+        {!item && (
+          <RadioGroup label={t('structure.whatAdding')} name={`${formId}-kind`} value={level}
+            onChange={value => { setLevel(value as LevelKey); clearErrors() }}
+            options={levels.map(l => ({ value: l, label: t(`structure.${l}.column`) }))} />
+        )}
         <TextField label={t(`structure.${level}.nameLabel`)} placeholder={t(`structure.${level}.namePlaceholder`)} maxLength={120}
           error={errors.name?.message} {...register('name')} />
         <TextField label={t('locations.code')} placeholder={t('structure.codePlaceholder')} optional hint={t('structure.codeHint')}
@@ -308,5 +328,110 @@ function ItemDrawer({ level, item, all, companies, defaultApplies, onClose }: {
         )}
       </form>
     </Drawer>
+  )
+}
+
+/**
+ * Uploading one level (ONB-05 part 2) with the shared BulkUpload: the template, a review of every
+ * row (up to 5,000, 100 a page), and, with several companies, which companies they serve. Rows name
+ * their division or department; departments may name one further up or down the same file.
+ */
+function UploadStructure({ initialLevel, companies, onClose }: { initialLevel: LevelKey; companies: Company[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const [level, setLevel] = useState<LevelKey>(initialLevel)
+  // Choosing another type starts the upload over, with that type's template and columns.
+  return <UploadLevel key={level} level={level} companies={companies} onClose={onClose}
+    firstStep={{
+      title: t('structure.whatUploading'),
+      content: <RadioGroup label={t('structure.whatUploading')} name="upload-kind" value={level} onChange={value => setLevel(value as LevelKey)}
+        options={levels.map(l => ({ value: l, label: t(`structure.${l}.tab`) }))} />,
+    }} />
+}
+
+function UploadLevel({ level, companies, onClose, firstStep }: {
+  level: LevelKey
+  companies: Company[]
+  onClose: () => void
+  firstStep: { title: string; content: ReactNode }
+}) {
+  const { t } = useTranslation()
+  const { api, queryClient } = useServices()
+  const toast = useToast()
+  const [applies, setApplies] = useState<CompanySelection>({ all: true, ids: [] })
+  const name = { key: 'name', label: t(`structure.${level}.nameLabel`) }
+  const code = { key: 'code', label: t('locations.code') }
+  // What a row belongs to is typed: an existing name or a new one (created on import).
+  const department = { key: 'department', label: t('structure.department') }
+  const columns = {
+    divisions: [name, code],
+    departments: [name, code, { key: 'division', label: t('structure.division') }, { key: 'parent', label: t('structure.partOf') }],
+    // The division a position's or unit's department is (or will be) in.
+    positions: [name, code, department, { key: 'division', label: t('structure.division') }],
+    units: [name, code, department, { key: 'division', label: t('structure.division') }],
+  }[level]
+  type Path = '/api/structure/departments/import'
+
+  const downloadTemplate = async () => {
+    const { data } = await api.GET(`/api/structure/${level}/template` as '/api/structure/departments/template', { parseAs: 'blob' })
+    if (!data) throw new Error('template')
+    const url = URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `pesaroll-${level}-template.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const read = async (file: File) => {
+    const { data, error } = await api.POST(`/api/structure/${level}/import/read` as '/api/structure/departments/import/read', {
+      body: { file } as never,
+      bodySerializer: () => {
+        const form = new FormData()
+        form.append('file', file)
+        return form
+      },
+    })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('read')
+  }
+
+  const check = async (rows: BulkUploadRow[]) => {
+    const { data, error } = await api.POST(`/api/structure/${level}/import/check` as '/api/structure/departments/import/check', { body: { rows } as never })
+    if (data) return data
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('check')
+  }
+
+  const importRows = async (rows: BulkUploadRow[]) => {
+    // With one company the rows are simply its own.
+    const body = companies.length === 1
+      ? { rows, allCompanies: false, companyIds: [companies[0].id] }
+      : { rows, allCompanies: applies.all, companyIds: applies.all ? [] : applies.ids }
+    const { data, error } = await api.POST(`/api/structure/${level}/import` as Path, { body: body as never })
+    if (data) {
+      void queryClient.invalidateQueries({ queryKey: ['structure'] })
+      toast.show(t(`structure.${level}.imported`, { count: data.imported }))
+      return null
+    }
+    if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
+    throw new Error('import')
+  }
+
+  return (
+    <BulkUpload open title={t('structure.upload')} firstStep={firstStep} columns={columns} onClose={onClose} onDownloadTemplate={downloadTemplate}
+      onRead={read} onCheck={check} onImport={importRows}
+      labels={{
+        review: count => t(`structure.${level}.review`, { count }),
+        importButton: count => t(`structure.${level}.importButton`, { count }),
+        templateHint: t(`structure.${level}.templateHint`),
+      }}>
+      {companies.length > 1 && (
+        <div className="max-w-sm">
+          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
+            companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+        </div>
+      )}
+    </BulkUpload>
   )
 }

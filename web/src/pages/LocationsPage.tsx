@@ -6,6 +6,7 @@ import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
 import { BulkUpload } from '../components/BulkUpload'
+import { PlusIcon, UploadIcon } from '../components/icons'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -89,8 +90,8 @@ export default function LocationsPage() {
   }
 
   const addButton = <>
-    <Button variant="secondary" onClick={() => setUploading(true)}>{t('locations.upload')}</Button>
-    <Button onClick={() => setEditing('new')}>{t('locations.add')}</Button>
+    <Button onClick={() => setEditing('new')}><PlusIcon />{t('locations.add')}</Button>
+    <Button variant="secondary" onClick={() => setUploading(true)}><UploadIcon />{t('locations.upload')}</Button>
   </>
 
   return (
@@ -300,7 +301,7 @@ function LocationDrawer({ location, companies, country, defaultApplies, onClose 
   )
 }
 
-type ImportRow = components['schemas']['LocationImportRow']
+type ImportRow = components['schemas']['ImportRow']
 
 /**
  * Uploading locations (ONB-04 part 2) with the shared BulkUpload: the template, then a review of

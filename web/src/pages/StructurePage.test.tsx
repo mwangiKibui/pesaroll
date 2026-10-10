@@ -77,8 +77,11 @@ it('adds a department in a division and under another department', async () => {
   renderApp('/setup/structure')
   await within(await screen.findByRole('region', { name: 'Departments' })).findByText('Kitchen')
 
-  await userEvent.click(within(panel('Departments')).getByRole('button', { name: 'Add department' }))
-  expect(within(drawer()).getByRole('heading', { name: 'Add department' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Add structure' }))
+  expect(within(drawer()).getByRole('heading', { name: 'Add structure' })).toBeInTheDocument()
+  // The type comes first, starting on the tab you're on.
+  expect(within(drawer()).getByRole('radiogroup', { name: 'What are you adding?' })).toBeInTheDocument()
+  expect(within(drawer()).getByRole('radio', { name: 'Department' })).toBeChecked()
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Department name' }), 'Grill')
   await choose('Division optional', 'res', 'Restaurants')
   await choose('Part of optional', 'kit', 'Kitchen')
@@ -95,7 +98,8 @@ it('positions can be shared; a unit must be in a department', async () => {
   renderApp('/setup/structure')
   await userEvent.click(await screen.findByRole('tab', { name: 'Positions' }))
 
-  await userEvent.click(await within(panel('Positions')).findByRole('button', { name: 'Add position' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Add structure' }))
+  expect(within(drawer()).getByRole('radio', { name: 'Position' })).toBeChecked()
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Position title' }), 'Clerk')
   expect(within(drawer()).getByRole('combobox', { name: 'Department optional' })).toHaveAccessibleDescription(/Leave it empty for a position used across departments/)
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add position' }))
@@ -103,7 +107,11 @@ it('positions can be shared; a unit must be in a department', async () => {
   expect(calls.find(c => c.path === '/api/structure/positions' && c.method === 'POST')?.body).toMatchObject({ title: 'Clerk', departmentId: null })
 
   await tab('Units')
-  await userEvent.click(within(panel('Units')).getByRole('button', { name: 'Add unit' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Add structure' }))
+  // Switching the type in the drawer changes the fields.
+  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Division' }))
+  expect(within(drawer()).queryByRole('combobox', { name: /Department/ })).not.toBeInTheDocument()
+  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Unit' }))
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Unit name' }), 'Night shift')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add unit' }))
   expect(within(drawer()).getByRole('combobox', { name: 'Department' })).toHaveAccessibleDescription('Choose the department this unit is in.')
@@ -179,4 +187,66 @@ it('the setup steps in the sidebar are links to their pages, done or not', async
 
   await userEvent.click(within(steps).getByRole('link', { name: /Companies/ }))
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
+})
+
+it('each tab uploads its level through the review, here departments under ones in the same file', async () => {
+  const rows = [
+    { line: 2, cells: { name: 'Grill', code: '', division: '', parent: 'Kitchen' } },
+    { line: 3, cells: { name: 'Pastry', code: 'PAS', division: 'Restaurants', parent: '' } },
+  ]
+  const calls = withStructure({
+    'POST /api/structure/departments/import/read': () => json(200, { rows, problems: [] }),
+    'POST /api/structure/departments/import/check': () => json(200, { problems: [] }),
+    'POST /api/structure/departments/import': () => json(200, { imported: 2 }),
+    'GET /api/structure/positions/template': () => new Response('xlsx', { status: 200 }),
+    'POST /api/structure/units/import/read': () => json(200, { rows: [{ line: 2, cells: { name: 'Night shift', code: '', department: 'Bakery', division: 'Restaurants' } }], problems: [], notes: [] }),
+  })
+  URL.createObjectURL = vi.fn(() => 'blob:template')
+  URL.revokeObjectURL = vi.fn()
+  renderApp('/setup/structure')
+
+  await screen.findByRole('region', { name: 'Departments' })
+  await userEvent.click(screen.getByRole('button', { name: 'Upload structure' }))
+  const upload = screen.getByRole('dialog', { name: 'Upload structure' })
+  expect(within(upload).getAllByRole('heading', { level: 3 }).map(h => h.textContent))
+    .toEqual(['1. Choose what to upload', '2. Download the template', '3. Upload your file'])
+  expect(within(upload).getByRole('radio', { name: 'Departments' })).toBeChecked()
+  await userEvent.upload(within(upload).getByLabelText('Choose a file'), new File(['x'], 'departments.xlsx'))
+  const review = await screen.findByRole('dialog', { name: 'Review 2 departments' })
+  expect(within(review).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Row', 'Department name', 'Code', 'Division', 'Part of', 'Actions'])
+  expect(within(review).getByRole('textbox', { name: 'Part of, row 2' })).toHaveValue('Kitchen')   // typed, not picked
+  await userEvent.click(within(review).getByRole('button', { name: 'Import 2 departments' }))
+
+  expect(await screen.findByText('2 departments imported')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/structure/departments/import')?.body)
+    .toEqual({ rows, allCompanies: false, companyIds: [restaurant.id] })
+
+  // Positions and units name their department and the division it is (or will be) in.
+  calls.length = 0
+  await userEvent.click(screen.getByRole('button', { name: 'Upload structure' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByRole('radio', { name: 'Units' }))
+  await userEvent.upload(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByLabelText('Choose a file'), new File(['x'], 'units.xlsx'))
+  const units = await screen.findByRole('dialog', { name: 'Review 1 unit' })
+  expect(within(units).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Row', 'Unit name', 'Code', 'Department', 'Division', 'Actions'])
+  expect(within(units).getByRole('textbox', { name: 'Division, row 2' })).toHaveValue('Restaurants')
+  await userEvent.click(within(units).getByRole('button', { name: 'Back to the file' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByRole('button', { name: 'Cancel' }))
+
+  // Another type: its own template and endpoint.
+  await userEvent.click(screen.getByRole('button', { name: 'Upload structure' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByRole('radio', { name: 'Positions' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByRole('button', { name: 'Download template' }))
+  await vi.waitFor(() => expect(calls.some(c => c.path === '/api/structure/positions/template')).toBe(true))
+})
+
+it('Add structure and Upload structure sit on the tab row, on the right, Add first, each with an icon', async () => {
+  withStructure()
+  renderApp('/setup/structure')
+  const tabs = await screen.findByRole('tablist', { name: 'Org structure levels' })
+
+  const row = tabs.parentElement!
+  const buttons = within(row).getAllByRole('button').filter(b => b.getAttribute('role') !== 'tab')
+  expect(buttons.map(b => b.textContent)).toEqual(['Add structure', 'Upload structure'])
+  expect(buttons.every(b => b.firstElementChild?.tagName.toLowerCase() === 'svg')).toBe(true)
+  expect(within(panel('Departments')).queryByRole('button', { name: /^Add|^Upload/ })).not.toBeInTheDocument()
 })

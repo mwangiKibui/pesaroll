@@ -73,6 +73,7 @@ app.MapPaymentAccountsEndpoints();
 app.MapLocationsEndpoints();
 app.MapLocationsImportEndpoints();
 app.MapStructureEndpoints();
+app.MapStructureImportEndpoints();
 
 app.Run();
 

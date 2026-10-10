@@ -149,7 +149,6 @@
     "ONB-3513": "Eneo jingine tayari lina msimbo huu. Chagua mwingine au uache wazi.",
     "ONB-3514": "Hatukuweza kupata eneo hilo.",
     "ONB-3516": "Hatukuweza kusoma faili hii. Tumia kiolezo (.xlsx) au faili ya .csv yenye safu zilezile.",
-    "ONB-3517": "Faili ni kubwa mno. Pakia hadi maeneo 1000 na MB 2 kwa wakati mmoja.",
     "ONB-3519": "Baadhi ya maelezo hayaonekani sawa. Angalia sehemu zilizowekwa alama.",
     "ONB-3520": "Kingine tayari kina msimbo huu. Chagua mwingine au uache wazi.",
     "ONB-3521": "Hatukuweza kupata hicho. Huenda kimefutwa."
@@ -351,8 +350,8 @@
     "addressColumn": "Anwani"
   },
   "bulk": {
-    "step1": "1. Pakua kiolezo",
-    "step2": "2. Pakia faili yako",
+    "step1": "Pakua kiolezo",
+    "step2": "Pakia faili yako",
     "download": "Pakua kiolezo",
     "fileHint": "Faili ya .xlsx au .csv yenye safu za kiolezo, hadi mistari 1,000. Utakagua na kurekebisha mistari kabla ya kuhifadhi chochote.",
     "choose": "Chagua faili",
@@ -368,7 +367,13 @@
     "rows": "Mistari ya kuingiza",
     "rowHeader": "Mstari",
     "cell": "{{column}}, mstari {{line}}",
-    "removeRow": "Ondoa mstari {{line}}"
+    "removeRow": "Ondoa mstari {{line}}",
+    "pages": "Kurasa za mistari",
+    "page": "Ukurasa {{page}} kati ya {{pages}}",
+    "previous": "Ukurasa uliopita",
+    "next": "Ukurasa unaofuata",
+    "toCreate_one": "Kipengele kipya {{count}} kitaundwa utakapoingiza.",
+    "toCreate_other": "Vipengele vipya {{count}} vitaundwa utakapoingiza."
   },
   "structure": {
     "title": "Shirika lako limepangwa vipi?",
@@ -396,7 +401,14 @@
       "saved": "Kitengo kikuu kimehifadhiwa",
       "deleted": "Kitengo kikuu kimefutwa",
       "emptyTitle": "Hakuna vitengo vikuu",
-      "emptyText": "Si lazima: panga idara katika kampuni, kama Mikahawa na Upishi."
+      "emptyText": "Si lazima: panga idara katika kampuni, kama Mikahawa na Upishi.",
+      "templateHint": "Mstari mmoja kwa kila kitengo kikuu: jina lake na, ukipenda, msimbo.",
+      "review_one": "Kagua kitengo kikuu {{count}}",
+      "review_other": "Kagua vitengo vikuu {{count}}",
+      "importButton_one": "Ingiza kitengo kikuu {{count}}",
+      "importButton_other": "Ingiza vitengo vikuu {{count}}",
+      "imported_one": "Kitengo kikuu {{count}} imeingizwa",
+      "imported_other": "Vitengo vikuu {{count}} zimeingizwa"
     },
     "departments": {
       "tab": "Idara",
@@ -410,7 +422,14 @@
       "saved": "Idara imehifadhiwa",
       "deleted": "Idara imefutwa",
       "emptyTitle": "Bado hakuna idara",
-      "emptyText": "Ongeza idara watu wanamofanyia kazi."
+      "emptyText": "Ongeza idara watu wanamofanyia kazi.",
+      "templateHint": "Mstari mmoja kwa kila idara: jina, msimbo (si lazima), kitengo kikuu (si lazima) na Sehemu ya: idara iliyo juu yake, inayoweza kuwa mstari mwingine wa faili.",
+      "review_one": "Kagua idara {{count}}",
+      "review_other": "Kagua idara {{count}}",
+      "importButton_one": "Ingiza idara {{count}}",
+      "importButton_other": "Ingiza idara {{count}}",
+      "imported_one": "Idara {{count}} imeingizwa",
+      "imported_other": "Idara {{count}} zimeingizwa"
     },
     "positions": {
       "tab": "Nafasi",
@@ -424,7 +443,14 @@
       "saved": "Nafasi imehifadhiwa",
       "deleted": "Nafasi imefutwa",
       "emptyTitle": "Bado hakuna nafasi",
-      "emptyText": "Ongeza kazi watu wanazoajiriwa."
+      "emptyText": "Ongeza kazi watu wanazoajiriwa.",
+      "templateHint": "Mstari mmoja kwa kila nafasi: jina, msimbo (si lazima) na idara yake (acha wazi kwa nafasi inayotumika katika idara nyingi).",
+      "review_one": "Kagua nafasi {{count}}",
+      "review_other": "Kagua nafasi {{count}}",
+      "importButton_one": "Ingiza nafasi {{count}}",
+      "importButton_other": "Ingiza nafasi {{count}}",
+      "imported_one": "Nafasi {{count}} imeingizwa",
+      "imported_other": "Nafasi {{count}} zimeingizwa"
     },
     "units": {
       "tab": "Vitengo",
@@ -438,7 +464,18 @@
       "saved": "Kitengo kimehifadhiwa",
       "deleted": "Kitengo kimefutwa",
       "emptyTitle": "Hakuna vitengo",
-      "emptyText": "Si lazima: timu au zamu ndani ya idara."
-    }
+      "emptyText": "Si lazima: timu au zamu ndani ya idara.",
+      "templateHint": "Mstari mmoja kwa kila kitengo: jina, msimbo (si lazima) na idara yake.",
+      "review_one": "Kagua kitengo {{count}}",
+      "review_other": "Kagua vitengo {{count}}",
+      "importButton_one": "Ingiza kitengo {{count}}",
+      "importButton_other": "Ingiza vitengo {{count}}",
+      "imported_one": "Kitengo {{count}} imeingizwa",
+      "imported_other": "Vitengo {{count}} zimeingizwa"
+    },
+    "add": "Ongeza muundo",
+    "upload": "Pakia muundo",
+    "whatAdding": "Unaongeza nini?",
+    "whatUploading": "Chagua unachopakia"
   }
 }
