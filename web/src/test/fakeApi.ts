@@ -86,6 +86,36 @@ export const schedule = (overrides: Record<string, unknown> = {}) => ({
   usesCutoff: true, cutoffAppliesTo: ['overtime', 'new_employees', 'leavers', 'unpaid_leave', 'pay_changes', 'one_off'], reminders: [], allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], ...overrides,
 })
 
+/** Kenya's statutory leave types and Unpaid leave, as every organization has them after its first company. */
+export const leaveTypes = () => [
+  ['annual', 'ANNUAL', 'Annual leave', 'working_days', false, 21, 0, 0],
+  ['sick', 'SICK', 'Sick leave', 'working_days', true, 7, 7, 2],
+  ['maternity', 'MATERNITY', 'Maternity leave', 'calendar_days', true, 90, 0, 0],
+  ['paternity', 'PATERNITY', 'Paternity leave', 'calendar_days', false, 14, 0, 0],
+  ['pre_adoptive', 'ADOPTION', 'Pre-adoptive leave', 'calendar_days', true, 30, 0, 0],
+].map(([key, code, name, counts, needsProof, full, half, waiting], i) => ({
+  id: `lt${i + 1}`, code, name, counts, paid: true, needsProof, whenUsedUp: 'stop', locked: true, lockedKey: key,
+  minFullPayDays: full, minHalfPayDays: half, minWaitingMonths: waiting,
+})).concat([{
+  id: 'lt6', code: 'UNPAID', name: 'Unpaid leave', counts: 'working_days', paid: false, needsProof: false, whenUsedUp: 'stop', locked: false, lockedKey: null,
+  minFullPayDays: null, minHalfPayDays: null, minWaitingMonths: null,
+} as never])
+
+/** The Standard plan made with the first company: the legal minimums, its company's default. */
+export const leavePlan = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000f101', name: 'Standard', leaveYear: 'calendar', hoursPerDay: 8, allCompanies: true, companyIds: [],
+  defaultFor: [company().id], defaultForSchedules: [],
+  rules: [
+    { id: 'r1', leaveTypeId: 'lt1', earnMethod: 'monthly', amount: 1.75, unit: 'days', halfPay: 0, prorate: true, carryOverMax: 0, waitingMonths: 0, daysAYear: 21 },
+    { id: 'r2', leaveTypeId: 'lt2', earnMethod: 'yearly', amount: 7, unit: 'days', halfPay: 7, prorate: true, carryOverMax: 0, waitingMonths: 2, daysAYear: 7 },
+    { id: 'r3', leaveTypeId: 'lt3', earnMethod: 'each_time', amount: 90, unit: 'days', halfPay: 0, prorate: true, carryOverMax: 0, waitingMonths: 0, daysAYear: 90 },
+    { id: 'r4', leaveTypeId: 'lt4', earnMethod: 'each_time', amount: 14, unit: 'days', halfPay: 0, prorate: true, carryOverMax: 0, waitingMonths: 0, daysAYear: 14 },
+    { id: 'r5', leaveTypeId: 'lt5', earnMethod: 'each_time', amount: 30, unit: 'days', halfPay: 0, prorate: true, carryOverMax: 0, waitingMonths: 0, daysAYear: 30 },
+    { id: 'r6', leaveTypeId: 'lt6', earnMethod: 'unlimited', amount: null, unit: 'days', halfPay: 0, prorate: true, carryOverMax: 0, waitingMonths: 0, daysAYear: null },
+  ],
+  ...overrides,
+})
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -116,6 +146,8 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/structure/positions': () => json(200, []),
     'GET /api/structure/units': () => json(200, []),
     'GET /api/pay-schedules': () => json(200, []),
+    'GET /api/leave-types': () => json(200, []),
+    'GET /api/leave-plans': () => json(200, []),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }
