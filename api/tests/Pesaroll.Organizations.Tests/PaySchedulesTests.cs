@@ -254,6 +254,22 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
     }
 
     [Fact]
+    public async Task Reminders_added_together_keep_the_order_they_were_given_in()
+    {
+        var (client, _, _) = await Onboarded();
+        await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var created = (await (await client.PostAsJsonAsync("/api/pay-schedules", new
+        {
+            name = "Many reminders", allCompanies = true,
+            reminders = Enumerable.Range(1, 5).Reverse().Select(n => new { amount = n, channel = "email", recipient = $"r{n}@example.com" }),
+        })).Content.ReadFromJsonAsync<Schedule>())!;
+
+        Assert.Equal([5, 4, 3, 2, 1], created.Reminders.Select(r => r.Amount));
+        Assert.Equal([5, 4, 3, 2, 1], (await Schedules(client)).Single(s => s.Id == created.Id).Reminders.Select(r => r.Amount));
+    }
+
+    [Fact]
     public async Task Reminders_are_checked_against_the_frequency_and_the_recipient()
     {
         var (client, _, _) = await Onboarded();

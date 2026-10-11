@@ -400,15 +400,19 @@ public static class PaySchedulesEndpoints
         schedule.CutoffAppliesTo = valid.Timing.CutoffAppliesTo ?? [];
         schedule.AllCompanies = valid.AllCompanies;
         schedule.UpdatedAt = now;
+        var added = 0;
         foreach (var r in valid.Reminders)
         {
             var existing = schedule.Reminders.FirstOrDefault(e => e.Id == r.Id);
             if (existing is null)
             {
+                // A microsecond apart, so reminders added together keep the order they were given in
+                // (ids made in the same millisecond don't sort in order).
+                var created = now.AddTicks(10 * added++);
                 schedule.Reminders.Add(new PayScheduleReminder
                 {
                     Id = Guid.CreateVersion7(), OrganizationId = schedule.OrganizationId, PayScheduleId = schedule.Id,
-                    Amount = r.Amount, Unit = r.Unit, Channel = r.Channel, Recipient = r.Recipient, CreatedAt = now, UpdatedAt = now,
+                    Amount = r.Amount, Unit = r.Unit, Channel = r.Channel, Recipient = r.Recipient, CreatedAt = created, UpdatedAt = now,
                 });
             }
             else
