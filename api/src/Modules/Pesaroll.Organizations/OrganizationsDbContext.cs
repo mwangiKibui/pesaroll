@@ -25,6 +25,9 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
     public DbSet<PaySchedule> PaySchedules => Set<PaySchedule>();
     public DbSet<PayScheduleCompany> PayScheduleCompanies => Set<PayScheduleCompany>();
+    public DbSet<StatutoryItem> StatutoryItems => Set<StatutoryItem>();
+    public DbSet<PayItem> PayItems => Set<PayItem>();
+    public DbSet<PayItemCompany> PayItemCompanies => Set<PayItemCompany>();
     public DbSet<PayScheduleReminder> PayScheduleReminders => Set<PayScheduleReminder>();
     public DbSet<ReminderSend> ReminderSends => Set<ReminderSend>();
     public DbSet<Division> Divisions => Set<Division>();
@@ -76,6 +79,12 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
         model.Entity<PaySchedule>().HasMany(s => s.Companies).WithOne().HasForeignKey(c => c.PayScheduleId);
         model.Entity<PayScheduleCompany>().HasKey(c => new { c.PayScheduleId, c.CompanyId });
+        model.Entity<StatutoryItem>().HasKey(s => new { s.CountryCode, s.Key });
+        model.Entity<StatutoryItem>().Property(s => s.CountryCode).HasColumnType("char(2)");
+        model.Entity<PayItem>().Property(p => p.CountryCode).HasColumnType("char(2)");
+        model.Entity<PayItem>().HasMany(p => p.Companies).WithOne().HasForeignKey(c => c.PayItemId);
+        model.Entity<PayItemCompany>().HasKey(c => new { c.PayItemId, c.CompanyId });
+        model.Entity<PayItemCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
         model.Entity<PaySchedule>().HasMany(s => s.Reminders).WithOne().HasForeignKey(r => r.PayScheduleId);
         // The app makes reminder ids, so one added to an existing schedule is a new row, not an update.
         model.Entity<PayScheduleReminder>().Property(r => r.Id).ValueGeneratedNever();

@@ -86,6 +86,23 @@ export const schedule = (overrides: Record<string, unknown> = {}) => ({
   usesCutoff: true, cutoffAppliesTo: ['overtime', 'new_employees', 'leavers', 'unpaid_leave', 'pay_changes', 'one_off'], reminders: [], allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], ...overrides,
 })
 
+/** An earning, deduction or employer cost as the API returns it; by default the locked Basic pay. */
+export const payItem = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000e101', code: 'BASIC', name: 'Basic pay', kind: 'earning', taxable: true, beforeTax: false, calcMethod: 'fixed',
+  defaultAmount: null, rate: null, locked: true, lockedKey: 'basic', allCompanies: true, companyIds: [], ...overrides,
+})
+
+/** Basic pay and Kenya's statutory items, as every organization has them after its first company. */
+export const lockedPayItems = () => [
+  payItem(),
+  ...[['paye', 'PAYE', 'PAYE', 'deduction', false], ['shif', 'SHIF', 'SHIF', 'deduction', true], ['nssf_employee', 'NSSF', 'NSSF (employee)', 'deduction', true],
+    ['ahl_employee', 'AHL', 'Housing Levy (employee)', 'deduction', true], ['nssf_employer', 'NSSF-ER', 'NSSF (employer)', 'employer_cost', false],
+    ['ahl_employer', 'AHL-ER', 'Housing Levy (employer)', 'employer_cost', false], ['nita', 'NITA', 'NITA', 'employer_cost', false]]
+    .map(([key, code, name, kind, beforeTax], i) => payItem({
+      id: `0199c0de-0000-7000-8000-00000000e2${String(i).padStart(2, '0')}`, code, name, kind, taxable: false, beforeTax, calcMethod: 'by_law', lockedKey: key,
+    })),
+]
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -116,6 +133,7 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/structure/positions': () => json(200, []),
     'GET /api/structure/units': () => json(200, []),
     'GET /api/pay-schedules': () => json(200, []),
+    'GET /api/pay-items': () => json(200, []),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }

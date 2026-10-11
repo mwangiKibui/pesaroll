@@ -1,0 +1,261 @@
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using Pesaroll.Shared.Errors;
+using Pesaroll.Shared.Tenancy;
+
+namespace Pesaroll.Organizations;
+
+/// <summary>
+/// Adding or editing an earning, deduction or employer cost. <see cref="Code"/> is made up when
+/// empty. Only what fits its kind and way of working out is kept: taxable for earnings, before tax
+/// for deductions, a default amount for fixed items, a rate for a percentage of basic pay.
+/// </summary>
+public sealed record PayItemRequest(
+    string? Code, string? Name, string? Kind, bool Taxable, bool BeforeTax, string? CalcMethod, decimal? DefaultAmount, decimal? Rate,
+    bool AllCompanies, List<Guid>? CompanyIds);
+
+public sealed record PayItemResponse(
+    Guid Id, string Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod, decimal? DefaultAmount, decimal? Rate,
+    bool Locked, string? LockedKey, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
+
+/// <summary>
+/// ONB-07, the Earnings and deductions step ("pay items" in code). Basic pay and the law's items
+/// (statutory_items) are made with the first company, locked and for all companies; the rule pack
+/// (PAY-01) works the law's items out. The organization adds its own for all or chosen companies.
+/// </summary>
+public static class PayItemsEndpoints
+{
+    public static readonly string[] Kinds = ["earning", "deduction", "employer_cost"];
+    /// <summary>How an own item is worked out; by_law is only for the law's items.</summary>
+    public static readonly string[] CalcMethods = ["fixed", "percent_of_basic", "each_run"];
+
+    public static IEndpointRouteBuilder MapPayItemsEndpoints(this IEndpointRouteBuilder app)
+    {
+        var items = app.MapGroup("/api/pay-items").WithTags("Earnings and deductions");
+
+        items.MapGet("/", async (Guid? companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            var query = db.PayItems.AsNoTracking().Include(i => i.Companies).Where(i => i.Status == "active");
+            if (companyId is Guid id)
+            {
+                query = query.Where(i => i.AllCompanies || i.Companies.Any(c => c.CompanyId == id));
+            }
+
+            var list = await query.ToListAsync(ct);
+            var order = await db.StatutoryItems.AsNoTracking().ToDictionaryAsync(s => (s.CountryCode, s.Key), s => s.SortOrder, ct);
+            // Basic pay, then the law's items in their order, then the organization's own by kind and age.
+            return Results.Ok(list
+                .OrderBy(i => i.LockedKey == "basic" ? 0 : i.LockedKey is not null ? 1 : 2)
+                .ThenBy(i => i.LockedKey is null ? 0 : order.GetValueOrDefault((i.CountryCode ?? "", i.LockedKey)))
+                .ThenBy(i => Array.IndexOf(Kinds, i.Kind)).ThenBy(i => i.CreatedAt).ThenBy(i => i.Code)
+                .Select(ToResponse).ToList());
+        }).Produces<List<PayItemResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+
+        items.MapPost("/", async (PayItemRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
+            TimeProvider clock, CancellationToken ct) =>
+        {
+            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            var valid = await ValidateAsync(request, db, ct);
+
+            var now = clock.GetUtcNow();
+            var item = new PayItem
+            {
+                Id = Guid.CreateVersion7(), OrganizationId = organizationId, Name = valid.Name, Kind = valid.Kind, CalcMethod = valid.CalcMethod,
+                Code = valid.Code ?? await NextCodeAsync(db, LocationsEndpoints.Prefix(valid.Name), ct), CreatedAt = now,
+            };
+            Apply(item, valid, now);
+            db.PayItems.Add(item);
+            await SaveAsync(db, ct);
+            return Results.Created($"/api/pay-items/{item.Id}", ToResponse(item));
+        }).Produces<PayItemResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+
+        items.MapPatch("/{id:guid}", async (Guid id, PayItemRequest request, OrganizationsDbContext db, TenantContext tenant,
+            HttpContext http, TimeProvider clock, CancellationToken ct) =>
+        {
+            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            var item = await db.PayItems.Include(i => i.Companies).SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
+                ?? throw OnboardingErrors.PayItemNotFound();
+            if (item.LockedKey is not null)
+            {
+                throw OnboardingErrors.PayItemLocked();
+            }
+
+            var valid = await ValidateAsync(request, db, ct);
+            item.Code = valid.Code ?? item.Code;
+            item.Name = valid.Name;
+            item.Kind = valid.Kind;
+            item.CalcMethod = valid.CalcMethod;
+            var dropped = item.Companies.Where(c => !valid.CompanyIds.Contains(c.CompanyId)).ToList();
+            Apply(item, valid, clock.GetUtcNow());
+
+            // New links before old ones go: an item is visible (row-level security) through its links.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await SaveAsync(db, ct);
+            db.PayItemCompanies.RemoveRange(dropped);
+            await SaveAsync(db, ct);
+            await transaction.CommitAsync(ct);
+            return Results.Ok(ToResponse(await db.PayItems.AsNoTracking().Include(i => i.Companies).SingleAsync(i => i.Id == id, ct)));
+        }).Produces<PayItemResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+
+        items.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            var item = await db.PayItems.SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
+                ?? throw OnboardingErrors.PayItemNotFound();
+            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            if (item.LockedKey is not null)
+            {
+                throw OnboardingErrors.PayItemLocked();
+            }
+
+            db.PayItems.Remove(item);   // its company links go with it (on delete cascade)
+            await db.SaveChangesAsync(ct);
+            return Results.NoContent();
+        }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+
+        return app;
+    }
+
+    /// <summary>
+    /// Basic pay and the law's items for a new company's country, locked and for all companies,
+    /// unless the organization has them already. Kept even if the step is skipped.
+    /// </summary>
+    internal static async Task<List<PayItem>> LockedForNewCompanyAsync(OrganizationsDbContext db, Guid organizationId, string countryCode,
+        DateTimeOffset now, CancellationToken ct)
+    {
+        var have = (await db.PayItems.Where(i => i.LockedKey != null).Select(i => new { i.LockedKey, i.CountryCode }).ToListAsync(ct))
+            .Select(i => (i.LockedKey, i.CountryCode)).ToHashSet();
+        var made = new List<PayItem>();
+        PayItem Locked(string code, string name, string kind, string key, string? country, bool taxable, bool beforeTax, string calc) => new()
+        {
+            Id = Guid.CreateVersion7(), OrganizationId = organizationId, Code = code, Name = name, Kind = kind, Taxable = taxable, BeforeTax = beforeTax,
+            CalcMethod = calc, LockedKey = key, CountryCode = country, AllCompanies = true, CreatedAt = now, UpdatedAt = now,
+        };
+        if (!have.Contains(("basic", null)))
+        {
+            made.Add(Locked("BASIC", "Basic pay", "earning", "basic", null, taxable: true, beforeTax: false, "fixed"));
+        }
+
+        foreach (var s in await db.StatutoryItems.AsNoTracking().Where(s => s.CountryCode == countryCode && s.Active).OrderBy(s => s.SortOrder).ToListAsync(ct))
+        {
+            if (!have.Contains((s.Key, s.CountryCode)))
+            {
+                made.Add(Locked(s.Code, s.NameEn, s.Kind, s.Key, s.CountryCode, taxable: false, beforeTax: s.ReducesTaxablePay, "by_law"));
+            }
+        }
+
+        return made;
+    }
+
+    private sealed record ValidItem(string? Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod,
+        decimal? DefaultAmount, decimal? Rate, bool AllCompanies, List<Guid> CompanyIds);
+
+    private static async Task<ValidItem> ValidateAsync(PayItemRequest request, OrganizationsDbContext db, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string>();
+        var name = request.Name?.Trim() ?? "";
+        if (name.Length is < 2 or > 80)
+        {
+            errors["name"] = "Enter its name (2 to 80 characters).";
+        }
+
+        var kind = request.Kind?.Trim() ?? "";
+        if (!Kinds.Contains(kind))
+        {
+            errors["kind"] = "Choose earning, deduction or employer cost.";
+        }
+
+        var code = string.IsNullOrWhiteSpace(request.Code) ? null : request.Code.Trim().ToUpperInvariant();
+        if (code is not null && !Regex.IsMatch(code, "^[A-Z0-9][A-Z0-9-]{1,19}$"))
+        {
+            errors["code"] = "Use 2 to 20 letters, numbers or dashes, or leave it empty for us to make one.";
+        }
+
+        var calc = request.CalcMethod?.Trim() ?? "";
+        if (!CalcMethods.Contains(calc))
+        {
+            errors["calcMethod"] = "Choose how it's worked out from the list.";
+        }
+
+        var rate = calc == "percent_of_basic" ? request.Rate : null;
+        if (calc == "percent_of_basic" && rate is not (> 0 and <= 100))
+        {
+            errors["rate"] = "Enter a percentage from 0.01 to 100.";
+        }
+
+        var amount = calc == "fixed" ? request.DefaultAmount : null;
+        if (amount is < 0)
+        {
+            errors["defaultAmount"] = "Enter an amount of 0 or more, or leave it empty.";
+        }
+
+        var companies = await db.Companies.AsNoTracking().Where(c => c.Status == "active").Select(c => c.Id).ToListAsync(ct);
+        var chosen = (request.CompanyIds ?? []).Distinct().ToList();
+        if (!request.AllCompanies && chosen.Count == 0)
+        {
+            errors["companyIds"] = "Choose at least one company, or all companies.";
+        }
+        else if (!request.AllCompanies && chosen.Any(id => !companies.Contains(id)))
+        {
+            errors["companyIds"] = "Choose companies from your organization.";
+        }
+
+        if (errors.Count > 0)
+        {
+            throw OnboardingErrors.PayItemDetailsInvalid(errors);
+        }
+
+        return new ValidItem(code, name, kind, kind == "earning" && request.Taxable, kind == "deduction" && request.BeforeTax, calc,
+            amount, rate, request.AllCompanies, request.AllCompanies ? [] : chosen);
+    }
+
+    private static void Apply(PayItem item, ValidItem valid, DateTimeOffset now)
+    {
+        item.Taxable = valid.Taxable;
+        item.BeforeTax = valid.BeforeTax;
+        item.DefaultAmount = valid.DefaultAmount;
+        item.Rate = valid.Rate;
+        item.AllCompanies = valid.AllCompanies;
+        item.UpdatedAt = now;
+        foreach (var companyId in valid.CompanyIds.Where(id => !item.Companies.Any(c => c.CompanyId == id)))
+        {
+            item.Companies.Add(new PayItemCompany { OrganizationId = item.OrganizationId, PayItemId = item.Id, CompanyId = companyId, CreatedAt = now });
+        }
+    }
+
+    /// <summary>The first free PREFIX-01, PREFIX-02… among the organization's items.</summary>
+    private static async Task<string> NextCodeAsync(OrganizationsDbContext db, string prefix, CancellationToken ct)
+    {
+        var taken = await db.PayItems.Where(i => i.Code.StartsWith(prefix + "-")).Select(i => i.Code).ToListAsync(ct);
+        return new SpreadsheetImport.CodeMaker(taken).Next(prefix);
+    }
+
+    private static async Task SaveAsync(OrganizationsDbContext db, CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "pay_items_unique_code" })
+        {
+            throw OnboardingErrors.PayItemCodeTaken();
+        }
+    }
+
+    private static PayItemResponse ToResponse(PayItem i) => new(
+        i.Id, i.Code, i.Name, i.Kind, i.Taxable, i.BeforeTax, i.CalcMethod, i.DefaultAmount, i.Rate,
+        i.LockedKey is not null, i.LockedKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList());
+}

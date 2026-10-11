@@ -7,6 +7,7 @@
 \i platform/error_codes.sql
 \i reference/countries.sql
 \i reference/banks.sql
+\i reference/statutory_items.sql
 \i identity/signup_roles.sql
 \i identity/users.sql
 \i identity/signup_role_check.sql
@@ -17,6 +18,8 @@
 \i tenancy/location_companies.sql
 \i tenancy/pay_schedule_companies.sql
 \i tenancy/pay_schedule_reminders.sql
+\i tenancy/pay_items.sql
+\i tenancy/pay_item_companies.sql
 \i tenancy/structure.sql
 \i tenancy/structure_companies.sql
 \i tenancy/notification_deliveries.sql

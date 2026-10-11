@@ -75,6 +75,10 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3525 | You already have a schedule with this name. | Customer | Schedule names are unique in the organization, ignoring case and spaces. |
 | ONB-3526 | We couldn't find that schedule. It may have been deleted. | Customer | The payroll schedule doesn't exist, was deleted, or belongs to another organization. |
 | ONB-3527 | This is the default schedule of {companies}. Make another schedule their default first. | Customer | Every company keeps one default schedule; tick Default for on another schedule, then delete or untick this one. |
+| ONB-3528 | Some details don't look right. Check the fields marked. | Customer | An earning, deduction or employer cost failed its check; fields says which (name, kind, code, calcMethod, rate, defaultAmount, companyIds). |
+| ONB-3529 | Another earning or deduction already has this code. Choose a different one or leave it empty. | Customer | Pay item codes are unique in the organization (stored upper case). |
+| ONB-3530 | We couldn't find that earning or deduction. It may have been deleted. | Customer | The pay item doesn't exist, was deleted, or belongs to another organization. |
+| ONB-3531 | This one is set by law (or is basic pay), so it can't be changed or deleted. | Customer | Basic pay and statutory items (PAYE, SHIF, NSSF, Housing Levy, NITA) are locked; the database refuses changes too. Rates come from the rule pack (PAY-01). |
 | NTF-0501 | Enter a valid email address, or a Kenyan mobile number like 0712 345 678. | Customer | A message's recipient isn't a Kenyan mobile number (07…, 01…, +254…) or a plain email address. |
 | NTF-0502 | We couldn't deliver an email to {recipient}. | Support | Postmark kept refusing it (5 attempts); notification_deliveries.error has its reason (inactive recipient, bounced, bad address). Check the address with the customer. |
 | NTF-0503 | We couldn't deliver an SMS to {recipient}. | Support | Africa's Talking kept refusing it (5 attempts); notification_deliveries.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance. |

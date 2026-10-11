@@ -203,6 +203,57 @@ public sealed class LocationCompany
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Something the law takes from pay or adds to the employer's cost, per country (reference data).</summary>
+public sealed class StatutoryItem
+{
+    public required string CountryCode { get; set; }
+    public required string Key { get; set; }
+    public required string Code { get; set; }
+    public required string NameEn { get; set; }
+    public required string NameSw { get; set; }
+    /// <summary>deduction or employer_cost.</summary>
+    public required string Kind { get; set; }
+    public bool ReducesTaxablePay { get; set; }
+    public bool Active { get; set; }
+    public int SortOrder { get; set; }
+}
+
+/// <summary>
+/// An earning, deduction or employer cost (ONB-07; "Earnings and deductions" on screen), for all
+/// companies or the ones in <see cref="Companies"/>. Locked ones (<see cref="LockedKey"/>: basic or a
+/// statutory item) are made with the first company and never changed by the app.
+/// </summary>
+public sealed class PayItem
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    /// <summary>earning, deduction or employer_cost.</summary>
+    public required string Kind { get; set; }
+    public bool Taxable { get; set; }
+    public bool BeforeTax { get; set; }
+    /// <summary>fixed, percent_of_basic, each_run or by_law.</summary>
+    public required string CalcMethod { get; set; }
+    public decimal? DefaultAmount { get; set; }
+    public decimal? Rate { get; set; }
+    public string? LockedKey { get; set; }
+    public string? CountryCode { get; set; }
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<PayItemCompany> Companies { get; set; } = [];
+}
+
+public sealed class PayItemCompany
+{
+    public Guid OrganizationId { get; set; }
+    public Guid PayItemId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// <summary>
 /// How often and when people are paid (ONB-06): monthly, weekly, every two weeks or daily, on the
 /// days <see cref="PayDates"/> gives, for all companies or the ones in <see cref="Companies"/>.

@@ -135,10 +135,25 @@ export function useSchedules(enabled = true) {
   })
 }
 
+/** The organization's earnings, deductions and employer costs (ONB-07), Basic pay and the law's items first. */
+export function usePayItems(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['payItems'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/pay-items')
+      if (error || !data) throw new Error('payItems')
+      return data
+    },
+  })
+}
+
 /**
  * Which setup steps are done so far (ONB-12 will track all ten on the server). Locations is done
  * once every company has its main location, which it gets when it is added; Org structure once
- * there are departments or positions; Payroll schedules once every company has a default schedule.
+ * there are departments or positions; Payroll schedules once every company has a default schedule;
+ * Earnings and deductions once Basic pay and the law's items exist.
  */
 export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const companies = useCompanies(hasOrganization)
@@ -147,6 +162,7 @@ export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const departments = useStructure('departments', some)
   const positions = useStructure('positions', some)
   const schedules = useSchedules(some)
+  const payItems = usePayItems(some)
   if (!hasOrganization) return []
   if (!companies.data?.length) return ['organization']
   const mains = new Set((locations.data ?? []).flatMap(l => l.mainFor))
@@ -155,9 +171,11 @@ export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   if (!departments.data?.length && !positions.data?.length) return ['organization', 'companies', 'locations']
   // Payroll schedules once every company has its default (the suggested Monthly, made with the company).
   const defaults = new Set((schedules.data ?? []).flatMap(s => s.defaultFor))
-  return companies.data.every(c => defaults.has(c.id))
-    ? ['organization', 'companies', 'locations', 'structure', 'schedules']
-    : ['organization', 'companies', 'locations', 'structure']
+  if (!companies.data.every(c => defaults.has(c.id))) return ['organization', 'companies', 'locations', 'structure']
+  // Earnings and deductions once Basic pay and the law's items are in (made with the first company).
+  return payItems.data?.some(i => i.lockedKey === 'basic')
+    ? ['organization', 'companies', 'locations', 'structure', 'schedules', 'payItems']
+    : ['organization', 'companies', 'locations', 'structure', 'schedules']
 }
 
 /** Where "Finish setting up" leads: the first step with a page that isn't done, else the last one built. */

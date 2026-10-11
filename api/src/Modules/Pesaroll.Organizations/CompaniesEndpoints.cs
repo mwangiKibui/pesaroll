@@ -117,6 +117,8 @@ public static class CompaniesEndpoints
             }
 
             company.DefaultPayScheduleId = schedule.Id;
+            // Basic pay and the law's items for its country (ONB-07), locked.
+            db.PayItems.AddRange(await PayItemsEndpoints.LockedForNewCompanyAsync(db, organizationId, company.CountryCode, clock.GetUtcNow(), ct));
             db.Companies.Add(company);
             await SaveAsync(db, ct);
 
@@ -177,12 +179,15 @@ public static class CompaniesEndpoints
             var company = await db.Companies.SingleOrDefaultAsync(c => c.Id == id && c.Status == "active", ct)
                 ?? throw OnboardingErrors.CompanyNotFound();
             await RequireOnboarder(db, userId, organizationId, ct);
-            // Locations and schedules only this company used go with it; shared ones stay for the others.
+            // Locations, schedules and pay items only this company used go with it; shared ones stay for the others.
             var onlyItsOwn = await db.Locations
                 .Where(l => !l.AllCompanies && l.Companies.Any(c => c.CompanyId == id) && l.Companies.All(c => c.CompanyId == id))
                 .ToListAsync(ct);
             var onlyItsSchedules = await db.PaySchedules
                 .Where(s => !s.AllCompanies && s.Companies.Any(c => c.CompanyId == id) && s.Companies.All(c => c.CompanyId == id))
+                .ToListAsync(ct);
+            var onlyItsPayItems = await db.PayItems
+                .Where(i => !i.AllCompanies && i.Companies.Any(c => c.CompanyId == id) && i.Companies.All(c => c.CompanyId == id))
                 .ToListAsync(ct);
             // Locations and schedules first, while their links still make them visible (row-level
             // security), then the company, its numbers and links (on delete cascade).
@@ -192,6 +197,7 @@ public static class CompaniesEndpoints
             await db.SaveChangesAsync(ct);
             db.Locations.RemoveRange(onlyItsOwn);
             db.PaySchedules.RemoveRange(onlyItsSchedules);
+            db.PayItems.RemoveRange(onlyItsPayItems);
             await db.SaveChangesAsync(ct);
             db.Companies.Remove(company);
             await db.SaveChangesAsync(ct);

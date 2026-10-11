@@ -182,7 +182,8 @@ it('the setup steps in the sidebar are links to their pages, done or not', async
   expect(within(steps).getByRole('link', { name: /Locations/ })).toHaveAttribute('href', '/setup/locations')
   expect(within(steps).getByRole('link', { name: /Org structure/ })).toHaveAttribute('aria-current', 'page')
   expect(within(steps).getByRole('link', { name: /Payroll schedules/ })).toHaveAttribute('href', '/setup/schedules')
-  expect(within(steps).queryByRole('link', { name: /Pay items/ })).not.toBeInTheDocument()   // not built yet
+  expect(within(steps).getByRole('link', { name: /Earnings and deductions/ })).toHaveAttribute('href', '/setup/earnings-and-deductions')
+  expect(within(steps).queryByRole('link', { name: /Leave plans/ })).not.toBeInTheDocument()   // not built yet
 
   await userEvent.click(within(steps).getByRole('link', { name: /Companies/ }))
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()

@@ -75,6 +75,18 @@ internal static class OnboardingErrors
     public static AppException DefaultScheduleNeeded(string companies) =>
         new("ONB-3527", $"This is the default schedule of {companies}. Make another schedule their default first.", 409);
 
+    public static AppException PayItemDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3528", "Some details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException PayItemCodeTaken() =>
+        new("ONB-3529", "Another earning or deduction already has this code. Choose a different one or leave it empty.", 409);
+
+    public static AppException PayItemNotFound() =>
+        new("ONB-3530", "We couldn't find that earning or deduction. It may have been deleted.", 404);
+
+    public static AppException PayItemLocked() =>
+        new("ONB-3531", "This one is set by law (or is basic pay), so it can't be changed or deleted.", 409);
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }
