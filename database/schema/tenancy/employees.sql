@@ -14,6 +14,7 @@ create table employees (
     date_of_birth      date,
     phone              text,                          -- +254…
     email              text,
+    address            text check (char_length(btrim(address)) between 1 and 200),   -- where they live, as written
     national_id_enc    bytea,
     national_id_lookup text,
     national_id_last4  text,

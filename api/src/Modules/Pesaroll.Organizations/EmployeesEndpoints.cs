@@ -30,7 +30,7 @@ public sealed record AccountRequest(string? Method, string? BankCode, string? Br
 public sealed record EmployeeRequest(
     Guid CompanyId, string? StaffNo, string? FirstName, string? MiddleName, string? LastName, DateOnly? DateOfBirth, string? Phone, string? Email,
     string? NationalId, string? KraPin, string? NssfNo, string? ShaNo, DateOnly? HireDate, DateOnly? ExitDate,
-    JobRequest? Job, PayRequest? Pay, AccountRequest? Account);
+    JobRequest? Job, PayRequest? Pay, AccountRequest? Account, string? Address = null);
 
 public sealed record JobResponse(
     Guid? PositionId, Guid? DepartmentId, Guid? UnitId, Guid? LocationId, Guid? LineManagerId, Guid PayScheduleId, Guid LeavePlanId,
@@ -42,7 +42,7 @@ public sealed record AccountResponse(string Method, string? BankCode, string? Br
 
 public sealed record EmployeeResponse(
     Guid Id, Guid CompanyId, string StaffNo, string FirstName, string? MiddleName, string LastName, DateOnly? DateOfBirth, string? Phone, string? Email,
-    string? NationalIdMasked, string? KraPinMasked, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
+    string? Address, string? NationalIdMasked, string? KraPinMasked, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
     JobResponse Job, PayResponse? Pay, AccountResponse? Account, ReadinessResponse Readiness);
 
 public sealed record EmployeeRow(
@@ -224,7 +224,7 @@ public static class EmployeesEndpoints
 
     /// <summary>A checked employee: numbers as stored (null kept, "" removed on an edit), job with defaults filled in.</summary>
     internal sealed record ValidEmployee(Company Company, string? StaffNo, string FirstName, string? MiddleName, string LastName, DateOnly? DateOfBirth,
-        string? Phone, string? Email, string? NationalId, string? KraPin, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
+        string? Phone, string? Email, string? Address, string? NationalId, string? KraPin, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
         ValidJob Job, (decimal Amount, string Basis)? Pay, ValidAccount? Account);
 
     internal static async Task<ValidEmployee> ValidateAsync(EmployeeRequest request, Employee? existing, OrganizationsDbContext db, CancellationToken ct)
@@ -280,9 +280,15 @@ public static class EmployeesEndpoints
 
         var phone = Optional(request.Phone, Recipients.KenyanMobile, "phone", "Enter a Kenyan mobile number, like 0712 345 678.");
         var email = Optional(request.Email, Recipients.Email, "email", "Enter a valid email address.");
-        var nationalId = Optional(request.NationalId, EmployeeNumbers.NationalId, "nationalId", "Enter the ID number: 7 or 8 digits.");
+        var address = request.Address?.Trim();
+        if (address?.Length > 200)
+        {
+            errors["address"] = "Keep the address to 200 characters.";
+        }
+
+        var nationalId = Optional(request.NationalId, EmployeeNumbers.NationalId, "nationalId", "Enter the ID number: 7 or 8 digits, or 9 for a Maisha Namba.");
         var kraPin = Optional(request.KraPin, EmployeeNumbers.KraPin, "kraPin", "Enter the person's KRA PIN: A, 9 digits and a letter, like A012345678Z.");
-        var nssf = Optional(request.NssfNo, EmployeeNumbers.Nssf, "nssfNo", "Enter the NSSF number: 6 to 12 digits.");
+        var nssf = Optional(request.NssfNo, EmployeeNumbers.Nssf, "nssfNo", "Enter the NSSF number: 7 to 10 digits.");
         var sha = Optional(request.ShaNo, EmployeeNumbers.Sha, "shaNo", "Enter the SHA number: 6 to 20 letters, numbers or dashes.");
 
         if (request.HireDate is not DateOnly hire)
@@ -321,13 +327,13 @@ public static class EmployeesEndpoints
         }
 
         var account = await AccountAsync(request.Account, company, existing, db, errors, ct);
-        // Current staff need the pay details their company pays by (its default paying account).
-        if (request.ExitDate is null && await PaysByAsync(db, company.Id, ct) is { } paysBy && !errors.ContainsKey("account.method"))
+        // Current staff are paid into a bank or M-Pesa, one the company pays from (once it has a paying account).
+        if (request.ExitDate is null && await PayMethodsAsync(db, company.Id, ct) is { Count: > 0 } methods && !errors.ContainsKey("account.method"))
         {
             var method = account?.Method ?? existing?.Accounts.FirstOrDefault(a => a.ValidTo == null)?.Method;
-            if (method != paysBy)
+            if (method is null || !methods.Contains(method))
             {
-                errors["account.method"] = PaysByMessage(company.LegalName, paysBy);
+                errors["account.method"] = PaysByMessage(company.LegalName, methods);
             }
         }
         if (errors.Count > 0)
@@ -335,7 +341,7 @@ public static class EmployeesEndpoints
             throw OnboardingErrors.EmployeeDetailsInvalid(errors);
         }
 
-        return new ValidEmployee(company, staffNo, first, middle.Length == 0 ? null : middle, last, request.DateOfBirth, phone, email, nationalId, kraPin,
+        return new ValidEmployee(company, staffNo, first, middle.Length == 0 ? null : middle, last, request.DateOfBirth, phone, email, address, nationalId, kraPin,
             nssf, sha, hire, request.ExitDate, job, pay, account);
     }
 
@@ -449,11 +455,13 @@ public static class EmployeesEndpoints
     }
 
     /// <summary>bank or mpesa: how the company pays (its default open paying account), or null with none.</summary>
-    internal static async Task<string?> PaysByAsync(OrganizationsDbContext db, Guid companyId, CancellationToken ct) =>
-        await db.CompanyPaymentAccounts.Where(a => a.CompanyId == companyId && a.IsDefault && a.ClosedAt == null).Select(a => a.Method).FirstOrDefaultAsync(ct);
+    /// <summary>How the company pays people: the methods of its open paying accounts ("bank", "mpesa").</summary>
+    internal static async Task<List<string>> PayMethodsAsync(OrganizationsDbContext db, Guid companyId, CancellationToken ct) =>
+        await db.CompanyPaymentAccounts.Where(a => a.CompanyId == companyId && a.ClosedAt == null).Select(a => a.Method).Distinct().ToListAsync(ct);
 
-    internal static string PaysByMessage(string company, string paysBy) =>
-        paysBy == "bank" ? $"{company} pays by bank: add their bank account." : $"{company} pays by M-Pesa: add their M-Pesa number.";
+    internal static string PaysByMessage(string company, IReadOnlyCollection<string> methods) =>
+        methods.Count > 1 ? "Add their bank details or M-Pesa number."
+        : methods.Contains("bank") ? $"{company} pays by bank: add their bank details." : $"{company} pays by M-Pesa: add their M-Pesa number.";
 
     /// <summary>"Equity Bank account numbers are 13 digits." or "… are 10 to 16 digits.", when the number doesn't fit.</summary>
     internal static string? AccountNumberProblem(Bank bank, string number) =>
@@ -474,6 +482,7 @@ public static class EmployeesEndpoints
         e.DateOfBirth = v.DateOfBirth;
         e.Phone = v.Phone is null ? e.Phone : v.Phone.Length == 0 ? null : v.Phone;
         e.Email = v.Email is null ? e.Email : v.Email.Length == 0 ? null : v.Email;
+        e.Address = v.Address is null ? e.Address : v.Address.Length == 0 ? null : v.Address;
         e.NssfNo = v.NssfNo is null ? e.NssfNo : v.NssfNo.Length == 0 ? null : v.NssfNo;
         e.ShaNo = v.ShaNo is null ? e.ShaNo : v.ShaNo.Length == 0 ? null : v.ShaNo;
         if (v.NationalId is not null)
@@ -649,7 +658,7 @@ public static class EmployeesEndpoints
         var job = e.Employments.Single(x => x.ValidTo == null);
         var pay = e.Compensations.FirstOrDefault(x => x.ValidTo == null);
         var account = e.Accounts.FirstOrDefault(x => x.ValidTo == null);
-        return new EmployeeResponse(e.Id, e.CompanyId, e.StaffNo, e.FirstName, e.MiddleName, e.LastName, e.DateOfBirth, e.Phone, e.Email,
+        return new EmployeeResponse(e.Id, e.CompanyId, e.StaffNo, e.FirstName, e.MiddleName, e.LastName, e.DateOfBirth, e.Phone, e.Email, e.Address,
             e.NationalIdLast4 is null ? null : $"•••• {e.NationalIdLast4}", e.KraPinLast4 is null ? null : $"•••• {e.KraPinLast4}", e.NssfNo, e.ShaNo,
             e.HireDate, e.ExitDate,
             new JobResponse(job.PositionId, job.DepartmentId, job.UnitId, job.LocationId, job.LineManagerId, job.PayScheduleId, job.LeavePlanId, job.EmploymentType, job.ContractEnd),

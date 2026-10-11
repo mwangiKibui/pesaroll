@@ -225,11 +225,11 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const review = <>
         {reviewBanner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {reviewBanner && reviewBanner !== 'network' && <FormErrorBanner error={reviewBanner} />}
-        {/* Where the rows apply (left) and the search (right), on one line. */}
-        <div className={`flex flex-wrap gap-4 ${children ? 'items-start' : 'items-end'}`}>
+        {/* One line: where the rows apply, the search, what needs fixing and the filter for it. */}
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
           {children}
           {/* Beside a labelled selector, the search shows its label too, so the two fields line up. */}
-          <div className="w-full max-w-sm">
+          <div className="w-full sm:w-72">
             <TextField type="search" label={t('bulk.search')} placeholder={t('bulk.searchPlaceholder')} hideLabel={!children}
               value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
           </div>
@@ -283,9 +283,12 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                     )
                   })}
                   <td className="border-b border-line-soft px-2 py-1.5 text-right align-top">
-                    <IconButton tone="danger" label={t('bulk.removeRow', { line: r.line })} onClick={() => remove(r.line)}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
-                    </IconButton>
+                    {/* Adding by hand, the first row stays: there is always one to fill in. */}
+                    {!(startRows && r.line === rows?.[0]?.line) && (
+                      <IconButton tone="danger" label={t('bulk.removeRow', { line: r.line })} onClick={() => remove(r.line)}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                      </IconButton>
+                    )}
                   </td>
                 </tr>
               ))}

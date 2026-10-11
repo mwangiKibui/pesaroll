@@ -262,8 +262,36 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         var none = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15", job = new { employmentType = "permanent" } });
         var left = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Akinyi", lastName = "Odera", hireDate = "2023-01-15", exitDate = "2024-06-30", job = new { employmentType = "permanent" } });
 
-        Assert.Equal("Oliech Restaurants Ltd pays by bank: add their bank account.", (await ErrorFrom(none)).Fields!["account.method"]);
+        var mpesa = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-15",
+            job = new { employmentType = "permanent" }, account = new { method = "mpesa", mpesaPhone = "0791569999" } });
+
+        Assert.Equal("Oliech Restaurants Ltd pays by bank: add their bank details.", (await ErrorFrom(none)).Fields!["account.method"]);
+        Assert.Equal("Oliech Restaurants Ltd pays by bank: add their bank details.", (await ErrorFrom(mpesa)).Fields!["account.method"]);
         Assert.Equal(HttpStatusCode.Created, left.StatusCode);   // people who left don't need it
+
+        // Once the company also pays from M-Pesa, either will do.
+        await client.PostAsJsonAsync($"/api/companies/{company.Id}/payment-accounts", new { method = "mpesa", mpesaShortcode = "123456", accountName = "Oliech" });
+        var again = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-15",
+            job = new { employmentType = "permanent" }, account = new { method = "mpesa", mpesaPhone = "0791569999" } });
+        Assert.Equal(HttpStatusCode.Created, again.StatusCode);
+        Assert.Equal("Add their bank details or M-Pesa number.",
+            (await ErrorFrom(await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15", job = new { employmentType = "permanent" } }))).Fields!["account.method"]);
+    }
+
+    [Fact]
+    public async Task An_employee_has_a_home_address()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var res = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15",
+            address = "  Hse 12, Kilimani, Nairobi ", job = new { employmentType = "permanent" } });
+        var tooLong = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-15",
+            address = new string('a', 201), job = new { employmentType = "permanent" } });
+
+        var saved = (await res.Content.ReadFromJsonAsync<Dictionary<string, object>>())!;
+        Assert.Equal("Hse 12, Kilimani, Nairobi", saved["address"].ToString());
+        Assert.Equal("Keep the address to 200 characters.", (await ErrorFrom(tooLong)).Fields!["address"]);
     }
 
     private sealed record Choice(Guid Id, string Name, string StaffNo, Guid? DepartmentId);

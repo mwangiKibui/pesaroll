@@ -956,7 +956,6 @@
       "department": "Department",
       "unit": "Unit",
       "position": "Position",
-      "location": "Location",
       "lineManager": "Line manager (staff number)",
       "payrollSchedule": "Payroll schedule",
       "leavePlan": "Leave plan",
@@ -964,7 +963,9 @@
       "bank": "Bank",
       "branch": "Branch",
       "accountNumber": "Account number",
-      "mpesa": "M-Pesa number"
+      "mpesa": "M-Pesa number",
+      "address": "Anwani",
+      "paidInto": "Hulipwa kupitia"
     },
     "templateHint": "Safu moja kwa kila mtu. Idara, vitengo vikuu na nafasi ambazo hazipo zitaundwa. Wasimamizi kwa nambari ya mfanyakazi na wanaweza kuwa kwenye faili hilo hilo; acha ratiba na mpango wa likizo wazi kwa vile vya kampuni.",
     "review_one": "Kagua mfanyakazi {{count}}",
@@ -986,7 +987,6 @@
     "paysByHint": "{{company}} hulipa kwa {{method}}, kwa hivyo hii inahitajika kwa wanaofanya kazi hapa.",
     "uploadCompany": "Chagua kampuni",
     "uploadCompanyHint": "Orodha za kiolezo (ratiba, mipango ya likizo, muundo, benki) ni za kampuni hii.",
-    "sheetCompanyHint": "Kubadilisha kampuni huanzisha jedwali upya, kwa sababu orodha zake hubadilika.",
     "rules": {
       "required": "Hii inahitajika.",
       "nameTooLong": "Tumia herufi 60 au chache.",
@@ -1005,7 +1005,13 @@
       "bankFirst": "Chagua benki kwanza.",
       "paysByBank": "{{company}} hulipa kwa benki: ongeza maelezo ya benki.",
       "paysByMpesa": "{{company}} hulipa kwa M-Pesa: ongeza nambari ya M-Pesa.",
-      "exitDate": "Weka tarehe walipoondoka, au weka alama Bado anafanya kazi hapa."
-    }
+      "exitDate": "Weka tarehe walipoondoka, au weka alama Bado anafanya kazi hapa.",
+      "addressTooLong": "Anwani isizidi herufi 200.",
+      "paidInto": "Chagua Benki au M-Pesa.",
+      "paysByEither": "Ongeza maelezo ya benki au nambari ya M-Pesa."
+    },
+    "address": "Anwani",
+    "addressPlaceholder": "Anwani ya nyumbani ya mfanyakazi wako",
+    "addressHint": "Wanapoishi, kama Nyumba 12, Kilimani, Nairobi."
   }
 }

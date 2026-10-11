@@ -956,7 +956,6 @@
       "department": "Department",
       "unit": "Unit",
       "position": "Position",
-      "location": "Location",
       "lineManager": "Line manager (staff number)",
       "payrollSchedule": "Payroll schedule",
       "leavePlan": "Leave plan",
@@ -964,7 +963,9 @@
       "bank": "Bank",
       "branch": "Branch",
       "accountNumber": "Account number",
-      "mpesa": "M-Pesa number"
+      "mpesa": "M-Pesa number",
+      "address": "Address",
+      "paidInto": "Paid into"
     },
     "templateHint": "One row per person. Departments, divisions and positions that don't exist yet are created. Line managers go by staff number and can be in the same file; leave the schedule and leave plan empty for the company's own.",
     "review_one": "Review {{count}} employee",
@@ -986,7 +987,6 @@
     "paysByHint": "{{company}} pays by {{method}}, so this is needed for people who work here.",
     "uploadCompany": "Choose the company",
     "uploadCompanyHint": "The template's lists (schedules, leave plans, structure, banks) are this company's.",
-    "sheetCompanyHint": "Changing the company starts the sheet again, as its lists change.",
     "rules": {
       "required": "This is needed.",
       "nameTooLong": "Use 60 characters or fewer.",
@@ -1005,7 +1005,13 @@
       "bankFirst": "Choose the bank first.",
       "paysByBank": "{{company}} pays by bank: add their bank details.",
       "paysByMpesa": "{{company}} pays by M-Pesa: add their M-Pesa number.",
-      "exitDate": "Enter the date they left, or tick Still works here."
-    }
+      "exitDate": "Enter the date they left, or tick Still works here.",
+      "addressTooLong": "Keep the address to 200 characters.",
+      "paidInto": "Choose Bank or M-Pesa.",
+      "paysByEither": "Add their bank details or M-Pesa number."
+    },
+    "address": "Address",
+    "addressPlaceholder": "Your employee's home address",
+    "addressHint": "Where they live, like Hse 12, Kilimani, Nairobi."
   }
 }

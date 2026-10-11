@@ -36,8 +36,8 @@ type TabKey = (typeof tabs)[number]
 
 /** The sheet's columns, in the template's order (same keys as the API; the company is chosen above, and pay follows the schedule). */
 const columnKeys = ['staffNo', 'firstName', 'middleName', 'lastName', 'dateOfBirth', 'phone', 'email', 'nationalId', 'kraPin', 'nssfNo',
-  'shaNo', 'hireDate', 'stillHere', 'exitDate', 'employmentType', 'contractEnd', 'division', 'department', 'unit', 'position', 'location', 'lineManager',
-  'payrollSchedule', 'leavePlan', 'basicPay', 'bank', 'branch', 'accountNumber', 'mpesa'] as const
+  'address', 'shaNo', 'hireDate', 'stillHere', 'exitDate', 'employmentType', 'contractEnd', 'division', 'department', 'unit', 'position', 'lineManager',
+  'payrollSchedule', 'leavePlan', 'basicPay', 'paidInto', 'bank', 'branch', 'accountNumber', 'mpesa'] as const
 
 /** The banks of a country, with their branches and how long their account numbers are. */
 function useBanks(country: string) {
@@ -53,7 +53,7 @@ function useBanks(country: string) {
   })
 }
 
-/** How the company pays people (its default paying account): "bank", "mpesa", or null before one is set. */
+/** How the company pays people: the methods of its paying accounts (none before one is set), and its default's. */
 function usePaysBy(companyId: string) {
   const { api } = useServices()
   return useQuery({
@@ -64,7 +64,10 @@ function usePaysBy(companyId: string) {
       if (error || !data) throw new Error('payment-accounts')
       return data
     },
-    select: accounts => (accounts.find(a => a.isDefault)?.method ?? null) as 'bank' | 'mpesa' | null,
+    select: accounts => ({
+      methods: [...new Set(accounts.map(a => a.method))] as ('bank' | 'mpesa')[],
+      usual: (accounts.find(a => a.isDefault)?.method ?? null) as 'bank' | 'mpesa' | null,
+    }),
   })
 }
 
@@ -230,7 +233,7 @@ export default function EmployeesPage() {
 }
 
 interface Values {
-  firstName: string; middleName: string; lastName: string; dateOfBirth: string; phone: string; email: string; staffNo: string; hireDate: string; exitDate: string
+  firstName: string; middleName: string; lastName: string; dateOfBirth: string; phone: string; email: string; address: string; staffNo: string; hireDate: string; exitDate: string
   nationalId: string; kraPin: string; nssfNo: string; shaNo: string
   companyId: string; departmentId: string; positionId: string; unitId: string; locationId: string; lineManagerId: string; payScheduleId: string; leavePlanId: string
   employmentType: string; contractEnd: string
@@ -240,7 +243,7 @@ interface Values {
 
 /** Which tab each field is on, to mark the tab when the server finds a problem there. */
 const tabOf: Record<string, TabKey> = {
-  firstName: 'personal', middleName: 'personal', lastName: 'personal', dateOfBirth: 'personal', phone: 'personal', email: 'personal',
+  firstName: 'personal', middleName: 'personal', lastName: 'personal', dateOfBirth: 'personal', phone: 'personal', email: 'personal', address: 'personal',
   staffNo: 'personal', hireDate: 'personal', exitDate: 'personal', nationalId: 'ids', kraPin: 'ids', nssfNo: 'ids', shaNo: 'ids',
   companyId: 'job', departmentId: 'job', positionId: 'job', unitId: 'job', locationId: 'job', lineManagerId: 'job', payScheduleId: 'job',
   leavePlanId: 'job', employmentType: 'job', contractEnd: 'job', basicAmount: 'pay',
@@ -308,7 +311,7 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
     mode: 'onTouched',
     defaultValues: {
       firstName: employee?.firstName ?? '', middleName: employee?.middleName ?? '', lastName: employee?.lastName ?? '',
-      dateOfBirth: employee?.dateOfBirth ?? '', phone: employee?.phone ?? '', email: employee?.email ?? '', staffNo: employee?.staffNo ?? '',
+      dateOfBirth: employee?.dateOfBirth ?? '', phone: employee?.phone ?? '', email: employee?.email ?? '', address: employee?.address ?? '', staffNo: employee?.staffNo ?? '',
       hireDate: employee?.hireDate ?? '', exitDate: employee?.exitDate ?? '',
       nationalId: '', kraPin: '', nssfNo: employee?.nssfNo ?? '', shaNo: employee?.shaNo ?? '',
       companyId: companyStart,
@@ -338,11 +341,14 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
   }, [employee, schedules.data, plans.data, locations.data, companyId])
 
   const banks = useBanks(company.countryCode)
-  const paysBy = usePaysBy(companyId).data ?? null
-  // A new employee is paid the way the company pays.
+  const paysBy = usePaysBy(companyId).data
+  const methods = paysBy?.methods ?? []
+  // A new employee is paid the way the company usually pays.
   useEffect(() => {
-    if (!employee && paysBy && getValues('method') === 'none') setValue('method', paysBy)
+    if (!employee && paysBy?.usual && getValues('method') === 'none') setValue('method', paysBy.usual)
   }, [employee, paysBy, getValues, setValue])
+  const paysByMessage = () => (methods.length > 1 ? t('employees.rules.paysByEither')
+    : t(methods[0] === 'bank' ? 'employees.rules.paysByBank' : 'employees.rules.paysByMpesa', { company: company.legalName }))
   const managers = useQuery({
     queryKey: ['employees', 'choices', companyId],
     queryFn: async () => {
@@ -372,14 +378,14 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
       return setTab('personal')
     }
     // People who work here are paid the way the company pays.
-    if (stillHere && paysBy && v.method !== paysBy) {
-      setError('method', { message: t(paysBy === 'bank' ? 'employees.rules.paysByBank' : 'employees.rules.paysByMpesa', { company: company.legalName }) })
+    if (stillHere && methods.length > 0 && !methods.includes(v.method as 'bank' | 'mpesa')) {
+      setError('method', { message: paysByMessage() })
       return setTab('account')
     }
     const accountTouched = !employee || ['method', 'bankCode', 'branchCode', 'accountNumber', 'mpesaPhone'].some(k => dirtyFields[k as keyof Values])
     const body = {
       companyId: v.companyId, staffNo: v.staffNo.trim() || null, firstName: v.firstName, middleName: v.middleName || null, lastName: v.lastName,
-      dateOfBirth: v.dateOfBirth || null, phone: v.phone, email: v.email,
+      dateOfBirth: v.dateOfBirth || null, phone: v.phone, email: v.email, address: v.address,
       // Saved numbers stay unless retyped (they're never sent back to the screen).
       nationalId: v.nationalId.trim() || null, kraPin: v.kraPin.trim() || null, nssfNo: v.nssfNo, shaNo: v.shaNo,
       hireDate: v.hireDate, exitDate: v.exitDate || null,
@@ -471,6 +477,10 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
               error={errors.staffNo?.message} {...register('staffNo', check(rules.staffNo))} />
             <TextField type="tel" label={t('employees.phone')} placeholder={t('employees.phonePlaceholder')} optional error={errors.phone?.message} {...register('phone', check(rules.phone))} />
             <TextField type="email" label={t('employees.email')} placeholder={t('employees.emailPlaceholder')} optional error={errors.email?.message} {...register('email', check(rules.email))} />
+            <div className="sm:col-span-2">
+              <TextField label={t('employees.address')} placeholder={t('employees.addressPlaceholder')} optional maxLength={200} hint={t('employees.addressHint')}
+                error={errors.address?.message} {...register('address')} />
+            </div>
           </div>
         </TabPanel>
 
@@ -494,7 +504,6 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
             {select('departmentId', t('employees.department'), t('employees.departmentPlaceholder'), serves(departments.data).map(d => ({ value: d.id, label: d.name ?? '' })), { optional: true })}
             {select('positionId', t('employees.position'), t('employees.positionPlaceholder'), serves(positions.data).map(p => ({ value: p.id, label: p.title ?? '' })), { optional: true })}
             {select('unitId', t('employees.unit'), t('employees.unitPlaceholder'), serves(units.data).map(u => ({ value: u.id, label: u.name ?? '' })), { optional: true })}
-            {select('locationId', t('employees.location'), t('employees.locationPlaceholder'), serves(locations.data).map(l => ({ value: l.id, label: l.name })), { optional: true })}
             {select('lineManagerId', t('employees.lineManager'), t('employees.lineManagerPlaceholder'),
               sameDepartmentFirst.map(m => ({ value: m.id, label: `${m.name} (${m.staffNo})` })), { optional: true, hint: t('employees.lineManagerHint') })}
             <Controller control={control} name="payScheduleId" render={({ field }) => (
@@ -529,7 +538,7 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
         <TabPanel id={tabsId} tab="account" current={tab}>
           <Controller control={control} name="method" render={({ field }) => (
             <RadioGroup label={t('employees.method')} name={field.name} value={field.value} onChange={field.onChange} error={errors.method?.message}
-              hint={paysBy && stillHere ? t('employees.paysByHint', { company: company.legalName, method: t(`employees.methods.${paysBy}`) }) : undefined}
+              hint={methods.length === 1 && stillHere ? t('employees.paysByHint', { company: company.legalName, method: t(`employees.methods.${methods[0]}`) }) : undefined}
               options={(['bank', 'mpesa', 'none'] as const).map(m => ({ value: m, label: t(`employees.methods.${m}`) }))} />
           )} />
           {method === 'bank' && (
@@ -590,12 +599,11 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
   const departments = useStructure('departments')
   const positions = useStructure('positions')
   const units = useStructure('units')
-  const locations = useLocations()
   const schedules = useSchedules()
   const plans = useLeavePlans()
   const banks = useBanks(company.countryCode)
   const paysBy = usePaysBy(company.id)
-  const loaded = [divisions, departments, positions, units, locations, schedules, plans, banks, paysBy].every(q => q.isSuccess)
+  const loaded = [divisions, departments, positions, units, schedules, plans, banks, paysBy].every(q => q.isSuccess)
 
   // What the chosen company uses, by name (as the template lists them).
   type Scoped = { allCompanies: boolean; companyIds: string[] }
@@ -610,7 +618,6 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
   const lists: Partial<Record<(typeof columnKeys)[number], { value: string; label: string }[]>> = {
     employmentType: types.map(k => ({ value: t(`employees.types.${k}`, { lng: 'en' }), label: t(`employees.types.${k}`) })),
     division: structure(divisions.data), department: structure(departments.data), position: structure(positions.data), unit: structure(units.data),
-    location: named(serves(locations.data).map(l => l.name)),
     payrollSchedule: named(serves(schedules.data).map(s => s.name)),
     leavePlan: named(serves(plans.data).map(p => p.name)),
     bank: named((banks.data ?? []).map(b => b.name)),
@@ -621,7 +628,15 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
 
   const message = (key: string | null, values?: Record<string, unknown>) => (key ? t(`employees.rules.${key}`, values) : null)
   const working = (cells: Record<string, string>) => cells.stillHere !== 'No'
-  const paysByMessage = (method: string) => t(method === 'bank' ? 'employees.rules.paysByBank' : 'employees.rules.paysByMpesa', { company: company.legalName })
+  // Paid into a bank or M-Pesa: the company's usual way to start with; for current staff, one the company pays from.
+  const methods = paysBy.data?.methods ?? []
+  const paidOptions = [{ value: 'Bank', label: t('employees.methods.bank') }, { value: 'M-Pesa', label: t('employees.methods.mpesa') }]
+  const methodOf = (cells: Record<string, string>) => {
+    const said = (cells.paidInto ?? '').replace(/[\s-]/g, '').toLowerCase()
+    return said === 'bank' ? 'bank' : said === 'mpesa' ? 'mpesa' : null
+  }
+  const paysByMessage = () => (methods.length > 1 ? t('employees.rules.paysByEither')
+    : t(methods[0] === 'bank' ? 'employees.rules.paysByBank' : 'employees.rules.paysByMpesa', { company: company.legalName }))
   const validators: Partial<Record<(typeof columnKeys)[number], (value: string, cells: Record<string, string>) => string | null>> = {
     firstName: v => message(rules.name(v)), lastName: v => message(rules.name(v)),
     staffNo: v => message(rules.staffNo(v)), phone: v => message(rules.phone(v)), email: v => message(rules.email(v)),
@@ -629,16 +644,20 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
     hireDate: v => message(rules.required(v)),
     exitDate: (v, cells) => (!working(cells) && !v.trim() ? t('employees.rules.exitDate') : null),
     basicPay: v => message(rules.amount(v)),
-    bank: (v, cells) => (!v.trim() && working(cells) && paysBy.data === 'bank' ? paysByMessage('bank') : null),
+    address: v => (v.trim().length > 200 ? message('addressTooLong') : null),
+    paidInto: (v, cells) => {
+      if (v.trim() && !methodOf(cells)) return message('paidInto')
+      if (!working(cells) || methods.length === 0) return null
+      return !methodOf(cells) || !methods.includes(methodOf(cells)!) ? paysByMessage() : null
+    },
+    bank: (v, cells) => (!v.trim() && methodOf(cells) === 'bank' ? message('required') : null),
     branch: (v, cells) => (!v.trim() && cells.bank?.trim() ? message('required') : null),
     accountNumber: (v, cells) => {
-      if (!v.trim()) return cells.bank?.trim() ? message('required') : null
+      if (!v.trim()) return methodOf(cells) === 'bank' ? message('required') : null
       const problem = accountProblem(bankOf(cells.bank ?? ''), v)
       return problem ? message(problem.key, problem.values) : null
     },
-    mpesa: (v, cells) => (!v.trim()
-      ? (working(cells) && paysBy.data === 'mpesa' ? paysByMessage('mpesa') : null)
-      : message(rules.mpesa(v))),
+    mpesa: (v, cells) => (!v.trim() ? (methodOf(cells) === 'mpesa' ? message('required') : null) : message(rules.mpesa(v))),
   }
   const dates = new Set(['dateOfBirth', 'hireDate', 'exitDate', 'contractEnd'])
   const isContract = (cells: Record<string, string>) => (cells.employmentType ?? '').trim().toLowerCase() === 'contract'
@@ -647,7 +666,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
     ...(lists[key] ? { optionsFor: (cells: Record<string, string>) => withCurrent(lists[key]!, cells[key]) } : {}),
     ...(key === 'branch' ? {
       optionsFor: (cells: Record<string, string>) => withCurrent(named((bankOf(cells.bank ?? '')?.branches ?? []).map(b => b.name)), cells.branch),
-      disabledWhen: (cells: Record<string, string>) => !cells.bank?.trim(),
+      disabledWhen: (cells: Record<string, string>) => methodOf(cells) !== 'bank' || !cells.bank?.trim(),
     } : {}),
     ...(key === 'stillHere' ? { type: 'checkbox' as const, ...(adding ? { defaultValue: 'Yes' } : {}) } : {}),
     ...(adding && dates.has(key) ? { type: 'date' as const } : {}),
@@ -657,7 +676,10 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
     ...(adding && key === 'employmentType' ? { defaultValue: t('employees.types.permanent', { lng: 'en' }) } : {}),
     ...(adding && key === 'payrollSchedule' && defaultSchedule ? { defaultValue: defaultSchedule.name } : {}),
     ...(adding && key === 'leavePlan' ? { defaultValue: planFor(defaultSchedule?.id ?? '') } : {}),
-    ...(adding && key === 'location' ? { defaultValue: serves(locations.data).find(l => l.mainFor.includes(company.id))?.name ?? '' } : {}),
+    ...(key === 'paidInto' ? { options: paidOptions, ...(adding && paysBy.data?.usual ? { defaultValue: paysBy.data.usual === 'bank' ? 'Bank' : 'M-Pesa' } : {}) } : {}),
+    // Only the details of the way they're paid are open.
+    ...(['bank', 'accountNumber'].includes(key) ? { disabledWhen: (cells: Record<string, string>) => methodOf(cells) !== 'bank' } : {}),
+    ...(key === 'mpesa' ? { disabledWhen: (cells: Record<string, string>) => methodOf(cells) !== 'mpesa' } : {}),
     ...(validators[key] ? { validate: validators[key] } : {}),
   })).map(c => (c.defaultValue === '' ? { ...c, defaultValue: undefined } : c))
 
@@ -721,8 +743,8 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
     throw new Error('import')
   }
 
-  const companyField = (hint: string) => (
-    <div className="w-full max-w-sm">
+  const companyField = (hint?: string) => (
+    <div className="w-full sm:w-72">
       <SelectField label={t('employees.company')} placeholder={t('employees.companyPlaceholder')} hint={hint} value={company.id}
         onChange={value => value && setCompanyId(value)} options={companies.map(c => ({ value: c.id, label: c.legalName }))} />
     </div>
@@ -743,7 +765,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
         importButton: count => (adding ? t('employees.several', { count }) : t('employees.importButton', { count })),
         templateHint: t('employees.templateHint'),
       }}>
-      {adding && companies.length > 1 ? companyField(t('employees.sheetCompanyHint')) : undefined}
+      {adding && companies.length > 1 ? companyField() : undefined}
     </BulkUpload>
   )
 }

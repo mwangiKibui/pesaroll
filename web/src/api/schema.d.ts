@@ -5196,6 +5196,7 @@ export interface components {
             job: null | components["schemas"]["JobRequest"];
             pay: null | components["schemas"]["PayRequest"];
             account: null | components["schemas"]["AccountRequest"];
+            address?: null | string;
         };
         EmployeeResponse: {
             /** Format: uuid */
@@ -5210,6 +5211,7 @@ export interface components {
             dateOfBirth: null | string;
             phone: null | string;
             email: null | string;
+            address: null | string;
             nationalIdMasked: null | string;
             kraPinMasked: null | string;
             nssfNo: null | string;

@@ -94,12 +94,14 @@ it('Add employee opens a sheet with one row: the company\'s lists, its schedule 
   expect(within(sheet).getAllByRole('textbox', { name: /First name, row/ })).toHaveLength(1)
   expect(within(sheet).queryByRole('combobox', { name: 'Company, row 1' })).not.toBeInTheDocument()   // one company, chosen above
   expect(within(sheet).queryByRole('combobox', { name: 'Paid, row 1' })).not.toBeInTheDocument()   // pay follows the schedule
-  for (const column of ['Division', 'Department', 'Unit', 'Position', 'Location', 'Bank']) {
+  expect(within(sheet).queryByRole('combobox', { name: 'Location, row 1' })).not.toBeInTheDocument()   // the company's main location
+  expect(within(sheet).getByRole('textbox', { name: 'Address, row 1' })).toBeInTheDocument()
+  expect(within(sheet).queryByRole('button', { name: 'Remove row 1' })).not.toBeInTheDocument()   // the first row stays
+  for (const column of ['Division', 'Department', 'Unit', 'Position', 'Paid into', 'Bank']) {
     expect(within(sheet).getByRole('combobox', { name: `${column}, row 1` })).toBeInTheDocument()
   }
   expect(within(sheet).getByRole('combobox', { name: 'Payroll schedule, row 1' })).toHaveValue('Monthly')
   expect(within(sheet).getByRole('combobox', { name: 'Leave plan, row 1' })).toHaveValue('Standard')
-  expect(within(sheet).getByRole('combobox', { name: 'Location, row 1' })).toHaveValue('Head office')
   expect(within(sheet).getByRole('checkbox', { name: 'Still works here, row 1' })).toBeChecked()
   expect(within(sheet).getByLabelText('Date left, row 1')).toBeDisabled()
   expect(within(sheet).getByLabelText('Contract end, row 1')).toBeDisabled()   // Permanent
@@ -144,10 +146,22 @@ it('a cell is checked as soon as it is left, with the rules for Kenyan numbers a
   await userEvent.tab()
   expect(nssf).toHaveAccessibleDescription('Enter 7 to 10 digits.')
   const mpesa = within(sheet).getByRole('textbox', { name: 'M-Pesa number, row 1' })
+  expect(mpesa).toBeDisabled()   // until Paid into says M-Pesa
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Paid into, row 1' }))
+  await userEvent.click(screen.getByRole('option', { name: 'M-Pesa' }))
   await userEvent.type(mpesa, '0733 123 456')   // Airtel
   await userEvent.tab()
   expect(mpesa).toHaveAccessibleDescription('Enter a Safaricom number for M-Pesa, like 0712 345 678.')
 
+  await userEvent.clear(mpesa)
+  await userEvent.type(mpesa, '0791 569 999')
+  await userEvent.tab()
+  expect(mpesa).not.toHaveAccessibleDescription(/Safaricom/)
+
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Paid into, row 1' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Bank' }))
+  expect(mpesa).toBeDisabled()
+  expect(mpesa).toHaveValue('')   // only one way to be paid
   await userEvent.type(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }), 'equ')
   await userEvent.click(screen.getByRole('option', { name: 'Equity Bank' }))
   const branch = within(sheet).getByRole('combobox', { name: 'Branch, row 1' })
@@ -168,7 +182,7 @@ it('a cell is checked as soon as it is left, with the rules for Kenyan numbers a
   expect(within(sheet).getByLabelText('Contract end, row 1')).toBeEnabled()
 })
 
-it('people who work here need the details the company pays by', async () => {
+it('people who work here are paid into an account the company pays from', async () => {
   const calls = withPeople({
     [`GET /api/companies/${restaurant.id}/payment-accounts`]: () => json(200, [equityAccount()]),
     'POST /api/employees/import/check': () => json(200, { problems: [], notes: [] }),
@@ -176,12 +190,17 @@ it('people who work here need the details the company pays by', async () => {
   renderApp('/setup/employees')
   await userEvent.click(await screen.findByRole('button', { name: 'Add employee' }))
   const sheet = await screen.findByRole('dialog', { name: /Add 1 employee/ })
+  expect(within(sheet).getByRole('combobox', { name: 'Paid into, row 1' })).toHaveValue('Bank')   // how the company pays
   await userEvent.type(within(sheet).getByRole('textbox', { name: 'First name, row 1' }), 'Wanjiru')
   await userEvent.type(within(sheet).getByRole('textbox', { name: 'Last name, row 1' }), 'Kamau')
   await userEvent.type(within(sheet).getByLabelText('Start date, row 1'), '2024-01-15')
   await userEvent.click(within(sheet).getByRole('button', { name: 'Add 1 employee' }))
+  expect(within(sheet).getByRole('combobox', { name: 'Bank, row 1' })).toHaveAccessibleDescription('This is needed.')
 
-  expect(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }))
+  // M-Pesa when the company only pays by bank.
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Paid into, row 1' }))
+  await userEvent.click(screen.getByRole('option', { name: 'M-Pesa' }))
+  expect(within(sheet).getByRole('combobox', { name: 'Paid into, row 1' }))
     .toHaveAccessibleDescription('Mama Oliech Restaurant Ltd pays by bank: add their bank details.')
   expect(calls.some(c => c.path === '/api/employees/import/check')).toBe(false)
 })

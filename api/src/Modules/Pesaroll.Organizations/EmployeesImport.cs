@@ -27,14 +27,14 @@ public static class EmployeesImport
     public static readonly IReadOnlyList<ImportColumn> Columns =
     [
         new("company", "Company", InTemplate: false), new("staffNo", "Staff number", "@"), new("firstName", "First name"), new("middleName", "Middle name"),
-        new("lastName", "Last name"), new("dateOfBirth", "Date of birth", "yyyy-mm-dd"), new("phone", "Phone", "@"), new("email", "Email"),
+        new("lastName", "Last name"), new("dateOfBirth", "Date of birth", "yyyy-mm-dd"), new("phone", "Phone", "@"), new("email", "Email"), new("address", "Address"),
         new("nationalId", "ID number", "@"), new("kraPin", "KRA PIN", "@"), new("nssfNo", "NSSF number", "@"), new("shaNo", "SHA number", "@"),
         new("hireDate", "Start date", "yyyy-mm-dd"), new("stillHere", "Still works here"), new("exitDate", "Date left", "yyyy-mm-dd"),
         new("employmentType", "Employment type"),
         new("contractEnd", "Contract end", "yyyy-mm-dd"), new("division", "Division"), new("department", "Department"), new("unit", "Unit"),
-        new("position", "Position"), new("location", "Location"), new("lineManager", "Line manager (staff number)", "@"),
+        new("position", "Position"), new("lineManager", "Line manager (staff number)", "@"),
         new("payrollSchedule", "Payroll schedule"), new("leavePlan", "Leave plan"), new("basicPay", "Basic pay"),
-        new("bank", "Bank"), new("branch", "Branch", "@"), new("accountNumber", "Account number", "@"), new("mpesa", "M-Pesa number", "@"),
+        new("paidInto", "Paid into"), new("bank", "Bank"), new("branch", "Branch", "@"), new("accountNumber", "Account number", "@"), new("mpesa", "M-Pesa number", "@"),
     ];
 
     private static readonly string[] Types = ["Permanent", "Contract", "Casual", "Intern"];
@@ -63,6 +63,7 @@ public static class EmployeesImport
         var choices = new Dictionary<string, List<string>>
         {
             ["stillHere"] = ["Yes", "No"],
+            ["paidInto"] = ["Bank", "M-Pesa"],
             ["employmentType"] = [.. Types],
             ["bank"] = await db.Banks.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.SortOrder).Select(b => b.Name).ToListAsync(ct),
             ["branch"] = (await db.BankBranches.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.Name).Select(b => b.Name).ToListAsync(ct)).Distinct().ToList(),
@@ -78,7 +79,6 @@ public static class EmployeesImport
         choices["department"] = await db.Departments.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
         choices["position"] = await db.Positions.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
         choices["unit"] = await db.Units.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
-        choices["location"] = await db.Locations.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
         choices["payrollSchedule"] = await db.PaySchedules.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
         choices["leavePlan"] = await db.LeavePlans.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
         return choices;
@@ -133,15 +133,13 @@ public static class EmployeesImport
             .Select(x => new Ref(x.Id, x.Code, x.Name, x.AllCompanies, x.Companies.Select(c => c.CompanyId).ToList(), x.DepartmentId)).ToList();
         var units = (await db.Units.AsNoTracking().Include(x => x.Companies).Where(x => x.Status == "active").ToListAsync(ct))
             .Select(x => new Ref(x.Id, x.Code, x.Name, x.AllCompanies, x.Companies.Select(c => c.CompanyId).ToList(), x.DepartmentId)).ToList();
-        var locations = (await db.Locations.AsNoTracking().Include(x => x.Companies).Where(x => x.Status == "active").ToListAsync(ct))
-            .Select(x => new Ref(x.Id, x.Code, x.Name, x.AllCompanies, x.Companies.Select(c => c.CompanyId).ToList())).ToList();
         var schedules = await db.PaySchedules.AsNoTracking().Include(x => x.Companies).Where(x => x.Status == "active").ToListAsync(ct);
         var plans = (await db.LeavePlans.AsNoTracking().Include(x => x.Companies).Where(x => x.Status == "active").ToListAsync(ct))
             .Select(x => new Ref(x.Id, x.Name, x.Name, x.AllCompanies, x.Companies.Select(c => c.CompanyId).ToList())).ToList();
         var banks = await db.Banks.AsNoTracking().Where(b => b.Active).ToListAsync(ct);
         var branches = await db.BankBranches.AsNoTracking().Where(b => b.Active).ToListAsync(ct);
-        var paysBy = (await db.CompanyPaymentAccounts.AsNoTracking().Where(a => a.IsDefault && a.ClosedAt == null).Select(a => new { a.CompanyId, a.Method }).ToListAsync(ct))
-            .GroupBy(a => a.CompanyId).ToDictionary(g => g.Key, g => g.First().Method);
+        var payMethods = (await db.CompanyPaymentAccounts.AsNoTracking().Where(a => a.ClosedAt == null).Select(a => new { a.CompanyId, a.Method }).ToListAsync(ct))
+            .GroupBy(a => a.CompanyId).ToDictionary(g => g.Key, g => g.Select(a => a.Method).Distinct().ToList());
         var existing = await db.Employees.AsNoTracking()
             .Select(e => new { e.Id, e.CompanyId, e.StaffNo, e.KraPinLookup, e.NationalIdLookup, e.ExitDate }).ToListAsync(ct);
         var organizationId = companies.FirstOrDefault()?.OrganizationId ?? Guid.Empty;
@@ -262,6 +260,11 @@ public static class EmployeesImport
 
             var phone = Number("phone", Recipients.KenyanMobile, "Enter a Kenyan mobile number, like 0712 345 678.");
             var email = Number("email", Recipients.Email, "Enter a valid email address.");
+            var address = Cell("address");
+            if (address.Length > 200)
+            {
+                Problem("address", "Keep the address to 200 characters.");
+            }
             var nationalId = Number("nationalId", EmployeeNumbers.NationalId, "Enter the ID number: 7 or 8 digits.");
             var kraPin = Number("kraPin", EmployeeNumbers.KraPin, "Enter the person's KRA PIN: A, 9 digits and a letter, like A012345678Z.");
             var nssf = Number("nssfNo", EmployeeNumbers.Nssf, "Enter the NSSF number: 6 to 12 digits.");
@@ -335,7 +338,8 @@ public static class EmployeesImport
             var departmentId = Resolve(departments, "department", "department", canCreate: true, ref newDepartment)?.Id;
             var positionId = Resolve(positions, "position", "position", canCreate: true, ref newPosition)?.Id;
             var unitId = Resolve(units, "unit", "unit", canCreate: false, ref none)?.Id;
-            var locationId = Cell("location").Length == 0 ? company.MainLocationId : Resolve(locations, "location", "location", canCreate: false, ref none)?.Id;
+            // Where they work is the company's main location (their own address is a column).
+            var locationId = company.MainLocationId;
 
             var managerText = Cell("lineManager").ToUpperInvariant();
             string? managerStaffNo = null;
@@ -438,10 +442,22 @@ public static class EmployeesImport
                 account = new EmployeesEndpoints.ValidAccount("mpesa", null, null, null, mpesa);
             }
 
-            // Current staff need the pay details their company pays by.
-            if (exit is null && paysBy.GetValueOrDefault(company.Id) is { } method && account?.Method != method)
+            // Paid into a bank or M-Pesa: as Paid into says, and for current staff one the company pays from.
+            var paidText = Regex.Replace(Cell("paidInto"), @"[\s-]", "").ToLowerInvariant();
+            string? paidInto = paidText switch { "" => null, "bank" => "bank", "mpesa" => "mpesa", _ => "?" };
+            var methods = payMethods.GetValueOrDefault(company.Id) ?? [];
+            if (paidInto == "?")
             {
-                Problem(method == "bank" ? "bank" : "mpesa", EmployeesEndpoints.PaysByMessage(company.LegalName, method));
+                Problem("paidInto", "Choose Bank or M-Pesa.");
+            }
+            else if (paidInto is not null && account?.Method != paidInto)
+            {
+                Problem(paidInto == "bank" ? "bank" : "mpesa", paidInto == "bank" ? "Paid into a bank: add their bank details." : "Paid into M-Pesa: add their M-Pesa number.");
+            }
+            else if (exit is null && methods.Count > 0 && (account is null || !methods.Contains(account.Method)))
+            {
+                var column = account is not null ? (account.Method == "bank" ? "bank" : "mpesa") : methods.Count > 1 ? "paidInto" : methods[0] == "bank" ? "bank" : "mpesa";
+                Problem(column, EmployeesEndpoints.PaysByMessage(company.LegalName, methods));
             }
 
             if (problems.Count > before || hire is null || type is null || schedule is null || plan is null)
@@ -451,7 +467,7 @@ public static class EmployeesImport
 
             var job = new EmployeesEndpoints.ValidJob(positionId, departmentId, unitId, locationId, null, schedule.Id, plan.Id, type, contractEnd);
             valid.Add(new ValidRow(line, new EmployeesEndpoints.ValidEmployee(company, staffNo.Length == 0 ? null : staffNo, first, middle.Length == 0 ? null : middle,
-                last, born, phone, email, nationalId, kraPin, nssf, sha, hire.Value, exit, job, pay, account),
+                last, born, phone, email, address.Length == 0 ? null : address, nationalId, kraPin, nssf, sha, hire.Value, exit, job, pay, account),
                 divisionId, newDivision, newDepartment, newPosition, managerStaffNo));
         }
 

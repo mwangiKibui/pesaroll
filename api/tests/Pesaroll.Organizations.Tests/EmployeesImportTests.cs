@@ -24,7 +24,8 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
     private sealed record Job(Guid? DepartmentId, Guid? PositionId, Guid? LineManagerId, string EmploymentType);
     private sealed record Pay(decimal BasicAmount, string PayBasis);
     private sealed record Account(string Method, string? BankCode, string? AccountMasked, string? MpesaMasked);
-    private sealed record Employee(Guid Id, string StaffNo, string FirstName, string? KraPinMasked, DateOnly HireDate, DateOnly? ExitDate, Job Job, Pay? Pay, Account? Account);
+    private sealed record Employee(Guid Id, string StaffNo, string FirstName, string? KraPinMasked, DateOnly HireDate, DateOnly? ExitDate, Job Job, Pay? Pay, Account? Account,
+        string? Address = null);
     private sealed record Row(Guid Id, string StaffNo, string Name, string? DepartmentName, string? PositionTitle);
     private sealed record Page(List<Row> Items, int Total);
     private sealed record Item(Guid Id, string Name, bool AllCompanies, List<Guid> CompanyIds);
@@ -72,16 +73,52 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         using var book = new XLWorkbook(new MemoryStream(bytes));
         var sheet = book.Worksheet(1);
         var headers = sheet.Row(1).CellsUsed().Select(c => c.GetString()).ToList();
-        Assert.Equal(["Staff number", "First name", "Middle name", "Last name", "Date of birth", "Phone", "Email", "ID number", "KRA PIN",
+        Assert.Equal(["Staff number", "First name", "Middle name", "Last name", "Date of birth", "Phone", "Email", "Address", "ID number", "KRA PIN",
             "NSSF number", "SHA number", "Start date", "Still works here", "Date left", "Employment type", "Contract end", "Division", "Department", "Unit",
-            "Position", "Location", "Line manager (staff number)", "Payroll schedule", "Leave plan", "Basic pay", "Bank", "Branch", "Account number",
-            "M-Pesa number"], headers);   // no Company (chosen first) and no Paid (the schedule says)
+            "Position", "Line manager (staff number)", "Payroll schedule", "Leave plan", "Basic pay", "Paid into", "Bank", "Branch", "Account number",
+            "M-Pesa number"], headers);   // no Company (chosen first), no Paid (the schedule says), no Location (the company's main one)
         var lists = book.Worksheet("Lists").CellsUsed().Select(c => c.GetString()).ToList();
         Assert.Contains("Kitchen", lists);
         Assert.Contains("Monthly", lists);      // the company's schedule
         Assert.Contains("Standard", lists);     // its leave plan
         Assert.Contains("Equity Bank", lists);
         Assert.Contains("Yes", lists);
+        Assert.Contains("M-Pesa", lists);       // Paid into
+    }
+
+    [Fact]
+    public async Task People_who_work_here_are_paid_into_an_account_the_company_pays_from()
+    {
+        var (client, company) = await Onboarded();
+        var check = async (params Dictionary<string, string>[] rows) =>
+            (await (await client.PostAsJsonAsync("/api/employees/import/check", RowsBody(rows))).Content.ReadFromJsonAsync<Check>())!.Problems
+                .Select(p => (p.Line, p.Column, p.Message)).ToList();
+
+        // No paying account yet: nothing is required.
+        Assert.Empty(await check(Person("Wanjiru", "Kamau")));
+
+        await client.PostAsJsonAsync($"/api/companies/{company.Id}/payment-accounts", new
+        {
+            method = "bank", bankCode = "68", branchCode = "047", accountName = "Mama Oliech Restaurants Ltd", accountNumber = "0123456789012",
+        });
+        Assert.Equal([(2, "bank", "Mama Oliech Restaurants Ltd pays by bank: add their bank details."),
+                      (3, "mpesa", "Mama Oliech Restaurants Ltd pays by bank: add their bank details."),
+                      (4, "mpesa", "Give a bank account or an M-Pesa number, not both.")],
+            await check(
+                Person("Wanjiru", "Kamau"),
+                Person("Otieno", "Ouma", ("mpesa", "0791 569 999")),
+                Person("Akinyi", "Odera", ("bank", "Equity Bank"), ("branch", "047"), ("accountNumber", "0123456789012"), ("mpesa", "0791569999"))));
+
+        // With an M-Pesa account too, either will do; Paid into says which, and then its details are needed.
+        await client.PostAsJsonAsync($"/api/companies/{company.Id}/payment-accounts", new { method = "mpesa", mpesaShortcode = "123456", accountName = "Mama Oliech" });
+        Assert.Equal([(2, "paidInto", "Add their bank details or M-Pesa number."),
+                      (4, "mpesa", "Paid into M-Pesa: add their M-Pesa number."),
+                      (5, "paidInto", "Choose Bank or M-Pesa.")],
+            await check(
+                Person("Wanjiru", "Kamau"),
+                Person("Otieno", "Ouma", ("paidInto", "M-Pesa"), ("mpesa", "0791569999")),
+                Person("Akinyi", "Odera", ("paidInto", "M-Pesa"), ("bank", ""), ("mpesa", "")),
+                Person("Baraka", "Mwangi", ("paidInto", "Cheque"))));
     }
 
     [Fact]
@@ -109,7 +146,7 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         var (client, company) = await Onboarded();
 
         var res = await client.PostAsJsonAsync("/api/employees/import", RowsBody(
-            Person("Wanjiru", "Kamau", ("staffNo", "K-1"), ("kraPin", "A012345678Z"), ("nationalId", "12345678"), ("department", "Kitchen"),
+            Person("Wanjiru", "Kamau", ("staffNo", "K-1"), ("kraPin", "A012345678Z"), ("nationalId", "12345678"), ("department", "Kitchen"), ("address", "Kilimani, Nairobi"),
                 ("position", "Head cook"), ("basicPay", "85,000"), ("bank", "Equity Bank"), ("branch", "047"), ("accountNumber", "0123456789012")),
             Person("Otieno", "Ouma", ("staffNo", "K-2"), ("lineManager", "K-1"), ("department", "kitchen"), ("employmentType", "Casual"),
                 ("payrollSchedule", "Daily"), ("basicPay", "900"), ("mpesa", "0722 000 111")),
@@ -125,6 +162,7 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         var akinyi = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.Name == "Akinyi Odera").Id}"))!;
         Assert.Equal(("•••• 678Z", 85000m, "bank", "68", "•••• 9012"), (wanjiru.KraPinMasked, wanjiru.Pay!.BasicAmount, wanjiru.Account!.Method, wanjiru.Account.BankCode, wanjiru.Account.AccountMasked));
         Assert.Equal("monthly", wanjiru.Pay.PayBasis);   // from the Monthly schedule
+        Assert.Equal("Kilimani, Nairobi", wanjiru.Address);
         Assert.Equal((wanjiru.Id, wanjiru.Job.DepartmentId, "casual", "daily", "•••• 0111"),
             (otieno.Job.LineManagerId!.Value, otieno.Job.DepartmentId, otieno.Job.EmploymentType, otieno.Pay!.PayBasis, otieno.Account!.MpesaMasked));
         Assert.Equal((DateOnly.Parse("2023-01-15"), DateOnly.Parse("2024-06-30"), "EMP-01"), (akinyi.HireDate, akinyi.ExitDate!.Value, akinyi.StaffNo));

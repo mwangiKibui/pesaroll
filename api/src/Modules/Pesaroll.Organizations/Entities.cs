@@ -264,6 +264,7 @@ public sealed class Employee
     public DateOnly? DateOfBirth { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }
+    public string? Address { get; set; }
     public byte[]? NationalIdEnc { get; set; }
     public string? NationalIdLookup { get; set; }
     public string? NationalIdLast4 { get; set; }
