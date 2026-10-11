@@ -230,7 +230,29 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
             Person("Same", "Id", ("nationalId", "87654321"))))).Content.ReadFromJsonAsync<Check>())!;
 
         Assert.Equal([(2, "staffNo"), (2, "kraPin"), (4, "nationalId")], check.Problems.Select(p => (p.Line, p.Column)));
-        Assert.Contains("K-1", check.Problems[1].Message);
+        Assert.Equal("Wanjiru Kamau (K-1) already has this KRA PIN.", check.Problems[1].Message);
+    }
+
+    [Fact]
+    public async Task A_re_import_is_caught_by_email_phone_NSSF_and_SHA_numbers_too()
+    {
+        var (client, company) = await Onboarded();
+        await client.PostAsJsonAsync("/api/employees", new
+        {
+            companyId = company.Id, staffNo = "K-1", firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15", email = "Wanjiru@Example.com",
+            phone = "0712 345 678", nssfNo = "201234567", shaNo = "CR1234567-8", job = new { employmentType = "permanent" },
+        });
+
+        var check = (await (await client.PostAsJsonAsync("/api/employees/import/check", RowsBody(
+            Person("Wanjiru", "Kamau", ("email", "wanjiru@example.com"), ("phone", "+254712345678"), ("nssfNo", "201234567"), ("shaNo", "cr1234567-8")),
+            Person("Otieno", "Ouma", ("email", "otieno@example.com"), ("phone", "0722 000 111")),
+            Person("Akinyi", "Odera", ("email", "OTIENO@example.com"), ("phone", "0722000111")),
+            Person("Baraka", "Mwangi", ("phone", "0712345678"), ("stillHere", "No"), ("exitDate", "2024-06-30"))))).Content.ReadFromJsonAsync<Check>())!;   // someone who left
+
+        Assert.Equal([(2, "phone"), (2, "email"), (2, "nssfNo"), (2, "shaNo"), (4, "phone"), (4, "email")],
+            check.Problems.Select(p => (p.Line, p.Column)));
+        Assert.Equal("Wanjiru Kamau (K-1) already has this email address.", check.Problems.Single(p => p is { Line: 2, Column: "email" }).Message);
+        Assert.Equal("Row 3 has this phone number too.", check.Problems.Single(p => p is { Line: 4, Column: "phone" }).Message);
     }
 
     [Fact]

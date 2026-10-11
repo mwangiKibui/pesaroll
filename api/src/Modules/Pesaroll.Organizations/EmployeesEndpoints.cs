@@ -622,16 +622,23 @@ public static class EmployeesEndpoints
             return;
         }
 
-        if (e.KraPinLookup is { } pin && await db.Employees.AsNoTracking().Where(x => x.KraPinLookup == pin && x.ExitDate == null && x.Id != e.Id)
-                .Select(x => x.StaffNo).FirstOrDefaultAsync(ct) is { } pinOwner)
+        // Statutory numbers, then contacts: someone else who works here already has it (a re-import, or a typo).
+        var current = db.Employees.AsNoTracking().Where(x => x.ExitDate == null && x.Id != e.Id);
+        (string Field, string Label, string? Value, Expression<Func<Employee, bool>> Same)[] checks =
+        [
+            ("kraPin", "KRA PIN", e.KraPinLookup, x => x.KraPinLookup == e.KraPinLookup),
+            ("nationalId", "ID number", e.NationalIdLookup, x => x.NationalIdLookup == e.NationalIdLookup),
+            ("nssfNo", "NSSF number", e.NssfNo, x => x.NssfNo == e.NssfNo),
+            ("shaNo", "SHA number", e.ShaNo, x => x.ShaNo == e.ShaNo),
+            ("phone", "phone number", e.Phone, x => x.Phone == e.Phone),
+            ("email", "email address", e.Email, x => x.Email == e.Email),
+        ];
+        foreach (var (field, label, value, same) in checks)
         {
-            throw OnboardingErrors.EmployeeNumberTaken("kraPin", "KRA PIN", pinOwner);
-        }
-
-        if (e.NationalIdLookup is { } nid && await db.Employees.AsNoTracking().Where(x => x.NationalIdLookup == nid && x.ExitDate == null && x.Id != e.Id)
-                .Select(x => x.StaffNo).FirstOrDefaultAsync(ct) is { } idOwner)
-        {
-            throw OnboardingErrors.EmployeeNumberTaken("nationalId", "ID number", idOwner);
+            if (value is not null && await current.Where(same).Select(x => new { x.FirstName, x.LastName, x.StaffNo }).FirstOrDefaultAsync(ct) is { } holder)
+            {
+                throw OnboardingErrors.EmployeeNumberTaken(field, label, $"{holder.FirstName} {holder.LastName} ({holder.StaffNo})");
+            }
         }
     }
 
@@ -648,6 +655,10 @@ public static class EmployeesEndpoints
             {
                 "employees_one_kra_pin" => OnboardingErrors.EmployeeNumberTaken("kraPin", "KRA PIN", "Another current employee"),
                 "employees_one_national_id" => OnboardingErrors.EmployeeNumberTaken("nationalId", "ID number", "Another current employee"),
+                "employees_one_nssf" => OnboardingErrors.EmployeeNumberTaken("nssfNo", "NSSF number", "Another current employee"),
+                "employees_one_sha" => OnboardingErrors.EmployeeNumberTaken("shaNo", "SHA number", "Another current employee"),
+                "employees_one_phone" => OnboardingErrors.EmployeeNumberTaken("phone", "phone number", "Another current employee"),
+                "employees_one_email" => OnboardingErrors.EmployeeNumberTaken("email", "email address", "Another current employee"),
                 _ => OnboardingErrors.StaffNoTaken(),
             };
         }

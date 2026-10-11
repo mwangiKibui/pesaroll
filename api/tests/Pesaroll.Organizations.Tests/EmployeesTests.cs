@@ -163,6 +163,32 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
     }
 
     [Fact]
+    public async Task Two_current_employees_cant_share_an_email_phone_NSSF_or_SHA_number()
+    {
+        var (client, _, _) = await Onboarded();
+        var a = await AddCompany(client, "Oliech Restaurants Ltd");
+        var b = await AddCompany(client, "Oliech Catering Ltd");
+        await client.PostAsJsonAsync("/api/employees", new
+        {
+            companyId = a.Id, staffNo = "K-1", firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15", email = "wanjiru@example.com",
+            phone = "0712345678", nssfNo = "201234567", shaNo = "CR1234567-8", job = new { employmentType = "permanent" },
+        });
+
+        foreach (var (field, value, label) in new[] { ("email", "WANJIRU@example.com", "email address"), ("phone", "+254 712 345 678", "phone number"),
+                     ("nssfNo", "201234567", "NSSF number"), ("shaNo", "cr1234567-8", "SHA number") })
+        {
+            var body = new Dictionary<string, object>
+            {
+                ["companyId"] = b.Id, ["firstName"] = "Twin", ["lastName"] = "Kamau", ["hireDate"] = "2024-01-15", ["job"] = new { employmentType = "permanent" }, [field] = value,
+            };
+            var twin = await client.PostAsJsonAsync("/api/employees", body);
+            var error = await ErrorFrom(twin);
+            Assert.Equal((HttpStatusCode.Conflict, field), (twin.StatusCode, Assert.Single(error.Fields!.Keys)));
+            Assert.Equal($"Wanjiru Kamau (K-1) already has this {label}.", error.Fields[field]);
+        }
+    }
+
+    [Fact]
     public async Task A_daily_paid_casual_follows_the_daily_schedules_leave_plan()
     {
         var (client, _, _) = await Onboarded();

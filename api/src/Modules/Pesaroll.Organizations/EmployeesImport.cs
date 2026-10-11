@@ -97,6 +97,10 @@ public static class EmployeesImport
         public bool Serves(Guid companyId) => AllCompanies || CompanyIds.Contains(companyId);
     }
 
+    /// <summary>Someone already employed, with what no other current employee may share.</summary>
+    private sealed record Existing(Guid Id, Guid CompanyId, string StaffNo, string FirstName, string LastName, string? KraPinLookup, string? NationalIdLookup,
+        string? NssfNo, string? ShaNo, string? Phone, string? Email, DateOnly? ExitDate);
+
     private enum Found { One, None, Several }
 
     private static (Found Found, Ref? Item) Find(List<Ref> items, string text)
@@ -137,7 +141,18 @@ public static class EmployeesImport
         var payMethods = (await db.CompanyPaymentAccounts.AsNoTracking().Where(a => a.ClosedAt == null).Select(a => new { a.CompanyId, a.Method }).ToListAsync(ct))
             .GroupBy(a => a.CompanyId).ToDictionary(g => g.Key, g => g.Select(a => a.Method).Distinct().ToList());
         var existing = await db.Employees.AsNoTracking()
-            .Select(e => new { e.Id, e.CompanyId, e.StaffNo, e.KraPinLookup, e.NationalIdLookup, e.ExitDate }).ToListAsync(ct);
+            .Select(e => new Existing(e.Id, e.CompanyId, e.StaffNo, e.FirstName, e.LastName, e.KraPinLookup, e.NationalIdLookup, e.NssfNo, e.ShaNo, e.Phone, e.Email, e.ExitDate))
+            .ToListAsync(ct);
+        // What current employees already have, by column: value (or keyed lookup) to "Wanjiru Kamau (EMP-01)".
+        var current = existing.Where(e => e.ExitDate == null).ToList();
+        Dictionary<string, string> Held(Func<Existing, string?> value) => current
+            .Select(e => (Value: value(e), Holder: $"{e.FirstName} {e.LastName} ({e.StaffNo})")).Where(x => x.Value is not null)
+            .DistinctBy(x => x.Value).ToDictionary(x => x.Value!, x => x.Holder);
+        var taken = new Dictionary<string, Dictionary<string, string>>
+        {
+            ["phone"] = Held(e => e.Phone), ["email"] = Held(e => e.Email), ["nationalId"] = Held(e => e.NationalIdLookup),
+            ["kraPin"] = Held(e => e.KraPinLookup), ["nssfNo"] = Held(e => e.NssfNo), ["shaNo"] = Held(e => e.ShaNo),
+        };
         var organizationId = companies.FirstOrDefault()?.OrganizationId ?? Guid.Empty;
 
         var problems = new List<ImportProblem>();
@@ -261,32 +276,37 @@ public static class EmployeesImport
             {
                 Problem("address", "Keep the address to 200 characters.");
             }
-            var nationalId = Number("nationalId", EmployeeNumbers.NationalId, "Enter the ID number: 7 or 8 digits.");
+            var nationalId = Number("nationalId", EmployeeNumbers.NationalId, "Enter the ID number: 7 or 8 digits, or 9 for a Maisha Namba.");
             var kraPin = Number("kraPin", EmployeeNumbers.KraPin, "Enter the person's KRA PIN: A, 9 digits and a letter, like A012345678Z.");
-            var nssf = Number("nssfNo", EmployeeNumbers.Nssf, "Enter the NSSF number: 6 to 12 digits.");
+            var nssf = Number("nssfNo", EmployeeNumbers.Nssf, "Enter the NSSF number: 7 to 10 digits.");
             var sha = Number("shaNo", EmployeeNumbers.Sha, "Enter the SHA number: 6 to 20 letters, numbers or dashes.");
 
-            // No two current employees share an ID number or KRA PIN: those already there, then earlier rows.
-            void Unique(string? value, string key, string label, string kind)
+            // No two current employees share a statutory number, phone or email: those already there
+            // (a re-import), then earlier rows. Encrypted numbers are compared by their keyed lookup.
+            void Unique(string? value, string key, string label, string? kind = null)
             {
-                if (value is null || exit is not null) return;
-                var lookup = encryptor.Lookup(value, $"{kind}:{organizationId}");
-                if (existing.FirstOrDefault(e => (kind == "kra_pin" ? e.KraPinLookup : e.NationalIdLookup) == lookup && e.ExitDate == null) is { } holder)
+                if (string.IsNullOrEmpty(value) || exit is not null) return;
+                var compared = kind is null ? value : encryptor.Lookup(value, $"{kind}:{organizationId}");
+                if (taken[key].TryGetValue(compared, out var holder))
                 {
-                    Problem(key, $"{holder.StaffNo} already has this {label}.");
+                    Problem(key, $"{holder} already has this {label}.");
                 }
-                else if (fileNumbers.TryGetValue(kind + lookup, out var other))
+                else if (fileNumbers.TryGetValue(key + compared, out var other))
                 {
                     Problem(key, $"Row {other} has this {label} too.");
                 }
                 else
                 {
-                    fileNumbers[kind + lookup] = line;
+                    fileNumbers[key + compared] = line;
                 }
             }
 
-            Unique(kraPin, "kraPin", "KRA PIN", "kra_pin");
+            Unique(phone, "phone", "phone number");
+            Unique(email, "email", "email address");
             Unique(nationalId, "nationalId", "ID number", "national_id");
+            Unique(kraPin, "kraPin", "KRA PIN", "kra_pin");
+            Unique(nssf, "nssfNo", "NSSF number");
+            Unique(sha, "shaNo", "SHA number");
 
             var typeText = Cell("employmentType");
             var type = typeText.Length == 0 ? "permanent" : Types.FirstOrDefault(t => string.Equals(t, typeText, StringComparison.OrdinalIgnoreCase))?.ToLowerInvariant();

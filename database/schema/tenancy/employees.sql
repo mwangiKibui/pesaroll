@@ -39,6 +39,11 @@ create table employees (
 -- No two current employees in an organization share an ID number or KRA PIN.
 create unique index employees_one_national_id on employees (organization_id, national_id_lookup) where national_id_lookup is not null and exit_date is null;
 create unique index employees_one_kra_pin on employees (organization_id, kra_pin_lookup) where kra_pin_lookup is not null and exit_date is null;
+-- Nor an email address, phone number, NSSF or SHA number (stored normalized: lower case, +254…, upper case), so a re-import is caught.
+create unique index employees_one_email on employees (organization_id, email) where email is not null and exit_date is null;
+create unique index employees_one_phone on employees (organization_id, phone) where phone is not null and exit_date is null;
+create unique index employees_one_nssf on employees (organization_id, nssf_no) where nssf_no is not null and exit_date is null;
+create unique index employees_one_sha on employees (organization_id, sha_no) where sha_no is not null and exit_date is null;
 create index employees_names on employees (company_id, last_name, first_name);
 
 alter table employees enable row level security;

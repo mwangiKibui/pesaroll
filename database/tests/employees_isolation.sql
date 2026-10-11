@@ -20,8 +20,10 @@ begin
   select id into schedule from pay_schedules where organization_id = org1 limit 1;
   select id into plan from leave_plans where organization_id = org1 limit 1;
 
-  insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, kra_pin_enc, kra_pin_lookup, kra_pin_last4)
-  values (amina, org1, ke1, 'EMP-001', 'Amina', 'Otieno', '2024-01-15', '\x01', 'lookup-a', '678Z');
+  insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, kra_pin_enc, kra_pin_lookup, kra_pin_last4,
+    email, phone, nssf_no, sha_no)
+  values (amina, org1, ke1, 'EMP-001', 'Amina', 'Otieno', '2024-01-15', '\x01', 'lookup-a', '678Z',
+    'amina@example.com', '+254712345678', '201234567', 'CR1234567-8');
   insert into employments (id, organization_id, company_id, employee_id, valid_from, pay_schedule_id, leave_plan_id, employment_type)
   values ('00000000-0000-7000-8000-000000000811', org1, ke1, amina, '2024-01-15', schedule, plan, 'permanent');
   insert into compensations (id, organization_id, company_id, employee_id, valid_from, basic_amount, pay_basis, currency)
@@ -38,6 +40,30 @@ begin
     insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, kra_pin_lookup)
     values (otieno, org1, ug1, 'EMP-002', 'Otieno', 'Kamau', '2024-02-01', 'lookup-a');
     raise exception 'two current employees share a KRA PIN';
+  exception when unique_violation then null;
+  end;
+  begin
+    insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, email)
+    values (otieno, org1, ug1, 'EMP-002', 'Otieno', 'Kamau', '2024-02-01', 'amina@example.com');
+    raise exception 'two current employees share an email address';
+  exception when unique_violation then null;
+  end;
+  begin
+    insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, phone)
+    values (otieno, org1, ug1, 'EMP-002', 'Otieno', 'Kamau', '2024-02-01', '+254712345678');
+    raise exception 'two current employees share a phone number';
+  exception when unique_violation then null;
+  end;
+  begin
+    insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, nssf_no)
+    values (otieno, org1, ug1, 'EMP-002', 'Otieno', 'Kamau', '2024-02-01', '201234567');
+    raise exception 'two current employees share an NSSF number';
+  exception when unique_violation then null;
+  end;
+  begin
+    insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, sha_no)
+    values (otieno, org1, ug1, 'EMP-002', 'Otieno', 'Kamau', '2024-02-01', 'CR1234567-8');
+    raise exception 'two current employees share a SHA number';
   exception when unique_violation then null;
   end;
   begin
