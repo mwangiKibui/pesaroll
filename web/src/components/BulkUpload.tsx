@@ -219,7 +219,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         </section>
       </Drawer>
 
-      {/* Adding by hand: a drawer 90% wide; reviewing a file: a large dialog. */}
+      {/* Adding by hand: a drawer 97% wide; reviewing a file: a large dialog. */}
       {startRows
         ? <Drawer open={open && !!rows} size="sheet" title={labels.review(rows?.length ?? 0)} onClose={onClose} footer={<>
           {startRows
