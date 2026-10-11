@@ -362,7 +362,7 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
   }
 
   return (
-    <Drawer open title={schedule ? t('schedules.editTitle') : t('schedules.addTitle')} onClose={onClose}
+    <Drawer open size="wide" title={schedule ? t('schedules.editTitle') : t('schedules.addTitle')} onClose={onClose}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{schedule ? t('schedules.save') : t('schedules.add')}</Button>
@@ -441,12 +441,13 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
         )}
 
         <section aria-labelledby={`${formId}-reminders`} className="flex flex-col gap-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <h3 id={`${formId}-reminders`} className="m-0 text-label font-medium text-ink">{t('schedules.reminders')}</h3>
               <p className="m-0 text-hint text-muted">{t('schedules.remindersHint')}</p>
             </div>
-            <Button variant="secondary" disabled={reminders.length >= maxReminders} onClick={() => setEditingReminder('new')}>
+            <Button variant="secondary" className="flex-none self-end whitespace-nowrap sm:self-start" disabled={reminders.length >= maxReminders}
+              onClick={() => setEditingReminder('new')}>
               <PlusIcon />{t('schedules.addReminder')}
             </Button>
           </div>
