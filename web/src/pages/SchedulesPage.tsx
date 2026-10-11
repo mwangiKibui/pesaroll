@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useId, useState } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
@@ -11,7 +11,9 @@ import { CompanySelect, type CompanySelection } from '../components/CompanySelec
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice } from '../components/feedback'
-import { Checkbox, RadioGroup, SelectField, TextField } from '../components/fields'
+import { Checkbox, RadioGroup, SelectField, Switch, TextField } from '../components/fields'
+import { Modal } from '../components/Modal'
+import { MultiSelectField } from '../components/MultiSelectField'
 import { PlusIcon } from '../components/icons'
 import { TableCard } from '../components/TableCard'
 import { useToast } from '../components/toast'
@@ -32,6 +34,8 @@ interface Values {
   firstPayDate: string
   cutoffDaysBefore: string
   payTime: string
+  usesCutoff: boolean
+  cutoffAppliesTo: string[]
   applies: CompanySelection
   defaultFor: string[]
 }
@@ -42,6 +46,10 @@ const none = <span className="text-muted">—</span>
 const frequencies = ['monthly', 'weekly', 'fortnightly', 'daily'] as const
 const payDayRules = ['last_working_day', 'last_day', 'fixed_day'] as const
 const days = Array.from({ length: 28 }, (_, i) => String(i + 1))
+/** What a cut-off can cover (same keys as the API); anything else is the organization's own item. */
+const cutoffItems = ['overtime', 'new_employees', 'leavers', 'unpaid_leave', 'pay_changes', 'one_off'] as const
+const isCutoffItem = (item: string): item is (typeof cutoffItems)[number] => (cutoffItems as readonly string[]).includes(item)
+
 /** Monday 1 to Friday 5, as the API counts them. */
 const weekdays = ['1', '2', '3', '4', '5'] as const
 /** Pay times for daily pay, every half hour from 6:00 am to 9:30 pm, as "17:30". */
@@ -92,6 +100,7 @@ export default function SchedulesPage() {
   }
   const cutoff = (s: Schedule) => {
     if (s.frequency === 'daily') return none
+    if (!s.usesCutoff) return t('schedules.noCutoff')
     if (s.frequency === 'monthly') return t('schedules.day', { count: Number(s.cutoffDay), ordinal: true })
     return Number(s.cutoffDaysBefore) === 0 ? t('schedules.onPayDay') : t('schedules.daysBefore', { count: Number(s.cutoffDaysBefore) })
   }
@@ -172,7 +181,7 @@ export default function SchedulesPage() {
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
 
         {editing && (
-          <ScheduleDrawer schedule={editing === 'new' ? null : editing} companies={companies.data}
+          <ScheduleDrawer schedule={editing === 'new' ? null : editing} companies={companies.data} schedules={schedules.data}
             // A new schedule serves the companies being shown, as the selector suggests.
             defaultApplies={companies.data.length === 1 ? { all: false, ids: [companies.data[0].id] } : shown}
             onClose={() => setEditing(null)} />
@@ -186,9 +195,11 @@ export default function SchedulesPage() {
   )
 }
 
-function ScheduleDrawer({ schedule, companies, defaultApplies, onClose }: {
+function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClose }: {
   schedule: Schedule | null
   companies: Company[]
+  /** Every schedule, for the cut-off items the organization added before. */
+  schedules: Schedule[]
   defaultApplies: CompanySelection
   onClose: () => void
 }) {
@@ -209,12 +220,21 @@ function ScheduleDrawer({ schedule, companies, defaultApplies, onClose }: {
       firstPayDate: schedule?.firstPayDate ?? '',
       cutoffDaysBefore: String(schedule?.cutoffDaysBefore ?? 2),
       payTime: schedule?.payTime?.slice(0, 5) ?? '17:00',
+      usesCutoff: schedule ? schedule.usesCutoff : true,
+      cutoffAppliesTo: schedule?.usesCutoff ? schedule.cutoffAppliesTo : [...cutoffItems],
       applies: schedule ? { all: schedule.allCompanies, ids: schedule.allCompanies ? companies.map(c => c.id) : schedule.companyIds } : defaultApplies,
       defaultFor: schedule?.defaultFor ?? [],
     },
   })
-  const [applies, frequency, rule, day, weekday, firstPayDate] =
-    useWatch({ control, name: ['applies', 'frequency', 'payDayRule', 'payDay', 'payWeekday', 'firstPayDate'] })
+  const [applies, frequency, rule, day, weekday, firstPayDate, usesCutoff, appliesTo] =
+    useWatch({ control, name: ['applies', 'frequency', 'payDayRule', 'payDay', 'payWeekday', 'firstPayDate', 'usesCutoff', 'cutoffAppliesTo'] })
+  const [addingItem, setAddingItem] = useState(false)
+  // The known items, then the organization's own (from any schedule, or just added here).
+  const ownItems = [...new Set([...schedules.flatMap(s => s.cutoffAppliesTo), ...appliesTo].filter(i => !isCutoffItem(i)))]
+  const itemOptions = [
+    ...cutoffItems.map(i => ({ value: i as string, label: t(`schedules.cutoffItems.${i}`) })),
+    ...ownItems.map(i => ({ value: i, label: i })),
+  ]
   const serves = served(applies.all, applies.ids, companies)
   const dayOptions = days.map(d => ({ value: d, label: t('schedules.day', { count: Number(d), ordinal: true }) }))
   const monthly = frequency === 'monthly'
@@ -254,6 +274,7 @@ function ScheduleDrawer({ schedule, companies, defaultApplies, onClose }: {
     if (v.name.trim().length < 2 || v.name.trim().length > 60) problems.push(['name', t('schedules.nameInvalid')])
     if (v.frequency === 'monthly' && v.payDayRule === 'fixed_day' && !v.payDay) problems.push(['payDay', t('schedules.payDayInvalid')])
     if (v.frequency === 'fortnightly' && !v.firstPayDate) problems.push(['firstPayDate', t('schedules.firstPayDateInvalid')])
+    if (v.frequency !== 'daily' && v.usesCutoff && v.cutoffAppliesTo.length === 0) problems.push(['cutoffAppliesTo', t('schedules.appliesToRequired')])
     if (!v.applies.all && v.applies.ids.length === 0) problems.push(['applies', t('schedules.companiesRequired')])
     for (const [name, message] of problems) setError(name, { message })
     return problems.length === 0
@@ -265,16 +286,19 @@ function ScheduleDrawer({ schedule, companies, defaultApplies, onClose }: {
     // Only the fields of its frequency; the others are sent empty.
     const isMonthly = v.frequency === 'monthly'
     const isByWeekday = v.frequency === 'weekly' || v.frequency === 'fortnightly'
+    const uses = v.frequency !== 'daily' && v.usesCutoff
     const body = {
       name: v.name.trim(),
       frequency: v.frequency,
       payDayRule: isMonthly ? v.payDayRule : null,
       payDay: isMonthly && v.payDayRule === 'fixed_day' ? Number(v.payDay) : null,
-      cutoffDay: isMonthly ? Number(v.cutoffDay) : null,
+      cutoffDay: isMonthly && uses ? Number(v.cutoffDay) : null,
       payWeekday: isByWeekday ? Number(v.payWeekday) : null,
       firstPayDate: v.frequency === 'fortnightly' ? v.firstPayDate : null,
-      cutoffDaysBefore: isByWeekday ? Number(v.cutoffDaysBefore) : null,
+      cutoffDaysBefore: isByWeekday && uses ? Number(v.cutoffDaysBefore) : null,
       payTime: v.frequency === 'daily' ? v.payTime : null,
+      usesCutoff: uses,
+      cutoffAppliesTo: uses ? v.cutoffAppliesTo : [],
       allCompanies: v.applies.all,
       companyIds: v.applies.all ? [] : v.applies.ids,
       // Only companies it still serves can have it as default.
@@ -302,7 +326,7 @@ function ScheduleDrawer({ schedule, companies, defaultApplies, onClose }: {
     if (error.code === 'ONB-3525') return setError('name', { message: errorMessage(t, error) })
     const fields: Record<string, FieldPath<Values>> = {
       name: 'name', frequency: 'frequency', payDayRule: 'payDayRule', payDay: 'payDay', cutoffDay: 'cutoffDay', payWeekday: 'payWeekday',
-      firstPayDate: 'firstPayDate', cutoffDaysBefore: 'cutoffDaysBefore', payTime: 'payTime', companyIds: 'applies', defaultFor: 'defaultFor',
+      firstPayDate: 'firstPayDate', cutoffDaysBefore: 'cutoffDaysBefore', payTime: 'payTime', cutoffAppliesTo: 'cutoffAppliesTo', companyIds: 'applies', defaultFor: 'defaultFor',
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
@@ -363,16 +387,28 @@ function ScheduleDrawer({ schedule, companies, defaultApplies, onClose }: {
             : <p className="m-0 text-body text-muted">—</p>}
           <p className="m-0 text-hint text-muted">{t('schedules.previewHint')}</p>
         </section>
-        {monthly && (
+        {frequency !== 'daily' && (
+          <Controller control={control} name="usesCutoff" render={({ field }) => (
+            <Switch label={t('schedules.useCutoff')} hint={t('schedules.cutoffHelp')} checked={field.value} onChange={field.onChange} />
+          )} />
+        )}
+        {monthly && usesCutoff && (
           <Controller control={control} name="cutoffDay" render={({ field }) => (
             <SelectField label={t('schedules.cutoffDay')} placeholder={t('schedules.cutoffPlaceholder')} hint={t('schedules.cutoffHint')}
               error={errors.cutoffDay?.message} options={dayOptions} {...field} />
           )} />
         )}
-        {byWeekday && (
+        {byWeekday && usesCutoff && (
           <Controller control={control} name="cutoffDaysBefore" render={({ field }) => (
             <SelectField label={t('schedules.cutoffBefore')} placeholder={t('schedules.cutoffPlaceholder')} hint={t('schedules.cutoffBeforeHint')}
               error={errors.cutoffDaysBefore?.message} options={beforeOptions} {...field} />
+          )} />
+        )}
+        {frequency !== 'daily' && usesCutoff && (
+          <Controller control={control} name="cutoffAppliesTo" render={({ field }) => (
+            <MultiSelectField label={t('schedules.appliesTo2')} hint={t('schedules.appliesToHint')} placeholder={t('schedules.appliesToPlaceholder')}
+              error={errors.cutoffAppliesTo?.message} options={itemOptions} value={field.value} onChange={field.onChange}
+              addLabel={t('schedules.addOwn')} onAdd={() => setAddingItem(true)} />
           )} />
         )}
 
@@ -397,6 +433,39 @@ function ScheduleDrawer({ schedule, companies, defaultApplies, onClose }: {
           {errors.defaultFor?.message && <p className="m-0 text-hint font-medium text-danger-ink">{errors.defaultFor.message}</p>}
         </fieldset>
       </form>
+      {addingItem && (
+        <AddCutoffItem taken={itemOptions.map(o => o.label)} onCancel={() => setAddingItem(false)}
+          onAdd={item => { setValue('cutoffAppliesTo', [...appliesTo, item]); setAddingItem(false) }} />
+      )}
     </Drawer>
+  )
+}
+
+/** Names one of the organization's own cut-off items, which is then ticked. */
+function AddCutoffItem({ taken, onAdd, onCancel }: { taken: string[]; onAdd: (item: string) => void; onCancel: () => void }) {
+  const { t } = useTranslation()
+  const formId = useId()
+  const [item, setItem] = useState('')
+  const [error, setError] = useState<string>()
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const name = item.trim()
+    if (name.length < 2 || name.length > 60) return setError(t('schedules.itemInvalid'))
+    if (taken.some(x => x.toLowerCase() === name.toLowerCase())) return setError(t('schedules.itemTaken'))
+    onAdd(name)
+  }
+
+  return (
+    <Modal open title={t('schedules.addItemTitle')} onClose={onCancel}
+      footer={<>
+        <Button variant="secondary" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button type="submit" form={formId}>{t('schedules.addItem')}</Button>
+      </>}>
+      <form id={formId} noValidate onSubmit={submit}>
+        <TextField label={t('schedules.item')} placeholder={t('schedules.itemPlaceholder')} maxLength={60} error={error}
+          value={item} onChange={e => { setItem(e.target.value); setError(undefined) }} />
+      </form>
+    </Modal>
   )
 }

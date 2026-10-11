@@ -228,6 +228,10 @@ public sealed class PaySchedule
     public int? CutoffDaysBefore { get; set; }
     /// <summary>Daily: when in the day people are paid (reminders count hours back from it).</summary>
     public TimeOnly? PayTime { get; set; }
+    /// <summary>Whether changes after a cut-off wait for the next payroll; daily pay has none.</summary>
+    public bool UsesCutoff { get; set; } = true;
+    /// <summary>What the cut-off covers: <see cref="PaySchedulesEndpoints.CutoffItems"/> keys or the organization's own items.</summary>
+    public List<string> CutoffAppliesTo { get; set; } = [.. PaySchedulesEndpoints.CutoffItems];
     public bool AllCompanies { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }

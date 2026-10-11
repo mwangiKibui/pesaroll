@@ -39,12 +39,47 @@ begin
   exception when check_violation then null;
   end;
   -- Daily: every working day at a pay time (reminders count hours back from it); nothing else.
-  insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_time)
-  values ('00000000-0000-7000-8000-000000000318', org1, 'Casuals daily', 'daily', null, null, '17:00');
+  insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_time, uses_cutoff, cutoff_applies_to)
+  values ('00000000-0000-7000-8000-000000000318', org1, 'Casuals daily', 'daily', null, null, '17:00', false, '{}');
   begin
-    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day)
-    values ('00000000-0000-7000-8000-000000000319', org1, 'No time', 'daily', null, null);
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, uses_cutoff, cutoff_applies_to)
+    values ('00000000-0000-7000-8000-000000000319', org1, 'No time', 'daily', null, null, false, '{}');
     raise exception 'a daily schedule was saved without its pay time';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_time)
+    values ('00000000-0000-7000-8000-000000000322', org1, 'Daily with cut-off', 'daily', null, null, '17:00');
+    raise exception 'a daily schedule was saved with a cut-off';
+  exception when check_violation then null;
+  end;
+
+  -- The cut-off is optional. When used, it has its day and covers at least one thing (all of them
+  -- unless said otherwise); when not, it has neither.
+  if (select cutoff_applies_to from pay_schedules where id = own)
+     <> '{overtime,new_employees,leavers,unpaid_leave,pay_changes,one_off}'::text[] then
+    raise exception 'a cut-off should cover everything unless said otherwise';
+  end if;
+  insert into pay_schedules (id, organization_id, name, cutoff_day, uses_cutoff, cutoff_applies_to)
+  values ('00000000-0000-7000-8000-000000000323', org1, 'Full month', null, false, '{}');
+  insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_weekday, uses_cutoff, cutoff_applies_to)
+  values ('00000000-0000-7000-8000-000000000324', org1, 'Weekly, no cut-off', 'weekly', null, null, 5, false, '{}');
+  insert into pay_schedules (id, organization_id, name, cutoff_applies_to)
+  values ('00000000-0000-7000-8000-000000000325', org1, 'Overtime only', '{overtime,Tips}');
+  begin
+    insert into pay_schedules (id, organization_id, name, uses_cutoff, cutoff_applies_to)
+    values ('00000000-0000-7000-8000-000000000326', org1, 'Half off', false, '{}');
+    raise exception 'a schedule without a cut-off kept its cut-off day';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, cutoff_applies_to) values ('00000000-0000-7000-8000-000000000327', org1, 'Covers nothing', '{}');
+    raise exception 'a cut-off covering nothing was saved';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into pay_schedules (id, organization_id, name, cutoff_day, uses_cutoff) values ('00000000-0000-7000-8000-000000000328', org1, 'Off but covers', null, false);
+    raise exception 'a schedule without a cut-off kept what it covers';
   exception when check_violation then null;
   end;
   begin

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
+import { MultiSelectField } from '../components/MultiSelectField'
 import { BulkUpload } from '../components/BulkUpload'
 import { Drawer } from '../components/Drawer'
 import { Modal } from '../components/Modal'
@@ -46,6 +47,7 @@ export default function ComponentsPage() {
   const [upload, setUpload] = useState(false)
   const [several, setSeveral] = useState<CompanySelection>({ all: false, ids: ['ke'] })
   const [one, setOne] = useState<CompanySelection>({ all: false, ids: ['ug'] })
+  const [items, setItems] = useState(['overtime', 'leavers'])
   const [town, setTown] = useState('nbo')
   const [payFrom, setPayFrom] = useState('bank')
   const [isDefault, setIsDefault] = useState(true)
@@ -98,6 +100,18 @@ export default function ComponentsPage() {
           <div className="grid gap-5 md:grid-cols-2">
             <CompanySelect label="Show companies" companies={companies} value={several} onChange={setSeveral} />
             <CompanySelect label="Company" companies={companies} value={one} onChange={setOne} multiple={false} />
+          </div>
+        </Section>
+
+        <Section title="Multi-select">
+          <div className="grid max-w-xl gap-4">
+            <MultiSelectField label="What the cut-off applies to" hint="Changes to these after the cut-off go into the next payroll."
+              placeholder="Your cut-off items" value={items} onChange={setItems} addLabel="Add your own" onAdd={() => setItems(v => [...v, `Item ${v.length + 1}`])}
+              options={[
+                { value: 'overtime', label: 'Overtime and extra hours' }, { value: 'new_employees', label: 'New employees' },
+                { value: 'leavers', label: 'People leaving' }, { value: 'unpaid_leave', label: 'Unpaid leave and absences' },
+                ...items.filter(i => i.startsWith('Item ')).map(i => ({ value: i, label: i })),
+              ]} />
           </div>
         </Section>
 

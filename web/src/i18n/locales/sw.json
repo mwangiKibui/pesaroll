@@ -7,7 +7,9 @@
     "loading": "Inapakia",
     "menu": "Menyu",
     "noMatches": "Hakuna kinacholingana",
-    "needsFixing": ", inahitaji kurekebishwa"
+    "needsFixing": ", inahitaji kurekebishwa",
+    "searchIn": "Tafuta {{what}}",
+    "searchPlaceholder": "Unachotafuta"
   },
   "nav": {
     "main": "Menyu kuu",
@@ -533,7 +535,7 @@
     "payDayInvalid": "Chagua tarehe ya malipo kati ya 1 na 28.",
     "cutoffDay": "Tarehe ya mwisho ya mabadiliko",
     "cutoffPlaceholder": "Tarehe yako ya mwisho ya mabadiliko",
-    "cutoffHint": "Saa za ziada, likizo na mabadiliko mengine baada ya tarehe hii yanaingia kwenye mishahara ya mwezi ujao.",
+    "cutoffHint": "Siku ya mwisho ya mwezi ambayo mabadiliko yanahesabiwa kwenye mishahara ya mwezi huu.",
     "preview": "Tarehe zijazo za malipo",
     "previewHint": "Wikendi zinarukwa. Sikukuu bado, kwa hivyo kagua tarehe hizi.",
     "day_ordinal_one": "Tarehe {{count}}",
@@ -557,12 +559,34 @@
     "firstPayDateHint": "Wiki mbili zinahesabiwa kuanzia tarehe hii.",
     "firstPayDateInvalid": "Chagua tarehe ya kwanza ya malipo.",
     "cutoffBefore": "Mwisho wa mabadiliko",
-    "cutoffBeforeHint": "Saa za ziada, likizo na mabadiliko mengine baada ya mwisho huu yanaingia kwenye mishahara inayofuata.",
+    "cutoffBeforeHint": "Siku ngapi kabla ya siku ya malipo mabadiliko yanaacha kuhesabiwa kwenye mishahara hii.",
     "onPayDay": "Siku ya malipo",
     "daysBefore_one": "Siku {{count}} kabla",
     "daysBefore_other": "Siku {{count}} kabla",
     "payTime": "Saa ya malipo",
     "payTimePlaceholder": "Saa yako ya malipo",
-    "payTimeHint": "Malipo ya kila siku ni kila siku ya kazi; hakuna mwisho wa mabadiliko."
+    "payTimeHint": "Malipo ya kila siku ni kila siku ya kazi; hakuna mwisho wa mabadiliko.",
+    "useCutoff": "Tumia mwisho wa mabadiliko",
+    "cutoffHelp": "Mwisho wa mabadiliko ni siku ya mwisho ambayo mabadiliko yanahesabiwa kwenye mishahara hii. Chochote baada yake, kama saa za ziada au siku za kwanza za mfanyakazi mpya, kinalipwa kwenye mishahara inayofuata. Zima kama kila kitu hadi siku ya malipo kinalipwa siku hiyo.",
+    "appliesTo2": "Mwisho wa mabadiliko unahusu nini",
+    "appliesToHint": "Mabadiliko ya haya baada ya mwisho yanaingia kwenye mishahara inayofuata.",
+    "appliesToPlaceholder": "Vitu vyako vya mwisho wa mabadiliko",
+    "appliesToRequired": "Chagua angalau kitu kimoja, au zima mwisho wa mabadiliko.",
+    "cutoffItems": {
+      "overtime": "Saa za ziada",
+      "new_employees": "Wafanyakazi wapya",
+      "leavers": "Wanaoondoka",
+      "unpaid_leave": "Likizo bila malipo na kutokuwepo",
+      "pay_changes": "Mabadiliko ya mshahara na kupandishwa cheo",
+      "one_off": "Posho, bonasi na makato ya mara moja"
+    },
+    "addOwn": "Ongeza chako",
+    "addItemTitle": "Ongeza kitu cha mwisho wa mabadiliko",
+    "item": "Kitu",
+    "itemPlaceholder": "Kitu chako",
+    "addItem": "Ongeza kitu",
+    "itemInvalid": "Kipe jina la herufi 2 hadi 60.",
+    "itemTaken": "Tayari kiko kwenye orodha.",
+    "noCutoff": "Hakuna"
   }
 }

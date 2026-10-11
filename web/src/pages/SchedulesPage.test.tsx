@@ -81,7 +81,7 @@ const fortnightly = schedule({
   cutoffDaysBefore: 0, allCompanies: false, companyIds: [restaurant.id], defaultFor: [], nextPayDates: ['2026-10-14', '2026-10-28', '2026-11-11'],
 })
 const daily = schedule({
-  id: '0199c0de-0000-7000-8000-00000000f006', name: 'Casuals daily', frequency: 'daily', payDayRule: null, cutoffDay: null, payTime: '17:00:00',
+  id: '0199c0de-0000-7000-8000-00000000f006', name: 'Casuals daily', frequency: 'daily', payDayRule: null, cutoffDay: null, payTime: '17:00:00', usesCutoff: false, cutoffAppliesTo: [],
   allCompanies: false, companyIds: [restaurant.id], defaultFor: [], nextPayDates: ['2026-10-12', '2026-10-13', '2026-10-14'],
 })
 
@@ -143,6 +143,59 @@ it('a daily schedule asks only for the pay time', async () => {
   expect(await screen.findByText('Schedule added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-schedules')?.body).toMatchObject({
     frequency: 'daily', payTime: '18:30', payDayRule: null, cutoffDay: null, payWeekday: null, cutoffDaysBefore: null,
+  })
+})
+
+it('the cut-off is explained, optional, and covers what is chosen, including your own items', async () => {
+  const fullMonth = schedule({ id: '0199c0de-0000-7000-8000-00000000f007', name: 'Full month', cutoffDay: null, usesCutoff: false, cutoffAppliesTo: [], defaultFor: [] })
+  const withTips = schedule({ id: '0199c0de-0000-7000-8000-00000000f008', name: 'With tips', cutoffAppliesTo: ['overtime', 'Tips'], defaultFor: [] })
+  const calls = oneCompany({
+    'GET /api/pay-schedules': () => json(200, [monthly, fullMonth, withTips]),
+    'POST /api/pay-schedules': () => json(201, fullMonth),
+  })
+  renderApp('/setup/schedules')
+  await screen.findByRole('region', { name: 'Payroll schedules' })
+  const row = (await within(table()).findByRole('button', { name: 'Edit Full month' })).closest('tr')!
+  expect(within(row).getAllByRole('cell')[3]).toHaveTextContent('None')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Add schedule' }))
+  const uses = within(drawer()).getByRole('switch', { name: 'Use a cut-off' })
+  expect(uses).toBeChecked()
+  expect(uses).toHaveAccessibleDescription(/last day changes count toward this payroll/)
+  const covers = within(drawer()).getByRole('button', { name: /What the cut-off applies to/ })
+  expect(covers).toHaveTextContent('6 selected')
+
+  // Your own item: the first choice, in a small form on top of the drawer.
+  await userEvent.click(covers)
+  expect(screen.getByRole('option', { name: 'Tips' })).toHaveAttribute('aria-selected', 'false')   // added on another schedule
+  await userEvent.click(screen.getByRole('button', { name: 'Add your own' }))
+  const modal = screen.getByRole('dialog', { name: 'Add what the cut-off applies to' })
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Item' }), 'Expense claims')
+  await userEvent.click(within(modal).getByRole('button', { name: 'Add item' }))
+  expect(screen.queryByRole('dialog', { name: 'Add what the cut-off applies to' })).not.toBeInTheDocument()
+  expect(within(drawer()).getByRole('button', { name: /What the cut-off applies to/ })).toHaveTextContent('7 selected')
+
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Schedule name' }), 'Monthly with claims')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add schedule' }))
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-schedules')?.body).toMatchObject({
+    usesCutoff: true, cutoffDay: 25,
+    cutoffAppliesTo: ['overtime', 'new_employees', 'leavers', 'unpaid_leave', 'pay_changes', 'one_off', 'Expense claims'],
+  })
+})
+
+it('turning the cut-off off keeps none of it', async () => {
+  const calls = oneCompany({ 'POST /api/pay-schedules': () => json(201, monthly) })
+  renderApp('/setup/schedules')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add schedule' }))
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Schedule name' }), 'Full month')
+
+  await userEvent.click(within(drawer()).getByRole('switch', { name: 'Use a cut-off' }))
+
+  expect(within(drawer()).queryByRole('combobox', { name: 'Cut-off day' })).not.toBeInTheDocument()
+  expect(within(drawer()).queryByRole('button', { name: /What the cut-off applies to/ })).not.toBeInTheDocument()
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add schedule' }))
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-schedules')?.body).toMatchObject({
+    usesCutoff: false, cutoffDay: null, cutoffDaysBefore: null, cutoffAppliesTo: [],
   })
 })
 
