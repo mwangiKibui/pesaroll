@@ -85,6 +85,18 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         Assert.Contains("Equity Bank", lists);
         Assert.Contains("Yes", lists);
         Assert.Contains("M-Pesa", lists);       // Paid into
+
+        // Branch offers only the branches of the row's bank (a dependent dropdown, as Excel does them).
+        var branchColumn = headers.IndexOf("Branch") + 1;
+        var bankColumn = sheet.Cell(1, headers.IndexOf("Bank") + 1).Address.ColumnLetter;
+        var rule = sheet.Cell(2, branchColumn).GetDataValidation();
+        Assert.Contains("INDIRECT", rule.Value);
+        Assert.Contains($"VLOOKUP({bankColumn}2,", rule.Value);   // the row's own bank…
+        Assert.Matches(@"^INDIRECT\(VLOOKUP\([A-Z]+2,Lists!\$[A-Z]+\$1:\$[A-Z]+\$\d+,2,FALSE\)\)$", rule.Value);   // …in a lookup table that stays put
+        var listName = book.Worksheet("Lists").CellsUsed().Where(c => c.GetString() == "Equity Bank")
+            .Select(c => c.CellRight().GetString()).Single(v => v.StartsWith("branch_"));   // the bank's row of the lookup table
+        var equity = book.DefinedNames.Single(n => n.Name == listName);
+        Assert.Equal(["Kisumu", "Moi Avenue, Nairobi", "Mombasa"], equity.Ranges.Single().Cells().Select(c => c.GetString()).Order().ToList());
     }
 
     [Fact]
@@ -161,6 +173,19 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         Assert.Equal("31/02/2024", withCompany.Rows[1].Cells["hireDate"]);   // not a date: as typed, to fix
         Assert.Equal([(3, "hireDate")], withCompany.Problems.Select(p => (p.Line, p.Column)));
         Assert.Contains(without.Problems, p => p.Column == "company");   // two companies, none chosen
+    }
+
+    [Fact]
+    public async Task A_branch_of_another_bank_says_whose_it_is_and_which_to_choose()
+    {
+        var (client, _) = await Onboarded();
+
+        var check = (await (await client.PostAsJsonAsync("/api/employees/import/check", RowsBody(
+            Person("Maggie", "Kibui", ("paidInto", "Bank"), ("bank", "Equity Bank"), ("branch", "City Centre, Nairobi"), ("accountNumber", "0340169211195"))))).Content
+            .ReadFromJsonAsync<Check>())!;
+
+        Assert.Equal((2, "branch", "City Centre, Nairobi is a branch of NCBA Bank. Choose a branch of Equity Bank: Kisumu (029), Moi Avenue, Nairobi (047) or Mombasa (025)."),
+            check.Problems.Select(p => (p.Line, p.Column!, p.Message)).Single());
     }
 
     [Fact]

@@ -39,9 +39,10 @@ public sealed record ImportResult(int Imported);
 /// format: "@" keeps text as typed (leading zeros in account numbers). A date column (Date) says
 /// how to write it in its header, "Start date (DD/MM/YYYY)", and is read back as yyyy-mm-dd when it
 /// is one. A column left out of the template (InTemplate false) is filled in by the app, such as the
-/// company chosen before the upload.
+/// company chosen before the upload. A column that DependsOn another (Branch on Bank) offers the
+/// choices for that row's value of it: its choices are keyed "branch:Equity Bank".
 /// </summary>
-public sealed record ImportColumn(string Key, string Header, string? Format = null, bool InTemplate = true, bool IsDate = false)
+public sealed record ImportColumn(string Key, string Header, string? Format = null, bool InTemplate = true, bool IsDate = false, string? DependsOn = null)
 {
     /// <summary>A date column: day first, as written in Kenya.</summary>
     public static ImportColumn Date(string key, string header) => new(key, $"{header} (DD/MM/YYYY)", "dd/mm/yyyy", IsDate: true);
@@ -186,6 +187,35 @@ public static class SpreadsheetImport
             if (inTemplate[c].Format is { } format)
             {
                 sheet.Range(2, c + 1, last, c + 1).Style.NumberFormat.Format = format;
+            }
+
+            if (inTemplate[c].DependsOn is { } parent && inTemplate.FindIndex(x => x.Key == parent) is var p and >= 0)
+            {
+                // A list per value of the other column (a named range), found through a lookup table of
+                // value → name: the cell's dropdown is INDIRECT(VLOOKUP(that row's value)).
+                var prefix = inTemplate[c].Key + ":";
+                var groups = choices.Where(x => x.Key.StartsWith(prefix, StringComparison.Ordinal) && x.Value.Count > 0).ToList();
+                if (groups.Count == 0)
+                {
+                    continue;
+                }
+
+                var table = ++listColumn;
+                listColumn++;
+                for (var g = 0; g < groups.Count; g++)
+                {
+                    var name = $"{inTemplate[c].Key}_{g + 1}";
+                    lists.Cell(g + 1, table).Value = groups[g].Key[prefix.Length..];
+                    lists.Cell(g + 1, table + 1).Value = name;
+                    listColumn++;
+                    for (var i = 0; i < groups[g].Value.Count; i++) lists.Cell(i + 1, listColumn).Value = groups[g].Value[i];
+                    book.DefinedNames.Add(name, lists.Range(1, listColumn, groups[g].Value.Count, listColumn));
+                }
+
+                var parentCell = sheet.Cell(2, p + 1).Address.ToString(XLReferenceStyle.A1, includeSheet: false).Replace("$", "");
+                var lookup = $"Lists!{lists.Range(1, table, groups.Count, table + 1).RangeAddress.ToStringFixed(XLReferenceStyle.A1)}";
+                sheet.Range(2, c + 1, last, c + 1).CreateDataValidation().List($"INDIRECT(VLOOKUP({parentCell},{lookup},2,FALSE))");
+                continue;
             }
 
             if (choices.GetValueOrDefault(inTemplate[c].Key) is not { } options)

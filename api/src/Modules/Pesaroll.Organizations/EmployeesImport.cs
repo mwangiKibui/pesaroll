@@ -34,7 +34,7 @@ public static class EmployeesImport
         ImportColumn.Date("contractEnd", "Contract end"), new("division", "Division"), new("department", "Department"), new("unit", "Unit"),
         new("position", "Position"), new("lineManager", "Line manager (staff number)", "@"),
         new("payrollSchedule", "Payroll schedule"), new("leavePlan", "Leave plan"), new("basicPay", "Basic pay"),
-        new("paidInto", "Paid into"), new("bank", "Bank"), new("branch", "Branch", "@"), new("accountNumber", "Account number", "@"), new("mpesa", "M-Pesa number", "@"),
+        new("paidInto", "Paid into"), new("bank", "Bank"), new("branch", "Branch", "@", DependsOn: "bank"), new("accountNumber", "Account number", "@"), new("mpesa", "M-Pesa number", "@"),
     ];
 
     private static readonly string[] Types = ["Permanent", "Contract", "Casual", "Intern"];
@@ -66,8 +66,15 @@ public static class EmployeesImport
             ["paidInto"] = ["Bank", "M-Pesa"],
             ["employmentType"] = [.. Types],
             ["bank"] = await db.Banks.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.SortOrder).Select(b => b.Name).ToListAsync(ct),
-            ["branch"] = (await db.BankBranches.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.Name).Select(b => b.Name).ToListAsync(ct)).Distinct().ToList(),
         };
+        // Branch offers the branches of the row's bank.
+        var banks = await db.Banks.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.SortOrder).ToListAsync(ct);
+        var branches = await db.BankBranches.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.Name).ToListAsync(ct);
+        foreach (var bank in banks)
+        {
+            choices[$"branch:{bank.Name}"] = branches.Where(b => b.BankCode == bank.Code).Select(b => b.Name).ToList();
+        }
+
         if (company is null)
         {
             return choices;
@@ -138,6 +145,21 @@ public static class EmployeesImport
             .Select(x => new Ref(x.Id, x.Name, x.Name, x.AllCompanies, x.Companies.Select(c => c.CompanyId).ToList())).ToList();
         var banks = await db.Banks.AsNoTracking().Where(b => b.Active).ToListAsync(ct);
         var branches = await db.BankBranches.AsNoTracking().Where(b => b.Active).ToListAsync(ct);
+
+        // "City Centre, Nairobi is a branch of NCBA Bank. Choose a branch of Equity Bank: Kisumu (029) or …": whose branch it
+        // is, and the bank's own (named when there are a few; codes keep names with commas apart).
+        string BranchProblem(Bank bank, string text)
+        {
+            var other = branches.Where(b => b.CountryCode == bank.CountryCode && b.BankCode != bank.Code
+                    && (string.Equals(b.Name, text, StringComparison.OrdinalIgnoreCase) || string.Equals(b.Code, text, StringComparison.OrdinalIgnoreCase)))
+                .Select(b => banks.FirstOrDefault(x => x.CountryCode == b.CountryCode && x.Code == b.BankCode)?.Name).FirstOrDefault(n => n is not null);
+            var own = branches.Where(b => b.CountryCode == bank.CountryCode && b.BankCode == bank.Code).OrderBy(b => b.Name).Select(b => $"{b.Name} ({b.Code})").ToList();
+            var choose = own.Count is > 0 and <= 6 ? $"Choose a branch of {bank.Name}: {string.Join(", ", own[..^1])}{(own.Count > 1 ? " or " : "")}{own[^1]}."
+                : $"Choose a branch of {bank.Name} from the list, by name or code.";
+            return text.Length == 0 ? choose
+                : other is not null ? $"{text} is a branch of {other}. {choose}"
+                : $"{bank.Name} has no branch called {text}. {choose}";
+        }
         var payMethods = (await db.CompanyPaymentAccounts.AsNoTracking().Where(a => a.ClosedAt == null).Select(a => new { a.CompanyId, a.Method }).ToListAsync(ct))
             .GroupBy(a => a.CompanyId).ToDictionary(g => g.Key, g => g.Select(a => a.Method).Distinct().ToList());
         var existing = await db.Employees.AsNoTracking()
@@ -428,7 +450,7 @@ public static class EmployeesImport
                 }
                 else if (branch is null)
                 {
-                    Problem("branch", $"Enter the {bank.Name} branch by name or code.");
+                    Problem("branch", BranchProblem(bank, branchText));
                 }
 
                 if (accountText.Length == 0)
