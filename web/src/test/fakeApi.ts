@@ -61,8 +61,8 @@ export const company = (overrides: Record<string, unknown> = {}) => ({
 })
 
 export const banks = [
-  { code: '68', name: 'Equity Bank', branches: [{ code: '047', name: 'Moi Avenue, Nairobi' }, { code: '025', name: 'Mombasa' }] },
-  { code: '01', name: 'KCB Bank', branches: [{ code: '100', name: 'Moi Avenue, Nairobi' }] },
+  { code: '68', name: 'Equity Bank', branches: [{ code: '047', name: 'Moi Avenue, Nairobi' }, { code: '025', name: 'Mombasa' }], accountDigitsMin: 13, accountDigitsMax: 13 },
+  { code: '01', name: 'KCB Bank', branches: [{ code: '100', name: 'Moi Avenue, Nairobi' }], accountDigitsMin: 10, accountDigitsMax: 16 },
 ]
 
 /** A paying account as the API returns it: the number only ever masked. */
@@ -147,7 +147,7 @@ export const orgToken = () => token(jwt())
  * session (refresh answers AUTH-1007) and the role list and /me answer as above.
  */
 export function fakeApi(routes: Record<string, Handler> = {}) {
-  const calls: { method: string; path: string; body: unknown; auth: string | null }[] = []
+  const calls: { method: string; path: string; url: string; body: unknown; auth: string | null }[] = []
   const defaults: Record<string, Handler> = {
     'POST /api/auth/refresh': () => apiError(401, 'AUTH-1007', 'Sign in to continue.'),
     'GET /api/auth/signup-roles': () => json(200, roles),
@@ -179,7 +179,7 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     const isForm = req.headers.get('Content-Type')?.startsWith('multipart/form-data')
     const text = isForm ? '' : await req.clone().text()
     const body = isForm ? await req.clone().formData() : text ? JSON.parse(text) : null
-    calls.push({ method: req.method, path, body, auth: req.headers.get('Authorization') })
+    calls.push({ method: req.method, path, url: req.url, body, auth: req.headers.get('Authorization') })
     const handler = routes[`${req.method} ${path}`] ?? defaults[`${req.method} ${path}`]
     return handler ? handler(req) : json(404, {})
   }))

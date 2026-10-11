@@ -380,13 +380,13 @@ function UploadLocations({ companies, country, onClose }: { companies: Company[]
         importButton: count => t('locations.importButton', { count }),
         templateHint: t('locations.templateHint'),
       }}>
-      {companies.length > 1 && <>
-        <div className="max-w-sm">
+      {companies.length > 1 && (
+        <div className="flex w-full max-w-sm flex-col gap-1.5">
           <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
             companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+          <p className="m-0 text-hint text-muted">{t('locations.importMainHint')}</p>
         </div>
-        <p className="m-0 text-hint text-muted">{t('locations.importMainHint')}</p>
-      </>}
+      )}
     </BulkUpload>
   )
 }

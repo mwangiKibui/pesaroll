@@ -2591,7 +2591,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2833,7 +2835,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4059,7 +4063,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4301,7 +4307,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4543,7 +4551,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4785,7 +4795,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -5040,6 +5052,10 @@ export interface components {
             code: string;
             name: string;
             branches: components["schemas"]["BranchResponse"][];
+            /** Format: int32 */
+            accountDigitsMin: number | string;
+            /** Format: int32 */
+            accountDigitsMax: number | string;
         };
         BranchResponse: {
             code: string;

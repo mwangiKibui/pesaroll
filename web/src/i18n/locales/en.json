@@ -820,7 +820,9 @@
     "per": {
       "monthly": "{{amount}} a month",
       "daily": "{{amount}} a day",
-      "hourly": "{{amount}} an hour"
+      "hourly": "{{amount}} an hour",
+      "weekly": "{{amount}} a week",
+      "fortnightly": "{{amount}} every two weeks"
     },
     "page": "Page {{page}} of {{pages}}",
     "previous": "Previous page",
@@ -867,16 +869,16 @@
     "exitDateHint": "Only for someone who has left. They stay in Pesaroll for P9A cards and history.",
     "nationalId": "ID number",
     "nationalIdPlaceholder": "Your employee's ID number",
-    "nationalIdHint": "7 or 8 digits, from their national ID.",
+    "nationalIdHint": "7 or 8 digits, or 9 for a Maisha Namba.",
     "kraPin": "KRA PIN",
     "kraPinPlaceholder": "Your employee's KRA PIN",
     "kraPinHint": "A, 9 digits and a letter, like A012345678Z. Needed for PAYE.",
     "nssfNo": "NSSF number",
     "nssfNoPlaceholder": "Your employee's NSSF number",
-    "nssfNoHint": "6 to 12 digits.",
+    "nssfNoHint": "7 to 10 digits, from their NSSF card.",
     "shaNo": "SHA number",
     "shaNoPlaceholder": "Your employee's SHA number",
-    "shaNoHint": "From the Social Health Authority.",
+    "shaNoHint": "From the Social Health Authority: letters, digits and dashes.",
     "saved_": "Saved: {{masked}}. Type a new one to change it.",
     "company": "Company",
     "companyPlaceholder": "Your company",
@@ -904,20 +906,15 @@
       "intern": "Intern"
     },
     "contractEnd": "Contract end",
-    "payBasis": "How they're paid",
-    "bases": {
-      "monthly": "Monthly",
-      "daily": "Daily",
-      "hourly": "Hourly"
-    },
     "amountLabels": {
       "monthly": "Monthly salary (KES)",
       "daily": "Daily rate (KES)",
-      "hourly": "Hourly rate (KES)"
+      "hourly": "Hourly rate (KES)",
+      "weekly": "Weekly wage (KES)",
+      "fortnightly": "Wage every two weeks (KES)"
     },
     "amountPlaceholder": "Your amount",
     "amountInvalid": "Enter an amount more than 0, or leave it empty for now.",
-    "basisMismatch": "{{schedule}} pays {{frequency}}. Check that a {{basis}} rate is right.",
     "frequencies": {
       "monthly": "monthly",
       "weekly": "weekly",
@@ -940,7 +937,6 @@
     "mpesa": "M-Pesa number",
     "mpesaPlaceholder": "Your employee's M-Pesa number",
     "columns": {
-      "company": "Company",
       "staffNo": "Staff number",
       "firstName": "First name",
       "middleName": "Middle name",
@@ -965,7 +961,6 @@
       "payrollSchedule": "Payroll schedule",
       "leavePlan": "Leave plan",
       "basicPay": "Basic pay",
-      "payBasis": "Paid",
       "bank": "Bank",
       "branch": "Branch",
       "accountNumber": "Account number",
@@ -985,6 +980,32 @@
     "dateOfBirthPlaceholder": "Your employee's date of birth",
     "contractEndPlaceholder": "Your contract's end date",
     "stillHere": "Still works here",
-    "exitDateRequired": "Enter the date they left, or tick Still works here."
+    "exitDateRequired": "Enter the date they left, or tick Still works here.",
+    "mpesaHint": "A Safaricom line, like 0712 345 678.",
+    "amountHint": "Paid {{frequency}}, as their payroll schedule says.",
+    "paysByHint": "{{company}} pays by {{method}}, so this is needed for people who work here.",
+    "uploadCompany": "Choose the company",
+    "uploadCompanyHint": "The template's lists (schedules, leave plans, structure, banks) are this company's.",
+    "sheetCompanyHint": "Changing the company starts the sheet again, as its lists change.",
+    "rules": {
+      "required": "This is needed.",
+      "nameTooLong": "Use 60 characters or fewer.",
+      "kraPin": "Enter a KRA PIN like A012345678Z: A, 9 digits and a letter.",
+      "nationalId": "Enter 7 or 8 digits, or 9 for a Maisha Namba.",
+      "nssfNo": "Enter 7 to 10 digits.",
+      "shaNo": "Use 6 to 20 letters, digits or dashes.",
+      "phone": "Enter a Kenyan mobile number, like 0712 345 678.",
+      "email": "Enter an email address, like name@company.co.ke.",
+      "mpesa": "Enter a Safaricom number for M-Pesa, like 0712 345 678.",
+      "amount": "Enter an amount above 0, like 45,000.",
+      "staffNo": "Use up to 20 letters, digits, dashes or slashes.",
+      "accountDigits": "Enter the account number in digits.",
+      "accountExactly": "{{bank}} account numbers are {{count}} digits.",
+      "accountBetween": "{{bank}} account numbers are {{min}} to {{max}} digits.",
+      "bankFirst": "Choose the bank first.",
+      "paysByBank": "{{company}} pays by bank: add their bank details.",
+      "paysByMpesa": "{{company}} pays by M-Pesa: add their M-Pesa number.",
+      "exitDate": "Enter the date they left, or tick Still works here."
+    }
   }
 }

@@ -249,7 +249,7 @@ it('a sheet can have checkbox columns, defaults, and cells that only open when a
   await userEvent.type(left, '2025-06-30')
   await userEvent.click(within(sheet).getByRole('button', { name: /^Add \d people$/ }))
 
-  expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Akinyi', stillHere: '', exitDate: '2025-06-30' } }])
+  expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Akinyi', stillHere: 'No', exitDate: '2025-06-30' } }])
 })
 
 it('adding by hand happens in a drawer 97% of the screen wide', () => {
@@ -261,4 +261,51 @@ it('adding by hand happens in a drawer 97% of the screen wide', () => {
 
   expect(screen.getByRole('dialog', { name: 'Add 1 people' })).toHaveClass('max-w-[97vw]')
   expect(screen.getByTestId('drawer-scrim')).toBeInTheDocument()
+})
+
+it('checks a cell as soon as it is left, offers choices that follow the row, and checks every cell before importing', async () => {
+  const check = vi.fn(async () => clean)
+  const branches: Record<string, { value: string; label: string }[]> = {
+    Equity: [{ value: 'Kilimani', label: 'Kilimani' }], KCB: [{ value: 'Moi Avenue', label: 'Moi Avenue' }],
+  }
+  const cols = [
+    { key: 'name', label: 'Name', validate: (v: string) => (v.trim() ? null : 'Enter their name.') },
+    { key: 'pin', label: 'KRA PIN', validate: (v: string) => (!v || /^A\d{9}[A-Z]$/.test(v) ? null : 'Enter a PIN like A012345678Z.') },
+    { key: 'bank', label: 'Bank', options: [{ value: 'Equity', label: 'Equity' }, { value: 'KCB', label: 'KCB' }] },
+    { key: 'branch', label: 'Branch', optionsFor: (cells: Record<string, string>) => branches[cells.bank] ?? [], disabledWhen: (cells: Record<string, string>) => !cells.bank },
+  ]
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={cols} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={check} onImport={async () => null}
+      onCellsChange={(cells, changed) => (changed === 'bank' ? { ...cells, branch: '' } : cells)}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+  const sheet = screen.getByRole('dialog', { name: /Add \d people/ })
+  const pin = within(sheet).getByRole('textbox', { name: 'KRA PIN, row 1' })
+
+  await userEvent.type(pin, 'P123')
+  expect(within(sheet).queryByText('Enter a PIN like A012345678Z.')).not.toBeInTheDocument()   // not while typing
+  await userEvent.tab()
+  expect(within(sheet).getByText('Enter a PIN like A012345678Z.')).toBeInTheDocument()
+  await userEvent.clear(pin)
+  await userEvent.type(pin, 'A012345678Z')
+  await userEvent.tab()
+  expect(within(sheet).queryByText('Enter a PIN like A012345678Z.')).not.toBeInTheDocument()
+
+  const branch = within(sheet).getByRole('combobox', { name: 'Branch, row 1' })
+  expect(branch).toBeDisabled()
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }))
+  await userEvent.click(screen.getByRole('option', { name: 'KCB' }))
+  expect(branch).toBeEnabled()
+  await userEvent.click(branch)
+  expect(screen.queryByRole('option', { name: 'Kilimani' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('option', { name: 'Moi Avenue' }))
+  expect(branch).toHaveValue('Moi Avenue')
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Equity' }))
+  expect(branch).toHaveValue('')   // a new bank clears the branch
+
+  await userEvent.click(within(sheet).getByRole('button', { name: /^Add \d people$/ }))
+  expect(within(sheet).getByText('Enter their name.')).toBeInTheDocument()   // never left, still checked
+  expect(check).not.toHaveBeenCalled()
 })

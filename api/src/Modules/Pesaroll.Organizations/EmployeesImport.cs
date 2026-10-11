@@ -11,8 +11,9 @@ using Pesaroll.Shared.Security;
 namespace Pesaroll.Organizations;
 
 /// <summary>
-/// ONB-09, uploading employees with the shared spreadsheet import (up to 5,000 a file). Each row
-/// names its company and the rest as text: the structure chain (a division, department or position
+/// ONB-09, uploading employees with the shared spreadsheet import (up to 5,000 a file), for one
+/// company chosen first (the app puts it in each row's company cell; the template is made for it,
+/// its lists as dropdowns). Rows name the rest as text: the structure chain (a division, department or position
 /// that doesn't exist yet is noted and created on import, for the row's company), location,
 /// payroll schedule and leave plan by name (empty means the company's defaults), the line manager
 /// by staff number (someone already there or another row of the file), bank and branch by name or
@@ -25,18 +26,18 @@ public static class EmployeesImport
 
     public static readonly IReadOnlyList<ImportColumn> Columns =
     [
-        new("company", "Company"), new("staffNo", "Staff number", "@"), new("firstName", "First name"), new("middleName", "Middle name"),
+        new("company", "Company", InTemplate: false), new("staffNo", "Staff number", "@"), new("firstName", "First name"), new("middleName", "Middle name"),
         new("lastName", "Last name"), new("dateOfBirth", "Date of birth", "yyyy-mm-dd"), new("phone", "Phone", "@"), new("email", "Email"),
         new("nationalId", "ID number", "@"), new("kraPin", "KRA PIN", "@"), new("nssfNo", "NSSF number", "@"), new("shaNo", "SHA number", "@"),
-        new("hireDate", "Start date", "yyyy-mm-dd"), new("exitDate", "Date left", "yyyy-mm-dd"), new("employmentType", "Employment type"),
+        new("hireDate", "Start date", "yyyy-mm-dd"), new("stillHere", "Still works here"), new("exitDate", "Date left", "yyyy-mm-dd"),
+        new("employmentType", "Employment type"),
         new("contractEnd", "Contract end", "yyyy-mm-dd"), new("division", "Division"), new("department", "Department"), new("unit", "Unit"),
         new("position", "Position"), new("location", "Location"), new("lineManager", "Line manager (staff number)", "@"),
-        new("payrollSchedule", "Payroll schedule"), new("leavePlan", "Leave plan"), new("basicPay", "Basic pay"), new("payBasis", "Paid"),
+        new("payrollSchedule", "Payroll schedule"), new("leavePlan", "Leave plan"), new("basicPay", "Basic pay"),
         new("bank", "Bank"), new("branch", "Branch", "@"), new("accountNumber", "Account number", "@"), new("mpesa", "M-Pesa number", "@"),
     ];
 
     private static readonly string[] Types = ["Permanent", "Contract", "Casual", "Intern"];
-    private static readonly string[] Bases = ["Monthly", "Daily", "Hourly"];
 
     public static IEndpointRouteBuilder MapEmployeesImportEndpoints(this IEndpointRouteBuilder app)
     {
@@ -47,11 +48,40 @@ public static class EmployeesImport
             RequiredKeys = ["firstName", "lastName"],
             MaxRows = MaxRows,
             MaxMegabytes = MaxMegabytes,
-            Choices = (_, _) => Task.FromResult(new Dictionary<string, List<string>> { ["employmentType"] = [.. Types], ["payBasis"] = [.. Bases] }),
+            Choices = ChoicesAsync,
             Check = (rows, db, services, ct) => CheckAsync(rows, db, services.GetRequiredService<FieldEncryptor>(), ct),
             Save = (rows, _, organizationId, db, now, services, ct) => SaveAsync(rows, organizationId, db, now, services.GetRequiredService<FieldEncryptor>(), ct),
         });
         return app;
+    }
+
+    /// <summary>The template's dropdowns: Still works here, employment type, banks and branches, and the company's own lists.</summary>
+    private static async Task<Dictionary<string, List<string>>> ChoicesAsync(OrganizationsDbContext db, Guid? companyId, CancellationToken ct)
+    {
+        var company = companyId is Guid id ? await db.Companies.AsNoTracking().SingleOrDefaultAsync(c => c.Id == id, ct) : null;
+        var country = company?.CountryCode ?? "KE";
+        var choices = new Dictionary<string, List<string>>
+        {
+            ["stillHere"] = ["Yes", "No"],
+            ["employmentType"] = [.. Types],
+            ["bank"] = await db.Banks.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.SortOrder).Select(b => b.Name).ToListAsync(ct),
+            ["branch"] = (await db.BankBranches.AsNoTracking().Where(b => b.CountryCode == country && b.Active).OrderBy(b => b.Name).Select(b => b.Name).ToListAsync(ct)).Distinct().ToList(),
+        };
+        if (company is null)
+        {
+            return choices;
+        }
+
+        // What the company uses: for all companies or linked to it.
+        var cid = company.Id;
+        choices["division"] = await db.Divisions.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
+        choices["department"] = await db.Departments.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
+        choices["position"] = await db.Positions.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
+        choices["unit"] = await db.Units.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
+        choices["location"] = await db.Locations.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
+        choices["payrollSchedule"] = await db.PaySchedules.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
+        choices["leavePlan"] = await db.LeavePlans.Where(x => x.Status == "active" && (x.AllCompanies || x.Companies.Any(c => c.CompanyId == cid))).OrderBy(x => x.Name).Select(x => x.Name).ToListAsync(ct);
+        return choices;
     }
 
     /// <summary>
@@ -110,6 +140,8 @@ public static class EmployeesImport
             .Select(x => new Ref(x.Id, x.Name, x.Name, x.AllCompanies, x.Companies.Select(c => c.CompanyId).ToList())).ToList();
         var banks = await db.Banks.AsNoTracking().Where(b => b.Active).ToListAsync(ct);
         var branches = await db.BankBranches.AsNoTracking().Where(b => b.Active).ToListAsync(ct);
+        var paysBy = (await db.CompanyPaymentAccounts.AsNoTracking().Where(a => a.IsDefault && a.ClosedAt == null).Select(a => new { a.CompanyId, a.Method }).ToListAsync(ct))
+            .GroupBy(a => a.CompanyId).ToDictionary(g => g.Key, g => g.First().Method);
         var existing = await db.Employees.AsNoTracking()
             .Select(e => new { e.Id, e.CompanyId, e.StaffNo, e.KraPinLookup, e.NationalIdLookup, e.ExitDate }).ToListAsync(ct);
         var organizationId = companies.FirstOrDefault()?.OrganizationId ?? Guid.Empty;
@@ -193,6 +225,24 @@ public static class EmployeesImport
             if (exit < hire)
             {
                 Problem("exitDate", "The date they left can't be before they started.");
+            }
+
+            // Still works here (empty means yes unless there's a date they left) and Date left agree.
+            var stillText = Cell("stillHere");
+            var stillHere = stillText.Length == 0 ? Cell("exitDate").Length == 0
+                : stillText.ToUpperInvariant() is "YES" or "Y" or "TRUE" ? true
+                : stillText.ToUpperInvariant() is "NO" or "N" or "FALSE" ? false : (bool?)null;
+            if (stillHere is null)
+            {
+                Problem("stillHere", "Enter Yes or No.");
+            }
+            else if (stillHere == false && Cell("exitDate").Length == 0)
+            {
+                Problem("exitDate", "Enter the date they left, or set Still works here to Yes.");
+            }
+            else if (stillHere == true && Cell("exitDate").Length > 0)
+            {
+                Problem("exitDate", "Leave Date left empty for someone who still works here.");
             }
 
             var born = Date("dateOfBirth", "date of birth");
@@ -325,20 +375,14 @@ public static class EmployeesImport
                 Problem("leavePlan", $"{company.LegalName} has no leave plan called {planText}.");
             }
 
+            // Paid as the schedule pays: a monthly salary, a weekly wage, a daily rate.
             (decimal, string)? pay = null;
             var payText = Cell("basicPay");
-            var basisText = Cell("payBasis");
-            var basis = basisText.Length == 0 ? "monthly" : Bases.FirstOrDefault(x => string.Equals(x, basisText, StringComparison.OrdinalIgnoreCase))?.ToLowerInvariant();
-            if (basis is null)
-            {
-                Problem("payBasis", "Choose Monthly, Daily or Hourly.");
-            }
-
             if (payText.Length > 0)
             {
                 if (ParseAmount(payText) is decimal amount && amount > 0)
                 {
-                    pay = (amount, basis ?? "monthly");
+                    pay = (amount, schedule?.Frequency ?? "monthly");
                 }
                 else
                 {
@@ -367,9 +411,13 @@ public static class EmployeesImport
                     Problem("branch", $"Enter the {bank.Name} branch by name or code.");
                 }
 
-                if (!Regex.IsMatch(accountText, "^[0-9]{5,20}$"))
+                if (accountText.Length == 0)
                 {
-                    Problem("accountNumber", "Enter the account number: 5 to 20 digits.");
+                    Problem("accountNumber", "Enter the account number.");
+                }
+                else if (bank is not null && EmployeesEndpoints.AccountNumberProblem(bank, accountText) is { } accountProblem)
+                {
+                    Problem("accountNumber", accountProblem);
                 }
 
                 if (mpesaText.Length > 0)
@@ -381,13 +429,19 @@ public static class EmployeesImport
             }
             else if (mpesaText.Length > 0)
             {
-                var mpesa = Recipients.KenyanMobile(mpesaText);
+                var mpesa = EmployeeNumbers.Mpesa(mpesaText);
                 if (mpesa is null)
                 {
-                    Problem("mpesa", "Enter a Kenyan mobile number, like 0712 345 678.");
+                    Problem("mpesa", EmployeesEndpoints.MpesaMessage);
                 }
 
                 account = new EmployeesEndpoints.ValidAccount("mpesa", null, null, null, mpesa);
+            }
+
+            // Current staff need the pay details their company pays by.
+            if (exit is null && paysBy.GetValueOrDefault(company.Id) is { } method && account?.Method != method)
+            {
+                Problem(method == "bank" ? "bank" : "mpesa", EmployeesEndpoints.PaysByMessage(company.LegalName, method));
             }
 
             if (problems.Count > before || hire is null || type is null || schedule is null || plan is null)

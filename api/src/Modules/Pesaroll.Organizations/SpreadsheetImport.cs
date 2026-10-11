@@ -35,8 +35,10 @@ public sealed record ImportResult(int Imported);
 /// <summary>
 /// A template column: its key in a row's cells, its header in the file, and optionally its cells'
 /// format: "@" keeps text as typed (leading zeros in account numbers), "yyyy-mm-dd" for dates.
+/// A column left out of the template (InTemplate false) is filled in by the app, such as the company
+/// chosen before the upload.
 /// </summary>
-public sealed record ImportColumn(string Key, string Header, string? Format = null);
+public sealed record ImportColumn(string Key, string Header, string? Format = null, bool InTemplate = true);
 
 /// <summary>
 /// What one kind of record (locations, departments…) tells the shared import: its columns, its
@@ -51,8 +53,8 @@ public sealed class ImportSpec<TValid>
     public required IReadOnlyList<string> RequiredKeys { get; init; }
     public required int MaxRows { get; init; }
     public required int MaxMegabytes { get; init; }
-    /// <summary>The template's dropdowns: choices by column key.</summary>
-    public required Func<OrganizationsDbContext, CancellationToken, Task<Dictionary<string, List<string>>>> Choices { get; init; }
+    /// <summary>The template's dropdowns: choices by column key, for the company chosen (when the template is for one).</summary>
+    public required Func<OrganizationsDbContext, Guid?, CancellationToken, Task<Dictionary<string, List<string>>>> Choices { get; init; }
     /// <summary>
     /// Checks the rows (the same rules as adding one by hand): the valid rows, problems, and notes of
     /// what will be created. The request's services are there for what needs them (the field encryptor).
@@ -75,10 +77,10 @@ public static class SpreadsheetImport
 
     public static void MapImport<TValid>(RouteGroupBuilder group, string prefix, ImportSpec<TValid> spec)
     {
-        group.MapGet($"{prefix}/template", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        group.MapGet($"{prefix}/template", async (Guid? companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            return Results.File(Template(spec, await spec.Choices(db, ct)), Xlsx, $"pesaroll-{spec.Things}-template.xlsx");
+            return Results.File(Template(spec, await spec.Choices(db, companyId, ct)), Xlsx, $"pesaroll-{spec.Things}-template.xlsx");
         }).Produces(StatusCodes.Status200OK, contentType: Xlsx).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         group.MapPost($"{prefix}/import/read", async (IFormFile file, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
@@ -160,15 +162,16 @@ public static class SpreadsheetImport
         var lists = book.AddWorksheet("Lists");
         var last = spec.MaxRows + 1;
         var listColumn = 0;
-        for (var c = 0; c < spec.Columns.Count; c++)
+        var inTemplate = spec.Columns.Where(x => x.InTemplate).ToList();
+        for (var c = 0; c < inTemplate.Count; c++)
         {
-            sheet.Cell(1, c + 1).Value = spec.Columns[c].Header;
-            if (spec.Columns[c].Format is { } format)
+            sheet.Cell(1, c + 1).Value = inTemplate[c].Header;
+            if (inTemplate[c].Format is { } format)
             {
                 sheet.Range(2, c + 1, last, c + 1).Style.NumberFormat.Format = format;
             }
 
-            if (choices.GetValueOrDefault(spec.Columns[c].Key) is not { } options)
+            if (choices.GetValueOrDefault(inTemplate[c].Key) is not { } options)
             {
                 continue;
             }
@@ -185,7 +188,7 @@ public static class SpreadsheetImport
         lists.Hide();
         sheet.Row(1).Style.Font.Bold = true;
         sheet.SheetView.FreezeRows(1);
-        sheet.Columns(1, spec.Columns.Count).Width = 22;
+        sheet.Columns(1, inTemplate.Count).Width = 22;
         using var stream = new MemoryStream();
         book.SaveAs(stream);
         return stream.ToArray();

@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { company, employeeDetail, employeeRow, fakeApi, json, leavePlan, location, orgToken, schedule } from '../test/fakeApi'
+import { company, employeeDetail, employeeRow, equityAccount, fakeApi, json, leavePlan, location, orgToken, schedule } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -80,7 +80,7 @@ it('searches and pages on the server', async () => {
   await vi.waitFor(() => expect(seen.some(q => q.includes('status=former'))).toBe(true))
 })
 
-it('Add employee opens a sheet with one row: company and structure are lists, and Date left waits for Still works here', async () => {
+it('Add employee opens a sheet with one row: the company\'s lists, its schedule and leave plan filled in, and Date left waits for Still works here', async () => {
   let rows: unknown[] = []
   withPeople({
     'GET /api/structure/positions': () => json(200, [{ id: 'ps1', code: 'COO-01', title: 'Head cook', departmentId: 'dp1', allCompanies: true, companyIds: [] }]),
@@ -90,20 +90,26 @@ it('Add employee opens a sheet with one row: company and structure are lists, an
   renderApp('/setup/employees')
   await userEvent.click(await screen.findByRole('button', { name: 'Add employee' }))
 
-  const sheet = screen.getByRole('dialog', { name: /Add 1 employee/ })
+  const sheet = await screen.findByRole('dialog', { name: /Add 1 employee/ })
   expect(within(sheet).getAllByRole('textbox', { name: /First name, row/ })).toHaveLength(1)
-  expect(within(sheet).getByRole('combobox', { name: 'Company, row 1' })).toHaveValue('Mama Oliech Restaurant Ltd')
-  for (const column of ['Division', 'Department', 'Unit', 'Position']) {
+  expect(within(sheet).queryByRole('combobox', { name: 'Company, row 1' })).not.toBeInTheDocument()   // one company, chosen above
+  expect(within(sheet).queryByRole('combobox', { name: 'Paid, row 1' })).not.toBeInTheDocument()   // pay follows the schedule
+  for (const column of ['Division', 'Department', 'Unit', 'Position', 'Location', 'Bank']) {
     expect(within(sheet).getByRole('combobox', { name: `${column}, row 1` })).toBeInTheDocument()
   }
+  expect(within(sheet).getByRole('combobox', { name: 'Payroll schedule, row 1' })).toHaveValue('Monthly')
+  expect(within(sheet).getByRole('combobox', { name: 'Leave plan, row 1' })).toHaveValue('Standard')
+  expect(within(sheet).getByRole('combobox', { name: 'Location, row 1' })).toHaveValue('Head office')
   expect(within(sheet).getByRole('checkbox', { name: 'Still works here, row 1' })).toBeChecked()
   expect(within(sheet).getByLabelText('Date left, row 1')).toBeDisabled()
+  expect(within(sheet).getByLabelText('Contract end, row 1')).toBeDisabled()   // Permanent
+  expect(within(sheet).getByRole('combobox', { name: 'Branch, row 1' })).toBeDisabled()   // until a bank is chosen
 
   await userEvent.type(within(sheet).getByRole('textbox', { name: 'First name, row 1' }), 'Wanjiru')
   await userEvent.type(within(sheet).getByRole('textbox', { name: 'Last name, row 1' }), 'Kamau')
   await userEvent.type(within(sheet).getByLabelText('Start date, row 1'), '2024-01-15')
   await userEvent.type(within(sheet).getByRole('combobox', { name: 'Position, row 1' }), 'head')
-  await userEvent.click(screen.getByRole('option', { name: 'Head cook (COO-01)' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Head cook' }))
 
   await userEvent.click(within(sheet).getByRole('button', { name: 'Add row' }))
   const second = screen.getByRole('dialog', { name: /Add 2 employees/ })
@@ -116,9 +122,80 @@ it('Add employee opens a sheet with one row: company and structure are lists, an
 
   expect(await screen.findByText('2 employees added')).toBeInTheDocument()
   expect(rows).toMatchObject([
-    { line: 1, cells: { company: 'Mama Oliech Restaurant Ltd', firstName: 'Wanjiru', hireDate: '2024-01-15', position: 'COO-01', stillHere: 'Yes', exitDate: '' } },
-    { line: 2, cells: { firstName: 'Akinyi', stillHere: '', exitDate: '2024-06-30' } },
+    { line: 1, cells: { company: 'Mama Oliech Restaurant Ltd', firstName: 'Wanjiru', hireDate: '2024-01-15', position: 'Head cook', stillHere: 'Yes', exitDate: '',
+      payrollSchedule: 'Monthly', leavePlan: 'Standard', employmentType: 'Permanent' } },
+    { line: 2, cells: { company: 'Mama Oliech Restaurant Ltd', firstName: 'Akinyi', stillHere: 'No', exitDate: '2024-06-30' } },
   ])
+  expect(rows[0]).not.toHaveProperty('cells.payBasis')
+})
+
+it('a cell is checked as soon as it is left, with the rules for Kenyan numbers and each bank', async () => {
+  withPeople()
+  renderApp('/setup/employees')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add employee' }))
+  const sheet = await screen.findByRole('dialog', { name: /Add 1 employee/ })
+
+  const pin = within(sheet).getByRole('textbox', { name: 'KRA PIN, row 1' })
+  await userEvent.type(pin, 'P0512345')
+  await userEvent.tab()
+  expect(pin).toHaveAccessibleDescription('Enter a KRA PIN like A012345678Z: A, 9 digits and a letter.')
+  const nssf = within(sheet).getByRole('textbox', { name: 'NSSF number, row 1' })
+  await userEvent.type(nssf, '12345')
+  await userEvent.tab()
+  expect(nssf).toHaveAccessibleDescription('Enter 7 to 10 digits.')
+  const mpesa = within(sheet).getByRole('textbox', { name: 'M-Pesa number, row 1' })
+  await userEvent.type(mpesa, '0733 123 456')   // Airtel
+  await userEvent.tab()
+  expect(mpesa).toHaveAccessibleDescription('Enter a Safaricom number for M-Pesa, like 0712 345 678.')
+
+  await userEvent.type(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }), 'equ')
+  await userEvent.click(screen.getByRole('option', { name: 'Equity Bank' }))
+  const branch = within(sheet).getByRole('combobox', { name: 'Branch, row 1' })
+  expect(branch).toBeEnabled()
+  await userEvent.click(branch)
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Moi Avenue, Nairobi', 'Mombasa'])   // Equity's only
+  await userEvent.click(screen.getByRole('option', { name: 'Mombasa' }))
+  const account = within(sheet).getByRole('textbox', { name: 'Account number, row 1' })
+  await userEvent.type(account, '0123456789')
+  await userEvent.tab()
+  expect(account).toHaveAccessibleDescription('Equity Bank account numbers are 13 digits.')
+  await userEvent.type(account, '012')
+  await userEvent.tab()
+  expect(account).not.toHaveAccessibleDescription(/digits/)
+
+  await userEvent.type(within(sheet).getByRole('combobox', { name: 'Employment type, row 1' }), '{Control>}a{/Control}contr')
+  await userEvent.click(screen.getByRole('option', { name: 'Contract' }))
+  expect(within(sheet).getByLabelText('Contract end, row 1')).toBeEnabled()
+})
+
+it('people who work here need the details the company pays by', async () => {
+  const calls = withPeople({
+    [`GET /api/companies/${restaurant.id}/payment-accounts`]: () => json(200, [equityAccount()]),
+    'POST /api/employees/import/check': () => json(200, { problems: [], notes: [] }),
+  })
+  renderApp('/setup/employees')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add employee' }))
+  const sheet = await screen.findByRole('dialog', { name: /Add 1 employee/ })
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'First name, row 1' }), 'Wanjiru')
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Last name, row 1' }), 'Kamau')
+  await userEvent.type(within(sheet).getByLabelText('Start date, row 1'), '2024-01-15')
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Add 1 employee' }))
+
+  expect(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }))
+    .toHaveAccessibleDescription('Mama Oliech Restaurant Ltd pays by bank: add their bank details.')
+  expect(calls.some(c => c.path === '/api/employees/import/check')).toBe(false)
+})
+
+it('Upload employees starts with one company, and its template has that company\'s lists', async () => {
+  const calls = withPeople({ 'GET /api/employees/template': () => new Response(new Blob(['x'])) })
+  renderApp('/setup/employees')
+  await userEvent.click(await screen.findByRole('button', { name: 'Upload employees' }))
+  const upload = await screen.findByRole('dialog', { name: 'Upload employees' })
+  expect(within(upload).getByRole('heading', { name: '1. Choose the company' })).toBeInTheDocument()
+  expect(within(upload).getByRole('combobox', { name: 'Company' })).toHaveValue('Mama Oliech Restaurant Ltd')
+
+  await userEvent.click(within(upload).getByRole('button', { name: 'Download template' }))
+  await vi.waitFor(() => expect(calls.some(c => c.path === '/api/employees/template' && c.url.includes(`companyId=${restaurant.id}`))).toBe(true))
 })
 
 it('someone who no longer works here needs the date they left', async () => {
@@ -181,24 +258,35 @@ it('editing shows saved numbers masked and leaves them as they are unless retype
   expect(body.account).toBeNull()   // kept as it is
 })
 
-it('daily pay asks for a daily rate, and a rate that doesn\'t match the schedule is flagged', async () => {
-  withPeople({ [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail()) })
+it('pay follows the schedule: a daily schedule asks for a daily rate', async () => {
+  const calls = withPeople({
+    [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail()),
+    [`PATCH /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail()),
+  })
   renderApp('/setup/employees')
   await userEvent.click(await screen.findByRole('button', { name: 'Edit Wanjiru Kamau' }))
   await within(drawer()).findByDisplayValue('Wanjiru')
   await userEvent.click(within(drawer()).getByRole('tab', { name: 'Pay' }))
-
-  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Hourly' }))
-  expect(within(drawer()).getByRole('textbox', { name: 'Hourly rate (KES) optional' })).toBeInTheDocument()
-  expect(within(drawer()).getByText(/Monthly pays monthly/)).toBeInTheDocument()
+  expect(within(drawer()).queryByRole('radio', { name: 'Daily' })).not.toBeInTheDocument()
+  expect(within(drawer()).getByRole('textbox', { name: 'Monthly salary (KES) optional' })).toBeInTheDocument()
 
   await userEvent.click(within(drawer()).getByRole('tab', { name: 'Job' }))
   await userEvent.clear(within(drawer()).getByRole('combobox', { name: 'Payroll schedule' }))
   await choose('Payroll schedule', 'cas', 'Casuals daily')
+  expect(within(drawer()).getByLabelText(/Contract end/)).toBeDisabled()
   await userEvent.click(within(drawer()).getByRole('tab', { name: 'Pay' }))
-  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Daily' }))
-  expect(within(drawer()).getByRole('textbox', { name: 'Daily rate (KES) optional' })).toBeInTheDocument()
-  expect(within(drawer()).queryByText(/pays monthly/)).not.toBeInTheDocument()
+  const rate = within(drawer()).getByRole('textbox', { name: 'Daily rate (KES) optional' })
+  expect(rate).toHaveAccessibleDescription('Paid daily, as their payroll schedule says.')
+  await userEvent.clear(rate)
+  await userEvent.type(rate, '-5')
+  await userEvent.tab()
+  expect(rate).toHaveAccessibleDescription(/Enter an amount above 0, like 45,000./)
+  await userEvent.clear(rate)
+  await userEvent.type(rate, '1,200')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
+
+  expect(await screen.findByText('Employee saved')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'PATCH')?.body).toMatchObject({ pay: { basicAmount: 1200, payBasis: null } })
 })
 
 it('Add employee and Upload employees sit together, Add first; Upload starts with the template', async () => {

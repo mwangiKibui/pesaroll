@@ -427,7 +427,7 @@ function UploadLevel({ level, companies, onClose, firstStep }: {
         templateHint: t(`structure.${level}.templateHint`),
       }}>
       {companies.length > 1 && (
-        <div className="max-w-sm">
+        <div className="w-full max-w-sm">
           <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
             companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
         </div>

@@ -127,7 +127,7 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
             companyId = company.Id, firstName = "", lastName = "Kamau", phone = "020 123 4567", email = "wanjiru@", nationalId = "12", kraPin = "P051234567X",
             hireDate = "2024-01-15", exitDate = "2023-01-01",
             job = new { employmentType = "contractor", payScheduleId = hourly.Id },
-            pay = new { basicAmount = 0m, payBasis = "weekly" },
+            pay = new { basicAmount = 0m, payBasis = "yearly" },
             account = new { method = "mpesa", mpesaPhone = "12345" },
         });
 
@@ -216,7 +216,72 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         Assert.Equal(12, (await client.GetFromJsonAsync<Page>("/api/employees?status=all"))!.Total);
     }
 
+    [Fact]
+    public async Task Bank_account_numbers_fit_their_bank_and_M_Pesa_needs_a_Safaricom_line()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+        object Person(object account) => new { companyId = company.Id, firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15", job = new { employmentType = "permanent" }, account };
+
+        var equityShort = await client.PostAsJsonAsync("/api/employees", Person(new { method = "bank", bankCode = "68", branchCode = "047", accountNumber = "0123456789" }));
+        var airtel = await client.PostAsJsonAsync("/api/employees", Person(new { method = "mpesa", mpesaPhone = "0733 123 456" }));
+
+        Assert.Equal("Equity Bank account numbers are 13 digits.", (await ErrorFrom(equityShort)).Fields!["account.accountNumber"]);
+        Assert.Contains("Safaricom", (await ErrorFrom(airtel)).Fields!["account.mpesaPhone"]);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/employees",
+            Person(new { method = "bank", bankCode = "68", branchCode = "047", accountNumber = "0123456789012" }))).StatusCode);
+    }
+
+    private sealed record BankRule(string Code, int AccountDigitsMin, int AccountDigitsMax);
+
+    [Fact]
+    public async Task Each_banks_account_number_length_is_data()
+    {
+        var (client, _, _) = await Onboarded();
+        await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var banks = (await client.GetFromJsonAsync<List<BankRule>>("/api/banks?country=KE"))!.ToDictionary(b => b.Code);
+
+        Assert.Equal((13, 13), (banks["68"].AccountDigitsMin, banks["68"].AccountDigitsMax));   // Equity
+        Assert.Equal((10, 10), (banks["03"].AccountDigitsMin, banks["03"].AccountDigitsMax));   // Absa
+        Assert.Equal((14, 14), (banks["57"].AccountDigitsMin, banks["57"].AccountDigitsMax));   // I&M
+        Assert.Equal((10, 12), (banks["07"].AccountDigitsMin, banks["07"].AccountDigitsMax));   // NCBA
+        Assert.Equal((10, 16), (banks["01"].AccountDigitsMin, banks["01"].AccountDigitsMax));   // KCB, not confirmed
+    }
+
+    [Fact]
+    public async Task Current_staff_need_the_pay_details_their_company_pays_by()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+        await client.PostAsJsonAsync($"/api/companies/{company.Id}/payment-accounts", new
+        {
+            method = "bank", bankCode = "68", branchCode = "047", accountName = "Oliech Restaurants Ltd", accountNumber = "0123456789012",
+        });
+
+        var none = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15", job = new { employmentType = "permanent" } });
+        var left = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Akinyi", lastName = "Odera", hireDate = "2023-01-15", exitDate = "2024-06-30", job = new { employmentType = "permanent" } });
+
+        Assert.Equal("Oliech Restaurants Ltd pays by bank: add their bank account.", (await ErrorFrom(none)).Fields!["account.method"]);
+        Assert.Equal(HttpStatusCode.Created, left.StatusCode);   // people who left don't need it
+    }
+
     private sealed record Choice(Guid Id, string Name, string StaffNo, Guid? DepartmentId);
+
+    [Fact]
+    public async Task How_someone_is_paid_follows_their_payroll_schedule()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+        var weekly = (await (await client.PostAsJsonAsync("/api/pay-schedules", new { name = "Weekly", frequency = "weekly", payWeekday = 5, allCompanies = true }))
+            .Content.ReadFromJsonAsync<Schedule>())!;
+
+        var monthly = await Add(client, new { companyId = company.Id, firstName = "Amina", lastName = "Otieno", hireDate = "2024-01-01", pay = new { basicAmount = 50000m } });
+        var casual = await Add(client, new { companyId = company.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-01",
+            job = new { payScheduleId = weekly.Id }, pay = new { basicAmount = 4500m } });
+
+        Assert.Equal(("monthly", "weekly"), (monthly.Pay!.PayBasis, casual.Pay!.PayBasis));
+    }
 
     [Fact]
     public async Task Line_managers_are_chosen_from_the_companys_current_staff()

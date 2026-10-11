@@ -31,6 +31,13 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
 
     private async Task<(HttpClient Client, Company Company)> Onboarded()
     {
+        var (client, company) = await OnboardedWithoutDaily();
+        await client.PostAsJsonAsync("/api/pay-schedules", new { name = "Daily", frequency = "daily", allCompanies = true });
+        return (client, company);
+    }
+
+    private async Task<(HttpClient Client, Company Company)> OnboardedWithoutDaily()
+    {
         var client = api.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
         var signup = await client.PostAsJsonAsync("/api/auth/signup", new
         {
@@ -55,17 +62,26 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         Cells([("firstName", first), ("lastName", last), ("hireDate", "2024-01-15"), .. more]);
 
     [Fact]
-    public async Task The_template_has_every_column_with_the_structure_chain_as_text()
+    public async Task The_template_is_for_one_company_with_its_lists_as_dropdowns()
     {
-        var (client, _) = await Onboarded();
+        var (client, company) = await Onboarded();
+        await client.PostAsJsonAsync("/api/structure/departments", new { name = "Kitchen", allCompanies = true });
 
-        var bytes = await client.GetByteArrayAsync("/api/employees/template");
+        var bytes = await client.GetByteArrayAsync($"/api/employees/template?companyId={company.Id}");
 
         using var book = new XLWorkbook(new MemoryStream(bytes));
-        var headers = book.Worksheet(1).Row(1).CellsUsed().Select(c => c.GetString()).ToList();
-        Assert.Equal(["Company", "Staff number", "First name", "Middle name", "Last name", "Date of birth", "Phone", "Email", "ID number", "KRA PIN",
-            "NSSF number", "SHA number", "Start date", "Date left", "Employment type", "Contract end", "Division", "Department", "Unit", "Position",
-            "Location", "Line manager (staff number)", "Payroll schedule", "Leave plan", "Basic pay", "Paid", "Bank", "Branch", "Account number", "M-Pesa number"], headers);
+        var sheet = book.Worksheet(1);
+        var headers = sheet.Row(1).CellsUsed().Select(c => c.GetString()).ToList();
+        Assert.Equal(["Staff number", "First name", "Middle name", "Last name", "Date of birth", "Phone", "Email", "ID number", "KRA PIN",
+            "NSSF number", "SHA number", "Start date", "Still works here", "Date left", "Employment type", "Contract end", "Division", "Department", "Unit",
+            "Position", "Location", "Line manager (staff number)", "Payroll schedule", "Leave plan", "Basic pay", "Bank", "Branch", "Account number",
+            "M-Pesa number"], headers);   // no Company (chosen first) and no Paid (the schedule says)
+        var lists = book.Worksheet("Lists").CellsUsed().Select(c => c.GetString()).ToList();
+        Assert.Contains("Kitchen", lists);
+        Assert.Contains("Monthly", lists);      // the company's schedule
+        Assert.Contains("Standard", lists);     // its leave plan
+        Assert.Contains("Equity Bank", lists);
+        Assert.Contains("Yes", lists);
     }
 
     [Fact]
@@ -75,12 +91,12 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
 
         var res = await client.PostAsJsonAsync("/api/employees/import/check", RowsBody(
             Person("Wanjiru", "Kamau", ("staffNo", "K-1"), ("kraPin", "P051234567X"), ("department", "Kitchen"), ("position", "Head cook"), ("division", "Restaurants")),
-            Person("Otieno", "Ouma", ("staffNo", "k-1"), ("payrollSchedule", "Weekly casuals"), ("unit", "Night shift"), ("basicPay", "900"), ("payBasis", "Weekly")),
-            Person("Akinyi", "Odera", ("lineManager", "K-404"), ("accountNumber", "0123456789"))));
+            Person("Otieno", "Ouma", ("staffNo", "k-1"), ("payrollSchedule", "Weekly casuals"), ("unit", "Night shift"), ("basicPay", "900")),
+            Person("Akinyi", "Odera", ("lineManager", "K-404"), ("accountNumber", "0123456789"), ("stillHere", "No"))));
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var check = (await res.Content.ReadFromJsonAsync<Check>())!;
-        Assert.Equal([(2, "kraPin"), (3, "staffNo"), (3, "unit"), (3, "payrollSchedule"), (3, "payBasis"), (4, "lineManager"), (4, "bank")],
+        Assert.Equal([(2, "kraPin"), (3, "staffNo"), (3, "unit"), (3, "payrollSchedule"), (4, "exitDate"), (4, "lineManager"), (4, "bank")],
             check.Problems.Select(p => (p.Line, p.Column)));
         Assert.Contains("Kitchen", check.Notes.Single(n => n.Column == "department").Message);
         Assert.Contains("Head cook", check.Notes.Single(n => n.Column == "position").Message);
@@ -94,10 +110,10 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
 
         var res = await client.PostAsJsonAsync("/api/employees/import", RowsBody(
             Person("Wanjiru", "Kamau", ("staffNo", "K-1"), ("kraPin", "A012345678Z"), ("nationalId", "12345678"), ("department", "Kitchen"),
-                ("position", "Head cook"), ("basicPay", "85,000"), ("payBasis", "Monthly"), ("bank", "Equity Bank"), ("branch", "047"), ("accountNumber", "0123456789012")),
+                ("position", "Head cook"), ("basicPay", "85,000"), ("bank", "Equity Bank"), ("branch", "047"), ("accountNumber", "0123456789012")),
             Person("Otieno", "Ouma", ("staffNo", "K-2"), ("lineManager", "K-1"), ("department", "kitchen"), ("employmentType", "Casual"),
-                ("basicPay", "900"), ("payBasis", "Daily"), ("mpesa", "0722 000 111")),
-            Person("Akinyi", "Odera", ("hireDate", "15/01/2023"), ("exitDate", "30/06/2024"), ("kraPin", "A099999999B"))));
+                ("payrollSchedule", "Daily"), ("basicPay", "900"), ("mpesa", "0722 000 111")),
+            Person("Akinyi", "Odera", ("hireDate", "15/01/2023"), ("stillHere", "No"), ("exitDate", "30/06/2024"), ("kraPin", "A099999999B"))));
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         Assert.Equal(3, (await res.Content.ReadFromJsonAsync<Result>())!.Imported);
@@ -108,6 +124,7 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         var otieno = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.StaffNo == "K-2").Id}"))!;
         var akinyi = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.Name == "Akinyi Odera").Id}"))!;
         Assert.Equal(("•••• 678Z", 85000m, "bank", "68", "•••• 9012"), (wanjiru.KraPinMasked, wanjiru.Pay!.BasicAmount, wanjiru.Account!.Method, wanjiru.Account.BankCode, wanjiru.Account.AccountMasked));
+        Assert.Equal("monthly", wanjiru.Pay.PayBasis);   // from the Monthly schedule
         Assert.Equal((wanjiru.Id, wanjiru.Job.DepartmentId, "casual", "daily", "•••• 0111"),
             (otieno.Job.LineManagerId!.Value, otieno.Job.DepartmentId, otieno.Job.EmploymentType, otieno.Pay!.PayBasis, otieno.Account!.MpesaMasked));
         Assert.Equal((DateOnly.Parse("2023-01-15"), DateOnly.Parse("2024-06-30"), "EMP-01"), (akinyi.HireDate, akinyi.ExitDate!.Value, akinyi.StaffNo));

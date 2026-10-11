@@ -820,7 +820,9 @@
     "per": {
       "monthly": "{{amount}} kwa mwezi",
       "daily": "{{amount}} kwa siku",
-      "hourly": "{{amount}} kwa saa"
+      "hourly": "{{amount}} kwa saa",
+      "weekly": "{{amount}} kwa wiki",
+      "fortnightly": "{{amount}} kila wiki mbili"
     },
     "page": "Ukurasa {{page}} wa {{pages}}",
     "previous": "Ukurasa uliopita",
@@ -867,16 +869,16 @@
     "exitDateHint": "Kwa aliyeondoka tu. Anabaki Pesaroll kwa kadi za P9A na historia.",
     "nationalId": "Nambari ya kitambulisho",
     "nationalIdPlaceholder": "Nambari ya kitambulisho ya mfanyakazi wako",
-    "nationalIdHint": "Tarakimu 7 au 8, kutoka kitambulisho chake.",
+    "nationalIdHint": "Tarakimu 7 au 8, au 9 kwa Maisha Namba.",
     "kraPin": "PIN ya KRA",
     "kraPinPlaceholder": "PIN ya KRA ya mfanyakazi wako",
     "kraPinHint": "A, tarakimu 9 na herufi, kama A012345678Z. Inahitajika kwa PAYE.",
     "nssfNo": "Nambari ya NSSF",
     "nssfNoPlaceholder": "Nambari ya NSSF ya mfanyakazi wako",
-    "nssfNoHint": "Tarakimu 6 hadi 12.",
+    "nssfNoHint": "Tarakimu 7 hadi 10, kutoka kadi ya NSSF.",
     "shaNo": "Nambari ya SHA",
     "shaNoPlaceholder": "Nambari ya SHA ya mfanyakazi wako",
-    "shaNoHint": "Kutoka Mamlaka ya Afya ya Jamii.",
+    "shaNoHint": "Kutoka Mamlaka ya Afya ya Jamii: herufi, tarakimu na vistari.",
     "saved_": "Imehifadhiwa: {{masked}}. Andika mpya kuibadilisha.",
     "company": "Kampuni",
     "companyPlaceholder": "Kampuni yako",
@@ -904,20 +906,15 @@
       "intern": "Mwanafunzi wa mafunzo"
     },
     "contractEnd": "Mwisho wa mkataba",
-    "payBasis": "Analipwa vipi",
-    "bases": {
-      "monthly": "Kila mwezi",
-      "daily": "Kila siku",
-      "hourly": "Kwa saa"
-    },
     "amountLabels": {
       "monthly": "Mshahara wa mwezi (KES)",
       "daily": "Kiwango cha siku (KES)",
-      "hourly": "Kiwango cha saa (KES)"
+      "hourly": "Kiwango cha saa (KES)",
+      "weekly": "Mshahara wa wiki (KES)",
+      "fortnightly": "Mshahara wa wiki mbili (KES)"
     },
     "amountPlaceholder": "Kiasi chako",
     "amountInvalid": "Andika kiasi zaidi ya 0, au acha wazi kwa sasa.",
-    "basisMismatch": "{{schedule}} inalipa {{frequency}}. Hakikisha kiwango cha {{basis}} ni sahihi.",
     "frequencies": {
       "monthly": "kila mwezi",
       "weekly": "kila wiki",
@@ -940,7 +937,6 @@
     "mpesa": "Nambari ya M-Pesa",
     "mpesaPlaceholder": "Nambari ya M-Pesa ya mfanyakazi wako",
     "columns": {
-      "company": "Company",
       "staffNo": "Staff number",
       "firstName": "First name",
       "middleName": "Middle name",
@@ -965,7 +961,6 @@
       "payrollSchedule": "Payroll schedule",
       "leavePlan": "Leave plan",
       "basicPay": "Basic pay",
-      "payBasis": "Paid",
       "bank": "Bank",
       "branch": "Branch",
       "accountNumber": "Account number",
@@ -985,6 +980,32 @@
     "dateOfBirthPlaceholder": "Tarehe ya kuzaliwa ya mfanyakazi wako",
     "contractEndPlaceholder": "Tarehe ya mwisho wa mkataba wako",
     "stillHere": "Bado anafanya kazi hapa",
-    "exitDateRequired": "Andika tarehe aliyoondoka, au weka alama Bado anafanya kazi hapa."
+    "exitDateRequired": "Andika tarehe aliyoondoka, au weka alama Bado anafanya kazi hapa.",
+    "mpesaHint": "Laini ya Safaricom, kama 0712 345 678.",
+    "amountHint": "Hulipwa {{frequency}}, kama ratiba yao ya mishahara.",
+    "paysByHint": "{{company}} hulipa kwa {{method}}, kwa hivyo hii inahitajika kwa wanaofanya kazi hapa.",
+    "uploadCompany": "Chagua kampuni",
+    "uploadCompanyHint": "Orodha za kiolezo (ratiba, mipango ya likizo, muundo, benki) ni za kampuni hii.",
+    "sheetCompanyHint": "Kubadilisha kampuni huanzisha jedwali upya, kwa sababu orodha zake hubadilika.",
+    "rules": {
+      "required": "Hii inahitajika.",
+      "nameTooLong": "Tumia herufi 60 au chache.",
+      "kraPin": "Weka PIN ya KRA kama A012345678Z: A, tarakimu 9 na herufi.",
+      "nationalId": "Weka tarakimu 7 au 8, au 9 kwa Maisha Namba.",
+      "nssfNo": "Weka tarakimu 7 hadi 10.",
+      "shaNo": "Tumia herufi, tarakimu au vistari 6 hadi 20.",
+      "phone": "Weka nambari ya simu ya Kenya, kama 0712 345 678.",
+      "email": "Weka barua pepe, kama jina@kampuni.co.ke.",
+      "mpesa": "Weka nambari ya Safaricom kwa M-Pesa, kama 0712 345 678.",
+      "amount": "Weka kiasi zaidi ya 0, kama 45,000.",
+      "staffNo": "Tumia hadi herufi, tarakimu, vistari au mikwaju 20.",
+      "accountDigits": "Weka nambari ya akaunti kwa tarakimu.",
+      "accountExactly": "Nambari za akaunti za {{bank}} ni tarakimu {{count}}.",
+      "accountBetween": "Nambari za akaunti za {{bank}} ni tarakimu {{min}} hadi {{max}}.",
+      "bankFirst": "Chagua benki kwanza.",
+      "paysByBank": "{{company}} hulipa kwa benki: ongeza maelezo ya benki.",
+      "paysByMpesa": "{{company}} hulipa kwa M-Pesa: ongeza nambari ya M-Pesa.",
+      "exitDate": "Weka tarehe walipoondoka, au weka alama Bado anafanya kazi hapa."
+    }
   }
 }

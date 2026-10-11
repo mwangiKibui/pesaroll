@@ -94,7 +94,8 @@ create policy employments_scope on employments as restrictive
 
 grant select, insert, update, delete on table employments to pesaroll_app;
 
--- Basic pay over time (ONB-09): a monthly salary, a daily rate or an hourly rate. One current row.
+-- Basic pay over time (ONB-09): a monthly salary, a weekly or two-weekly wage, a daily or an hourly
+-- rate; it follows the payroll schedule unless said otherwise. One current row.
 create table compensations (
     id               uuid primary key,
     organization_id  uuid not null,
@@ -103,7 +104,7 @@ create table compensations (
     valid_from       date not null,
     valid_to         date,
     basic_amount     numeric(18, 2) not null check (basic_amount > 0),
-    pay_basis        text not null check (pay_basis in ('monthly', 'daily', 'hourly')),
+    pay_basis        text not null check (pay_basis in ('monthly', 'weekly', 'fortnightly', 'daily', 'hourly')),
     currency         char(3) not null,
     created_at       timestamptz not null default now(),
     foreign key (company_id, employee_id) references employees (company_id, id) on delete cascade,

@@ -63,7 +63,8 @@ public sealed record EmployeePage(IReadOnlyList<EmployeeRow> Items, int Total, i
 public static class EmployeesEndpoints
 {
     public static readonly string[] EmploymentTypes = ["permanent", "contract", "casual", "intern"];
-    public static readonly string[] PayBases = ["monthly", "daily", "hourly"];
+    /// <summary>How basic pay is given; it follows the payroll schedule's frequency unless said.</summary>
+    public static readonly string[] PayBases = ["monthly", "weekly", "fortnightly", "daily", "hourly"];
     public const int MaxPageSize = 100;
 
     public static IEndpointRouteBuilder MapEmployeesEndpoints(this IEndpointRouteBuilder app)
@@ -309,15 +310,26 @@ public static class EmployeesEndpoints
                 errors["pay.basicAmount"] = "Enter the basic pay, more than 0.";
             }
 
-            if (!PayBases.Contains(p.PayBasis ?? ""))
+            // Paid as the schedule pays (a monthly salary on a monthly schedule) unless said.
+            var basis = p.PayBasis ?? await db.PaySchedules.Where(s => s.Id == job.PayScheduleId).Select(s => s.Frequency).FirstOrDefaultAsync(ct) ?? "monthly";
+            if (!PayBases.Contains(basis))
             {
-                errors["pay.payBasis"] = "Choose monthly, daily or hourly.";
+                errors["pay.payBasis"] = "Choose monthly, weekly, every two weeks, daily or hourly.";
             }
 
-            pay = (p.BasicAmount ?? 0, p.PayBasis ?? "");
+            pay = (p.BasicAmount ?? 0, basis);
         }
 
         var account = await AccountAsync(request.Account, company, existing, db, errors, ct);
+        // Current staff need the pay details their company pays by (its default paying account).
+        if (request.ExitDate is null && await PaysByAsync(db, company.Id, ct) is { } paysBy && !errors.ContainsKey("account.method"))
+        {
+            var method = account?.Method ?? existing?.Accounts.FirstOrDefault(a => a.ValidTo == null)?.Method;
+            if (method != paysBy)
+            {
+                errors["account.method"] = PaysByMessage(company.LegalName, paysBy);
+            }
+        }
         if (errors.Count > 0)
         {
             throw OnboardingErrors.EmployeeDetailsInvalid(errors);
@@ -400,10 +412,15 @@ public static class EmployeesEndpoints
         switch (request.Method)
         {
             case "bank":
-                if (string.IsNullOrWhiteSpace(request.BankCode) || string.IsNullOrWhiteSpace(request.BranchCode)
-                    || !await db.BankBranches.AnyAsync(b => b.CountryCode == company.CountryCode && b.BankCode == request.BankCode && b.Code == request.BranchCode, ct))
+                var bank = await db.Banks.AsNoTracking().SingleOrDefaultAsync(b => b.CountryCode == company.CountryCode && b.Code == request.BankCode, ct);
+                if (bank is null)
                 {
-                    errors["account.branchCode"] = "Choose the bank and branch from the lists.";
+                    errors["account.bankCode"] = "Choose the bank from the list.";
+                }
+                else if (string.IsNullOrWhiteSpace(request.BranchCode)
+                    || !await db.BankBranches.AnyAsync(b => b.CountryCode == company.CountryCode && b.BankCode == bank.Code && b.Code == request.BranchCode, ct))
+                {
+                    errors["account.branchCode"] = $"Choose the {bank.Name} branch from the list.";
                 }
 
                 var number = request.AccountNumber is null ? null : Regex.Replace(request.AccountNumber, @"[\s-]", "");
@@ -411,17 +428,17 @@ public static class EmployeesEndpoints
                 {
                     errors["account.accountNumber"] = "Enter the account number.";
                 }
-                else if (number is not null && !Regex.IsMatch(number, "^[0-9]{5,20}$"))
+                else if (number is not null && bank is not null && AccountNumberProblem(bank, number) is { } problem)
                 {
-                    errors["account.accountNumber"] = "Enter the account number: 5 to 20 digits.";
+                    errors["account.accountNumber"] = problem;
                 }
 
                 return new ValidAccount("bank", request.BankCode, request.BranchCode, number, null);
             case "mpesa":
-                var phone = request.MpesaPhone is null ? null : Recipients.KenyanMobile(request.MpesaPhone);
+                var phone = request.MpesaPhone is null ? null : EmployeeNumbers.Mpesa(request.MpesaPhone);
                 if ((request.MpesaPhone is null && current?.Method != "mpesa") || (request.MpesaPhone is not null && phone is null))
                 {
-                    errors["account.mpesaPhone"] = "Enter a Kenyan mobile number, like 0712 345 678.";
+                    errors["account.mpesaPhone"] = MpesaMessage;
                 }
 
                 return new ValidAccount("mpesa", null, null, null, phone);
@@ -430,6 +447,21 @@ public static class EmployeesEndpoints
                 return null;
         }
     }
+
+    /// <summary>bank or mpesa: how the company pays (its default open paying account), or null with none.</summary>
+    internal static async Task<string?> PaysByAsync(OrganizationsDbContext db, Guid companyId, CancellationToken ct) =>
+        await db.CompanyPaymentAccounts.Where(a => a.CompanyId == companyId && a.IsDefault && a.ClosedAt == null).Select(a => a.Method).FirstOrDefaultAsync(ct);
+
+    internal static string PaysByMessage(string company, string paysBy) =>
+        paysBy == "bank" ? $"{company} pays by bank: add their bank account." : $"{company} pays by M-Pesa: add their M-Pesa number.";
+
+    /// <summary>"Equity Bank account numbers are 13 digits." or "… are 10 to 16 digits.", when the number doesn't fit.</summary>
+    internal static string? AccountNumberProblem(Bank bank, string number) =>
+        number.All(char.IsAsciiDigit) && number.Length >= bank.AccountDigitsMin && number.Length <= bank.AccountDigitsMax ? null
+        : bank.AccountDigitsMin == bank.AccountDigitsMax ? $"{bank.Name} account numbers are {bank.AccountDigitsMin} digits."
+        : $"{bank.Name} account numbers are {bank.AccountDigitsMin} to {bank.AccountDigitsMax} digits.";
+
+    public const string MpesaMessage = "Enter a Safaricom number for M-Pesa, like 0712 345 678.";
 
     /// <summary>
     /// Applies a checked employee. A job, pay or account change closes the current row (or drops

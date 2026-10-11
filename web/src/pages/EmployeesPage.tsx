@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
-import { BulkUpload, type BulkUploadRow } from '../components/BulkUpload'
+import { BulkUpload, type BulkUploadColumn, type BulkUploadRow } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -17,6 +17,7 @@ import { PlusIcon, UploadIcon } from '../components/icons'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
+import { accountProblem, rules } from '../lib/employeeRules'
 import { formatMoney } from '../lib/money'
 import { useCompanies, useLeavePlans, useLocations, useSchedules, useSetupDone, useStructure, type StructureItem } from '../setup/hooks'
 import { Proceed } from '../setup/Proceed'
@@ -30,14 +31,42 @@ type ImportRow = components['schemas']['ImportRow']
 const pageSize = 100
 const statuses = ['current', 'former', 'all'] as const
 const types = ['permanent', 'contract', 'casual', 'intern'] as const
-const bases = ['monthly', 'daily', 'hourly'] as const
 const tabs = ['personal', 'ids', 'job', 'pay', 'account'] as const
 type TabKey = (typeof tabs)[number]
 
-/** The upload's columns, in the template's order (same keys as the API). */
-const columnKeys = ['company', 'staffNo', 'firstName', 'middleName', 'lastName', 'dateOfBirth', 'phone', 'email', 'nationalId', 'kraPin', 'nssfNo',
-  'shaNo', 'hireDate', 'exitDate', 'employmentType', 'contractEnd', 'division', 'department', 'unit', 'position', 'location', 'lineManager',
-  'payrollSchedule', 'leavePlan', 'basicPay', 'payBasis', 'bank', 'branch', 'accountNumber', 'mpesa'] as const
+/** The sheet's columns, in the template's order (same keys as the API; the company is chosen above, and pay follows the schedule). */
+const columnKeys = ['staffNo', 'firstName', 'middleName', 'lastName', 'dateOfBirth', 'phone', 'email', 'nationalId', 'kraPin', 'nssfNo',
+  'shaNo', 'hireDate', 'stillHere', 'exitDate', 'employmentType', 'contractEnd', 'division', 'department', 'unit', 'position', 'location', 'lineManager',
+  'payrollSchedule', 'leavePlan', 'basicPay', 'bank', 'branch', 'accountNumber', 'mpesa'] as const
+
+/** The banks of a country, with their branches and how long their account numbers are. */
+function useBanks(country: string) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['banks', country],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/banks', { params: { query: { country } } })
+      if (error || !data) throw new Error('banks')
+      return data
+    },
+  })
+}
+
+/** How the company pays people (its default paying account): "bank", "mpesa", or null before one is set. */
+function usePaysBy(companyId: string) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['payment-accounts', companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/companies/{companyId}/payment-accounts', { params: { path: { companyId } } })
+      if (error || !data) throw new Error('payment-accounts')
+      return data
+    },
+    select: accounts => (accounts.find(a => a.isDefault)?.method ?? null) as 'bank' | 'mpesa' | null,
+  })
+}
 
 const none = <span className="text-muted">—</span>
 
@@ -189,7 +218,8 @@ export default function EmployeesPage() {
           <EmployeeDrawer id={editing === 'new' ? null : editing} companies={companies.data}
             defaultCompany={shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id} onClose={() => setEditing(null)} />
         )}
-        {bulk && <UploadEmployees adding={bulk === 'add'} companies={companies.data} onClose={() => setBulk(null)} />}
+        {bulk && <UploadEmployees adding={bulk === 'add'} companies={companies.data}
+          defaultCompany={shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id} onClose={() => setBulk(null)} />}
       </>}
       <ConfirmDialog open={!!deleting} title={t('employees.deleteTitle', { name: deleting?.name })}
         confirmLabel={t('employees.deleteConfirm')} busy={busy} onConfirm={remove} onCancel={() => setDeleting(null)}>
@@ -204,7 +234,7 @@ interface Values {
   nationalId: string; kraPin: string; nssfNo: string; shaNo: string
   companyId: string; departmentId: string; positionId: string; unitId: string; locationId: string; lineManagerId: string; payScheduleId: string; leavePlanId: string
   employmentType: string; contractEnd: string
-  payBasis: string; basicAmount: string
+  basicAmount: string
   method: string; bankCode: string; branchCode: string; accountNumber: string; mpesaPhone: string
 }
 
@@ -213,14 +243,14 @@ const tabOf: Record<string, TabKey> = {
   firstName: 'personal', middleName: 'personal', lastName: 'personal', dateOfBirth: 'personal', phone: 'personal', email: 'personal',
   staffNo: 'personal', hireDate: 'personal', exitDate: 'personal', nationalId: 'ids', kraPin: 'ids', nssfNo: 'ids', shaNo: 'ids',
   companyId: 'job', departmentId: 'job', positionId: 'job', unitId: 'job', locationId: 'job', lineManagerId: 'job', payScheduleId: 'job',
-  leavePlanId: 'job', employmentType: 'job', contractEnd: 'job', payBasis: 'pay', basicAmount: 'pay',
+  leavePlanId: 'job', employmentType: 'job', contractEnd: 'job', basicAmount: 'pay',
   method: 'account', bankCode: 'account', branchCode: 'account', accountNumber: 'account', mpesaPhone: 'account',
 }
 
 /** The API's field names ("job.payScheduleId", "account.mpesaPhone") to the form's. */
 const fieldOf = (name: string): FieldPath<Values> | null => {
   const last = name.split('.').pop()!
-  const map: Record<string, FieldPath<Values>> = { basicAmount: 'basicAmount', payBasis: 'payBasis' }
+  const map: Record<string, FieldPath<Values>> = { basicAmount: 'basicAmount', payBasis: 'basicAmount' }
   return (map[last] ?? (last in tabOf ? last : null)) as FieldPath<Values> | null
 }
 
@@ -274,6 +304,8 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
     plans.data?.find(p => p.defaultForSchedules.includes(schedule))?.id ?? plans.data?.find(p => p.defaultFor.includes(company))?.id ?? ''
 
   const { register, handleSubmit, control, setError, setValue, getValues, formState: { errors, isSubmitting, dirtyFields } } = useForm<Values>({
+    // Each field is checked as soon as it is left, then as it changes.
+    mode: 'onTouched',
     defaultValues: {
       firstName: employee?.firstName ?? '', middleName: employee?.middleName ?? '', lastName: employee?.lastName ?? '',
       dateOfBirth: employee?.dateOfBirth ?? '', phone: employee?.phone ?? '', email: employee?.email ?? '', staffNo: employee?.staffNo ?? '',
@@ -284,13 +316,13 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
       locationId: employee?.job.locationId ?? '', lineManagerId: employee?.job.lineManagerId ?? '',
       payScheduleId: employee?.job.payScheduleId ?? '', leavePlanId: employee?.job.leavePlanId ?? '',
       employmentType: employee?.job.employmentType ?? 'permanent', contractEnd: employee?.job.contractEnd ?? '',
-      payBasis: employee?.pay?.payBasis ?? 'monthly', basicAmount: employee?.pay ? String(employee.pay.basicAmount) : '',
+      basicAmount: employee?.pay ? String(employee.pay.basicAmount) : '',
       method: employee?.account?.method ?? 'none', bankCode: employee?.account?.bankCode ?? '', branchCode: employee?.account?.branchCode ?? '',
       accountNumber: '', mpesaPhone: '',
     },
   })
-  const [companyId, scheduleId, basis, method, bankCode, type, departmentId] =
-    useWatch({ control, name: ['companyId', 'payScheduleId', 'payBasis', 'method', 'bankCode', 'employmentType', 'departmentId'] })
+  const [companyId, scheduleId, method, bankCode, type, departmentId] =
+    useWatch({ control, name: ['companyId', 'payScheduleId', 'method', 'bankCode', 'employmentType', 'departmentId'] })
   // Date left only opens for someone who no longer works here.
   const [stillHere, setStillHere] = useState(!employee?.exitDate)
   const company = companies.find(c => c.id === companyId) ?? companies[0]
@@ -305,15 +337,12 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee, schedules.data, plans.data, locations.data, companyId])
 
-  const banks = useQuery({
-    queryKey: ['banks', company.countryCode],
-    staleTime: Infinity,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/banks', { params: { query: { country: company.countryCode } } })
-      if (error || !data) throw new Error('banks')
-      return data
-    },
-  })
+  const banks = useBanks(company.countryCode)
+  const paysBy = usePaysBy(companyId).data ?? null
+  // A new employee is paid the way the company pays.
+  useEffect(() => {
+    if (!employee && paysBy && getValues('method') === 'none') setValue('method', paysBy)
+  }, [employee, paysBy, getValues, setValue])
   const managers = useQuery({
     queryKey: ['employees', 'choices', companyId],
     queryFn: async () => {
@@ -326,7 +355,7 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
   type Scoped = { id: string; allCompanies: boolean; companyIds: string[] }
   const serves = <T extends Scoped>(items: T[] | undefined) => (items ?? []).filter(i => i.allCompanies || i.companyIds.includes(companyId))
   const schedule = schedules.data?.find(s => s.id === scheduleId)
-  const mismatch = schedule && ((basis === 'monthly') !== (schedule.frequency === 'monthly'))
+  const frequency = schedule?.frequency ?? 'monthly'
   const sameDepartmentFirst = [...(managers.data ?? [])].filter(m => m.id !== employee?.id)
     .sort((a, b) => Number(b.departmentId === departmentId && !!departmentId) - Number(a.departmentId === departmentId && !!departmentId))
 
@@ -342,6 +371,11 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
       setError('exitDate', { message: t('employees.exitDateRequired') })
       return setTab('personal')
     }
+    // People who work here are paid the way the company pays.
+    if (stillHere && paysBy && v.method !== paysBy) {
+      setError('method', { message: t(paysBy === 'bank' ? 'employees.rules.paysByBank' : 'employees.rules.paysByMpesa', { company: company.legalName }) })
+      return setTab('account')
+    }
     const accountTouched = !employee || ['method', 'bankCode', 'branchCode', 'accountNumber', 'mpesaPhone'].some(k => dirtyFields[k as keyof Values])
     const body = {
       companyId: v.companyId, staffNo: v.staffNo.trim() || null, firstName: v.firstName, middleName: v.middleName || null, lastName: v.lastName,
@@ -354,7 +388,8 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
         lineManagerId: v.lineManagerId || null, payScheduleId: v.payScheduleId || null, leavePlanId: v.leavePlanId || null,
         employmentType: v.employmentType, contractEnd: v.employmentType === 'contract' && v.contractEnd ? v.contractEnd : null,
       },
-      pay: v.basicAmount.trim() ? { basicAmount: Number(v.basicAmount.replace(/,/g, '')), payBasis: v.payBasis } : null,
+      // Paid as often as their schedule runs (the API takes it from the schedule).
+      pay: v.basicAmount.trim() ? { basicAmount: Number(v.basicAmount.replace(/kes|ksh|[\s,]/gi, '')), payBasis: null } : null,
       account: !accountTouched || v.method === 'none' ? null
         : v.method === 'bank' ? { method: 'bank', bankCode: v.bankCode, branchCode: v.branchCode, accountNumber: v.accountNumber.trim() || null }
           : { method: 'mpesa', mpesaPhone: v.mpesaPhone.trim() || null },
@@ -384,14 +419,26 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
     else setTab(tabOf[known[0][0]!])
   }
 
+  /** A field's own check, as the API makes it: its message, or true. */
+  const check = (rule: (value: string) => string | null) => ({
+    validate: (value: string) => {
+      const key = rule(value)
+      return key ? t(`employees.rules.${key}`) : true
+    },
+  })
+  const needed = (when: (v: Values) => boolean) => ({
+    validate: (value: string, v: Values) => (when(v) && !value.trim() ? t('employees.rules.required') : true),
+  })
   const saved = (masked: string | null | undefined, hint: string) => (employee && masked ? t('employees.saved_', { masked }) : hint)
-  const select = (name: FieldPath<Values>, label: string, placeholder: string, options: { value: string; label: string }[], extra: { optional?: boolean; hint?: string } = {}) => (
-    <Controller control={control} name={name} render={({ field }) => (
+  const select = (name: FieldPath<Values>, label: string, placeholder: string, options: { value: string; label: string }[],
+    extra: { optional?: boolean; hint?: string; disabled?: boolean } = {}, required?: (v: Values) => boolean) => (
+    <Controller control={control} name={name} rules={required ? needed(required) : undefined} render={({ field }) => (
       <SelectField label={label} placeholder={placeholder} error={errors[name]?.message} options={options} {...extra}
         value={String(field.value ?? '')} onChange={field.onChange} onBlur={field.onBlur} name={field.name} />
     )} />
   )
   const bank = banks.data?.find(b => b.code === bankCode)
+  const keepsAccount = (m: string) => !!employee?.account && employee.account.method === m
 
   return (
     <Drawer open size="wide" title={employee ? t('employees.editTitle') : t('employees.addTitle')} onClose={onClose}
@@ -401,18 +448,18 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{employee ? t('employees.save') : t('employees.add')}</Button>
       </>}>
-      <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <form id={formId} noValidate onSubmit={handleSubmit(onSubmit, found => { const first = Object.keys(found)[0]; if (tabOf[first]) setTab(tabOf[first]) })} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
 
         <TabPanel id={tabsId} tab="personal" current={tab}>
           <div className="grid gap-4 sm:grid-cols-3">
-            <TextField label={t('employees.firstName')} placeholder={t('employees.firstNamePlaceholder')} maxLength={60} error={errors.firstName?.message} {...register('firstName')} />
+            <TextField label={t('employees.firstName')} placeholder={t('employees.firstNamePlaceholder')} maxLength={60} error={errors.firstName?.message} {...register('firstName', check(rules.name))} />
             <TextField label={t('employees.middleName')} placeholder={t('employees.middleNamePlaceholder')} optional maxLength={60} error={errors.middleName?.message} {...register('middleName')} />
-            <TextField label={t('employees.lastName')} placeholder={t('employees.lastNamePlaceholder')} maxLength={60} error={errors.lastName?.message} {...register('lastName')} />
+            <TextField label={t('employees.lastName')} placeholder={t('employees.lastNamePlaceholder')} maxLength={60} error={errors.lastName?.message} {...register('lastName', check(rules.name))} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField type="date" label={t('employees.hireDate')} placeholder={t('employees.hireDatePlaceholder')} error={errors.hireDate?.message} {...register('hireDate')} />
+            <TextField type="date" label={t('employees.hireDate')} placeholder={t('employees.hireDatePlaceholder')} error={errors.hireDate?.message} {...register('hireDate', check(rules.required))} />
             <div className="flex flex-col gap-2">
               <Checkbox label={t('employees.stillHere')} checked={stillHere}
                 onChange={e => { setStillHere(e.target.checked); if (e.target.checked) setValue('exitDate', '', { shouldDirty: true }) }} />
@@ -421,22 +468,22 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
             </div>
             <TextField type="date" label={t('employees.dateOfBirth')} placeholder={t('employees.dateOfBirthPlaceholder')} optional error={errors.dateOfBirth?.message} {...register('dateOfBirth')} />
             <TextField label={t('employees.staffNo')} placeholder={t('employees.staffNoPlaceholder')} optional hint={t('employees.staffNoHint')} maxLength={20}
-              error={errors.staffNo?.message} {...register('staffNo')} />
-            <TextField type="tel" label={t('employees.phone')} placeholder={t('employees.phonePlaceholder')} optional error={errors.phone?.message} {...register('phone')} />
-            <TextField type="email" label={t('employees.email')} placeholder={t('employees.emailPlaceholder')} optional error={errors.email?.message} {...register('email')} />
+              error={errors.staffNo?.message} {...register('staffNo', check(rules.staffNo))} />
+            <TextField type="tel" label={t('employees.phone')} placeholder={t('employees.phonePlaceholder')} optional error={errors.phone?.message} {...register('phone', check(rules.phone))} />
+            <TextField type="email" label={t('employees.email')} placeholder={t('employees.emailPlaceholder')} optional error={errors.email?.message} {...register('email', check(rules.email))} />
           </div>
         </TabPanel>
 
         <TabPanel id={tabsId} tab="ids" current={tab}>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField label={t('employees.nationalId')} placeholder={t('employees.nationalIdPlaceholder')} optional inputMode="numeric"
-              hint={saved(employee?.nationalIdMasked, t('employees.nationalIdHint'))} error={errors.nationalId?.message} {...register('nationalId')} />
+              hint={saved(employee?.nationalIdMasked, t('employees.nationalIdHint'))} error={errors.nationalId?.message} {...register('nationalId', check(rules.nationalId))} />
             <TextField label={t('employees.kraPin')} placeholder={t('employees.kraPinPlaceholder')} optional autoCapitalize="characters"
-              hint={saved(employee?.kraPinMasked, t('employees.kraPinHint'))} error={errors.kraPin?.message} {...register('kraPin')} />
+              hint={saved(employee?.kraPinMasked, t('employees.kraPinHint'))} error={errors.kraPin?.message} {...register('kraPin', check(rules.kraPin))} />
             <TextField label={t('employees.nssfNo')} placeholder={t('employees.nssfNoPlaceholder')} optional inputMode="numeric" hint={t('employees.nssfNoHint')}
-              error={errors.nssfNo?.message} {...register('nssfNo')} />
+              error={errors.nssfNo?.message} {...register('nssfNo', check(rules.nssfNo))} />
             <TextField label={t('employees.shaNo')} placeholder={t('employees.shaNoPlaceholder')} optional hint={t('employees.shaNoHint')}
-              error={errors.shaNo?.message} {...register('shaNo')} />
+              error={errors.shaNo?.message} {...register('shaNo', check(rules.shaNo))} />
           </div>
         </TabPanel>
 
@@ -460,47 +507,64 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
               { hint: t('employees.leavePlanHint') })}
           </div>
           <Controller control={control} name="employmentType" render={({ field }) => (
-            <RadioGroup label={t('employees.employmentType')} name={field.name} value={field.value} onChange={field.onChange}
+            <RadioGroup label={t('employees.employmentType')} name={field.name} value={field.value}
+              // Only a contract has an end date.
+              onChange={value => { field.onChange(value); if (value !== 'contract') setValue('contractEnd', '') }}
               options={types.map(k => ({ value: k, label: t(`employees.types.${k}`) }))} />
           )} />
-          {type === 'contract' && (
-            <TextField type="date" label={t('employees.contractEnd')} placeholder={t('employees.contractEndPlaceholder')} optional error={errors.contractEnd?.message} {...register('contractEnd')} />
-          )}
+          <div className="max-w-sm">
+            <TextField type="date" label={t('employees.contractEnd')} placeholder={t('employees.contractEndPlaceholder')} optional disabled={type !== 'contract'}
+              error={errors.contractEnd?.message} {...register('contractEnd')} />
+          </div>
         </TabPanel>
 
         <TabPanel id={tabsId} tab="pay" current={tab}>
-          <Controller control={control} name="payBasis" render={({ field }) => (
-            <RadioGroup label={t('employees.payBasis')} name={field.name} value={field.value} onChange={field.onChange}
-              options={bases.map(b => ({ value: b, label: t(`employees.bases.${b}`) }))} />
-          )} />
           <div className="max-w-sm">
-            <TextField label={t(`employees.amountLabels.${basis}`)} placeholder={t('employees.amountPlaceholder')} optional inputMode="decimal"
-              error={errors.basicAmount?.message} {...register('basicAmount')} />
+            <TextField label={t(`employees.amountLabels.${frequency}`)} placeholder={t('employees.amountPlaceholder')} optional inputMode="decimal"
+              hint={t('employees.amountHint', { frequency: t(`employees.frequencies.${frequency}`) })}
+              error={errors.basicAmount?.message} {...register('basicAmount', check(rules.amount))} />
           </div>
-          {mismatch && schedule && (
-            <Notice>{t('employees.basisMismatch', { schedule: schedule.name, frequency: t(`employees.frequencies.${schedule.frequency}`), basis: t(`employees.bases.${basis}`).toLowerCase() })}</Notice>
-          )}
         </TabPanel>
 
         <TabPanel id={tabsId} tab="account" current={tab}>
           <Controller control={control} name="method" render={({ field }) => (
-            <RadioGroup label={t('employees.method')} name={field.name} value={field.value} onChange={field.onChange}
+            <RadioGroup label={t('employees.method')} name={field.name} value={field.value} onChange={field.onChange} error={errors.method?.message}
+              hint={paysBy && stillHere ? t('employees.paysByHint', { company: company.legalName, method: t(`employees.methods.${paysBy}`) }) : undefined}
               options={(['bank', 'mpesa', 'none'] as const).map(m => ({ value: m, label: t(`employees.methods.${m}`) }))} />
           )} />
           {method === 'bank' && (
             <div className="grid gap-4 sm:grid-cols-2">
-              {select('bankCode', t('employees.bank'), t('employees.bankPlaceholder'), (banks.data ?? []).map(b => ({ value: b.code, label: b.name })))}
-              {select('branchCode', t('employees.branch'), t('employees.branchPlaceholder'), (bank?.branches ?? []).map(b => ({ value: b.code, label: `${b.name} (${b.code})` })))}
+              <Controller control={control} name="bankCode" rules={needed(v => v.method === 'bank')} render={({ field }) => (
+                <SelectField label={t('employees.bank')} placeholder={t('employees.bankPlaceholder')} error={errors.bankCode?.message}
+                  options={(banks.data ?? []).map(b => ({ value: b.code, label: b.name }))} value={field.value} name={field.name} onBlur={field.onBlur}
+                  // Another bank has other branches.
+                  onChange={value => { field.onChange(value); setValue('branchCode', '') }} />
+              )} />
+              {select('branchCode', t('employees.branch'), t('employees.branchPlaceholder'), (bank?.branches ?? []).map(b => ({ value: b.code, label: `${b.name} (${b.code})` })),
+                { disabled: !bankCode, hint: bankCode ? undefined : t('employees.rules.bankFirst') }, v => v.method === 'bank')}
               <TextField label={t('employees.accountNumber')} placeholder={t('employees.accountNumberPlaceholder')} inputMode="numeric"
                 hint={employee?.account?.accountMasked ? t('employees.keepAccount', { masked: employee.account.accountMasked }) : undefined}
-                error={errors.accountNumber?.message} {...register('accountNumber')} />
+                error={errors.accountNumber?.message} {...register('accountNumber', {
+                  validate: (value: string, v: Values) => {
+                    if (v.method !== 'bank') return true
+                    if (!value.trim()) return keepsAccount('bank') && v.bankCode === employee?.account?.bankCode ? true : t('employees.rules.required')
+                    const problem = accountProblem(banks.data?.find(b => b.code === v.bankCode), value)
+                    return problem ? t(`employees.rules.${problem.key}`, problem.values) : true
+                  },
+                })} />
             </div>
           )}
           {method === 'mpesa' && (
             <div className="max-w-sm">
               <TextField type="tel" label={t('employees.mpesa')} placeholder={t('employees.mpesaPlaceholder')}
-                hint={employee?.account?.mpesaMasked ? t('employees.keepAccount', { masked: employee.account.mpesaMasked }) : undefined}
-                error={errors.mpesaPhone?.message} {...register('mpesaPhone')} />
+                hint={employee?.account?.mpesaMasked ? t('employees.keepAccount', { masked: employee.account.mpesaMasked }) : t('employees.mpesaHint')}
+                error={errors.mpesaPhone?.message} {...register('mpesaPhone', {
+                  validate: (value: string, v: Values) => {
+                    if (v.method !== 'mpesa') return true
+                    if (!value.trim()) return keepsAccount('mpesa') ? true : t('employees.rules.required')
+                    return rules.mpesa(value) ? t('employees.rules.mpesa') : true
+                  },
+                })} />
             </div>
           )}
         </TabPanel>
@@ -511,45 +575,102 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
 
 /**
  * Adding employees in a sheet (one row to start, Add row for more), or uploading a file (template,
- * then the review). Adding offers dropdowns for the company and the org structure and a "Still
- * works here" tick that keeps Date left closed; the upload's review keeps the file's text.
+ * then the review). One company at a time, chosen first: its schedules, leave plans, structure,
+ * locations and banks are the dropdowns, its default schedule and leave plan come filled in, and
+ * people who work here need the bank or M-Pesa details the company pays by. Each cell is checked
+ * as soon as it is left, with the same rules as the API, which checks every row again.
  */
-function UploadEmployees({ adding, companies, onClose }: { adding: boolean; companies: Company[]; onClose: () => void }) {
+function UploadEmployees({ adding, companies, defaultCompany, onClose }: { adding: boolean; companies: Company[]; defaultCompany: string; onClose: () => void }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const divisions = useStructure('divisions', adding)
-  const departments = useStructure('departments', adding)
-  const positions = useStructure('positions', adding)
-  const units = useStructure('units', adding)
-  // In a sheet, the structure is picked from lists (by code, which the API matches first).
-  const structure = (items: StructureItem[] | undefined) => (items ?? []).map(i => ({ value: i.code, label: `${i.name ?? i.title} (${i.code})` }))
-  const picks: Partial<Record<(typeof columnKeys)[number], { value: string; label: string }[]>> = adding ? {
-    company: companies.map(c => ({ value: c.legalName, label: c.legalName })),
-    division: structure(divisions.data), department: structure(departments.data), position: structure(positions.data), unit: structure(units.data),
-  } : {}
-  const dates = new Set(['dateOfBirth', 'hireDate', 'exitDate', 'contractEnd'])
-  const base = columnKeys.map(key => ({
-    key, label: t(`employees.columns.${key}`),
-    ...(picks[key] ? { options: picks[key] } : {}),
-    ...(key === 'employmentType' ? { options: types.map(k => ({ value: t(`employees.types.${k}`, { lng: 'en' }), label: t(`employees.types.${k}`) })) } : {}),
-    ...(key === 'payBasis' ? { options: bases.map(k => ({ value: t(`employees.bases.${k}`, { lng: 'en' }), label: t(`employees.bases.${k}`) })) } : {}),
-    ...(adding && dates.has(key) ? { type: 'date' as const } : {}),
-    ...(adding && key === 'company' && companies.length === 1 ? { defaultValue: companies[0].legalName } : {}),
-    ...(adding && key === 'exitDate' ? { disabledWhen: (cells: Record<string, string>) => cells.stillHere === 'Yes' } : {}),
-  }))
-  // Adding: "Still works here" (ticked) just before Date left.
-  const columns = adding
-    ? base.flatMap(c => (c.key === 'exitDate' ? [{ key: 'stillHere', label: t('employees.stillHere'), type: 'checkbox' as const, defaultValue: 'Yes' }, c] : [c]))
-    : base
+  const [companyId, setCompanyId] = useState(defaultCompany)
+  const company = companies.find(c => c.id === companyId) ?? companies[0]
+  const divisions = useStructure('divisions')
+  const departments = useStructure('departments')
+  const positions = useStructure('positions')
+  const units = useStructure('units')
+  const locations = useLocations()
+  const schedules = useSchedules()
+  const plans = useLeavePlans()
+  const banks = useBanks(company.countryCode)
+  const paysBy = usePaysBy(company.id)
+  const loaded = [divisions, departments, positions, units, locations, schedules, plans, banks, paysBy].every(q => q.isSuccess)
 
-  /** Someone who doesn't work here any more needs the date they left (the API only sees the date). */
-  const leftWithoutDate = (rows: BulkUploadRow[]) => adding
-    ? rows.filter(r => r.cells.stillHere !== 'Yes' && !r.cells.exitDate?.trim()).map(r => ({ line: r.line, column: 'exitDate', message: t('employees.exitDateRequired') }))
-    : []
+  // What the chosen company uses, by name (as the template lists them).
+  type Scoped = { allCompanies: boolean; companyIds: string[] }
+  const serves = <T extends Scoped>(items: T[] | undefined) => (items ?? []).filter(i => i.allCompanies || i.companyIds.includes(company.id))
+  const named = (names: string[]) => names.map(name => ({ value: name, label: name }))
+  const structure = (items: StructureItem[] | undefined) => named(serves(items).map(i => i.name ?? i.title ?? ''))
+  const scheduleOf = (name: string) => schedules.data?.find(s => s.name === name)
+  const defaultSchedule = schedules.data?.find(s => s.defaultFor.includes(company.id))
+  const planFor = (schedule: string) =>
+    (plans.data?.find(p => p.defaultForSchedules.includes(schedule)) ?? plans.data?.find(p => p.defaultFor.includes(company.id)))?.name ?? ''
+  const bankOf = (name: string) => banks.data?.find(b => b.name === name)
+  const lists: Partial<Record<(typeof columnKeys)[number], { value: string; label: string }[]>> = {
+    employmentType: types.map(k => ({ value: t(`employees.types.${k}`, { lng: 'en' }), label: t(`employees.types.${k}`) })),
+    division: structure(divisions.data), department: structure(departments.data), position: structure(positions.data), unit: structure(units.data),
+    location: named(serves(locations.data).map(l => l.name)),
+    payrollSchedule: named(serves(schedules.data).map(s => s.name)),
+    leavePlan: named(serves(plans.data).map(p => p.name)),
+    bank: named((banks.data ?? []).map(b => b.name)),
+  }
+  // A file can name something not in the list (a department to create): it stays, so the review shows what was written.
+  const withCurrent = (options: { value: string; label: string }[], value: string | undefined) =>
+    value?.trim() && !options.some(o => o.value.toLowerCase() === value.trim().toLowerCase()) ? [...options, { value, label: value }] : options
+
+  const message = (key: string | null, values?: Record<string, unknown>) => (key ? t(`employees.rules.${key}`, values) : null)
+  const working = (cells: Record<string, string>) => cells.stillHere !== 'No'
+  const paysByMessage = (method: string) => t(method === 'bank' ? 'employees.rules.paysByBank' : 'employees.rules.paysByMpesa', { company: company.legalName })
+  const validators: Partial<Record<(typeof columnKeys)[number], (value: string, cells: Record<string, string>) => string | null>> = {
+    firstName: v => message(rules.name(v)), lastName: v => message(rules.name(v)),
+    staffNo: v => message(rules.staffNo(v)), phone: v => message(rules.phone(v)), email: v => message(rules.email(v)),
+    nationalId: v => message(rules.nationalId(v)), kraPin: v => message(rules.kraPin(v)), nssfNo: v => message(rules.nssfNo(v)), shaNo: v => message(rules.shaNo(v)),
+    hireDate: v => message(rules.required(v)),
+    exitDate: (v, cells) => (!working(cells) && !v.trim() ? t('employees.rules.exitDate') : null),
+    basicPay: v => message(rules.amount(v)),
+    bank: (v, cells) => (!v.trim() && working(cells) && paysBy.data === 'bank' ? paysByMessage('bank') : null),
+    branch: (v, cells) => (!v.trim() && cells.bank?.trim() ? message('required') : null),
+    accountNumber: (v, cells) => {
+      if (!v.trim()) return cells.bank?.trim() ? message('required') : null
+      const problem = accountProblem(bankOf(cells.bank ?? ''), v)
+      return problem ? message(problem.key, problem.values) : null
+    },
+    mpesa: (v, cells) => (!v.trim()
+      ? (working(cells) && paysBy.data === 'mpesa' ? paysByMessage('mpesa') : null)
+      : message(rules.mpesa(v))),
+  }
+  const dates = new Set(['dateOfBirth', 'hireDate', 'exitDate', 'contractEnd'])
+  const isContract = (cells: Record<string, string>) => (cells.employmentType ?? '').trim().toLowerCase() === 'contract'
+  const columns: BulkUploadColumn[] = columnKeys.map(key => ({
+    key, label: key === 'stillHere' ? t('employees.stillHere') : t(`employees.columns.${key}`),
+    ...(lists[key] ? { optionsFor: (cells: Record<string, string>) => withCurrent(lists[key]!, cells[key]) } : {}),
+    ...(key === 'branch' ? {
+      optionsFor: (cells: Record<string, string>) => withCurrent(named((bankOf(cells.bank ?? '')?.branches ?? []).map(b => b.name)), cells.branch),
+      disabledWhen: (cells: Record<string, string>) => !cells.bank?.trim(),
+    } : {}),
+    ...(key === 'stillHere' ? { type: 'checkbox' as const, ...(adding ? { defaultValue: 'Yes' } : {}) } : {}),
+    ...(adding && dates.has(key) ? { type: 'date' as const } : {}),
+    ...(key === 'exitDate' ? { disabledWhen: (cells: Record<string, string>) => working(cells) } : {}),
+    // Only a contract has an end date.
+    ...(key === 'contractEnd' ? { disabledWhen: (cells: Record<string, string>) => !isContract(cells) } : {}),
+    ...(adding && key === 'employmentType' ? { defaultValue: t('employees.types.permanent', { lng: 'en' }) } : {}),
+    ...(adding && key === 'payrollSchedule' && defaultSchedule ? { defaultValue: defaultSchedule.name } : {}),
+    ...(adding && key === 'leavePlan' ? { defaultValue: planFor(defaultSchedule?.id ?? '') } : {}),
+    ...(adding && key === 'location' ? { defaultValue: serves(locations.data).find(l => l.mainFor.includes(company.id))?.name ?? '' } : {}),
+    ...(validators[key] ? { validate: validators[key] } : {}),
+  })).map(c => (c.defaultValue === '' ? { ...c, defaultValue: undefined } : c))
+
+  const follow = (cells: Record<string, string>, changed: string) =>
+    changed === 'payrollSchedule' ? { ...cells, leavePlan: planFor(scheduleOf(cells.payrollSchedule)?.id ?? '') || cells.leavePlan }
+      : changed === 'bank' ? { ...cells, branch: '' }
+        : cells
+
+  // Every row is for the chosen company (the sheet has no Company column).
+  const forCompany = (rows: BulkUploadRow[]) => rows.map(r => ({ ...r, cells: { ...r.cells, company: company.legalName } }))
 
   const downloadTemplate = async () => {
-    const { data } = await api.GET('/api/employees/template', { parseAs: 'blob' })
+    const { data } = await api.GET('/api/employees/template', { params: { query: { companyId: company.id } }, parseAs: 'blob' })
     if (!data) throw new Error('template')
     const url = URL.createObjectURL(data)
     const link = document.createElement('a')
@@ -568,20 +689,27 @@ function UploadEmployees({ adding, companies, onClose }: { adding: boolean; comp
         return form
       },
     })
-    if (data) return data
+    if (data) {
+      // "Still works here" as a tick: empty means yes unless there's a date they left.
+      const ticked = (cells: Record<string, string>) => {
+        const said = (cells.stillHere ?? '').trim().toLowerCase()
+        return said === 'yes' || (!said && !(cells.exitDate ?? '').trim()) ? 'Yes' : said === 'no' || !said ? 'No' : cells.stillHere
+      }
+      return { ...data, rows: data.rows.map(r => ({ ...r, cells: { ...r.cells, stillHere: ticked(r.cells) } })) }
+    }
     if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
     throw new Error('read')
   }
 
   const check = async (rows: BulkUploadRow[]) => {
-    const { data, error } = await api.POST('/api/employees/import/check', { body: { rows: rows as ImportRow[] } })
-    if (data) return { ...data, problems: [...leftWithoutDate(rows), ...data.problems] }
+    const { data, error } = await api.POST('/api/employees/import/check', { body: { rows: forCompany(rows) as ImportRow[] } })
+    if (data) return data
     if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
     throw new Error('check')
   }
 
   const importRows = async (rows: BulkUploadRow[]) => {
-    const { data, error } = await api.POST('/api/employees/import', { body: { rows: rows as ImportRow[], allCompanies: false, companyIds: [] } })
+    const { data, error } = await api.POST('/api/employees/import', { body: { rows: forCompany(rows) as ImportRow[], allCompanies: false, companyIds: [] } })
     if (data) {
       for (const key of [['employees'], ['structure', 'departments'], ['structure', 'positions'], ['structure', 'divisions']]) {
         void queryClient.invalidateQueries({ queryKey: key })
@@ -593,13 +721,29 @@ function UploadEmployees({ adding, companies, onClose }: { adding: boolean; comp
     throw new Error('import')
   }
 
+  const companyField = (hint: string) => (
+    <div className="w-full max-w-sm">
+      <SelectField label={t('employees.company')} placeholder={t('employees.companyPlaceholder')} hint={hint} value={company.id}
+        onChange={value => value && setCompanyId(value)} options={companies.map(c => ({ value: c.id, label: c.legalName }))} />
+    </div>
+  )
+
+  if (!loaded) {
+    return <Drawer open size={adding ? 'sheet' : 'md'} title={adding ? t('employees.add') : t('employees.upload')} onClose={onClose}><Loading rows={4} /></Drawer>
+  }
+
   return (
-    <BulkUpload open startRows={adding ? 1 : undefined} title={adding ? t('employees.add') : t('employees.upload')} columns={columns} onClose={onClose}
+    // A sheet being filled in starts again for another company, as its lists change.
+    <BulkUpload key={adding ? company.id : 'upload'} open startRows={adding ? 1 : undefined} title={adding ? t('employees.add') : t('employees.upload')}
+      columns={columns} onCellsChange={follow} onClose={onClose}
       onDownloadTemplate={downloadTemplate} onRead={read} onCheck={check} onImport={importRows}
+      firstStep={adding ? undefined : { title: t('employees.uploadCompany'), content: companyField(t('employees.uploadCompanyHint')) }}
       labels={{
         review: count => (adding ? t('employees.several', { count }) : t('employees.review', { count })),
         importButton: count => (adding ? t('employees.several', { count }) : t('employees.importButton', { count })),
         templateHint: t('employees.templateHint'),
-      }} />
+      }}>
+      {adding && companies.length > 1 ? companyField(t('employees.sheetCompanyHint')) : undefined}
+    </BulkUpload>
   )
 }

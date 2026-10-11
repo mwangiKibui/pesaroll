@@ -185,13 +185,17 @@ interface RadioGroupProps {
   options: { value: string; label: string; hint?: string }[]
   value: string
   onChange: (value: string) => void
+  /** Under the choices: what to know, or (error) what to fix. */
+  hint?: string
+  error?: string
 }
 
 /** One choice from a few (two to four) shown side by side; more than that is a SelectField. */
-export function RadioGroup({ label, name, options, value, onChange }: RadioGroupProps) {
+export function RadioGroup({ label, name, options, value, onChange, hint, error }: RadioGroupProps) {
   const id = useId()
+  const note = error ?? hint
   return (
-    <fieldset role="radiogroup" aria-labelledby={`${id}-label`} className="m-0 flex flex-col gap-1.5 border-0 p-0">
+    <fieldset role="radiogroup" aria-labelledby={`${id}-label`} aria-describedby={note ? `${id}-note` : undefined} aria-invalid={error ? true : undefined} className="m-0 flex flex-col gap-1.5 border-0 p-0">
       <legend id={`${id}-label`} className="mb-1.5 p-0 text-label font-medium text-ink">{label}</legend>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {options.map(o => (
@@ -205,6 +209,7 @@ export function RadioGroup({ label, name, options, value, onChange }: RadioGroup
           </label>
         ))}
       </div>
+      {note && <p id={`${id}-note`} className={`m-0 text-hint ${error ? 'font-medium text-danger-ink' : 'text-muted'}`}>{note}</p>}
     </fieldset>
   )
 }

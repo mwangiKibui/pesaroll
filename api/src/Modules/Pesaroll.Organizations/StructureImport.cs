@@ -88,7 +88,7 @@ public static class StructureImport
         RequiredKeys = [Name],
         MaxRows = MaxRows,
         MaxMegabytes = MaxMegabytes,
-        Choices = choices,
+        Choices = (db, _, ct) => choices(db, ct),
         Check = (rows, db, _, ct) => CheckAsync(rows, thing, columns.Select(c => c.Key).ToHashSet(), codes(db), departmentRequired, db, ct),
         Save = (rows, request, org, db, now, _, ct) => save(rows, request, org, db, now, ct),
     };

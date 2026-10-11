@@ -116,6 +116,9 @@ public sealed class Bank
     public required string Code { get; set; }
     public required string Name { get; set; }
     public required string LegalName { get; set; }
+    /// <summary>How many digits its account numbers have (ONB-09).</summary>
+    public int AccountDigitsMin { get; set; }
+    public int AccountDigitsMax { get; set; }
     public bool Active { get; set; }
     public int SortOrder { get; set; }
 }
