@@ -86,6 +86,23 @@ internal static class OnboardingErrors
 
     public static AppException PayItemLocked() =>
         new("ONB-3531", "This one is set by law (or is basic pay), so it can't be changed or deleted.", 409);
+    public static AppException LeaveDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3532", "Some leave details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException LeaveNameTaken(string what) =>
+        new("ONB-3533", $"You already have {what}. Choose a different one.", 409);
+
+    public static AppException LeaveNotFound() =>
+        new("ONB-3534", "We couldn't find that leave plan or leave type. It may have been deleted.", 404);
+
+    public static AppException LeaveTypeLocked() =>
+        new("ONB-3535", "This leave is set by law, so it can't be deleted or renamed.", 409);
+
+    public static AppException DefaultLeavePlanNeeded(string what) =>
+        new("ONB-3536", $"This is the default leave plan of {what}. Make another plan their default first.", 409);
+
+    public static AppException LeaveTypeInUse(string plans) =>
+        new("ONB-3537", $"This leave is in {plans}. Take it out of those plans first.", 409);
 
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);

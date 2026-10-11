@@ -8,10 +8,12 @@
 \i reference/countries.sql
 \i reference/banks.sql
 \i reference/statutory_items.sql
+\i reference/statutory_leave.sql
 \i identity/signup_roles.sql
 \i identity/users.sql
 \i identity/signup_role_check.sql
 \i tenancy/organizations.sql
+\i tenancy/leave_plans.sql
 \i tenancy/locations.sql
 \i tenancy/pay_schedules.sql
 \i tenancy/companies.sql
@@ -20,6 +22,7 @@
 \i tenancy/pay_schedule_reminders.sql
 \i tenancy/pay_items.sql
 \i tenancy/pay_item_companies.sql
+\i tenancy/leave_plan_rules.sql
 \i tenancy/structure.sql
 \i tenancy/structure_companies.sql
 \i tenancy/notification_deliveries.sql

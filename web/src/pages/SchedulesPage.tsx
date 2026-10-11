@@ -192,8 +192,7 @@ export default function SchedulesPage() {
             </table>
           )}
         </TableCard>
-        {/* Leave plans (ONB-08) is next; until it has a page, the dashboard. */}
-        <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
+        <Proceed label={t('setup.proceed', { step: t('setup.steps.leavePlans') })} onProceed={() => void navigate({ to: '/setup/leave-plans' })} />
 
         {editing && (
           <ScheduleDrawer schedule={editing === 'new' ? null : editing} companies={companies.data} schedules={schedules.data}

@@ -32,6 +32,8 @@ public sealed class Company
     public Guid? MainLocationId { get; set; }
     /// <summary>The schedule its employees get unless told otherwise (ONB-06); the suggested "Monthly" to start.</summary>
     public Guid? DefaultPayScheduleId { get; set; }
+    /// <summary>The leave plan its employees get (ONB-08) unless their pay schedule names one; "Standard" to start.</summary>
+    public Guid? DefaultLeavePlanId { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
@@ -289,6 +291,90 @@ public sealed class PaySchedule
     public DateTimeOffset UpdatedAt { get; set; }
     public List<PayScheduleCompany> Companies { get; set; } = [];
     public List<PayScheduleReminder> Reminders { get; set; } = [];
+    /// <summary>The leave plan for people on this schedule (ONB-08), before their company's default.</summary>
+    public Guid? DefaultLeavePlanId { get; set; }
+}
+
+/// <summary>The leave the law gives in a country (reference data, ONB-08).</summary>
+public sealed class StatutoryLeave
+{
+    public required string CountryCode { get; set; }
+    public required string Key { get; set; }
+    public required string Code { get; set; }
+    public required string NameEn { get; set; }
+    public required string NameSw { get; set; }
+    public decimal FullPayDays { get; set; }
+    public decimal HalfPayDays { get; set; }
+    public required string Counts { get; set; }
+    public required string EarnMethod { get; set; }
+    public decimal EarnAmount { get; set; }
+    public int WaitingMonths { get; set; }
+    public bool NeedsProof { get; set; }
+    public bool Active { get; set; }
+    public int SortOrder { get; set; }
+}
+
+/// <summary>A kind of leave in an organization (ONB-08); statutory ones (<see cref="LockedKey"/>) can't be deleted or renamed.</summary>
+public sealed class LeaveType
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    /// <summary>working_days or calendar_days.</summary>
+    public string Counts { get; set; } = "working_days";
+    public bool Paid { get; set; } = true;
+    public bool NeedsProof { get; set; }
+    /// <summary>stop, or unpaid: what happens when it runs out.</summary>
+    public string WhenUsedUp { get; set; } = "stop";
+    public string? LockedKey { get; set; }
+    public string? CountryCode { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>A bundle of leave rules (ONB-08) for all companies or the ones in <see cref="Companies"/>.</summary>
+public sealed class LeavePlan
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public required string Name { get; set; }
+    /// <summary>calendar (January to December) or anniversary (each person's start date).</summary>
+    public string LeaveYear { get; set; } = "calendar";
+    public decimal HoursPerDay { get; set; } = 8;
+    public bool AllCompanies { get; set; }
+    public string Status { get; set; } = "active";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<LeavePlanCompany> Companies { get; set; } = [];
+    public List<LeavePlanRule> Rules { get; set; } = [];
+}
+
+public sealed class LeavePlanCompany
+{
+    public Guid OrganizationId { get; set; }
+    public Guid LeavePlanId { get; set; }
+    public Guid CompanyId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>How a plan gives one leave type: see database/schema/tenancy/leave_plan_rules.sql.</summary>
+public sealed class LeavePlanRule
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid LeavePlanId { get; set; }
+    public Guid LeaveTypeId { get; set; }
+    public required string EarnMethod { get; set; }
+    public decimal? Amount { get; set; }
+    public string Unit { get; set; } = "days";
+    public decimal HalfPay { get; set; }
+    public bool Prorate { get; set; } = true;
+    public decimal CarryOverMax { get; set; }
+    public int WaitingMonths { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 /// <summary>A reminder to run payroll: <see cref="Amount"/> days (or hours, for daily pay) before each pay day.</summary>
