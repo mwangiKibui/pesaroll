@@ -4219,6 +4219,7 @@ export interface components {
             defaultFor: null | string[];
             usesCutoff?: null | boolean;
             cutoffAppliesTo?: null | string[];
+            reminders?: null | components["schemas"]["ReminderRequest"][];
         };
         PayScheduleResponse: {
             /** Format: uuid */
@@ -4244,6 +4245,7 @@ export interface components {
             companyIds: string[];
             defaultFor: string[];
             nextPayDates: string[];
+            reminders: components["schemas"]["ReminderResponse"][];
         };
         PositionRequest: {
             code: null | string;
@@ -4270,6 +4272,23 @@ export interface components {
         RegionResponse: {
             code: string;
             name: string;
+        };
+        ReminderRequest: {
+            /** Format: uuid */
+            id: null | string;
+            /** Format: int32 */
+            amount: number | string;
+            channel: null | string;
+            recipient: null | string;
+        };
+        ReminderResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            amount: number | string;
+            unit: string;
+            channel: string;
+            recipient: string;
         };
         RenameOrganizationRequest: {
             name: null | string;

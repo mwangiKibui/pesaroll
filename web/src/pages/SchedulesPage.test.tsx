@@ -47,7 +47,7 @@ it('lists the suggested Monthly schedule with its pay day, cut-off and next pay 
   expect(await screen.findByRole('heading', { name: 'When do you pay your people?' })).toBeInTheDocument()
   const row = (await within(table()).findByRole('button', { name: 'Edit Monthly' })).closest('tr')!
   expect(within(table()).getAllByRole('columnheader').map(h => h.textContent))
-    .toEqual(['Schedule', 'How often', 'Pay day', 'Cut-off', 'Next pay dates', 'Applies to', 'Default for', 'Actions'])
+    .toEqual(['Schedule', 'How often', 'Pay day', 'Cut-off', 'Next pay dates', 'Applies to', 'Default for', 'Reminders', 'Actions'])
   expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 7)).toEqual([
     'Monthly', 'Monthly', 'Last working day', '25th', 'Fri 30 Oct 2026Mon 30 Nov 2026Thu 31 Dec 2026', 'All companies', 'Mama Oliech Restaurant Ltd',
   ])
@@ -197,6 +197,96 @@ it('turning the cut-off off keeps none of it', async () => {
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-schedules')?.body).toMatchObject({
     usesCutoff: false, cutoffDay: null, cutoffDaysBefore: null, cutoffAppliesTo: [],
   })
+})
+
+const reminded = schedule({
+  reminders: [
+    { id: 'rm1', amount: 3, unit: 'days', channel: 'email', recipient: 'payroll@example.com' },
+    { id: 'rm2', amount: 1, unit: 'days', channel: 'sms', recipient: '+254712345678' },
+  ],
+})
+
+it('lists a schedule\'s reminders and counts them in the table', async () => {
+  oneCompany({ 'GET /api/pay-schedules': () => json(200, [reminded]) })
+  renderApp('/setup/schedules')
+  await screen.findByRole('region', { name: 'Payroll schedules' })
+
+  const row = (await within(table()).findByRole('button', { name: 'Edit Monthly' })).closest('tr')!
+  expect(within(row).getAllByRole('cell')[7]).toHaveTextContent('2')
+
+  await userEvent.click(within(row).getByRole('button', { name: 'Edit Monthly' }))
+  const list = within(drawer()).getByRole('list', { name: 'Reminders' })
+  expect(within(list).getAllByRole('listitem').map(i => i.textContent)).toEqual([
+    expect.stringContaining('3 days before · Email · payroll@example.com'),
+    expect.stringContaining('1 day before · SMS · +254712345678'),
+  ])
+})
+
+it('adds, edits and removes reminders, saved with the schedule', async () => {
+  const calls = oneCompany({
+    'GET /api/pay-schedules': () => json(200, [reminded]),
+    [`PATCH /api/pay-schedules/${reminded.id}`]: () => json(200, reminded),
+  })
+  renderApp('/setup/schedules')
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Monthly' }))
+
+  // Add: when, how, and to whom, in a small form on top of the drawer.
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add reminder' }))
+  let modal = screen.getByRole('dialog', { name: 'Add reminder' })
+  expect(within(modal).getByRole('combobox', { name: 'When' })).toHaveValue('1 day before')
+  await userEvent.clear(within(modal).getByRole('combobox', { name: 'When' }))
+  await userEvent.type(within(modal).getByRole('combobox', { name: 'When' }), '5')
+  await userEvent.click(within(modal).getByRole('option', { name: '5 days before' }))
+  await userEvent.click(within(modal).getByRole('radio', { name: 'SMS' }))
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Phone number' }), '020 123')
+  await userEvent.click(within(modal).getByRole('button', { name: 'Add reminder' }))
+  expect(within(modal).getByRole('textbox', { name: 'Phone number' })).toHaveAccessibleDescription('Enter a Kenyan mobile number, like 0712 345 678.')
+  await userEvent.clear(within(modal).getByRole('textbox', { name: 'Phone number' }))
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Phone number' }), '0722 000 111')
+  await userEvent.click(within(modal).getByRole('button', { name: 'Add reminder' }))
+
+  // Edit the first, remove the second.
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Edit reminder 3 days before' }))
+  modal = screen.getByRole('dialog', { name: 'Edit reminder' })
+  const email = within(modal).getByRole('textbox', { name: 'Email' })
+  await userEvent.clear(email)
+  await userEvent.type(email, 'hr@example.com')
+  await userEvent.click(within(modal).getByRole('button', { name: 'Save reminder' }))
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Remove reminder 1 day before' }))
+
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
+  expect(await screen.findByText('Schedule saved')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'PATCH')?.body).toMatchObject({
+    reminders: [
+      { id: 'rm1', amount: 3, channel: 'email', recipient: 'hr@example.com' },
+      { amount: 5, channel: 'sms', recipient: '0722 000 111' },
+    ],
+  })
+})
+
+it('daily pay is reminded in hours; reminders that no longer fit are flagged', async () => {
+  oneCompany({ 'GET /api/pay-schedules': () => json(200, [schedule({ reminders: [{ id: 'rm1', amount: 14, unit: 'days', channel: 'email', recipient: 'payroll@example.com' }] })]) })
+  renderApp('/setup/schedules')
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Monthly' }))
+
+  await userEvent.clear(within(drawer()).getByRole('combobox', { name: 'How often' }))
+  await choose('How often', 'dai', 'Daily')
+
+  const item = within(within(drawer()).getByRole('list', { name: 'Reminders' })).getByRole('listitem')
+  expect(item).toHaveTextContent('14 hours before')
+  expect(item).toHaveTextContent('Choose from 1 to 12 hours before.')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add reminder' }))
+  expect(within(screen.getByRole('dialog', { name: 'Add reminder' })).getByRole('combobox', { name: 'When' })).toHaveValue('1 hour before')
+})
+
+it('a schedule takes up to five reminders', async () => {
+  const five = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, amount: i + 1, unit: 'days', channel: 'email', recipient: 'payroll@example.com' }))
+  oneCompany({ 'GET /api/pay-schedules': () => json(200, [schedule({ reminders: five })]) })
+  renderApp('/setup/schedules')
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Monthly' }))
+
+  expect(within(drawer()).getByRole('button', { name: 'Add reminder' })).toBeDisabled()
+  expect(within(drawer()).getByText('A schedule can have up to 5 reminders.')).toBeInTheDocument()
 })
 
 it('adds a schedule on a fixed day, showing its next pay dates before saving', async () => {

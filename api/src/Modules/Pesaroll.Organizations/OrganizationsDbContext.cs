@@ -25,6 +25,8 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
     public DbSet<PaySchedule> PaySchedules => Set<PaySchedule>();
     public DbSet<PayScheduleCompany> PayScheduleCompanies => Set<PayScheduleCompany>();
+    public DbSet<PayScheduleReminder> PayScheduleReminders => Set<PayScheduleReminder>();
+    public DbSet<ReminderSend> ReminderSends => Set<ReminderSend>();
     public DbSet<Division> Divisions => Set<Division>();
     public DbSet<DivisionCompany> DivisionCompanies => Set<DivisionCompany>();
     public DbSet<Department> Departments => Set<Department>();
@@ -74,6 +76,10 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
         model.Entity<PaySchedule>().HasMany(s => s.Companies).WithOne().HasForeignKey(c => c.PayScheduleId);
         model.Entity<PayScheduleCompany>().HasKey(c => new { c.PayScheduleId, c.CompanyId });
+        model.Entity<PaySchedule>().HasMany(s => s.Reminders).WithOne().HasForeignKey(r => r.PayScheduleId);
+        // The app makes reminder ids, so one added to an existing schedule is a new row, not an update.
+        model.Entity<PayScheduleReminder>().Property(r => r.Id).ValueGeneratedNever();
+        model.Entity<ReminderSend>().ToTable("pay_schedule_reminder_sends").HasKey(s => new { s.ReminderId, s.PayDate });
         model.Entity<PayScheduleCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
         // Tells EF to write a new schedule before the company that points at it as default.
         model.Entity<Company>().HasOne<PaySchedule>().WithMany().HasForeignKey(c => c.DefaultPayScheduleId);

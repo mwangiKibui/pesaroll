@@ -38,7 +38,20 @@ interface Values {
   cutoffAppliesTo: string[]
   applies: CompanySelection
   defaultFor: string[]
+  reminders: DraftReminder[]
 }
+
+/** A reminder being edited in the drawer; saved with the schedule. id is set once it is saved. */
+interface DraftReminder { key: string; id?: string; amount: number; channel: 'email' | 'sms'; recipient: string }
+
+/** Reminders are in hours before the pay time for daily pay, days before the pay day otherwise, up to these limits (as the API). */
+const reminderUnit = (frequency: string) => (frequency === 'daily' ? 'hours' : 'days')
+const reminderMax = (frequency: string) => ({ daily: 12, weekly: 6, fortnightly: 13 } as Record<string, number>)[frequency] ?? 14
+const maxReminders = 5
+
+/** The same checks as the API: a plain email, or a Kenyan mobile number (07…, 01…, +254…). */
+const isEmail = (text: string) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(text.trim())
+const isKenyanMobile = (text: string) => /^(?:\+?254|0)?[17]\d{8}$/.test(text.replace(/[\s\-().]/g, ''))
 
 const none = <span className="text-muted">—</span>
 
@@ -150,6 +163,7 @@ export default function SchedulesPage() {
                   <th scope="col">{t('schedules.nextPayDates')}</th>
                   <th scope="col">{t('schedules.appliesTo')}</th>
                   <th scope="col">{t('schedules.defaultFor')}</th>
+                  <th scope="col">{t('schedules.reminders')}</th>
                   <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
                 </tr>
               </thead>
@@ -163,6 +177,7 @@ export default function SchedulesPage() {
                     <td className="whitespace-nowrap">{s.nextPayDates.map(d => <span key={d} className="block">{longDate(d)}</span>)}</td>
                     <td>{s.allCompanies ? t('schedules.allCompanies') : companyNames(s.companyIds) || none}</td>
                     <td>{companyNames(s.defaultFor) || none}</td>
+                    <td>{s.reminders.length || none}</td>
                     <td className="whitespace-nowrap text-right">
                       <IconButton label={t('schedules.edit', { name: s.name })} onClick={() => setEditing(s)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
@@ -222,6 +237,7 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
       payTime: schedule?.payTime?.slice(0, 5) ?? '17:00',
       usesCutoff: schedule ? schedule.usesCutoff : true,
       cutoffAppliesTo: schedule?.usesCutoff ? schedule.cutoffAppliesTo : [...cutoffItems],
+      reminders: (schedule?.reminders ?? []).map(r => ({ key: r.id, id: r.id, amount: Number(r.amount), channel: r.channel as 'email' | 'sms', recipient: r.recipient })),
       applies: schedule ? { all: schedule.allCompanies, ids: schedule.allCompanies ? companies.map(c => c.id) : schedule.companyIds } : defaultApplies,
       defaultFor: schedule?.defaultFor ?? [],
     },
@@ -229,6 +245,13 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
   const [applies, frequency, rule, day, weekday, firstPayDate, usesCutoff, appliesTo] =
     useWatch({ control, name: ['applies', 'frequency', 'payDayRule', 'payDay', 'payWeekday', 'firstPayDate', 'usesCutoff', 'cutoffAppliesTo'] })
   const [addingItem, setAddingItem] = useState(false)
+  const reminders = useWatch({ control, name: 'reminders' })
+  const [editingReminder, setEditingReminder] = useState<DraftReminder | 'new' | null>(null)
+  const [reminderErrors, setReminderErrors] = useState<Record<string, string>>({})
+  const unit = reminderUnit(frequency)
+  const max = reminderMax(frequency)
+  const whenText = (amount: number) => t(unit === 'hours' ? 'schedules.hoursBefore' : 'schedules.daysBefore', { count: amount })
+  const fits = (r: DraftReminder) => r.amount >= 1 && r.amount <= max
   // The known items, then the organization's own (from any schedule, or just added here).
   const ownItems = [...new Set([...schedules.flatMap(s => s.cutoffAppliesTo), ...appliesTo].filter(i => !isCutoffItem(i)))]
   const itemOptions = [
@@ -275,6 +298,7 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
     if (v.frequency === 'monthly' && v.payDayRule === 'fixed_day' && !v.payDay) problems.push(['payDay', t('schedules.payDayInvalid')])
     if (v.frequency === 'fortnightly' && !v.firstPayDate) problems.push(['firstPayDate', t('schedules.firstPayDateInvalid')])
     if (v.frequency !== 'daily' && v.usesCutoff && v.cutoffAppliesTo.length === 0) problems.push(['cutoffAppliesTo', t('schedules.appliesToRequired')])
+    if (v.reminders.some(r => r.amount < 1 || r.amount > reminderMax(v.frequency))) problems.push(['reminders', t('schedules.remindersDontFit')])
     if (!v.applies.all && v.applies.ids.length === 0) problems.push(['applies', t('schedules.companiesRequired')])
     for (const [name, message] of problems) setError(name, { message })
     return problems.length === 0
@@ -299,6 +323,7 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
       payTime: v.frequency === 'daily' ? v.payTime : null,
       usesCutoff: uses,
       cutoffAppliesTo: uses ? v.cutoffAppliesTo : [],
+      reminders: v.reminders.map(r => ({ id: r.id ?? null, amount: r.amount, channel: r.channel, recipient: r.recipient.trim() })),
       allCompanies: v.applies.all,
       companyIds: v.applies.all ? [] : v.applies.ids,
       // Only companies it still serves can have it as default.
@@ -323,6 +348,9 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
 
   const showError = (error: unknown) => {
     if (!isApiError(error)) return setBanner('network')
+    // Reminder problems ("reminders[1].recipient") show on their reminder.
+    const onReminders = Object.entries(error.fields ?? {}).filter(([name]) => name.startsWith('reminders'))
+    setReminderErrors(Object.fromEntries(onReminders.map(([name, message]) => [reminders[Number(/\[(\d+)\]/.exec(name)?.[1])]?.key ?? 'all', message])))
     if (error.code === 'ONB-3525') return setError('name', { message: errorMessage(t, error) })
     const fields: Record<string, FieldPath<Values>> = {
       name: 'name', frequency: 'frequency', payDayRule: 'payDayRule', payDay: 'payDay', cutoffDay: 'cutoffDay', payWeekday: 'payWeekday',
@@ -330,11 +358,11 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
-    if (known.length === 0) setBanner(error)
+    if (known.length === 0 && onReminders.length === 0) setBanner(error)
   }
 
   return (
-    <Drawer open title={schedule ? t('schedules.editTitle') : t('schedules.addTitle')} onClose={onClose}
+    <Drawer open size="wide" title={schedule ? t('schedules.editTitle') : t('schedules.addTitle')} onClose={onClose}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{schedule ? t('schedules.save') : t('schedules.add')}</Button>
@@ -412,6 +440,43 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
           )} />
         )}
 
+        <section aria-labelledby={`${formId}-reminders`} className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <h3 id={`${formId}-reminders`} className="m-0 text-label font-medium text-ink">{t('schedules.reminders')}</h3>
+              <p className="m-0 text-hint text-muted">{t('schedules.remindersHint')}</p>
+            </div>
+            <Button variant="secondary" className="flex-none self-end whitespace-nowrap sm:self-start" disabled={reminders.length >= maxReminders}
+              onClick={() => setEditingReminder('new')}>
+              <PlusIcon />{t('schedules.addReminder')}
+            </Button>
+          </div>
+          {reminders.length >= maxReminders && <p className="m-0 text-hint text-muted">{t('schedules.maxReminders')}</p>}
+          {reminders.length > 0 && (
+            <ul aria-label={t('schedules.reminders')} className="m-0 flex list-none flex-col divide-y divide-line-soft rounded-control border border-line p-0">
+              {reminders.map(r => {
+                const problem = !fits(r) ? t('schedules.reminderRange', { max, unit: t(`schedules.units.${unit}`) }) : reminderErrors[r.key]
+                return (
+                  <li key={r.key} className="flex items-center gap-2 px-3 py-2">
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-body text-ink">{[whenText(r.amount), t(`schedules.channels.${r.channel}`), r.recipient].join(' · ')}</span>
+                      {problem && <span className="text-hint font-medium text-danger-ink">{problem}</span>}
+                    </span>
+                    <IconButton label={t('schedules.editReminder', { when: whenText(r.amount) })} onClick={() => setEditingReminder(r)}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
+                    </IconButton>
+                    <IconButton tone="danger" label={t('schedules.removeReminder', { when: whenText(r.amount) })}
+                      onClick={() => setValue('reminders', reminders.filter(x => x.key !== r.key))}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                    </IconButton>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {errors.reminders?.message && <p className="m-0 text-hint font-medium text-danger-ink">{errors.reminders.message}</p>}
+        </section>
+
         {companies.length > 1 && (
           <div className="flex flex-col gap-1.5">
             <Controller control={control} name="applies" render={({ field }) => (
@@ -433,11 +498,66 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
           {errors.defaultFor?.message && <p className="m-0 text-hint font-medium text-danger-ink">{errors.defaultFor.message}</p>}
         </fieldset>
       </form>
+      {editingReminder && (
+        <ReminderModal reminder={editingReminder === 'new' ? null : editingReminder} unit={unit} max={max}
+          onCancel={() => setEditingReminder(null)}
+          onSave={saved => {
+            setValue('reminders', editingReminder === 'new' ? [...reminders, saved] : reminders.map(r => (r.key === saved.key ? saved : r)))
+            setReminderErrors(e => ({ ...e, [saved.key]: '' }))
+            setEditingReminder(null)
+          }} />
+      )}
       {addingItem && (
         <AddCutoffItem taken={itemOptions.map(o => o.label)} onCancel={() => setAddingItem(false)}
           onAdd={item => { setValue('cutoffAppliesTo', [...appliesTo, item]); setAddingItem(false) }} />
       )}
     </Drawer>
+  )
+}
+
+/** A reminder's when, how and to whom, in a small form on top of the drawer. */
+function ReminderModal({ reminder, unit, max, onSave, onCancel }: {
+  reminder: DraftReminder | null
+  unit: 'days' | 'hours'
+  max: number
+  onSave: (reminder: DraftReminder) => void
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const formId = useId()
+  const [amount, setAmount] = useState(String(reminder?.amount ?? 1))
+  const [channel, setChannel] = useState<'email' | 'sms'>(reminder?.channel ?? 'email')
+  const [recipient, setRecipient] = useState(reminder?.recipient ?? '')
+  const [error, setError] = useState<string>()
+  const options = Array.from({ length: max }, (_, i) => ({
+    value: String(i + 1), label: t(unit === 'hours' ? 'schedules.hoursBefore' : 'schedules.daysBefore', { count: i + 1 }),
+  }))
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (channel === 'email' && !isEmail(recipient)) return setError(t('schedules.emailInvalid'))
+    if (channel === 'sms' && !isKenyanMobile(recipient)) return setError(t('schedules.phoneInvalid'))
+    onSave({ key: reminder?.key ?? crypto.randomUUID(), id: reminder?.id, amount: Number(amount), channel, recipient: recipient.trim() })
+  }
+
+  return (
+    <Modal open title={reminder ? t('schedules.editReminderTitle') : t('schedules.addReminder')} onClose={onCancel}
+      footer={<>
+        <Button variant="secondary" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button type="submit" form={formId}>{reminder ? t('schedules.saveReminder') : t('schedules.addReminder')}</Button>
+      </>}>
+      <form id={formId} noValidate onSubmit={submit} className="flex flex-col gap-4">
+        <SelectField label={t('schedules.when')} placeholder={t('schedules.whenPlaceholder')} options={options} value={amount} onChange={setAmount} />
+        <RadioGroup label={t('schedules.sendBy')} name={`${formId}-channel`} value={channel}
+          onChange={value => { setChannel(value as 'email' | 'sms'); setError(undefined) }}
+          options={[{ value: 'email', label: t('schedules.channels.email') }, { value: 'sms', label: t('schedules.channels.sms') }]} />
+        {channel === 'email'
+          ? <TextField key="email" label={t('schedules.email')} placeholder={t('schedules.emailPlaceholder')} type="email" inputMode="email" maxLength={254}
+              error={error} value={recipient} onChange={e => { setRecipient(e.target.value); setError(undefined) }} />
+          : <TextField key="sms" label={t('schedules.phone')} placeholder={t('schedules.phonePlaceholder')} type="tel" inputMode="tel" maxLength={20}
+              error={error} value={recipient} onChange={e => { setRecipient(e.target.value); setError(undefined) }} />}
+      </form>
+    </Modal>
   )
 }
 

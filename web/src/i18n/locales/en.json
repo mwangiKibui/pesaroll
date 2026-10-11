@@ -587,6 +587,35 @@
     "addItem": "Add item",
     "itemInvalid": "Name it in 2 to 60 characters.",
     "itemTaken": "It's already in the list.",
-    "noCutoff": "None"
+    "noCutoff": "None",
+    "reminders": "Reminders",
+    "remindersHint": "Get a reminder to run payroll before pay day, by email or SMS.",
+    "addReminder": "Add reminder",
+    "editReminderTitle": "Edit reminder",
+    "saveReminder": "Save reminder",
+    "editReminder": "Edit reminder {{when}}",
+    "removeReminder": "Remove reminder {{when}}",
+    "maxReminders": "A schedule can have up to 5 reminders.",
+    "when": "When",
+    "whenPlaceholder": "Your reminder time",
+    "sendBy": "Send by",
+    "channels": {
+      "email": "Email",
+      "sms": "SMS"
+    },
+    "email": "Email",
+    "emailPlaceholder": "Your email",
+    "phone": "Phone number",
+    "phonePlaceholder": "Your phone number",
+    "emailInvalid": "Enter a valid email address.",
+    "phoneInvalid": "Enter a Kenyan mobile number, like 0712 345 678.",
+    "hoursBefore_one": "{{count}} hour before",
+    "hoursBefore_other": "{{count}} hours before",
+    "reminderRange": "Choose from 1 to {{max}} {{unit}} before.",
+    "units": {
+      "days": "days",
+      "hours": "hours"
+    },
+    "remindersDontFit": "A reminder doesn't fit how often you pay. Change or remove it."
   }
 }

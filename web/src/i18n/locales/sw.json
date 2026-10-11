@@ -587,6 +587,35 @@
     "addItem": "Ongeza kitu",
     "itemInvalid": "Kipe jina la herufi 2 hadi 60.",
     "itemTaken": "Tayari kiko kwenye orodha.",
-    "noCutoff": "Hakuna"
+    "noCutoff": "Hakuna",
+    "reminders": "Vikumbusho",
+    "remindersHint": "Pata kikumbusho cha kuendesha mishahara kabla ya siku ya malipo, kwa barua pepe au SMS.",
+    "addReminder": "Ongeza kikumbusho",
+    "editReminderTitle": "Hariri kikumbusho",
+    "saveReminder": "Hifadhi kikumbusho",
+    "editReminder": "Hariri kikumbusho {{when}}",
+    "removeReminder": "Ondoa kikumbusho {{when}}",
+    "maxReminders": "Ratiba inaweza kuwa na vikumbusho hadi 5.",
+    "when": "Lini",
+    "whenPlaceholder": "Muda wa kikumbusho chako",
+    "sendBy": "Tuma kwa",
+    "channels": {
+      "email": "Barua pepe",
+      "sms": "SMS"
+    },
+    "email": "Barua pepe",
+    "emailPlaceholder": "Barua pepe yako",
+    "phone": "Nambari ya simu",
+    "phonePlaceholder": "Nambari yako ya simu",
+    "emailInvalid": "Andika barua pepe sahihi.",
+    "phoneInvalid": "Andika nambari ya simu ya Kenya, kama 0712 345 678.",
+    "hoursBefore_one": "Saa {{count}} kabla",
+    "hoursBefore_other": "Saa {{count}} kabla",
+    "reminderRange": "Chagua kati ya 1 na {{max}} {{unit}} kabla.",
+    "units": {
+      "days": "siku",
+      "hours": "saa"
+    },
+    "remindersDontFit": "Kikumbusho hakilingani na mara mnazolipa. Kibadilishe au kiondoe."
   }
 }

@@ -16,6 +16,7 @@
 \i tenancy/companies.sql
 \i tenancy/location_companies.sql
 \i tenancy/pay_schedule_companies.sql
+\i tenancy/pay_schedule_reminders.sql
 \i tenancy/structure.sql
 \i tenancy/structure_companies.sql
 \i tenancy/notification_deliveries.sql

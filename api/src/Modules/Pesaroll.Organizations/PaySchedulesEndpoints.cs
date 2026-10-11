@@ -19,12 +19,19 @@ namespace Pesaroll.Organizations;
 public sealed record PayScheduleRequest(
     string? Name, string? Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
     int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
-    bool AllCompanies, List<Guid>? CompanyIds, List<Guid>? DefaultFor, bool? UsesCutoff = null, List<string>? CutoffAppliesTo = null);
+    bool AllCompanies, List<Guid>? CompanyIds, List<Guid>? DefaultFor, bool? UsesCutoff = null, List<string>? CutoffAppliesTo = null,
+    List<ReminderRequest>? Reminders = null);
+
+/// <summary>A reminder to run payroll: <see cref="Amount"/> days before the pay day (hours before the pay time for daily pay). <see cref="Id"/> keeps an existing one.</summary>
+public sealed record ReminderRequest(Guid? Id, int Amount, string? Channel, string? Recipient);
+
+public sealed record ReminderResponse(Guid Id, int Amount, string Unit, string Channel, string Recipient);
 
 public sealed record PayScheduleResponse(
     Guid Id, string Name, string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
     int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime, bool UsesCutoff, IReadOnlyList<string> CutoffAppliesTo,
-    bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<Guid> DefaultFor, IReadOnlyList<DateOnly> NextPayDates);
+    bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<Guid> DefaultFor, IReadOnlyList<DateOnly> NextPayDates,
+    IReadOnlyList<ReminderResponse> Reminders);
 
 /// <summary>
 /// ONB-06, the Payroll schedules step: how often (monthly, weekly, every two weeks or daily) and when people are paid. Each company has one
@@ -48,7 +55,7 @@ public static class PaySchedulesEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            var query = db.PaySchedules.AsNoTracking().Include(s => s.Companies).Where(s => s.Status == "active");
+            var query = db.PaySchedules.AsNoTracking().Include(s => s.Companies).Include(s => s.Reminders).Where(s => s.Status == "active");
             if (companyId is Guid id)
             {
                 query = query.Where(s => s.AllCompanies || s.Companies.Any(c => c.CompanyId == id));
@@ -99,7 +106,7 @@ public static class PaySchedulesEndpoints
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var schedule = await db.PaySchedules.Include(s => s.Companies).SingleOrDefaultAsync(s => s.Id == id && s.Status == "active", ct)
+            var schedule = await db.PaySchedules.Include(s => s.Companies).Include(s => s.Reminders).SingleOrDefaultAsync(s => s.Id == id && s.Status == "active", ct)
                 ?? throw OnboardingErrors.ScheduleNotFound();
             var valid = await ValidateAsync(request, db, ct);
 
@@ -114,6 +121,7 @@ public static class PaySchedulesEndpoints
             var now = clock.GetUtcNow();
             schedule.Name = valid.Name;
             var dropped = schedule.Companies.Where(c => !valid.CompanyIds.Contains(c.CompanyId)).ToList();
+            db.PayScheduleReminders.RemoveRange(schedule.Reminders.Where(r => !valid.Reminders.Any(v => v.Id == r.Id)));
             Apply(schedule, valid, now);
             await SetDefaultsAsync(db, schedule, valid.DefaultFor, ct);
 
@@ -124,7 +132,7 @@ public static class PaySchedulesEndpoints
             db.PayScheduleCompanies.RemoveRange(dropped);
             await SaveAsync(db, ct);
             await transaction.CommitAsync(ct);
-            var saved = await db.PaySchedules.AsNoTracking().Include(s => s.Companies).SingleAsync(s => s.Id == id, ct);
+            var saved = await db.PaySchedules.AsNoTracking().Include(s => s.Companies).Include(s => s.Reminders).SingleAsync(s => s.Id == id, ct);
             return Results.Ok(ToResponse(saved, await DefaultsAsync(db, ct), PayDates.TodayInKenya(now)));
         }).Produces<PayScheduleResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -177,7 +185,56 @@ public static class PaySchedulesEndpoints
         string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay, int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
         bool UsesCutoff = false, List<string>? CutoffAppliesTo = null);
 
-    private sealed record ValidSchedule(string Name, ValidTiming Timing, bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor);
+    private sealed record ValidReminder(Guid? Id, int Amount, string Unit, string Channel, string Recipient);
+
+    private sealed record ValidSchedule(string Name, ValidTiming Timing, bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor, List<ValidReminder> Reminders);
+
+    /// <summary>Up to this many reminders per schedule, so a schedule can't send a flood of SMS.</summary>
+    public const int MaxReminders = 5;
+
+    /// <summary>
+    /// Reminders in the schedule's unit (hours before the pay time for daily pay, days before the pay
+    /// day otherwise) within its limit, by email or SMS to a checked address or Kenyan number.
+    /// </summary>
+    private static List<ValidReminder> Reminders(List<ReminderRequest>? reminders, string frequency, Dictionary<string, string> errors)
+    {
+        var list = reminders ?? [];
+        if (list.Count > MaxReminders)
+        {
+            errors["reminders"] = $"Add up to {MaxReminders} reminders.";
+            return [];
+        }
+
+        var (unit, max) = frequency switch { "daily" => ("hours", 12), "weekly" => ("days", 6), "fortnightly" => ("days", 13), _ => ("days", 14) };
+        var valid = new List<ValidReminder>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var r = list[i];
+            if (r.Amount < 1 || r.Amount > max)
+            {
+                errors[$"reminders[{i}].amount"] = $"Choose from 1 to {max} {unit} before.";
+            }
+
+            var channel = r.Channel?.Trim() ?? "";
+            string? recipient = null;
+            if (channel is not ("email" or "sms"))
+            {
+                errors[$"reminders[{i}].channel"] = "Choose email or SMS.";
+            }
+            else
+            {
+                recipient = channel == "sms" ? Pesaroll.Notifications.Recipients.KenyanMobile(r.Recipient) : Pesaroll.Notifications.Recipients.Email(r.Recipient);
+                if (recipient is null)
+                {
+                    errors[$"reminders[{i}].recipient"] = channel == "sms" ? "Enter a Kenyan mobile number, like 0712 345 678." : "Enter a valid email address.";
+                }
+            }
+
+            valid.Add(new ValidReminder(r.Id, r.Amount, unit, channel, recipient ?? ""));
+        }
+
+        return valid;
+    }
 
     private static async Task<ValidSchedule> ValidateAsync(PayScheduleRequest request, OrganizationsDbContext db, CancellationToken ct)
     {
@@ -207,12 +264,13 @@ public static class PaySchedulesEndpoints
             errors["defaultFor"] = "A schedule can only be the default of a company that uses it.";
         }
 
+        var reminders = Reminders(request.Reminders, timing.Frequency, errors);
         if (errors.Count > 0)
         {
             throw OnboardingErrors.ScheduleDetailsInvalid(errors);
         }
 
-        return new ValidSchedule(name, timing, request.AllCompanies, request.AllCompanies ? [] : chosen, defaultFor);
+        return new ValidSchedule(name, timing, request.AllCompanies, request.AllCompanies ? [] : chosen, defaultFor, reminders);
     }
 
     /// <summary>
@@ -325,13 +383,8 @@ public static class PaySchedulesEndpoints
 
     private static int IsoWeekday(DateOnly date) => date.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)date.DayOfWeek;
 
-    private static IReadOnlyList<DateOnly> NextPayDates(ValidTiming t, DateOnly today) => t.Frequency switch
-    {
-        "weekly" => PayDates.Weekly(today, (DayOfWeek)(t.PayWeekday!.Value % 7)),
-        "fortnightly" => PayDates.Fortnightly(today, t.FirstPayDate!.Value),
-        "daily" => PayDates.Daily(today),
-        _ => PayDates.Next(today, t.PayDayRule!, t.PayDay),
-    };
+    private static IReadOnlyList<DateOnly> NextPayDates(ValidTiming t, DateOnly today) =>
+        PayDates.For(t.Frequency, t.PayDayRule, t.PayDay, t.PayWeekday, t.FirstPayDate, today);
 
     private static void Apply(PaySchedule schedule, ValidSchedule valid, DateTimeOffset now)
     {
@@ -347,6 +400,23 @@ public static class PaySchedulesEndpoints
         schedule.CutoffAppliesTo = valid.Timing.CutoffAppliesTo ?? [];
         schedule.AllCompanies = valid.AllCompanies;
         schedule.UpdatedAt = now;
+        foreach (var r in valid.Reminders)
+        {
+            var existing = schedule.Reminders.FirstOrDefault(e => e.Id == r.Id);
+            if (existing is null)
+            {
+                schedule.Reminders.Add(new PayScheduleReminder
+                {
+                    Id = Guid.CreateVersion7(), OrganizationId = schedule.OrganizationId, PayScheduleId = schedule.Id,
+                    Amount = r.Amount, Unit = r.Unit, Channel = r.Channel, Recipient = r.Recipient, CreatedAt = now, UpdatedAt = now,
+                });
+            }
+            else
+            {
+                (existing.Amount, existing.Unit, existing.Channel, existing.Recipient, existing.UpdatedAt) = (r.Amount, r.Unit, r.Channel, r.Recipient, now);
+            }
+        }
+
         foreach (var companyId in valid.CompanyIds.Where(id => !schedule.Companies.Any(c => c.CompanyId == id)))
         {
             schedule.Companies.Add(new PayScheduleCompany { OrganizationId = schedule.OrganizationId, PayScheduleId = schedule.Id, CompanyId = companyId, CreatedAt = now });
@@ -382,5 +452,6 @@ public static class PaySchedulesEndpoints
     private static PayScheduleResponse ToResponse(PaySchedule s, Dictionary<Guid, List<Guid>> defaults, DateOnly today) => new(
         s.Id, s.Name, s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime,
         s.UsesCutoff, s.CutoffAppliesTo, s.AllCompanies, s.Companies.Select(c => c.CompanyId).ToList(), defaults.GetValueOrDefault(s.Id) ?? [],
-        NextPayDates(new ValidTiming(s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime), today));
+        NextPayDates(new ValidTiming(s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime), today),
+        s.Reminders.OrderBy(r => r.CreatedAt).ThenBy(r => r.Id).Select(r => new ReminderResponse(r.Id, r.Amount, r.Unit, r.Channel, r.Recipient)).ToList());
 }
