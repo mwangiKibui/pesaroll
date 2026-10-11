@@ -4217,6 +4217,8 @@ export interface components {
             allCompanies: boolean;
             companyIds: null | string[];
             defaultFor: null | string[];
+            usesCutoff?: null | boolean;
+            cutoffAppliesTo?: null | string[];
         };
         PayScheduleResponse: {
             /** Format: uuid */
@@ -4236,6 +4238,8 @@ export interface components {
             cutoffDaysBefore: null | number | string;
             /** Format: time */
             payTime: null | string;
+            usesCutoff: boolean;
+            cutoffAppliesTo: string[];
             allCompanies: boolean;
             companyIds: string[];
             defaultFor: string[];

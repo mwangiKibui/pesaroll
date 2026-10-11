@@ -12,17 +12,18 @@ namespace Pesaroll.Organizations;
 /// Adding or editing a payroll schedule. Only the fields of its <see cref="Frequency"/> are kept:
 /// monthly <see cref="PayDayRule"/>, <see cref="PayDay"/> (a fixed day) and <see cref="CutoffDay"/>;
 /// weekly <see cref="PayWeekday"/> and <see cref="CutoffDaysBefore"/>; fortnightly those and
-/// <see cref="FirstPayDate"/>; daily <see cref="PayTime"/>. It serves all companies
+/// <see cref="FirstPayDate"/>; daily <see cref="PayTime"/>. The cut-off is optional (<see cref="UsesCutoff"/>,
+/// on unless said) and covers <see cref="CutoffAppliesTo"/> (everything unless said). It serves all companies
 /// (<see cref="AllCompanies"/>) or <see cref="CompanyIds"/>, and is the default of <see cref="DefaultFor"/>.
 /// </summary>
 public sealed record PayScheduleRequest(
     string? Name, string? Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
     int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
-    bool AllCompanies, List<Guid>? CompanyIds, List<Guid>? DefaultFor);
+    bool AllCompanies, List<Guid>? CompanyIds, List<Guid>? DefaultFor, bool? UsesCutoff = null, List<string>? CutoffAppliesTo = null);
 
 public sealed record PayScheduleResponse(
     Guid Id, string Name, string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
-    int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
+    int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime, bool UsesCutoff, IReadOnlyList<string> CutoffAppliesTo,
     bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<Guid> DefaultFor, IReadOnlyList<DateOnly> NextPayDates);
 
 /// <summary>
@@ -35,6 +36,9 @@ public static class PaySchedulesEndpoints
 {
     /// <summary>How often a schedule pays.</summary>
     public static readonly string[] Frequencies = ["monthly", "weekly", "fortnightly", "daily"];
+
+    /// <summary>What a cut-off can cover; an organization can add its own items (any other text).</summary>
+    public static readonly string[] CutoffItems = ["overtime", "new_employees", "leavers", "unpaid_leave", "pay_changes", "one_off"];
 
     public static IEndpointRouteBuilder MapPaySchedulesEndpoints(this IEndpointRouteBuilder app)
     {
@@ -170,7 +174,8 @@ public static class PaySchedulesEndpoints
 
     /// <summary>When a schedule pays: its frequency and that frequency's fields only.</summary>
     private sealed record ValidTiming(
-        string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay, int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime);
+        string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay, int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime,
+        bool UsesCutoff = false, List<string>? CutoffAppliesTo = null);
 
     private sealed record ValidSchedule(string Name, ValidTiming Timing, bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor);
 
@@ -216,6 +221,55 @@ public static class PaySchedulesEndpoints
     /// </summary>
     private static ValidTiming Timing(PayScheduleRequest request, Dictionary<string, string> errors)
     {
+        var timing = When(request, errors);
+        var uses = timing.Frequency != "daily" && (request.UsesCutoff ?? true);
+        return uses
+            ? timing with { UsesCutoff = true, CutoffAppliesTo = CutoffAppliesTo(request.CutoffAppliesTo, errors) }
+            : timing with { CutoffDay = null, CutoffDaysBefore = null, UsesCutoff = false, CutoffAppliesTo = [] };
+    }
+
+    /// <summary>
+    /// What a cut-off covers: everything unless said; known items by their key, the organization's
+    /// own items as typed (2 to 60 characters), each once whatever its case.
+    /// </summary>
+    private static List<string> CutoffAppliesTo(List<string>? items, Dictionary<string, string> errors)
+    {
+        if (items is null)
+        {
+            return [.. CutoffItems];
+        }
+
+        var chosen = new List<string>();
+        foreach (var raw in items)
+        {
+            var item = raw?.Trim() ?? "";
+            item = CutoffItems.FirstOrDefault(k => string.Equals(k, item, StringComparison.OrdinalIgnoreCase)) ?? item;
+            if (item.Length is < 2 or > 60)
+            {
+                errors["cutoffAppliesTo"] = "Name each item in 2 to 60 characters.";
+                return [];
+            }
+
+            if (!chosen.Contains(item, StringComparer.OrdinalIgnoreCase))
+            {
+                chosen.Add(item);
+            }
+        }
+
+        if (chosen.Count == 0)
+        {
+            errors["cutoffAppliesTo"] = "Choose at least one thing the cut-off applies to, or turn the cut-off off.";
+        }
+        else if (chosen.Count > 20)
+        {
+            errors["cutoffAppliesTo"] = "Choose up to 20 things.";
+        }
+
+        return chosen;
+    }
+
+    private static ValidTiming When(PayScheduleRequest request, Dictionary<string, string> errors)
+    {
         var frequency = string.IsNullOrWhiteSpace(request.Frequency) ? "monthly" : request.Frequency.Trim();
         switch (frequency)
         {
@@ -234,7 +288,7 @@ public static class PaySchedulesEndpoints
                 }
 
                 var cutoff = request.CutoffDay ?? 25;
-                if (cutoff is < 1 or > 28)
+                if ((request.UsesCutoff ?? true) && cutoff is < 1 or > 28)
                 {
                     errors["cutoffDay"] = "Choose a cut-off day from 1 to 28.";
                 }
@@ -249,7 +303,7 @@ public static class PaySchedulesEndpoints
 
                 var weekly = frequency == "weekly";
                 var before = request.CutoffDaysBefore ?? 2;
-                if (before < 0 || before > (weekly ? 6 : 13))
+                if ((request.UsesCutoff ?? true) && (before < 0 || before > (weekly ? 6 : 13)))
                 {
                     errors["cutoffDaysBefore"] = weekly ? "Choose a cut-off from the pay day to 6 days before." : "Choose a cut-off from the pay day to 13 days before.";
                 }
@@ -289,6 +343,8 @@ public static class PaySchedulesEndpoints
         schedule.FirstPayDate = valid.Timing.FirstPayDate;
         schedule.CutoffDaysBefore = valid.Timing.CutoffDaysBefore;
         schedule.PayTime = valid.Timing.PayTime;
+        schedule.UsesCutoff = valid.Timing.UsesCutoff;
+        schedule.CutoffAppliesTo = valid.Timing.CutoffAppliesTo ?? [];
         schedule.AllCompanies = valid.AllCompanies;
         schedule.UpdatedAt = now;
         foreach (var companyId in valid.CompanyIds.Where(id => !schedule.Companies.Any(c => c.CompanyId == id)))
@@ -325,6 +381,6 @@ public static class PaySchedulesEndpoints
 
     private static PayScheduleResponse ToResponse(PaySchedule s, Dictionary<Guid, List<Guid>> defaults, DateOnly today) => new(
         s.Id, s.Name, s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime,
-        s.AllCompanies, s.Companies.Select(c => c.CompanyId).ToList(), defaults.GetValueOrDefault(s.Id) ?? [],
+        s.UsesCutoff, s.CutoffAppliesTo, s.AllCompanies, s.Companies.Select(c => c.CompanyId).ToList(), defaults.GetValueOrDefault(s.Id) ?? [],
         NextPayDates(new ValidTiming(s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime), today));
 }

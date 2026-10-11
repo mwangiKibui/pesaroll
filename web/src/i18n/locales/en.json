@@ -7,7 +7,9 @@
     "loading": "Loading",
     "menu": "Menu",
     "noMatches": "No matches",
-    "needsFixing": ", needs fixing"
+    "needsFixing": ", needs fixing",
+    "searchIn": "Search {{what}}",
+    "searchPlaceholder": "Your search"
   },
   "nav": {
     "main": "Main",
@@ -533,7 +535,7 @@
     "payDayInvalid": "Choose a pay day from 1 to 28.",
     "cutoffDay": "Cut-off day",
     "cutoffPlaceholder": "Your cut-off day",
-    "cutoffHint": "Overtime, leave and other changes after this day go into next month's payroll.",
+    "cutoffHint": "The last day of the month that changes count toward this month's payroll.",
     "preview": "Next pay dates",
     "previewHint": "Weekends are skipped. Public holidays aren't yet, so check these dates.",
     "day_ordinal_one": "{{count}}st",
@@ -557,12 +559,34 @@
     "firstPayDateHint": "Every two weeks counts from this date.",
     "firstPayDateInvalid": "Choose the first pay date.",
     "cutoffBefore": "Cut-off",
-    "cutoffBeforeHint": "Overtime, leave and other changes after the cut-off go into the next payroll.",
+    "cutoffBeforeHint": "How many days before the pay day changes stop counting toward this payroll.",
     "onPayDay": "On the pay day",
     "daysBefore_one": "{{count}} day before",
     "daysBefore_other": "{{count}} days before",
     "payTime": "Pay time",
     "payTimePlaceholder": "Your pay time",
-    "payTimeHint": "Daily pay runs every working day; there's no cut-off."
+    "payTimeHint": "Daily pay runs every working day; there's no cut-off.",
+    "useCutoff": "Use a cut-off",
+    "cutoffHelp": "A cut-off is the last day changes count toward this payroll. Anything after it, like overtime or a new employee's first days, is paid in the next payroll. Turn it off if everything up to pay day is paid on pay day.",
+    "appliesTo2": "What the cut-off applies to",
+    "appliesToHint": "Changes to these after the cut-off go into the next payroll.",
+    "appliesToPlaceholder": "Your cut-off items",
+    "appliesToRequired": "Choose at least one thing the cut-off applies to, or turn the cut-off off.",
+    "cutoffItems": {
+      "overtime": "Overtime and extra hours",
+      "new_employees": "New employees",
+      "leavers": "People leaving",
+      "unpaid_leave": "Unpaid leave and absences",
+      "pay_changes": "Salary changes and promotions",
+      "one_off": "One-off allowances, bonuses and deductions"
+    },
+    "addOwn": "Add your own",
+    "addItemTitle": "Add what the cut-off applies to",
+    "item": "Item",
+    "itemPlaceholder": "Your item",
+    "addItem": "Add item",
+    "itemInvalid": "Name it in 2 to 60 characters.",
+    "itemTaken": "It's already in the list.",
+    "noCutoff": "None"
   }
 }
