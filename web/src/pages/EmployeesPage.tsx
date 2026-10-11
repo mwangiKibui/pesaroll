@@ -12,13 +12,13 @@ import { CompanySelect, type CompanySelection } from '../components/CompanySelec
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
-import { RadioGroup, SelectField, TextField } from '../components/fields'
+import { Checkbox, RadioGroup, SelectField, TextField } from '../components/fields'
 import { PlusIcon, UploadIcon } from '../components/icons'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { formatMoney } from '../lib/money'
-import { useCompanies, useLeavePlans, useLocations, useSchedules, useSetupDone, useStructure } from '../setup/hooks'
+import { useCompanies, useLeavePlans, useLocations, useSchedules, useSetupDone, useStructure, type StructureItem } from '../setup/hooks'
 import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
 
@@ -61,7 +61,7 @@ export default function EmployeesPage() {
   const [editing, setEditing] = useState<string | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
-  const [bulk, setBulk] = useState<'upload' | 'several' | null>(null)
+  const [bulk, setBulk] = useState<'upload' | 'add' | null>(null)
   const term = useDeferredValue(search.trim())
 
 
@@ -104,8 +104,7 @@ export default function EmployeesPage() {
     : <span className="text-hint text-warning-ink">{t('employees.needs', { items: r.readiness.missing.map(m => m.label.en).join(', ') })}</span>
 
   const actions = <>
-    <Button onClick={() => setEditing('new')}><PlusIcon />{t('employees.add')}</Button>
-    <Button variant="secondary" onClick={() => setBulk('several')}><PlusIcon />{t('employees.addSeveral')}</Button>
+    <Button onClick={() => setBulk('add')}><PlusIcon />{t('employees.add')}</Button>
     <Button variant="secondary" onClick={() => setBulk('upload')}><UploadIcon />{t('employees.upload')}</Button>
   </>
 
@@ -190,7 +189,7 @@ export default function EmployeesPage() {
           <EmployeeDrawer id={editing === 'new' ? null : editing} companies={companies.data}
             defaultCompany={shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id} onClose={() => setEditing(null)} />
         )}
-        {bulk && <UploadEmployees startRows={bulk === 'several' ? 10 : undefined} onClose={() => setBulk(null)} />}
+        {bulk && <UploadEmployees adding={bulk === 'add'} companies={companies.data} onClose={() => setBulk(null)} />}
       </>}
       <ConfirmDialog open={!!deleting} title={t('employees.deleteTitle', { name: deleting?.name })}
         confirmLabel={t('employees.deleteConfirm')} busy={busy} onConfirm={remove} onCancel={() => setDeleting(null)}>
@@ -292,6 +291,8 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
   })
   const [companyId, scheduleId, basis, method, bankCode, type, departmentId] =
     useWatch({ control, name: ['companyId', 'payScheduleId', 'payBasis', 'method', 'bankCode', 'employmentType', 'departmentId'] })
+  // Date left only opens for someone who no longer works here.
+  const [stillHere, setStillHere] = useState(!employee?.exitDate)
   const company = companies.find(c => c.id === companyId) ?? companies[0]
 
   // A new employee starts with the company's schedule, leave plan and main location, once they're loaded.
@@ -335,6 +336,10 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
     setBanner(null)
     if (!v.hireDate) {
       setError('hireDate', { message: t('employees.hireDateRequired') })
+      return setTab('personal')
+    }
+    if (!stillHere && !v.exitDate) {
+      setError('exitDate', { message: t('employees.exitDateRequired') })
       return setTab('personal')
     }
     const accountTouched = !employee || ['method', 'bankCode', 'branchCode', 'accountNumber', 'mpesaPhone'].some(k => dirtyFields[k as keyof Values])
@@ -408,7 +413,12 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField type="date" label={t('employees.hireDate')} placeholder={t('employees.hireDatePlaceholder')} error={errors.hireDate?.message} {...register('hireDate')} />
-            <TextField type="date" label={t('employees.exitDate')} placeholder={t('employees.exitDatePlaceholder')} optional hint={t('employees.exitDateHint')} error={errors.exitDate?.message} {...register('exitDate')} />
+            <div className="flex flex-col gap-2">
+              <Checkbox label={t('employees.stillHere')} checked={stillHere}
+                onChange={e => { setStillHere(e.target.checked); if (e.target.checked) setValue('exitDate', '', { shouldDirty: true }) }} />
+              <TextField type="date" label={t('employees.exitDate')} placeholder={t('employees.exitDatePlaceholder')} disabled={stillHere}
+                hint={t('employees.exitDateHint')} error={errors.exitDate?.message} {...register('exitDate')} />
+            </div>
             <TextField type="date" label={t('employees.dateOfBirth')} placeholder={t('employees.dateOfBirthPlaceholder')} optional error={errors.dateOfBirth?.message} {...register('dateOfBirth')} />
             <TextField label={t('employees.staffNo')} placeholder={t('employees.staffNoPlaceholder')} optional hint={t('employees.staffNoHint')} maxLength={20}
               error={errors.staffNo?.message} {...register('staffNo')} />
@@ -499,16 +509,44 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
   )
 }
 
-/** Uploading employees (template, then the review), or adding several in a sheet of empty rows. */
-function UploadEmployees({ startRows, onClose }: { startRows?: number; onClose: () => void }) {
+/**
+ * Adding employees in a sheet (one row to start, Add row for more), or uploading a file (template,
+ * then the review). Adding offers dropdowns for the company and the org structure and a "Still
+ * works here" tick that keeps Date left closed; the upload's review keeps the file's text.
+ */
+function UploadEmployees({ adding, companies, onClose }: { adding: boolean; companies: Company[]; onClose: () => void }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const columns = columnKeys.map(key => ({
+  const divisions = useStructure('divisions', adding)
+  const departments = useStructure('departments', adding)
+  const positions = useStructure('positions', adding)
+  const units = useStructure('units', adding)
+  // In a sheet, the structure is picked from lists (by code, which the API matches first).
+  const structure = (items: StructureItem[] | undefined) => (items ?? []).map(i => ({ value: i.code, label: `${i.name ?? i.title} (${i.code})` }))
+  const picks: Partial<Record<(typeof columnKeys)[number], { value: string; label: string }[]>> = adding ? {
+    company: companies.map(c => ({ value: c.legalName, label: c.legalName })),
+    division: structure(divisions.data), department: structure(departments.data), position: structure(positions.data), unit: structure(units.data),
+  } : {}
+  const dates = new Set(['dateOfBirth', 'hireDate', 'exitDate', 'contractEnd'])
+  const base = columnKeys.map(key => ({
     key, label: t(`employees.columns.${key}`),
+    ...(picks[key] ? { options: picks[key] } : {}),
     ...(key === 'employmentType' ? { options: types.map(k => ({ value: t(`employees.types.${k}`, { lng: 'en' }), label: t(`employees.types.${k}`) })) } : {}),
     ...(key === 'payBasis' ? { options: bases.map(k => ({ value: t(`employees.bases.${k}`, { lng: 'en' }), label: t(`employees.bases.${k}`) })) } : {}),
+    ...(adding && dates.has(key) ? { type: 'date' as const } : {}),
+    ...(adding && key === 'company' && companies.length === 1 ? { defaultValue: companies[0].legalName } : {}),
+    ...(adding && key === 'exitDate' ? { disabledWhen: (cells: Record<string, string>) => cells.stillHere === 'Yes' } : {}),
   }))
+  // Adding: "Still works here" (ticked) just before Date left.
+  const columns = adding
+    ? base.flatMap(c => (c.key === 'exitDate' ? [{ key: 'stillHere', label: t('employees.stillHere'), type: 'checkbox' as const, defaultValue: 'Yes' }, c] : [c]))
+    : base
+
+  /** Someone who doesn't work here any more needs the date they left (the API only sees the date). */
+  const leftWithoutDate = (rows: BulkUploadRow[]) => adding
+    ? rows.filter(r => r.cells.stillHere !== 'Yes' && !r.cells.exitDate?.trim()).map(r => ({ line: r.line, column: 'exitDate', message: t('employees.exitDateRequired') }))
+    : []
 
   const downloadTemplate = async () => {
     const { data } = await api.GET('/api/employees/template', { parseAs: 'blob' })
@@ -537,7 +575,7 @@ function UploadEmployees({ startRows, onClose }: { startRows?: number; onClose: 
 
   const check = async (rows: BulkUploadRow[]) => {
     const { data, error } = await api.POST('/api/employees/import/check', { body: { rows: rows as ImportRow[] } })
-    if (data) return data
+    if (data) return { ...data, problems: [...leftWithoutDate(rows), ...data.problems] }
     if (isApiError(error)) return { ...error, message: errorMessage(t, error) }
     throw new Error('check')
   }
@@ -556,11 +594,11 @@ function UploadEmployees({ startRows, onClose }: { startRows?: number; onClose: 
   }
 
   return (
-    <BulkUpload open startRows={startRows} title={startRows ? t('employees.addSeveral') : t('employees.upload')} columns={columns} onClose={onClose}
+    <BulkUpload open startRows={adding ? 1 : undefined} title={adding ? t('employees.add') : t('employees.upload')} columns={columns} onClose={onClose}
       onDownloadTemplate={downloadTemplate} onRead={read} onCheck={check} onImport={importRows}
       labels={{
-        review: count => (startRows ? t('employees.several', { count }) : t('employees.review', { count })),
-        importButton: count => (startRows ? t('employees.several', { count }) : t('employees.importButton', { count })),
+        review: count => (adding ? t('employees.several', { count }) : t('employees.review', { count })),
+        importButton: count => (adding ? t('employees.several', { count }) : t('employees.importButton', { count })),
         templateHint: t('employees.templateHint'),
       }} />
   )

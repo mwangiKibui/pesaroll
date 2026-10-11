@@ -10,7 +10,19 @@ import { Modal } from './Modal'
 import { matches } from './search'
 
 /** A template column: its key in a row's cells, its header, and the choices when it is a list (a dropdown). */
-export interface BulkUploadColumn { key: string; label: string; options?: { value: string; label: string }[] }
+/**
+ * A column: a text cell, a dropdown (options), a date or a checkbox ("Yes" when ticked). In a sheet
+ * of rows to fill in, a column can start with a value and be closed while another cell says so
+ * (Date left while "Still works here" is ticked); a closed cell is emptied.
+ */
+export interface BulkUploadColumn {
+  key: string
+  label: string
+  options?: { value: string; label: string }[]
+  type?: 'text' | 'date' | 'checkbox'
+  defaultValue?: string
+  disabledWhen?: (cells: Record<string, string>) => boolean
+}
 
 /** A row as written in the file: its row number there and its cells by column key. */
 export interface BulkUploadRow { line: number | string; cells: Record<string, string> }
@@ -71,7 +83,8 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const { t } = useTranslation()
   const inputId = useId()
   const [file, setFile] = useState<File | null>(null)
-  const blank = (from: number, count: number): BulkUploadRow[] => Array.from({ length: count }, (_, i) => ({ line: from + i, cells: {} }))
+  const defaults = Object.fromEntries(columns.filter(c => c.defaultValue !== undefined).map(c => [c.key, c.defaultValue!]))
+  const blank = (from: number, count: number): BulkUploadRow[] => Array.from({ length: count }, (_, i) => ({ line: from + i, cells: { ...defaults } }))
   const [rows, setRows] = useState<BulkUploadRow[] | null>(() => (startRows ? blank(1, startRows) : null))
   const [problems, setProblems] = useState<BulkUploadProblem[]>([])
   const [notes, setNotes] = useState<BulkUploadProblem[]>([])
@@ -112,7 +125,11 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   }
 
   const edit = (line: number | string, column: string, value: string) => {
-    setRows(list => list?.map(r => (r.line === line ? { ...r, cells: { ...r.cells, [column]: value } } : r)) ?? null)
+    // Cells that close because of this change are emptied.
+    const close = (cells: Record<string, string>) => ({
+      ...cells, ...Object.fromEntries(columns.filter(c => c.disabledWhen?.(cells)).map(c => [c.key, ''])),
+    })
+    setRows(list => list?.map(r => (r.line === line ? { ...r, cells: close({ ...r.cells, [column]: value }) } : r)) ?? null)
     setProblems(list => list.filter(p => keyOf(p.line, p.column) !== keyOf(line, column)))
     setNotes(list => list.filter(p => keyOf(p.line, p.column) !== keyOf(line, column)))
   }
@@ -126,7 +143,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const importRows = async () => {
     if (!rows) return
     // Rows nobody typed into (adding several) are left out.
-    const filled = rows.filter(r => Object.values(r.cells).some(v => v.trim()))
+    const filled = rows.filter(r => Object.entries(r.cells).some(([key, v]) => v.trim() && v !== (defaults[key] ?? '')))
     if (filled.length === 0) return
     const done = await attempt('import', setReviewBanner, async () => {
       const check = await onCheck(filled)
@@ -255,11 +272,14 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                     const note = error ? undefined : noteAt.get(keyOf(r.line, c.key))
                     return (
                       <td key={c.key} className="border-b border-line-soft px-2 py-1.5 align-top">
-                        {c.options
-                          ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} options={c.options}
-                              value={r.cells[c.key] ?? ''} onChange={value => edit(r.line, c.key, value)} />
-                          : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note}
-                              value={r.cells[c.key] ?? ''} onChange={e => edit(r.line, c.key, e.target.value)} />}
+                        {c.type === 'checkbox'
+                          ? <input type="checkbox" aria-label={label} checked={r.cells[c.key] === 'Yes'} className="m-2 size-5 cursor-pointer accent-brand"
+                              onChange={e => edit(r.line, c.key, e.target.checked ? 'Yes' : '')} />
+                          : c.options
+                            ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} options={c.options}
+                                value={r.cells[c.key] ?? ''} onChange={value => edit(r.line, c.key, value)} />
+                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} type={c.type === 'date' ? 'date' : 'text'}
+                                disabled={c.disabledWhen?.(r.cells)} value={r.cells[c.key] ?? ''} onChange={e => edit(r.line, c.key, e.target.value)} />}
                       </td>
                     )
                   })}

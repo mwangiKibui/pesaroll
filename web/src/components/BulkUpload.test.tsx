@@ -220,3 +220,34 @@ it('adding several opens the review with empty rows to type into; empty rows are
   expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Westlands branch' } }, { line: 3, cells: { name: 'Mombasa shop' } }])
   expect(importRows).toHaveBeenCalledOnce()
 })
+
+it('a sheet can have checkbox columns, defaults, and cells that only open when another says so', async () => {
+  const importRows = vi.fn(async () => null)
+  const check = vi.fn(async () => clean)
+  const cols = [
+    { key: 'name', label: 'Name' },
+    { key: 'stillHere', label: 'Still works here', type: 'checkbox' as const, defaultValue: 'Yes' },
+    { key: 'exitDate', label: 'Date left', type: 'date' as const, disabledWhen: (cells: Record<string, string>) => cells.stillHere === 'Yes' },
+  ]
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={cols} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={check} onImport={importRows}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+  const sheet = screen.getByRole('dialog', { name: /Add \d people/ })
+
+  const stillHere = within(sheet).getByRole('checkbox', { name: 'Still works here, row 1' })
+  const left = within(sheet).getByLabelText('Date left, row 1')
+  expect(stillHere).toBeChecked()
+  expect(left).toBeDisabled()
+  expect(left).toHaveAttribute('type', 'date')
+
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Add row' }))   // an untouched row stays empty
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Name, row 1' }), 'Akinyi')
+  await userEvent.click(stillHere)
+  expect(left).toBeEnabled()
+  await userEvent.type(left, '2025-06-30')
+  await userEvent.click(within(sheet).getByRole('button', { name: /^Add \d people$/ }))
+
+  expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Akinyi', stillHere: '', exitDate: '2025-06-30' } }])
+})

@@ -826,7 +826,6 @@
     "previous": "Ukurasa uliopita",
     "next": "Ukurasa unaofuata",
     "add": "Ongeza mfanyakazi",
-    "addSeveral": "Ongeza kadhaa",
     "upload": "Pakia wafanyakazi",
     "addTitle": "Ongeza mfanyakazi",
     "editTitle": "Hariri mfanyakazi",
@@ -984,6 +983,8 @@
     "hireDatePlaceholder": "Tarehe ya kuanza ya mfanyakazi wako",
     "exitDatePlaceholder": "Siku ya mwisho ya mfanyakazi wako",
     "dateOfBirthPlaceholder": "Tarehe ya kuzaliwa ya mfanyakazi wako",
-    "contractEndPlaceholder": "Tarehe ya mwisho wa mkataba wako"
+    "contractEndPlaceholder": "Tarehe ya mwisho wa mkataba wako",
+    "stillHere": "Bado anafanya kazi hapa",
+    "exitDateRequired": "Andika tarehe aliyoondoka, au weka alama Bado anafanya kazi hapa."
   }
 }

@@ -826,7 +826,6 @@
     "previous": "Previous page",
     "next": "Next page",
     "add": "Add employee",
-    "addSeveral": "Add several",
     "upload": "Upload employees",
     "addTitle": "Add employee",
     "editTitle": "Edit employee",
@@ -984,6 +983,8 @@
     "hireDatePlaceholder": "Your employee's start date",
     "exitDatePlaceholder": "Your employee's last day",
     "dateOfBirthPlaceholder": "Your employee's date of birth",
-    "contractEndPlaceholder": "Your contract's end date"
+    "contractEndPlaceholder": "Your contract's end date",
+    "stillHere": "Still works here",
+    "exitDateRequired": "Enter the date they left, or tick Still works here."
   }
 }
