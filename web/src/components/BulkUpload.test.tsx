@@ -199,3 +199,24 @@ it('what a row names that does not exist yet is noted as "will be created", and 
   await userEvent.click(within(review()).getByRole('button', { name: 'Import 3 locations' }))
   expect(importRows).toHaveBeenCalled()
 })
+
+it('adding several opens the review with empty rows to type into; empty rows are left out', async () => {
+  const importRows = vi.fn(async () => null)
+  const check = vi.fn(async () => clean)
+  render(
+    <BulkUpload open startRows={3} title="Add several" columns={columns} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={check} onImport={importRows}
+      labels={{ review: n => `Add ${n} locations`, importButton: n => `Add ${n} locations`, templateHint: '' }} />,
+  )
+
+  const sheet = screen.getByRole('dialog', { name: /Add \d locations/ })
+  expect(within(sheet).getAllByRole('textbox', { name: /Location name, row/ })).toHaveLength(3)
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Add row' }))
+  expect(within(sheet).getAllByRole('textbox', { name: /Location name, row/ })).toHaveLength(4)
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 1' }), 'Westlands branch')
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 3' }), 'Mombasa shop')
+  await userEvent.click(within(sheet).getByRole('button', { name: /^Add \d locations$/ }))
+
+  expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Westlands branch' } }, { line: 3, cells: { name: 'Mombasa shop' } }])
+  expect(importRows).toHaveBeenCalledOnce()
+})

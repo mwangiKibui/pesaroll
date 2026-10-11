@@ -106,7 +106,7 @@ it('edits how annual leave is earned, and stops it going below the law', async (
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
 
   expect(await screen.findByText('Leave plan saved')).toBeInTheDocument()
-  expect((calls.find(c => c.method === 'PATCH')?.body as { rules: unknown[] }).rules[0]).toMatchObject({ earnMethod: 'weekly', amount: 0.5 })
+  expect((calls.find(c => c.method === 'PATCH')!.body as { rules: unknown[] }).rules[0]).toMatchObject({ earnMethod: 'weekly', amount: 0.5 })
 })
 
 it('sick leave can\'t be less than 7 days on full pay and 7 on half pay', async () => {
@@ -154,7 +154,7 @@ it('adds an own leave type from a common one, then puts it in a plan', async () 
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
 
   expect(await screen.findByText('Leave plan saved')).toBeInTheDocument()
-  expect((calls.find(c => c.method === 'PATCH')?.body as { rules: unknown[] }).rules).toContainEqual(
+  expect((calls.find(c => c.method === 'PATCH')!.body as { rules: unknown[] }).rules).toContainEqual(
     expect.objectContaining({ leaveTypeId: 'lt7', earnMethod: 'each_time', amount: 5 }))
 })
 
@@ -184,12 +184,11 @@ it('with several companies, the selector filters the plans', async () => {
   expect(within(panel('Leave plans')).getByText('Standard')).toBeInTheDocument()
 })
 
-it('Proceed goes to the dashboard with six steps done; employees are next', async () => {
+it('Proceed goes on to employees', async () => {
   withLeave()
   renderApp('/setup/leave-plans')
 
-  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Org Dashboard' }))
+  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Employees' }))
 
-  expect(await screen.findByText('Finish setting up · 6 of 10')).toBeInTheDocument()
-  expect(screen.getAllByText('Next: Employees').length).toBeGreaterThan(0)
+  expect(await screen.findByRole('heading', { name: 'Who works for you?' })).toBeInTheDocument()
 })

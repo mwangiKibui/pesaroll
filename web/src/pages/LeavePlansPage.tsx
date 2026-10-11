@@ -241,8 +241,7 @@ export default function LeavePlansPage() {
             </TableCard>
           </TabPanel>
         </div>
-        {/* Employees (ONB-09) is next; until it has a page, the dashboard. */}
-        <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
+        <Proceed label={t('setup.proceed', { step: t('setup.steps.employees') })} onProceed={() => void navigate({ to: '/setup/employees' })} />
 
         {editing?.kind === 'plan' && (
           <PlanDrawer plan={editing.item} types={types.data} companies={companies.data} schedules={schedules.data}

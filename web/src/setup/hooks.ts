@@ -163,6 +163,20 @@ export function useLeavePlans(enabled = true) {
   })
 }
 
+/** How many people currently work for the organization (ONB-09), for setup progress. */
+export function useEmployeeCount(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['employees', 'count'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/employees', { params: { query: { pageSize: 1 } } })
+      if (error || !data) throw new Error('employees')
+      return Number(data.total)
+    },
+  })
+}
+
 /**
  * Which setup steps are done so far (ONB-12 will track all ten on the server). Locations is done
  * once every company has its main location, which it gets when it is added; Org structure once
@@ -177,6 +191,7 @@ export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const positions = useStructure('positions', some)
   const schedules = useSchedules(some)
   const leavePlans = useLeavePlans(some)
+  const employees = useEmployeeCount(some)
   if (!hasOrganization) return []
   if (!companies.data?.length) return ['organization']
   const mains = new Set((locations.data ?? []).flatMap(l => l.mainFor))
@@ -188,9 +203,11 @@ export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   if (!companies.data.every(c => defaults.has(c.id))) return ['organization', 'companies', 'locations', 'structure']
   // Leave plans once every company has a default plan (Standard, made with the company).
   const leaveDefaults = new Set((leavePlans.data ?? []).flatMap(p => p.defaultFor))
-  return companies.data.every(c => leaveDefaults.has(c.id))
-    ? ['organization', 'companies', 'locations', 'structure', 'schedules', 'leavePlans']
-    : ['organization', 'companies', 'locations', 'structure', 'schedules']
+  if (!companies.data.every(c => leaveDefaults.has(c.id))) return ['organization', 'companies', 'locations', 'structure', 'schedules']
+  // Employees once there is at least one.
+  return employees.data
+    ? ['organization', 'companies', 'locations', 'structure', 'schedules', 'leavePlans', 'employees']
+    : ['organization', 'companies', 'locations', 'structure', 'schedules', 'leavePlans']
 }
 
 /** Where "Finish setting up" leads: the first step with a page that isn't done, else the last one built. */

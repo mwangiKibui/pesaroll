@@ -5,7 +5,7 @@ import { buttonClasses } from './buttonStyles'
 import { Drawer } from './Drawer'
 import { FormErrorBanner, Notice, type ApiError } from './feedback'
 import { Checkbox, SelectField, TextField } from './fields'
-import { DownloadIcon } from './icons'
+import { DownloadIcon, PlusIcon } from './icons'
 import { Modal } from './Modal'
 import { matches } from './search'
 
@@ -50,6 +50,8 @@ interface BulkUploadProps {
   children?: ReactNode
   /** A step before the template (what to upload, when one button uploads several kinds). */
   firstStep?: { title: string; content: ReactNode }
+  /** Adding several by hand: opens straight into the review with this many empty rows, and Add row; empty rows are left out. */
+  startRows?: number
 }
 
 const isError = (value: unknown): value is ApiError => typeof value === 'object' && value !== null && 'code' in value && 'reference' in value
@@ -65,11 +67,12 @@ const PAGE = 100
  * searchable, scrolling under a fixed header, with problems in their cells. Import checks the
  * edited rows again and saves them all, or shows what is still wrong; nothing is imported blindly.
  */
-export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep }: BulkUploadProps) {
+export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep, startRows }: BulkUploadProps) {
   const { t } = useTranslation()
   const inputId = useId()
   const [file, setFile] = useState<File | null>(null)
-  const [rows, setRows] = useState<BulkUploadRow[] | null>(null)
+  const blank = (from: number, count: number): BulkUploadRow[] => Array.from({ length: count }, (_, i) => ({ line: from + i, cells: {} }))
+  const [rows, setRows] = useState<BulkUploadRow[] | null>(() => (startRows ? blank(1, startRows) : null))
   const [problems, setProblems] = useState<BulkUploadProblem[]>([])
   const [notes, setNotes] = useState<BulkUploadProblem[]>([])
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
@@ -122,15 +125,18 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
 
   const importRows = async () => {
     if (!rows) return
+    // Rows nobody typed into (adding several) are left out.
+    const filled = rows.filter(r => Object.values(r.cells).some(v => v.trim()))
+    if (filled.length === 0) return
     const done = await attempt('import', setReviewBanner, async () => {
-      const check = await onCheck(rows)
+      const check = await onCheck(filled)
       if (isError(check)) return check
       setNotes(check.notes ?? [])
       if (check.problems.length > 0) {
         setProblems(check.problems)
         return 'problems' as const
       }
-      return onImport(rows)
+      return onImport(filled)
     })
     if (done === null) onClose()
     else if (isError(done)) setReviewBanner(done)
@@ -157,7 +163,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
 
   return (
     <>
-      <Drawer open={open && !rows} title={title} onClose={onClose}
+      <Drawer open={open && !rows && !startRows} title={title} onClose={onClose}
         footer={<Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>}>
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={banner} />}
@@ -196,9 +202,16 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         </section>
       </Drawer>
 
-      <Modal open={open && !!rows} size="wide" title={labels.review(rows?.length ?? 0)} onClose={() => setRows(null)}
+      <Modal open={open && !!rows} size="wide" title={labels.review(rows?.length ?? 0)} onClose={() => (startRows ? onClose() : setRows(null))}
         footer={<>
-          <Button variant="secondary" className="mr-auto" onClick={() => setRows(null)}>{t('bulk.back')}</Button>
+          {startRows
+            ? <Button variant="secondary" className="mr-auto" onClick={onClose}>{t('common.cancel')}</Button>
+            : <Button variant="secondary" className="mr-auto" onClick={() => setRows(null)}>{t('bulk.back')}</Button>}
+          {startRows && (
+            <Button variant="secondary" onClick={() => setRows(list => [...(list ?? []), ...blank(Math.max(0, ...(list ?? []).map(r => Number(r.line))) + 1, 1)])}>
+              <PlusIcon />{t('bulk.addRow')}
+            </Button>
+          )}
           <Button disabled={!rows?.length} busy={busy === 'import'} onClick={() => void importRows()}>{labels.importButton(rows?.length ?? 0)}</Button>
         </>}>
         {reviewBanner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}

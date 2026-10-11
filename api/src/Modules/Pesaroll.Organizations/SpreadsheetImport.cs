@@ -32,8 +32,11 @@ public sealed record ImportRequest(List<ImportRow>? Rows, bool AllCompanies, Lis
 
 public sealed record ImportResult(int Imported);
 
-/// <summary>A template column: its key in a row's cells and its header in the file.</summary>
-public sealed record ImportColumn(string Key, string Header);
+/// <summary>
+/// A template column: its key in a row's cells, its header in the file, and optionally its cells'
+/// format: "@" keeps text as typed (leading zeros in account numbers), "yyyy-mm-dd" for dates.
+/// </summary>
+public sealed record ImportColumn(string Key, string Header, string? Format = null);
 
 /// <summary>
 /// What one kind of record (locations, departments…) tells the shared import: its columns, its
@@ -50,10 +53,13 @@ public sealed class ImportSpec<TValid>
     public required int MaxMegabytes { get; init; }
     /// <summary>The template's dropdowns: choices by column key.</summary>
     public required Func<OrganizationsDbContext, CancellationToken, Task<Dictionary<string, List<string>>>> Choices { get; init; }
-    /// <summary>Checks the rows (the same rules as adding one by hand): the valid rows, problems, and notes of what will be created.</summary>
-    public required Func<List<ImportRow>, OrganizationsDbContext, CancellationToken, Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)>> Check { get; init; }
+    /// <summary>
+    /// Checks the rows (the same rules as adding one by hand): the valid rows, problems, and notes of
+    /// what will be created. The request's services are there for what needs them (the field encryptor).
+    /// </summary>
+    public required Func<List<ImportRow>, OrganizationsDbContext, IServiceProvider, CancellationToken, Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)>> Check { get; init; }
     /// <summary>Saves the checked rows for the chosen companies; returns how many were saved.</summary>
-    public required Func<List<TValid>, ImportRequest, Guid, OrganizationsDbContext, DateTimeOffset, CancellationToken, Task<int>> Save { get; init; }
+    public required Func<List<TValid>, ImportRequest, Guid, OrganizationsDbContext, DateTimeOffset, IServiceProvider, CancellationToken, Task<int>> Save { get; init; }
 }
 
 /// <summary>
@@ -85,7 +91,7 @@ public static class SpreadsheetImport
             }
 
             var rows = await ReadAsync(file, spec, ct);
-            var (_, problems, notes) = await CheckAsync(spec, rows, db, ct);
+            var (_, problems, notes) = await CheckAsync(spec, rows, db, http.RequestServices, ct);
             return Results.Ok(new ImportRead(rows, problems, notes));
         }).DisableAntiforgery()   // the origin check (OriginCheckMiddleware) protects it, as for JSON requests
           .Produces<ImportRead>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -96,7 +102,7 @@ public static class SpreadsheetImport
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (_, problems, notes) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
+            var (_, problems, notes) = await CheckAsync(spec, Clean(request.Rows, spec), db, http.RequestServices, ct);
             return Results.Ok(new ImportCheck(problems, notes));
         }).Produces<ImportCheck>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
@@ -106,19 +112,19 @@ public static class SpreadsheetImport
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (valid, problems, _) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
+            var (valid, problems, _) = await CheckAsync(spec, Clean(request.Rows, spec), db, http.RequestServices, ct);
             if (problems.Count > 0)
             {
                 throw RowsNeedFixing(problems);
             }
 
-            return Results.Ok(new ImportResult(await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), ct)));
+            return Results.Ok(new ImportResult(await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct)));
         }).Produces<ImportResult>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
     }
 
     private static async Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)> CheckAsync<TValid>(
-        ImportSpec<TValid> spec, List<ImportRow> rows, OrganizationsDbContext db, CancellationToken ct)
+        ImportSpec<TValid> spec, List<ImportRow> rows, OrganizationsDbContext db, IServiceProvider services, CancellationToken ct)
     {
         if (rows.Count == 0)
         {
@@ -126,7 +132,7 @@ public static class SpreadsheetImport
         }
 
         // In file order: by row, then by column.
-        var (valid, problems, notes) = await spec.Check(rows, db, ct);
+        var (valid, problems, notes) = await spec.Check(rows, db, services, ct);
         var order = spec.Columns.Select((c, i) => (c.Key, i)).ToDictionary(c => c.Key, c => c.i);
         List<ImportProblem> Sorted(List<ImportProblem> list) =>
             list.OrderBy(p => p.Line).ThenBy(p => p.Column is null ? -1 : order.GetValueOrDefault(p.Column, 99)).ToList();
@@ -157,6 +163,11 @@ public static class SpreadsheetImport
         for (var c = 0; c < spec.Columns.Count; c++)
         {
             sheet.Cell(1, c + 1).Value = spec.Columns[c].Header;
+            if (spec.Columns[c].Format is { } format)
+            {
+                sheet.Range(2, c + 1, last, c + 1).Style.NumberFormat.Format = format;
+            }
+
             if (choices.GetValueOrDefault(spec.Columns[c].Key) is not { } options)
             {
                 continue;

@@ -116,6 +116,25 @@ export const leavePlan = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+/** An employee in the list, as the API returns it: ready for payroll by default. */
+export const employeeRow = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000a501', companyId: company().id, staffNo: 'EMP-01', name: 'Wanjiru Kamau', positionTitle: 'Head cook',
+  departmentName: 'Kitchen', payScheduleId: schedule().id, basicAmount: 85000, payBasis: 'monthly', currency: 'KES', exitDate: null,
+  readiness: { ready: true, missing: [] }, ...overrides,
+})
+
+/** One employee in full, numbers masked, as the API returns it. */
+export const employeeDetail = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000a501', companyId: company().id, staffNo: 'EMP-01', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau',
+  dateOfBirth: '1990-05-01', phone: '+254712345678', email: 'wanjiru@example.com', nationalIdMasked: '•••• 5678', kraPinMasked: '•••• 678Z',
+  nssfNo: '2098765432', shaNo: 'CR1234567-8', hireDate: '2024-01-15', exitDate: null,
+  job: { positionId: null, departmentId: null, unitId: null, locationId: location().id, lineManagerId: null, payScheduleId: schedule().id,
+    leavePlanId: '0199c0de-0000-7000-8000-00000000f101', employmentType: 'permanent', contractEnd: null },
+  pay: { basicAmount: 85000, payBasis: 'monthly', currency: 'KES' },
+  account: { method: 'mpesa', bankCode: null, branchCode: null, accountMasked: null, mpesaMasked: '•••• 5678' },
+  readiness: { ready: true, missing: [] }, ...overrides,
+})
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -148,6 +167,8 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/pay-schedules': () => json(200, []),
     'GET /api/leave-types': () => json(200, []),
     'GET /api/leave-plans': () => json(200, []),
+    'GET /api/employees': () => json(200, { items: [], total: 0, page: 1, pageSize: 100 }),
+    'GET /api/employees/choices': () => json(200, []),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }

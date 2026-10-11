@@ -42,8 +42,8 @@ public static class LocationsImport
                 [CountyColumn] = (await RegionsAsync(db, ct)).Select(r => r.Name).ToList(),
                 [MainColumn] = ["Yes", "No"],
             },
-            Check = CheckAsync,
-            Save = SaveAsync,
+            Check = (rows, db, _, ct) => CheckAsync(rows, db, ct),
+            Save = (rows, request, org, db, now, _, ct) => SaveAsync(rows, request, org, db, now, ct),
         });
         return app;
     }

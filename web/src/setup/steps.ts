@@ -25,4 +25,5 @@ export const setupPaths: Partial<Record<SetupStep, string>> = {
   structure: '/setup/structure',
   schedules: '/setup/schedules',
   leavePlans: '/setup/leave-plans',
+  employees: '/setup/employees',
 }
