@@ -27,11 +27,11 @@ public static class EmployeesImport
     public static readonly IReadOnlyList<ImportColumn> Columns =
     [
         new("company", "Company", InTemplate: false), new("staffNo", "Staff number", "@"), new("firstName", "First name"), new("middleName", "Middle name"),
-        new("lastName", "Last name"), new("dateOfBirth", "Date of birth", "yyyy-mm-dd"), new("phone", "Phone", "@"), new("email", "Email"), new("address", "Address"),
+        new("lastName", "Last name"), ImportColumn.Date("dateOfBirth", "Date of birth"), new("phone", "Phone", "@"), new("email", "Email"), new("address", "Address"),
         new("nationalId", "ID number", "@"), new("kraPin", "KRA PIN", "@"), new("nssfNo", "NSSF number", "@"), new("shaNo", "SHA number", "@"),
-        new("hireDate", "Start date", "yyyy-mm-dd"), new("stillHere", "Still works here"), new("exitDate", "Date left", "yyyy-mm-dd"),
+        ImportColumn.Date("hireDate", "Start date"), new("stillHere", "Still works here"), ImportColumn.Date("exitDate", "Date left"),
         new("employmentType", "Employment type"),
-        new("contractEnd", "Contract end", "yyyy-mm-dd"), new("division", "Division"), new("department", "Department"), new("unit", "Unit"),
+        ImportColumn.Date("contractEnd", "Contract end"), new("division", "Division"), new("department", "Department"), new("unit", "Unit"),
         new("position", "Position"), new("lineManager", "Line manager (staff number)", "@"),
         new("payrollSchedule", "Payroll schedule"), new("leavePlan", "Leave plan"), new("basicPay", "Basic pay"),
         new("paidInto", "Paid into"), new("bank", "Bank"), new("branch", "Branch", "@"), new("accountNumber", "Account number", "@"), new("mpesa", "M-Pesa number", "@"),
@@ -107,11 +107,7 @@ public static class EmployeesImport
     }
 
     /// <summary>A date as written: 2024-01-15, 15/01/2024 (day first, as in Kenya), 15 Jan 2024; null if it isn't one.</summary>
-    internal static DateOnly? ParseDate(string text)
-    {
-        string[] formats = ["yyyy-MM-dd", "d/M/yyyy", "d-M-yyyy", "d.M.yyyy", "d MMM yyyy", "d-MMM-yyyy", "d MMMM yyyy", "yyyy-MM-dd HH:mm:ss", "d/M/yyyy HH:mm:ss"];
-        return DateTime.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var d) ? DateOnly.FromDateTime(d) : null;
-    }
+    internal static DateOnly? ParseDate(string text) => SpreadsheetImport.ParseDate(text);
 
     /// <summary>"85,000", "KES 85000.50": an amount, or null.</summary>
     internal static decimal? ParseAmount(string text)

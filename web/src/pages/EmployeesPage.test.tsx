@@ -205,16 +205,44 @@ it('people who work here are paid into an account the company pays from', async 
   expect(calls.some(c => c.path === '/api/employees/import/check')).toBe(false)
 })
 
-it('Upload employees starts with one company, and its template has that company\'s lists', async () => {
-  const calls = withPeople({ 'GET /api/employees/template': () => new Response(new Blob(['x'])) })
+it('Upload employees waits for a company; its template and the file are read for that company, then reviewed in the same wide drawer', async () => {
+  const centrail = company({ id: '0199c0de-0000-7000-8000-0000000000c2', legalName: 'Centrail Ltd' })
+  let readQuery = ''
+  const calls = withPeople({
+    'GET /api/companies': () => json(200, [restaurant, centrail]),
+    'GET /api/employees/template': () => new Response(new Blob(['x'])),
+    'POST /api/employees/import/read': req => {
+      readQuery = new URL(req.url).search
+      return json(200, {
+        rows: [{ line: 2, cells: { firstName: 'Maggie', lastName: 'Kibui', dateOfBirth: '1998-03-17', hireDate: '31/02/2024', stillHere: 'Yes' } }],
+        problems: [{ line: 2, column: 'hireDate', message: 'Enter the start date as DD/MM/YYYY.' }, { line: 2, column: 'company', message: 'Choose one of your companies.' }],
+        notes: [],
+      })
+    },
+  })
   renderApp('/setup/employees')
   await userEvent.click(await screen.findByRole('button', { name: 'Upload employees' }))
   const upload = await screen.findByRole('dialog', { name: 'Upload employees' })
-  expect(within(upload).getByRole('heading', { name: '1. Choose the company' })).toBeInTheDocument()
-  expect(within(upload).getByRole('combobox', { name: 'Company' })).toHaveValue('Mama Oliech Restaurant Ltd')
+  expect(within(upload).getByRole('combobox', { name: 'Company' })).toHaveValue('')
+  expect(within(upload).getByText('Choose the company first.')).toBeInTheDocument()
+  expect(within(upload).getByRole('button', { name: 'Download template' })).toBeDisabled()
+  expect(within(upload).getByLabelText(/Choose a file|Choose file/)).toBeDisabled()
 
+  await userEvent.click(within(upload).getByRole('combobox', { name: 'Company' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Centrail Ltd' }))
+  expect(screen.getByRole('combobox', { name: 'Company' })).toHaveValue('Centrail Ltd')
+  expect(within(screen.getByRole('dialog', { name: 'Upload employees' })).getByRole('button', { name: 'Download template' })).toBeEnabled()
   await userEvent.click(within(upload).getByRole('button', { name: 'Download template' }))
-  await vi.waitFor(() => expect(calls.some(c => c.path === '/api/employees/template' && c.url.includes(`companyId=${restaurant.id}`))).toBe(true))
+  await vi.waitFor(() => expect(calls.some(c => c.path === '/api/employees/template' && c.url.includes(`companyId=${centrail.id}`))).toBe(true))
+
+  await userEvent.upload(within(upload).getByLabelText(/Choose a file|Choose file/), new File(['x'], 'people.xlsx'))
+  const review = await screen.findByRole('dialog', { name: /Review 1 employee/ })
+  expect(review).toHaveClass('max-w-[97vw]')   // the drawer used for adding
+  expect(readQuery).toContain(`companyId=${centrail.id}`)
+  expect(within(review).getByLabelText('Date of birth, row 2')).toHaveValue('1998-03-17')
+  expect(within(review).getByRole('textbox', { name: 'Start date, row 2' })).toHaveValue('31/02/2024')   // as written, to fix
+  expect(within(review).getByRole('textbox', { name: 'Start date, row 2' })).toHaveAccessibleDescription('Enter the start date as DD/MM/YYYY.')
+  expect(within(review).getByText('Choose one of your companies.')).toBeInTheDocument()   // no Company cell: shown on the row
 })
 
 it('someone who no longer works here needs the date they left', async () => {

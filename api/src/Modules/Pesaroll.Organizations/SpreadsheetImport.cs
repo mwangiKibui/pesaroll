@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using System.Globalization;
 using System.Text;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Builder;
@@ -34,11 +36,16 @@ public sealed record ImportResult(int Imported);
 
 /// <summary>
 /// A template column: its key in a row's cells, its header in the file, and optionally its cells'
-/// format: "@" keeps text as typed (leading zeros in account numbers), "yyyy-mm-dd" for dates.
-/// A column left out of the template (InTemplate false) is filled in by the app, such as the company
-/// chosen before the upload.
+/// format: "@" keeps text as typed (leading zeros in account numbers). A date column (Date) says
+/// how to write it in its header, "Start date (DD/MM/YYYY)", and is read back as yyyy-mm-dd when it
+/// is one. A column left out of the template (InTemplate false) is filled in by the app, such as the
+/// company chosen before the upload.
 /// </summary>
-public sealed record ImportColumn(string Key, string Header, string? Format = null, bool InTemplate = true);
+public sealed record ImportColumn(string Key, string Header, string? Format = null, bool InTemplate = true, bool IsDate = false)
+{
+    /// <summary>A date column: day first, as written in Kenya.</summary>
+    public static ImportColumn Date(string key, string header) => new(key, $"{header} (DD/MM/YYYY)", "dd/mm/yyyy", IsDate: true);
+}
 
 /// <summary>
 /// What one kind of record (locations, departments…) tells the shared import: its columns, its
@@ -83,7 +90,7 @@ public static class SpreadsheetImport
             return Results.File(Template(spec, await spec.Choices(db, companyId, ct)), Xlsx, $"pesaroll-{spec.Things}-template.xlsx");
         }).Produces(StatusCodes.Status200OK, contentType: Xlsx).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
-        group.MapPost($"{prefix}/import/read", async (IFormFile file, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        group.MapPost($"{prefix}/import/read", async (IFormFile file, Guid? companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
@@ -93,6 +100,16 @@ public static class SpreadsheetImport
             }
 
             var rows = await ReadAsync(file, spec, ct);
+            // The company chosen before the upload, for a file without a Company column.
+            if (companyId is Guid id && spec.Columns.Any(c => c.Key == "company" && !c.InTemplate)
+                && await db.Companies.AsNoTracking().Where(c => c.Id == id).Select(c => c.LegalName).SingleOrDefaultAsync(ct) is { } company)
+            {
+                foreach (var row in rows)
+                {
+                    row.Cells["company"] = company;
+                }
+            }
+
             var (_, problems, notes) = await CheckAsync(spec, rows, db, http.RequestServices, ct);
             return Results.Ok(new ImportRead(rows, problems, notes));
         }).DisableAntiforgery()   // the origin check (OriginCheckMiddleware) protects it, as for JSON requests
@@ -194,6 +211,13 @@ public static class SpreadsheetImport
         return stream.ToArray();
     }
 
+    /// <summary>A date as written: 2024-01-15, 15/01/2024 (day first, as in Kenya), 15 Jan 2024; null if it isn't one.</summary>
+    public static DateOnly? ParseDate(string text)
+    {
+        string[] formats = ["yyyy-MM-dd", "d/M/yyyy", "d-M-yyyy", "d.M.yyyy", "d MMM yyyy", "d-MMM-yyyy", "d MMMM yyyy", "yyyy-MM-dd HH:mm:ss", "d/M/yyyy HH:mm:ss"];
+        return DateTime.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var d) ? DateOnly.FromDateTime(d) : null;
+    }
+
     /// <summary>The file's rows by column key: the first sheet of an .xlsx, or a .csv. Empty rows are skipped.</summary>
     private static async Task<List<ImportRow>> ReadAsync<TValid>(IFormFile file, ImportSpec<TValid> spec, CancellationToken ct)
     {
@@ -210,7 +234,9 @@ public static class SpreadsheetImport
 
         // The header finds the columns; a file without the required ones isn't ours.
         var header = table[0].Select(h => h.Trim()).ToList();
-        var index = spec.Columns.ToDictionary(c => c.Key, c => header.FindIndex(h => string.Equals(h, c.Header, StringComparison.OrdinalIgnoreCase)));
+        // "Start date (DD/MM/YYYY)" and "Start date" are the same column (older templates).
+        static string Bare(string text) => Regex.Replace(text, @"\s*\([^)]*\)\s*$", "");
+        var index = spec.Columns.ToDictionary(c => c.Key, c => header.FindIndex(h => string.Equals(Bare(h), Bare(c.Header), StringComparison.OrdinalIgnoreCase)));
         if (spec.RequiredKeys.Any(k => index[k] < 0))
         {
             throw Unreadable();
@@ -220,6 +246,14 @@ public static class SpreadsheetImport
         for (var r = 1; r < table.Count; r++)
         {
             var cells = spec.Columns.ToDictionary(c => c.Key, c => index[c.Key] >= 0 && index[c.Key] < table[r].Count ? table[r][index[c.Key]].Trim() : "");
+            // Dates as yyyy-mm-dd, whichever way they were written; what isn't a date stays as typed, to be fixed.
+            foreach (var column in spec.Columns.Where(c => c.IsDate))
+            {
+                if (ParseDate(cells[column.Key]) is DateOnly date)
+                {
+                    cells[column.Key] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                }
+            }
             if (cells.Values.All(string.IsNullOrEmpty))
             {
                 continue;

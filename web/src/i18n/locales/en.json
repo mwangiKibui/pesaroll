@@ -1015,6 +1015,7 @@
     "addressHint": "Where they live, like Hse 12, Kilimani, Nairobi.",
     "view": "View {{name}}",
     "viewTitle": "Employee",
-    "editButton": "Edit"
+    "editButton": "Edit",
+    "chooseCompanyFirst": "Choose the company first."
   }
 }

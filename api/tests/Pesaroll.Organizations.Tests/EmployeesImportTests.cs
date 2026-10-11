@@ -73,8 +73,9 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         using var book = new XLWorkbook(new MemoryStream(bytes));
         var sheet = book.Worksheet(1);
         var headers = sheet.Row(1).CellsUsed().Select(c => c.GetString()).ToList();
-        Assert.Equal(["Staff number", "First name", "Middle name", "Last name", "Date of birth", "Phone", "Email", "Address", "ID number", "KRA PIN",
-            "NSSF number", "SHA number", "Start date", "Still works here", "Date left", "Employment type", "Contract end", "Division", "Department", "Unit",
+        Assert.Equal(["Staff number", "First name", "Middle name", "Last name", "Date of birth (DD/MM/YYYY)", "Phone", "Email", "Address", "ID number", "KRA PIN",
+            "NSSF number", "SHA number", "Start date (DD/MM/YYYY)", "Still works here", "Date left (DD/MM/YYYY)", "Employment type", "Contract end (DD/MM/YYYY)",
+            "Division", "Department", "Unit",
             "Position", "Line manager (staff number)", "Payroll schedule", "Leave plan", "Basic pay", "Paid into", "Bank", "Branch", "Account number",
             "M-Pesa number"], headers);   // no Company (chosen first), no Paid (the schedule says), no Location (the company's main one)
         var lists = book.Worksheet("Lists").CellsUsed().Select(c => c.GetString()).ToList();
@@ -119,6 +120,47 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
                 Person("Otieno", "Ouma", ("paidInto", "M-Pesa"), ("mpesa", "0791569999")),
                 Person("Akinyi", "Odera", ("paidInto", "M-Pesa"), ("bank", ""), ("mpesa", "")),
                 Person("Baraka", "Mwangi", ("paidInto", "Cheque"))));
+    }
+
+    private sealed record Read(List<ImportRowDto> Rows, List<Problem> Problems);
+    private sealed record ImportRowDto(int Line, Dictionary<string, string> Cells);
+
+    [Fact]
+    public async Task A_file_is_read_for_the_company_chosen_first_with_its_dates_as_written_in_Kenya()
+    {
+        var (client, company) = await Onboarded();
+        await client.PostAsJsonAsync("/api/companies", new { legalName = "Centrail Ltd", countryCode = "KE", town = "Nairobi", regionCode = "047" });
+        using var book = new XLWorkbook();
+        var sheet = book.AddWorksheet("Employees");
+        string[] headers = ["First name", "Last name", "Date of birth", "Start date (DD/MM/YYYY)", "Still works here"];   // an older header still reads
+        for (var c = 0; c < headers.Length; c++)
+        {
+            sheet.Cell(1, c + 1).Value = headers[c];
+        }
+        sheet.Cell(2, 1).Value = "Maggie";
+        sheet.Cell(2, 2).Value = "Kibui";
+        sheet.Cell(2, 3).Value = "17/03/1998";                     // typed as text
+        sheet.Cell(2, 4).Value = new DateTime(2026, 1, 1);          // a real date cell
+        sheet.Cell(2, 4).Style.NumberFormat.Format = "dd/mm/yyyy";
+        sheet.Cell(2, 5).Value = "Yes";
+        sheet.Cell(3, 1).Value = "Otieno";
+        sheet.Cell(3, 2).Value = "Ouma";
+        sheet.Cell(3, 4).Value = "31/02/2024";                     // no such day
+        using var stream = new MemoryStream();
+        book.SaveAs(stream);
+
+        var read = async (string query) =>
+        {
+            using var form = new MultipartFormDataContent { { new ByteArrayContent(stream.ToArray()), "file", "people.xlsx" } };
+            return (await (await client.PostAsync($"/api/employees/import/read{query}", form)).Content.ReadFromJsonAsync<Read>())!;
+        };
+        var withCompany = await read($"?companyId={company.Id}");
+        var without = await read("");
+
+        Assert.Equal(("1998-03-17", "2026-01-01"), (withCompany.Rows[0].Cells["dateOfBirth"], withCompany.Rows[0].Cells["hireDate"]));
+        Assert.Equal("31/02/2024", withCompany.Rows[1].Cells["hireDate"]);   // not a date: as typed, to fix
+        Assert.Equal([(3, "hireDate")], withCompany.Problems.Select(p => (p.Line, p.Column)));
+        Assert.Contains(without.Problems, p => p.Column == "company");   // two companies, none chosen
     }
 
     [Fact]

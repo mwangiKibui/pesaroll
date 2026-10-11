@@ -1015,6 +1015,7 @@
     "addressHint": "Wanapoishi, kama Nyumba 12, Kilimani, Nairobi.",
     "view": "Tazama {{name}}",
     "viewTitle": "Mfanyakazi",
-    "editButton": "Hariri"
+    "editButton": "Hariri",
+    "chooseCompanyFirst": "Chagua kampuni kwanza."
   }
 }

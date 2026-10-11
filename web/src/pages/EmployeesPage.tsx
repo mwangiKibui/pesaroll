@@ -59,6 +59,8 @@ function usePaysBy(companyId: string) {
   return useQuery({
     queryKey: ['payment-accounts', companyId],
     enabled: !!companyId,
+    // Another company's answer stays until this one's arrives, so screens don't fall back to loading.
+    placeholderData: previous => previous,
     queryFn: async () => {
       const { data, error } = await api.GET('/api/companies/{companyId}/payment-accounts', { params: { path: { companyId } } })
       if (error || !data) throw new Error('payment-accounts')
@@ -705,7 +707,8 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const [companyId, setCompanyId] = useState(defaultCompany)
+  // Uploading waits for a company to be chosen (unless there's only one); adding starts with the one shown.
+  const [companyId, setCompanyId] = useState(adding || companies.length === 1 ? defaultCompany : '')
   const company = companies.find(c => c.id === companyId) ?? companies[0]
   const divisions = useStructure('divisions')
   const departments = useStructure('departments')
@@ -715,7 +718,8 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
   const plans = useLeavePlans()
   const banks = useBanks(company.countryCode)
   const paysBy = usePaysBy(company.id)
-  const loaded = [divisions, departments, positions, units, schedules, plans, banks, paysBy].every(q => q.isSuccess)
+  // How the company pays only adds checks: if it can't be read, the sheet still opens.
+  const loaded = [divisions, departments, positions, units, schedules, plans, banks].every(q => q.isSuccess) && !paysBy.isPending
 
   // What the chosen company uses, by name (as the template lists them).
   type Scoped = { allCompanies: boolean; companyIds: string[] }
@@ -781,7 +785,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
       disabledWhen: (cells: Record<string, string>) => methodOf(cells) !== 'bank' || !cells.bank?.trim(),
     } : {}),
     ...(key === 'stillHere' ? { type: 'checkbox' as const, ...(adding ? { defaultValue: 'Yes' } : {}) } : {}),
-    ...(adding && dates.has(key) ? { type: 'date' as const } : {}),
+    ...(dates.has(key) ? { type: 'date' as const } : {}),
     ...(key === 'exitDate' ? { disabledWhen: (cells: Record<string, string>) => working(cells) } : {}),
     // Only a contract has an end date.
     ...(key === 'contractEnd' ? { disabledWhen: (cells: Record<string, string>) => !isContract(cells) } : {}),
@@ -816,6 +820,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
 
   const read = async (file: File) => {
     const { data, error } = await api.POST('/api/employees/import/read', {
+      params: { query: { companyId: company.id } },
       body: { file } as never,
       bodySerializer: () => {
         const form = new FormData()
@@ -857,7 +862,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
 
   const companyField = (hint?: string) => (
     <div className="w-full sm:w-72">
-      <SelectField label={t('employees.company')} placeholder={t('employees.companyPlaceholder')} hint={hint} value={company.id}
+      <SelectField label={t('employees.company')} placeholder={t('employees.companyPlaceholder')} hint={hint} value={companyId}
         onChange={value => value && setCompanyId(value)} options={companies.map(c => ({ value: c.id, label: c.legalName }))} />
     </div>
   )
@@ -871,6 +876,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
     <BulkUpload key={adding ? company.id : 'upload'} open startRows={adding ? 1 : undefined} title={adding ? t('employees.add') : t('employees.upload')}
       columns={columns} onCellsChange={follow} onClose={onClose}
       onDownloadTemplate={downloadTemplate} onRead={read} onCheck={check} onImport={importRows}
+      locked={companyId ? undefined : t('employees.chooseCompanyFirst')}
       firstStep={adding ? undefined : { title: t('employees.uploadCompany'), content: companyField(t('employees.uploadCompanyHint')) }}
       labels={{
         review: count => (adding ? t('employees.several', { count }) : t('employees.review', { count })),

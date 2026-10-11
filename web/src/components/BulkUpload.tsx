@@ -6,7 +6,6 @@ import { Drawer } from './Drawer'
 import { FormErrorBanner, Notice, type ApiError } from './feedback'
 import { Checkbox, SelectField, TextField } from './fields'
 import { DownloadIcon, PlusIcon } from './icons'
-import { Modal } from './Modal'
 import { matches } from './search'
 
 /**
@@ -65,6 +64,8 @@ interface BulkUploadProps {
   children?: ReactNode
   /** A step before the template (what to upload, when one button uploads several kinds). */
   firstStep?: { title: string; content: ReactNode }
+  /** Why the template and the upload wait (a company to choose first); while set, both are closed. */
+  locked?: string
   /** Adding several by hand: opens straight into the review with this many empty rows, and Add row; empty rows are left out. */
   startRows?: number
   /** Changes that follow from a change (a schedule brings its leave plan; a new bank clears the branch). */
@@ -84,7 +85,7 @@ const PAGE = 100
  * searchable, scrolling under a fixed header, with problems in their cells. Import checks the
  * edited rows again and saves them all, or shows what is still wrong; nothing is imported blindly.
  */
-export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep, startRows, onCellsChange }: BulkUploadProps) {
+export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep, startRows, onCellsChange, locked }: BulkUploadProps) {
   const { t } = useTranslation()
   const inputId = useId()
   const [file, setFile] = useState<File | null>(null)
@@ -191,7 +192,13 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     else if (isError(done)) setReviewBanner(done)
   }
 
-  const problemAt = new Map(problems.map(p => [keyOf(p.line, p.column), p.message]))
+  // A problem in a column the sheet doesn't show is shown on its row, so nothing to fix is hidden.
+  const shownKeys = new Set(columns.map(c => c.key))
+  const problemAt = new Map<string, string>()
+  for (const p of problems) {
+    const key = p.column && shownKeys.has(p.column) ? keyOf(p.line, p.column) : keyOf(p.line)
+    problemAt.set(key, problemAt.has(key) && key === keyOf(p.line) ? `${problemAt.get(key)} ${p.message}` : p.message)
+  }
   const noteAt = new Map(notes.map(n => [keyOf(n.line, n.column), n.message]))
   // Each new name once, however many rows use it (ignoring case).
   const toCreate = new Set(notes.map(n => {
@@ -276,7 +283,9 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                           : options
                             ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} options={options}
                                 disabled={disabled} value={r.cells[c.key] ?? ''} onChange={value => edit(r.line, c.key, value, true)} />
-                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} type={c.type === 'date' ? 'date' : 'text'}
+                            // A date written another way in the file shows as written, to be fixed.
+                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note}
+                                type={c.type === 'date' && (!r.cells[c.key] || /^\d{4}-\d{2}-\d{2}$/.test(r.cells[c.key])) ? 'date' : 'text'}
                                 disabled={disabled} value={r.cells[c.key] ?? ''} onChange={e => edit(r.line, c.key, e.target.value)}
                                 onBlur={() => leave(r.line, c.key)} />}
                       </td>
@@ -321,8 +330,9 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         <section className="flex flex-col gap-2">
           <h3 className={step}>{`${n + 1}. ${t('bulk.step1')}`}</h3>
           <p className="m-0 text-hint text-muted">{labels.templateHint}</p>
+          {locked && <p className="m-0 text-hint font-medium text-warning-ink">{locked}</p>}
           <div>
-            <Button variant="secondary" busy={busy === 'template'} onClick={() => void attempt('template', setBanner, onDownloadTemplate)}>
+            <Button variant="secondary" disabled={!!locked} busy={busy === 'template'} onClick={() => void attempt('template', setBanner, onDownloadTemplate)}>
               <DownloadIcon />{t('bulk.download')}
             </Button>
           </div>
@@ -333,9 +343,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
           <p className="m-0 text-hint text-muted">{t('bulk.fileHint')}</p>
           <div className="flex flex-wrap items-center gap-3">
             {/* A real file input, hidden behind a button-looking label so it can be styled. */}
-            <input id={inputId} type="file" accept=".xlsx,.csv" className="peer sr-only" disabled={busy === 'read'}
+            <input id={inputId} type="file" accept=".xlsx,.csv" className="peer sr-only" disabled={busy === 'read' || !!locked}
               onChange={e => { void read(e.target.files?.[0]); e.target.value = '' }} />
-            <label htmlFor={inputId} className={`${buttonClasses('secondary')} cursor-pointer peer-focus-visible:outline-2 peer-focus-visible:outline-brand`}>
+            <label htmlFor={inputId} aria-disabled={locked ? true : undefined}
+              className={`${buttonClasses('secondary')} ${locked ? 'pointer-events-none opacity-50' : 'cursor-pointer'} peer-focus-visible:outline-2 peer-focus-visible:outline-brand`}>
               {file ? t('bulk.chooseAnother') : t('bulk.choose')}
             </label>
             {file && <span className="text-label text-muted">{file.name}</span>}
@@ -345,14 +356,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         </section>
       </Drawer>
 
-      {/* Adding by hand: a drawer 97% wide; reviewing a file: a large dialog. */}
-      {startRows
-        ? <Drawer open={open && !!rows} size="sheet" title={labels.review(rows?.length ?? 0)} onClose={onClose} footer={footer}>
-            <div className="flex min-h-0 flex-1 flex-col gap-4">{review}</div>
-          </Drawer>
-        : <Modal open={open && !!rows} size="wide" title={labels.review(rows?.length ?? 0)} onClose={() => setRows(null)} footer={footer}>
-            {review}
-          </Modal>}
+      {/* Adding by hand and reviewing a file: the same drawer, 97% wide. */}
+      <Drawer open={open && !!rows} size="sheet" title={labels.review(rows?.length ?? 0)} onClose={startRows ? onClose : () => setRows(null)} footer={footer}>
+        <div className="flex min-h-0 flex-1 flex-col gap-4">{review}</div>
+      </Drawer>
     </>
   )
 }

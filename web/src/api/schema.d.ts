@@ -2637,7 +2637,9 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2881,7 +2883,9 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4109,7 +4113,9 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4353,7 +4359,9 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4597,7 +4605,9 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -4841,7 +4851,9 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    companyId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
