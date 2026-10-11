@@ -40,6 +40,15 @@ function withItems(routes: Parameters<typeof fakeApi>[0] = {}) {
   })
 }
 
+it('comes after Employees in setup', async () => {
+  withItems()
+  renderApp('/setup/earnings-and-deductions')
+  const steps = await screen.findByRole('list', { name: 'Setup steps' })
+
+  const names = within(steps).getAllByRole('listitem').map(i => i.textContent?.replace(/✓|optional|\d+/g, '').trim())
+  expect(names.indexOf('Earnings and deductions')).toBe(names.indexOf('Employees') + 1)
+})
+
 it('shows earnings, deductions and employer costs on tabs; the law\'s items are locked', async () => {
   withItems()
   const { container } = renderApp('/setup/earnings-and-deductions')

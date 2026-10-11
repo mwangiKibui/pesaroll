@@ -366,11 +366,12 @@ it('deleting asks first; a default schedule is refused with the reason', async (
   expect(within(table()).getByRole('button', { name: 'Edit Monthly' })).toBeInTheDocument()
 })
 
-it('Proceed goes on to earnings and deductions', async () => {
+it('Proceed goes to the dashboard with five steps done; leave plans are next', async () => {
   oneCompany()
   renderApp('/setup/schedules')
 
-  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Earnings and deductions' }))
+  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Org Dashboard' }))
 
-  expect(await screen.findByRole('heading', { name: 'What do you pay, and what comes off pay?' })).toBeInTheDocument()
+  expect(await screen.findByText('Finish setting up · 5 of 10')).toBeInTheDocument()
+  expect(screen.getAllByText('Next: Leave plans').length).toBeGreaterThan(0)
 })

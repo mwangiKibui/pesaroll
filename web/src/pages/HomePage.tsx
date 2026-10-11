@@ -16,7 +16,8 @@ export default function HomePage() {
   const organization = useOrganization()
   const doneSteps = useSetupDone(!!useSyncExternalStore(auth.subscribe, auth.organizationId))
   const done = doneSteps.length
-  const next = t(`setup.steps.${setupSteps[done].key}`)
+  // The first step not done yet (steps can be done out of order: earnings and deductions come with the first company).
+  const next = t(`setup.steps.${(setupSteps.find(s => !doneSteps.includes(s.key)) ?? setupSteps[setupSteps.length - 1]).key}`)
 
   return (
     <AppShell groups={[{ items: [{ key: 'home', label: t('nav.home'), href: '/' }] }]} current="home"

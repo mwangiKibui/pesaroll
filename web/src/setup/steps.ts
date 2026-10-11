@@ -1,13 +1,16 @@
-/** The ten setup steps, in order (MVP 1 onboarding spec). The last two are optional. */
+/**
+ * The ten setup steps, in order (MVP 1 onboarding spec). The last two are optional. Earnings and
+ * deductions comes after Employees, since many deductions are for one employee (a SACCO, a loan).
+ */
 export const setupSteps = [
   { key: 'organization', optional: false },
   { key: 'companies', optional: false },
   { key: 'locations', optional: false },
   { key: 'structure', optional: false },
   { key: 'schedules', optional: false },
-  { key: 'payItems', optional: false },
   { key: 'leavePlans', optional: false },
   { key: 'employees', optional: false },
+  { key: 'payItems', optional: false },
   { key: 'history', optional: true },
   { key: 'team', optional: true },
 ] as const

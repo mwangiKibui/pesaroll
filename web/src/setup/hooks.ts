@@ -172,7 +172,8 @@ export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   // Payroll schedules once every company has its default (the suggested Monthly, made with the company).
   const defaults = new Set((schedules.data ?? []).flatMap(s => s.defaultFor))
   if (!companies.data.every(c => defaults.has(c.id))) return ['organization', 'companies', 'locations', 'structure']
-  // Earnings and deductions once Basic pay and the law's items are in (made with the first company).
+  // Earnings and deductions once Basic pay and the law's items are in (made with the first company),
+  // although it comes after Leave plans and Employees.
   return payItems.data?.some(i => i.lockedKey === 'basic')
     ? ['organization', 'companies', 'locations', 'structure', 'schedules', 'payItems']
     : ['organization', 'companies', 'locations', 'structure', 'schedules']

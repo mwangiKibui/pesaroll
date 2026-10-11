@@ -190,7 +190,7 @@ export default function EarningsPage() {
             )
           })}
         </div>
-        {/* Leave plans (ONB-08) is next; until it has a page, the dashboard. */}
+        {/* Payroll history (ONB-10) is next; until it has a page, the dashboard. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
 
         {editing && (
