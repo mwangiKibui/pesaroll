@@ -251,3 +251,14 @@ it('a sheet can have checkbox columns, defaults, and cells that only open when a
 
   expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Akinyi', stillHere: '', exitDate: '2025-06-30' } }])
 })
+
+it('adding by hand happens in a drawer 90% of the screen wide', () => {
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={columns} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={async () => clean} onImport={async () => null}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+
+  expect(screen.getByRole('dialog', { name: 'Add 1 people' })).toHaveClass('max-w-[90vw]')
+  expect(screen.getByTestId('drawer-scrim')).toBeInTheDocument()
+})

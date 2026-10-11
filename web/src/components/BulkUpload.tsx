@@ -219,8 +219,92 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         </section>
       </Drawer>
 
-      <Modal open={open && !!rows} size="wide" title={labels.review(rows?.length ?? 0)} onClose={() => (startRows ? onClose() : setRows(null))}
-        footer={<>
+      {/* Adding by hand: a drawer 90% wide; reviewing a file: a large dialog. */}
+      {startRows
+        ? <Drawer open={open && !!rows} size="sheet" title={labels.review(rows?.length ?? 0)} onClose={onClose} footer={<>
+          {startRows
+            ? <Button variant="secondary" className="mr-auto" onClick={onClose}>{t('common.cancel')}</Button>
+            : <Button variant="secondary" className="mr-auto" onClick={() => setRows(null)}>{t('bulk.back')}</Button>}
+          {startRows && (
+            <Button variant="secondary" onClick={() => setRows(list => [...(list ?? []), ...blank(Math.max(0, ...(list ?? []).map(r => Number(r.line))) + 1, 1)])}>
+              <PlusIcon />{t('bulk.addRow')}
+            </Button>
+          )}
+          <Button disabled={!rows?.length} busy={busy === 'import'} onClick={() => void importRows()}>{labels.importButton(rows?.length ?? 0)}</Button>
+        </>}>
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {reviewBanner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
+        {reviewBanner && reviewBanner !== 'network' && <FormErrorBanner error={reviewBanner} />}
+        {children && <div className="flex flex-col gap-1.5">{children}</div>}
+
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="w-full max-w-sm">
+            <TextField type="search" label={t('bulk.search')} placeholder={t('bulk.searchPlaceholder')} hideLabel
+              value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
+          </div>
+          {linesWithProblems.size > 0 && <Notice>{t('bulk.toFix', { count: linesWithProblems.size })}</Notice>}
+          {toCreate > 0 && <Notice tone="brand">{t('bulk.toCreate', { count: toCreate })}</Notice>}
+          {(linesWithProblems.size > 0 || onlyProblems) && <>
+            <Checkbox label={t('bulk.onlyProblems')} checked={!!onlyProblems} onChange={e => { setOnlyProblems(e.target.checked ? new Set(linesWithProblems) : null); setPage(0) }} />
+          </>}
+          <span className="ml-auto text-label text-muted">{t('bulk.showing', { shown: shown.length, total: rows?.length ?? 0 })}</span>
+        </div>
+
+        {/* Scrolls on its own, header fixed, so hundreds of rows stay workable. */}
+        <div role="region" aria-label={t('bulk.rows')} tabIndex={0} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
+          <table className="w-full border-collapse text-label">
+            <thead className="sticky top-0 z-10 bg-raised">
+              <tr>
+                <th scope="col" className="border-b border-line px-3 py-2 text-left font-medium text-muted">{t('bulk.rowHeader')}</th>
+                {columns.map(c => <th key={c.key} scope="col" className="min-w-40 border-b border-line px-3 py-2 text-left font-medium whitespace-nowrap text-muted">{c.label}</th>)}
+                <th scope="col" className="border-b border-line px-3 py-2"><span className="sr-only">{t('companies.actions')}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {onPage.map(r => (
+                <tr key={r.line} className={linesWithProblems.has(String(r.line)) ? 'bg-warning-soft' : ''}>
+                  <td className="border-b border-line-soft px-3 py-2 align-top font-mono text-muted">
+                    {r.line}
+                    {problemAt.get(keyOf(r.line)) && <p className="m-0 mt-1 font-sans text-hint font-medium text-danger-ink">{problemAt.get(keyOf(r.line))}</p>}
+                  </td>
+                  {columns.map(c => {
+                    const label = t('bulk.cell', { column: c.label, line: r.line })
+                    const error = problemAt.get(keyOf(r.line, c.key))
+                    // A name that will be created reads under the cell, without marking it wrong.
+                    const note = error ? undefined : noteAt.get(keyOf(r.line, c.key))
+                    return (
+                      <td key={c.key} className="border-b border-line-soft px-2 py-1.5 align-top">
+                        {c.type === 'checkbox'
+                          ? <input type="checkbox" aria-label={label} checked={r.cells[c.key] === 'Yes'} className="m-2 size-5 cursor-pointer accent-brand"
+                              onChange={e => edit(r.line, c.key, e.target.checked ? 'Yes' : '')} />
+                          : c.options
+                            ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} options={c.options}
+                                value={r.cells[c.key] ?? ''} onChange={value => edit(r.line, c.key, value)} />
+                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} type={c.type === 'date' ? 'date' : 'text'}
+                                disabled={c.disabledWhen?.(r.cells)} value={r.cells[c.key] ?? ''} onChange={e => edit(r.line, c.key, e.target.value)} />}
+                      </td>
+                    )
+                  })}
+                  <td className="border-b border-line-soft px-2 py-1.5 text-right align-top">
+                    <IconButton tone="danger" label={t('bulk.removeRow', { line: r.line })} onClick={() => remove(r.line)}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                    </IconButton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {(rows?.length ?? 0) > PAGE && (
+          <nav aria-label={t('bulk.pages')} className="flex items-center justify-end gap-3">
+            <span className="text-label text-muted">{t('bulk.page', { page: at + 1, pages })}</span>
+            <Button variant="secondary" disabled={at === 0} onClick={() => setPage(at - 1)}>{t('bulk.previous')}</Button>
+            <Button variant="secondary" disabled={at >= pages - 1} onClick={() => setPage(at + 1)}>{t('bulk.next')}</Button>
+          </nav>
+        )}
+</div>
+          </Drawer>
+        : <Modal open={open && !!rows} size="wide" title={labels.review(rows?.length ?? 0)} onClose={() => setRows(null)} footer={<>
           {startRows
             ? <Button variant="secondary" className="mr-auto" onClick={onClose}>{t('common.cancel')}</Button>
             : <Button variant="secondary" className="mr-auto" onClick={() => setRows(null)}>{t('bulk.back')}</Button>}
@@ -300,7 +384,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
             <Button variant="secondary" disabled={at >= pages - 1} onClick={() => setPage(at + 1)}>{t('bulk.next')}</Button>
           </nav>
         )}
-      </Modal>
+</Modal>}
     </>
   )
 }
