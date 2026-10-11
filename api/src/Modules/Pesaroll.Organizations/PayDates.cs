@@ -76,6 +76,16 @@ public static class PayDates
         return dates;
     }
 
+    /// <summary>The next pay dates of a schedule with these fields (only its frequency's are read).</summary>
+    public static IReadOnlyList<DateOnly> For(string frequency, string? payDayRule, int? payDay, int? payWeekday, DateOnly? firstPayDate, DateOnly from, int count = 3) =>
+        frequency switch
+        {
+            "weekly" => Weekly(from, (DayOfWeek)(payWeekday!.Value % 7), count),
+            "fortnightly" => Fortnightly(from, firstPayDate!.Value, count),
+            "daily" => Daily(from, count),
+            _ => Next(from, payDayRule!, payDay, count),
+        };
+
     public static DateOnly TodayInKenya(DateTimeOffset now) => DateOnly.FromDateTime(now.ToOffset(Kenya).DateTime);
 
     private static DateOnly BackToFriday(DateOnly date) => date.DayOfWeek switch

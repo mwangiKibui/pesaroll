@@ -237,6 +237,34 @@ public sealed class PaySchedule
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public List<PayScheduleCompany> Companies { get; set; } = [];
+    public List<PayScheduleReminder> Reminders { get; set; } = [];
+}
+
+/// <summary>A reminder to run payroll: <see cref="Amount"/> days (or hours, for daily pay) before each pay day.</summary>
+public sealed class PayScheduleReminder
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid PayScheduleId { get; set; }
+    public int Amount { get; set; }
+    /// <summary>days, or hours for daily pay.</summary>
+    public required string Unit { get; set; }
+    /// <summary>email or sms.</summary>
+    public required string Channel { get; set; }
+    /// <summary>An email address, or a Kenyan mobile number as +254….</summary>
+    public required string Recipient { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>A reminder sent for one pay date (claimed before queuing, so it is never sent twice).</summary>
+public sealed class ReminderSend
+{
+    public Guid OrganizationId { get; set; }
+    public Guid ReminderId { get; set; }
+    public DateOnly PayDate { get; set; }
+    public Guid? DeliveryId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }
 
 public sealed class PayScheduleCompany

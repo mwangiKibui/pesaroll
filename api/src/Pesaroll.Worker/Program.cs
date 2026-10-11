@@ -1,4 +1,5 @@
 using Pesaroll.Notifications;
+using Pesaroll.Organizations;
 using Pesaroll.Shared.Jobs;
 
 // The worker (PLAT-04): runs the jobs the API queues and the recurring ones (reminders, from NTF-01
@@ -10,6 +11,9 @@ var connectionString = builder.Configuration.GetConnectionString("Pesaroll")
 
 builder.Services.AddPesarollJobs(connectionString, runJobs: true);
 builder.Services.AddNotificationsModule(connectionString, builder.Configuration, builder.Environment.IsProduction());
+builder.Services.AddOrganizationsModule(connectionString);
+// Reminders to run payroll (ONB-06), every hour.
+builder.Services.AddRecurringJob<PayrollRemindersJob>();
 
 var host = builder.Build();
 host.Run();

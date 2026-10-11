@@ -53,6 +53,7 @@ services:
       Notifications__Email__Provider: smtp
       Notifications__Email__Smtp__Host: mailpit
       Notifications__Sms__Provider: log
+      App__Url: http://localhost:5173    # links in emails and SMS
     ports: ["8080:8080"]
     volumes:
       - .:/src
@@ -73,6 +74,7 @@ services:
       Notifications__Email__Provider: smtp
       Notifications__Email__Smtp__Host: mailpit
       Notifications__Sms__Provider: log
+      App__Url: http://localhost:5173    # links in emails and SMS
     volumes:
       - .:/src
       - nuget:/root/.nuget/packages

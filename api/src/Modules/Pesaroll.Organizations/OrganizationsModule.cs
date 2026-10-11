@@ -20,6 +20,7 @@ public static class OrganizationsModule
             .UseNpgsql(connectionString)
             .UseSnakeCaseNamingConvention()
             .AddInterceptors(provider.GetRequiredService<TenantSessionInterceptor>()));
+        services.AddTransient<PayrollRemindersJob>();   // scheduled by the worker (AddRecurringJob)
         return services;
     }
 }

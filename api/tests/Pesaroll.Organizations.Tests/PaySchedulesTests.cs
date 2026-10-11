@@ -20,7 +20,8 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
     private sealed record Company(Guid Id, string LegalName);
     private sealed record Schedule(Guid Id, string Name, string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
         int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime, bool UsesCutoff, List<string> CutoffAppliesTo,
-        bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor, List<DateOnly> NextPayDates);
+        bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor, List<DateOnly> NextPayDates, List<Reminder> Reminders);
+    private sealed record Reminder(Guid Id, int Amount, string Unit, string Channel, string Recipient);
 
     private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
     private const string Password = "Mombasa-raha-7";
@@ -213,6 +214,74 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
         Assert.Equal("cutoffAppliesTo", Assert.Single((await ErrorFrom(nothing)).Fields!.Keys));
         var tooLong = await Add(new { name = "Long item", cutoffAppliesTo = new[] { new string('x', 61) }, allCompanies = true });
         Assert.Equal("cutoffAppliesTo", Assert.Single((await ErrorFrom(tooLong)).Fields!.Keys));
+    }
+
+    [Fact]
+    public async Task Reminders_go_with_the_schedule_in_its_unit_to_checked_recipients()
+    {
+        var (client, _, _) = await Onboarded();
+        var a = await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var res = await client.PostAsJsonAsync("/api/pay-schedules", new
+        {
+            name = "Reminded", allCompanies = false, companyIds = new[] { a.Id },
+            reminders = new object[] { new { amount = 3, channel = "email", recipient = " Payroll@Example.com " }, new { amount = 1, channel = "sms", recipient = "0712 345 678" } },
+        });
+
+        Assert.Equal(HttpStatusCode.Created, res.StatusCode);
+        var created = (await res.Content.ReadFromJsonAsync<Schedule>())!;
+        Assert.Equal([(3, "days", "email", "payroll@example.com"), (1, "days", "sms", "+254712345678")],
+            created.Reminders.Select(r => (r.Amount, r.Unit, r.Channel, r.Recipient)));
+
+        // Editing keeps a reminder sent with its id, drops one left out and adds a new one.
+        var kept = created.Reminders[0];
+        var edit = await client.PatchAsJsonAsync($"/api/pay-schedules/{created.Id}", new
+        {
+            name = "Reminded", allCompanies = false, companyIds = new[] { a.Id },
+            reminders = new object[] { new { id = kept.Id, amount = 5, channel = "email", recipient = kept.Recipient }, new { amount = 2, channel = "email", recipient = "hr@example.com" } },
+        });
+        var edited = (await edit.Content.ReadFromJsonAsync<Schedule>())!;
+        Assert.Equal([(kept.Id, 5), (edited.Reminders[1].Id, 2)], edited.Reminders.Select(r => (r.Id, r.Amount)));
+        Assert.DoesNotContain(edited.Reminders, r => r.Channel == "sms");
+
+        // Daily pay is reminded in hours before the pay time.
+        var daily = (await (await client.PostAsJsonAsync("/api/pay-schedules", new
+        {
+            name = "Daily reminded", frequency = "daily", allCompanies = false, companyIds = new[] { a.Id },
+            reminders = new object[] { new { amount = 2, channel = "email", recipient = "payroll@example.com" } },
+        })).Content.ReadFromJsonAsync<Schedule>())!;
+        Assert.Equal("hours", Assert.Single(daily.Reminders).Unit);
+    }
+
+    [Fact]
+    public async Task Reminders_are_checked_against_the_frequency_and_the_recipient()
+    {
+        var (client, _, _) = await Onboarded();
+        await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var res = await client.PostAsJsonAsync("/api/pay-schedules", new
+        {
+            name = "Weekly reminded", frequency = "weekly", payWeekday = 5, allCompanies = true,
+            reminders = new object[]
+            {
+                new { amount = 7, channel = "email", recipient = "payroll@example.com" },   // a week or more before a weekly pay day
+                new { amount = 1, channel = "sms", recipient = "020 123 4567" },          // a landline
+                new { amount = 1, channel = "email", recipient = "payroll@" },
+                new { amount = 1, channel = "fax", recipient = "payroll@example.com" },
+            },
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var error = await ErrorFrom(res);
+        Assert.Equal("ONB-3524", error.Code);
+        Assert.Equal(["reminders[0].amount", "reminders[1].recipient", "reminders[2].recipient", "reminders[3].channel"], error.Fields!.Keys.Order());
+
+        var six = await client.PostAsJsonAsync("/api/pay-schedules", new
+        {
+            name = "Too many", allCompanies = true,
+            reminders = Enumerable.Range(1, 6).Select(n => new { amount = n, channel = "email", recipient = "payroll@example.com" }),
+        });
+        Assert.Equal("reminders", Assert.Single((await ErrorFrom(six)).Fields!.Keys));
     }
 
     [Fact]
