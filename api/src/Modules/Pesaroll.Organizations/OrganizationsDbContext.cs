@@ -25,6 +25,11 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
     public DbSet<PaySchedule> PaySchedules => Set<PaySchedule>();
     public DbSet<PayScheduleCompany> PayScheduleCompanies => Set<PayScheduleCompany>();
+    public DbSet<StatutoryLeave> StatutoryLeave => Set<StatutoryLeave>();
+    public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
+    public DbSet<LeavePlan> LeavePlans => Set<LeavePlan>();
+    public DbSet<LeavePlanCompany> LeavePlanCompanies => Set<LeavePlanCompany>();
+    public DbSet<LeavePlanRule> LeavePlanRules => Set<LeavePlanRule>();
     public DbSet<PayScheduleReminder> PayScheduleReminders => Set<PayScheduleReminder>();
     public DbSet<ReminderSend> ReminderSends => Set<ReminderSend>();
     public DbSet<Division> Divisions => Set<Division>();
@@ -76,6 +81,19 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
         model.Entity<PaySchedule>().HasMany(s => s.Companies).WithOne().HasForeignKey(c => c.PayScheduleId);
         model.Entity<PayScheduleCompany>().HasKey(c => new { c.PayScheduleId, c.CompanyId });
+        model.Entity<StatutoryLeave>().ToTable("statutory_leave").HasKey(s => new { s.CountryCode, s.Key });
+        model.Entity<StatutoryLeave>().Property(s => s.CountryCode).HasColumnType("char(2)");
+        model.Entity<LeaveType>().Property(t => t.CountryCode).HasColumnType("char(2)");
+        model.Entity<LeavePlan>().HasMany(p => p.Companies).WithOne().HasForeignKey(c => c.LeavePlanId);
+        model.Entity<LeavePlan>().HasMany(p => p.Rules).WithOne().HasForeignKey(r => r.LeavePlanId);
+        model.Entity<LeavePlanCompany>().HasKey(c => new { c.LeavePlanId, c.CompanyId });
+        model.Entity<LeavePlanCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
+        // The app makes rule ids, so one added to an existing plan is a new row, not an update.
+        model.Entity<LeavePlanRule>().Property(r => r.Id).ValueGeneratedNever();
+        model.Entity<LeavePlanRule>().HasOne<LeaveType>().WithMany().HasForeignKey(r => r.LeaveTypeId);
+        // Tells EF to write a new plan before the company or schedule that points at it as default.
+        model.Entity<Company>().HasOne<LeavePlan>().WithMany().HasForeignKey(c => c.DefaultLeavePlanId);
+        model.Entity<PaySchedule>().HasOne<LeavePlan>().WithMany().HasForeignKey(s => s.DefaultLeavePlanId);
         model.Entity<PaySchedule>().HasMany(s => s.Reminders).WithOne().HasForeignKey(r => r.PayScheduleId);
         // The app makes reminder ids, so one added to an existing schedule is a new row, not an update.
         model.Entity<PayScheduleReminder>().Property(r => r.Id).ValueGeneratedNever();

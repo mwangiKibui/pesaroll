@@ -26,11 +26,13 @@ create table pay_schedules (
     pay_time            time,                                              -- daily
     uses_cutoff         boolean not null default true,
     cutoff_applies_to   text[] not null default '{overtime,new_employees,leavers,unpaid_leave,pay_changes,one_off}',   -- or the organization's own items
+    default_leave_plan_id uuid,                                            -- leave plan for people on this schedule (ONB-08)
     all_companies       boolean not null default false,                    -- also companies added later
     status              text not null default 'active' check (status in ('active', 'archived')),
     created_at          timestamptz not null default now(),
     updated_at          timestamptz not null default now(),
     unique (organization_id, id),
+    foreign key (organization_id, default_leave_plan_id) references leave_plans (organization_id, id),
     check ((pay_day_rule = 'fixed_day') = (pay_day is not null)),
     -- A cut-off covers at least one thing; without one, it covers nothing.
     check (uses_cutoff = (cardinality(cutoff_applies_to) > 0)),

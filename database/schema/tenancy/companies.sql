@@ -17,12 +17,14 @@ create table companies (
     email              text,
     main_location_id   uuid,                          -- its one main location (ONB-04); can't be deleted while main
     default_pay_schedule_id uuid,                     -- the schedule its employees get (ONB-06); can't be deleted while default
+    default_leave_plan_id uuid,                       -- the leave plan its employees get (ONB-08), unless their schedule names one
     status             text not null default 'active' check (status in ('active', 'archived')),
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
     unique (organization_id, id),                     -- target for composite foreign keys
     foreign key (organization_id, main_location_id) references locations (organization_id, id),
-    foreign key (organization_id, default_pay_schedule_id) references pay_schedules (organization_id, id)
+    foreign key (organization_id, default_pay_schedule_id) references pay_schedules (organization_id, id),
+    foreign key (organization_id, default_leave_plan_id) references leave_plans (organization_id, id)
 );
 
 -- No two active companies in one organization share a name.

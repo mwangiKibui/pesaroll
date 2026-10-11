@@ -135,10 +135,39 @@ export function useSchedules(enabled = true) {
   })
 }
 
+/** The organization's leave types (ONB-08), the law's first. */
+export function useLeaveTypes(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['leaveTypes'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/leave-types')
+      if (error || !data) throw new Error('leaveTypes')
+      return data
+    },
+  })
+}
+
+/** The organization's leave plans (ONB-08), with their rules and what they're the default of. */
+export function useLeavePlans(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['leavePlans'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/leave-plans')
+      if (error || !data) throw new Error('leavePlans')
+      return data
+    },
+  })
+}
+
 /**
  * Which setup steps are done so far (ONB-12 will track all ten on the server). Locations is done
  * once every company has its main location, which it gets when it is added; Org structure once
- * there are departments or positions; Payroll schedules once every company has a default schedule.
+ * there are departments or positions; Payroll schedules and Leave plans once every company has a
+ * default schedule and plan.
  */
 export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const companies = useCompanies(hasOrganization)
@@ -147,6 +176,7 @@ export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   const departments = useStructure('departments', some)
   const positions = useStructure('positions', some)
   const schedules = useSchedules(some)
+  const leavePlans = useLeavePlans(some)
   if (!hasOrganization) return []
   if (!companies.data?.length) return ['organization']
   const mains = new Set((locations.data ?? []).flatMap(l => l.mainFor))
@@ -155,9 +185,12 @@ export function useSetupDone(hasOrganization: boolean): SetupStep[] {
   if (!departments.data?.length && !positions.data?.length) return ['organization', 'companies', 'locations']
   // Payroll schedules once every company has its default (the suggested Monthly, made with the company).
   const defaults = new Set((schedules.data ?? []).flatMap(s => s.defaultFor))
-  return companies.data.every(c => defaults.has(c.id))
-    ? ['organization', 'companies', 'locations', 'structure', 'schedules']
-    : ['organization', 'companies', 'locations', 'structure']
+  if (!companies.data.every(c => defaults.has(c.id))) return ['organization', 'companies', 'locations', 'structure']
+  // Leave plans once every company has a default plan (Standard, made with the company).
+  const leaveDefaults = new Set((leavePlans.data ?? []).flatMap(p => p.defaultFor))
+  return companies.data.every(c => leaveDefaults.has(c.id))
+    ? ['organization', 'companies', 'locations', 'structure', 'schedules', 'leavePlans']
+    : ['organization', 'companies', 'locations', 'structure', 'schedules']
 }
 
 /** Where "Finish setting up" leads: the first step with a page that isn't done, else the last one built. */
