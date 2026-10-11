@@ -127,7 +127,7 @@ export const employeeRow = (overrides: Record<string, unknown> = {}) => ({
 export const employeeDetail = (overrides: Record<string, unknown> = {}) => ({
   id: '0199c0de-0000-7000-8000-00000000a501', companyId: company().id, staffNo: 'EMP-01', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau',
   dateOfBirth: '1990-05-01', phone: '+254712345678', email: 'wanjiru@example.com', nationalIdMasked: '•••• 5678', kraPinMasked: '•••• 678Z',
-  nssfNo: '2098765432', shaNo: 'CR1234567-8', hireDate: '2024-01-15', exitDate: null,
+  address: 'Hse 12, Kilimani, Nairobi', nssfNo: '2098765432', shaNo: 'CR1234567-8', hireDate: '2024-01-15', exitDate: null,
   job: { positionId: null, departmentId: null, unitId: null, locationId: location().id, lineManagerId: null, payScheduleId: schedule().id,
     leavePlanId: '0199c0de-0000-7000-8000-00000000f101', employmentType: 'permanent', contractEnd: null },
   pay: { basicAmount: 85000, payBasis: 'monthly', currency: 'KES' },

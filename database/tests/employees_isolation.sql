@@ -54,7 +54,7 @@ begin
   begin
     insert into compensations (id, organization_id, company_id, employee_id, valid_from, basic_amount, pay_basis, currency)
     values ('00000000-0000-7000-8000-000000000822', org1, ke1, amina, '2025-01-01', 900, 'yearly', 'KES');
-    raise exception 'pay was given a basis its schedules can't have';
+    raise exception 'pay was given a basis no schedule has';
   exception when check_violation then null;
   end;
   begin

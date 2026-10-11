@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useDeferredValue, useEffect, useId, useState } from 'react'
+import { useDeferredValue, useEffect, useId, useState, type ReactNode } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
@@ -91,6 +91,7 @@ export default function EmployeesPage() {
   const [status, setStatus] = useState<string>('current')
   const [page, setPage] = useState(1)
   const [editing, setEditing] = useState<string | 'new' | null>(null)
+  const [viewing, setViewing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
   const [bulk, setBulk] = useState<'upload' | 'add' | null>(null)
@@ -194,6 +195,9 @@ export default function EmployeesPage() {
                     </td>
                     <td>{readiness(r)}</td>
                     <td className="whitespace-nowrap text-right">
+                      <IconButton label={t('employees.view', { name: r.name })} onClick={() => setViewing(r.id)}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+                      </IconButton>
                       <IconButton label={t('employees.edit', { name: r.name })} onClick={() => setEditing(r.id)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                       </IconButton>
@@ -217,6 +221,10 @@ export default function EmployeesPage() {
         {/* Earnings and deductions (ONB-07) is next; until it has a page, the dashboard. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
 
+        {viewing && (
+          <EmployeeView id={viewing} companies={companies.data} onClose={() => setViewing(null)}
+            onEdit={() => { setEditing(viewing); setViewing(null) }} />
+        )}
         {editing && (
           <EmployeeDrawer id={editing === 'new' ? null : editing} companies={companies.data}
             defaultCompany={shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id} onClose={() => setEditing(null)} />
@@ -229,6 +237,110 @@ export default function EmployeesPage() {
         {t('employees.deleteText')}
       </ConfirmDialog>
     </SetupLayout>
+  )
+}
+
+/**
+ * An employee to read: the same tabs as editing, each detail as saved (ID number, KRA PIN and the
+ * account masked), what payroll still needs on top, and Edit to change them.
+ */
+function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companies: Company[]; onClose: () => void; onEdit: () => void }) {
+  const { t } = useTranslation()
+  const { api } = useServices()
+  const tabsId = useId()
+  const [tab, setTab] = useState<TabKey>('personal')
+  const detail = useQuery({
+    queryKey: ['employee', id],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/employees/{id}', { params: { path: { id } } })
+      if (error || !data) throw new Error('employee')
+      return data
+    },
+  })
+  const e = detail.data
+  const company = companies.find(c => c.id === e?.companyId) ?? companies[0]
+  const schedules = useSchedules()
+  const plans = useLeavePlans()
+  const locations = useLocations()
+  const departments = useStructure('departments')
+  const positions = useStructure('positions')
+  const units = useStructure('units')
+  const banks = useBanks(company.countryCode)
+  const managers = useQuery({
+    queryKey: ['employees', 'choices', company.id],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/employees/choices', { params: { query: { companyId: company.id } } })
+      if (error || !data) throw new Error('choices')
+      return data
+    },
+  })
+
+  if (!e) {
+    return <Drawer open size="wide" title={t('employees.viewTitle')} onClose={onClose}><Loading rows={6} /></Drawer>
+  }
+  const name = [e.firstName, e.middleName, e.lastName].filter(Boolean).join(' ')
+  const nameOf = (items: StructureItem[] | undefined, itemId: string | null | undefined) => {
+    const item = items?.find(i => i.id === itemId)
+    return item ? item.name ?? item.title ?? null : null
+  }
+  const manager = managers.data?.find(m => m.id === e.job.lineManagerId)
+  const bank = banks.data?.find(b => b.code === e.account?.bankCode)
+  const branch = bank?.branches.find(b => b.code === e.account?.branchCode)
+  const fields: Record<TabKey, [string, ReactNode][]> = {
+    personal: [
+      [t('employees.staffNo'), e.staffNo], [t('employees.firstName'), e.firstName], [t('employees.middleName'), e.middleName], [t('employees.lastName'), e.lastName],
+      [t('employees.hireDate'), e.hireDate], [t('employees.exitDate'), e.exitDate ?? t('employees.stillHere')],
+      [t('employees.dateOfBirth'), e.dateOfBirth], [t('employees.phone'), e.phone], [t('employees.email'), e.email], [t('employees.address'), e.address],
+    ],
+    ids: [
+      [t('employees.nationalId'), e.nationalIdMasked], [t('employees.kraPin'), e.kraPinMasked], [t('employees.nssfNo'), e.nssfNo], [t('employees.shaNo'), e.shaNo],
+    ],
+    job: [
+      [t('employees.company'), company.legalName], [t('employees.department'), nameOf(departments.data, e.job.departmentId)],
+      [t('employees.position'), nameOf(positions.data, e.job.positionId)], [t('employees.unit'), nameOf(units.data, e.job.unitId)],
+      [t('employees.location'), locations.data?.find(l => l.id === e.job.locationId)?.name],
+      [t('employees.lineManager'), manager ? `${manager.name} (${manager.staffNo})` : null],
+      [t('employees.payrollSchedule'), schedules.data?.find(s => s.id === e.job.payScheduleId)?.name],
+      [t('employees.leavePlan'), plans.data?.find(p => p.id === e.job.leavePlanId)?.name],
+      [t('employees.employmentType'), t(`employees.types.${e.job.employmentType}`)], [t('employees.contractEnd'), e.job.contractEnd],
+    ],
+    pay: [
+      [t('employees.basicPay'), e.pay ? t(`employees.per.${e.pay.payBasis}`, { amount: formatMoney(e.pay.basicAmount, { currency: e.pay.currency }) }) : null],
+    ],
+    account: [
+      [t('employees.method'), t(`employees.methods.${e.account?.method ?? 'none'}`)],
+      ...(e.account?.method === 'bank' ? [
+        [t('employees.bank'), bank?.name ?? e.account.bankCode], [t('employees.branch'), branch ? `${branch.name} (${branch.code})` : e.account.branchCode],
+        [t('employees.accountNumber'), e.account.accountMasked],
+      ] as [string, ReactNode][] : []),
+      ...(e.account?.method === 'mpesa' ? [[t('employees.mpesa'), e.account.mpesaMasked]] as [string, ReactNode][] : []),
+    ],
+  }
+
+  return (
+    <Drawer open size="wide" title={name} onClose={onClose}
+      tabs={<Tabs id={tabsId} label={t('employees.sections')} current={tab} onChange={k => setTab(k as TabKey)}
+        tabs={tabs.map(k => ({ key: k, label: t(`employees.tabs.${k}`) }))} />}
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>{t('common.close')}</Button>
+        <Button onClick={onEdit}>{t('employees.editButton')}</Button>
+      </>}>
+      {!e.readiness.ready && (
+        <Notice>{t('employees.needs', { items: e.readiness.missing.map(m => m.label.en).join(', ') })}</Notice>
+      )}
+      {tabs.map(k => (
+        <TabPanel key={k} id={tabsId} tab={k} current={tab}>
+          <dl className="m-0 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            {fields[k].map(([label, value]) => (
+              <div key={label} className="flex flex-col gap-0.5">
+                <dt className="text-label text-muted">{label}</dt>
+                <dd className="m-0 text-body text-ink">{value || none}</dd>
+              </div>
+            ))}
+          </dl>
+        </TabPanel>
+      ))}
+    </Drawer>
   )
 }
 

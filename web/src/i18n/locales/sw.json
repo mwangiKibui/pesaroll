@@ -1012,6 +1012,9 @@
     },
     "address": "Anwani",
     "addressPlaceholder": "Anwani ya nyumbani ya mfanyakazi wako",
-    "addressHint": "Wanapoishi, kama Nyumba 12, Kilimani, Nairobi."
+    "addressHint": "Wanapoishi, kama Nyumba 12, Kilimani, Nairobi.",
+    "view": "Tazama {{name}}",
+    "viewTitle": "Mfanyakazi",
+    "editButton": "Hariri"
   }
 }

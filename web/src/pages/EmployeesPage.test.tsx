@@ -230,6 +230,35 @@ it('someone who no longer works here needs the date they left', async () => {
   expect(calls.some(c => c.path === '/api/employees/import')).toBe(false)
 })
 
+it('the eye opens an employee to read, tab by tab, with Edit to change them', async () => {
+  withPeople({
+    'GET /api/structure/departments': () => json(200, [kitchen]),
+    [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail({ job: { ...employeeDetail().job, departmentId: 'dp1' } })),
+  })
+  renderApp('/setup/employees')
+  const row = (await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')).closest('tr')!
+  const buttons = within(row).getAllByRole('button').map(b => b.getAttribute('aria-label'))
+  expect(buttons).toEqual(['View Wanjiru Kamau', 'Edit Wanjiru Kamau', 'Delete Wanjiru Kamau'])   // view first
+
+  await userEvent.click(within(row).getByRole('button', { name: 'View Wanjiru Kamau' }))
+  const view = await screen.findByRole('dialog', { name: 'Wanjiru Kamau' })
+  expect(await within(view).findByText('Hse 12, Kilimani, Nairobi')).toBeInTheDocument()
+  expect(within(view).queryByRole('textbox')).not.toBeInTheDocument()   // nothing to type into
+  await userEvent.click(within(view).getByRole('tab', { name: 'IDs and numbers' }))
+  expect(within(view).getByText('•••• 678Z')).toBeInTheDocument()   // numbers stay masked
+  await userEvent.click(within(view).getByRole('tab', { name: 'Job' }))
+  expect(within(view).getByText('Kitchen')).toBeInTheDocument()
+  expect(within(view).getByText('Monthly')).toBeInTheDocument()
+  await userEvent.click(within(view).getByRole('tab', { name: 'Pay' }))
+  expect(within(view).getByText('KES 85,000 a month')).toBeInTheDocument()
+  await userEvent.click(within(view).getByRole('tab', { name: 'Paid into' }))
+  expect(within(view).getByText('M-Pesa')).toBeInTheDocument()
+
+  await userEvent.click(within(view).getByRole('button', { name: 'Edit' }))
+  expect(await screen.findByRole('dialog', { name: 'Edit employee' })).toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'Wanjiru Kamau' })).not.toBeInTheDocument()
+})
+
 it('a problem the server finds shows on its tab', async () => {
   withPeople({
     [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail()),
