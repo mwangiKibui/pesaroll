@@ -33,6 +33,7 @@ it('pages 20 at a time, and rows per page goes back to the first page', async ()
   expect(within(nav).getByText('Page 3 of 3')).toBeInTheDocument()
 
   await userEvent.click(within(nav).getByRole('combobox', { name: 'Rows per page' }))
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['10', '20', '50', '100'])
   await userEvent.click(screen.getByRole('option', { name: '50' }))
   expect(screen.getAllByRole('listitem')).toHaveLength(45)
   expect(within(nav).getByText('Page 1 of 1')).toBeInTheDocument()
