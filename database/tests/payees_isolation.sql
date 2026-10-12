@@ -57,13 +57,12 @@ begin
 
   insert into pay_items (id, organization_id, code, name, kind, calc_method, default_amount, all_companies, payee_id)
   values (shares, org1, 'SACCO3', 'SACCO shares', 'deduction', 'fixed', 1500, true, stima);
-  if (select reference_source from pay_items where id = shares) <> 'typed' then raise exception 'account numbers should be typed unless said'; end if;
-  insert into pay_items (id, organization_id, code, name, kind, calc_method, default_amount, all_companies, payee_id, reference_source)
-  values ('00000000-0000-7000-8000-000000000623', org1, 'HELB3', 'HELB loan', 'deduction', 'fixed', 2000, true, stima, 'national_id');
+  if (select reference_source from payees where id = stima) <> 'typed' then raise exception 'member numbers should be typed unless said'; end if;
+  insert into payees (id, organization_id, name, method, paybill, reference_source)
+  values ('00000000-0000-7000-8000-000000000711', org1, 'HELB', 'mpesa_paybill', '200800', 'national_id');
   begin
-    insert into pay_items (id, organization_id, code, name, kind, calc_method, all_companies, reference_source)
-    values ('00000000-0000-7000-8000-000000000624', org1, 'ODD3', 'Odd', 'deduction', 'fixed', true, 'shoe_size');
-    raise exception 'an unknown source of account numbers was saved';
+    insert into payees (id, organization_id, name, method, reference_source) values ('00000000-0000-7000-8000-000000000712', org1, 'Odd', 'cash', 'shoe_size');
+    raise exception 'an unknown way of identifying people was saved';
   exception when check_violation then null;
   end;
   begin

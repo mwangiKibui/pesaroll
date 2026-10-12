@@ -3,7 +3,8 @@
 -- (institution bank: bank, branch and the payee's account number; institution sacco: the SACCO,
 -- its branch and the account number there), M-Pesa paybill (paybill and account), cheque (payable to)
 -- or cash; only that way's details are kept. our_reference: the organization's number with them,
--- such as an employer code. Remittances (PAY-09) are paid and recorded against these.
+-- such as an employer code. reference_source: how they identify each person (a member number typed
+-- for each, or from the person's profile: HELB uses the ID number). Remittances (PAY-09) go to these.
 create table payees (
     id                 uuid primary key,
     organization_id    uuid not null references organizations (id),
@@ -20,6 +21,8 @@ create table payees (
     paybill_account    text check (char_length(btrim(paybill_account)) between 1 and 40),
     cheque_payable_to  text check (char_length(btrim(cheque_payable_to)) between 2 and 120),
     our_reference      text check (char_length(btrim(our_reference)) between 1 and 40),
+    reference_source   text not null default 'typed'
+                       check (reference_source in ('typed', 'national_id', 'kra_pin', 'staff_no', 'phone', 'bank_account', 'mpesa_number')),
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
     unique (organization_id, id),

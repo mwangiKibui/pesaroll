@@ -24,10 +24,6 @@ create table pay_items (
     all_companies    boolean not null default false,
     status           text not null default 'active' check (status in ('active', 'archived')),
     payee_id         uuid,                                               -- who the money goes to (deductions, employer costs)
-    -- Where each person's account number with the payee comes from: typed for each person, or their
-    -- profile (ID number, KRA PIN, staff number, phone, the bank account or M-Pesa number they're paid into).
-    reference_source text not null default 'typed'
-                     check (reference_source in ('typed', 'national_id', 'kra_pin', 'staff_no', 'phone', 'bank_account', 'mpesa_number')),
     created_at       timestamptz not null default now(),
     updated_at       timestamptz not null default now(),
     unique (organization_id, id),

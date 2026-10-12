@@ -911,8 +911,6 @@
     "kind": "Aina",
     "editButton": "Hariri",
     "referenceSource": "Nambari ya akaunti ya kila mtu",
-    "referenceSourcePlaceholder": "Chaguo lako",
-    "referenceSourceHint": "Nambari yao ya uanachama au akaunti kwa mpokeaji: huandikwa kwa kila mtu, au huchukuliwa kutoka kwa wasifu wao (HELB hutumia nambari ya kitambulisho).",
     "sources": {
       "typed": "Huandikwa kwa kila mtu",
       "national_id": "Nambari yao ya kitambulisho",
@@ -1295,6 +1293,10 @@
     "accountShown": "akaunti {{number}}",
     "paybillShown": "Paybill {{paybill}}",
     "chequeShown": "Hundi kwa jina la {{name}}",
-    "ourReferenceShown": "Kumbukumbu yako: {{reference}}"
+    "ourReferenceShown": "Kumbukumbu yako: {{reference}}",
+    "referenceSource": "Wanavyomtambua kila mtu",
+    "referenceSourcePlaceholder": "Chaguo lako",
+    "referenceSourceHint": "Nambari yao ya uanachama au akaunti kwa kila mtu: huandikwa kwa kila mmoja, au huchukuliwa kutoka kwa wasifu wa mtu (HELB hutumia nambari ya kitambulisho).",
+    "identifiesAs": "{{payee}} humtambua kila mtu kwa: {{how}}."
   }
 }

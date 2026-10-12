@@ -89,8 +89,7 @@ export const schedule = (overrides: Record<string, unknown> = {}) => ({
 /** An earning, deduction or employer cost as the API returns it; by default the locked Basic pay. */
 export const payItem = (overrides: Record<string, unknown> = {}) => ({
   id: '0199c0de-0000-7000-8000-00000000e101', code: 'BASIC', name: 'Basic pay', kind: 'earning', taxable: true, beforeTax: false, calcMethod: 'fixed',
-  defaultAmount: null, rate: null, locked: true, lockedKey: 'basic', allCompanies: true, companyIds: [], assignments: [], payeeId: null,
-  referenceSource: 'typed', ...overrides,
+  defaultAmount: null, rate: null, locked: true, lockedKey: 'basic', allCompanies: true, companyIds: [], assignments: [], payeeId: null, ...overrides,
 })
 
 /** Basic pay and Kenya's statutory items, as every organization has them after its first company. */

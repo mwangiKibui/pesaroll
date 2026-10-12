@@ -16,12 +16,11 @@ namespace Pesaroll.Organizations;
 /// </summary>
 public sealed record PayItemRequest(
     string? Code, string? Name, string? Kind, bool Taxable, bool BeforeTax, string? CalcMethod, decimal? DefaultAmount, decimal? Rate,
-    bool AllCompanies, List<Guid>? CompanyIds, Guid? PayeeId = null, string? ReferenceSource = null);
+    bool AllCompanies, List<Guid>? CompanyIds, Guid? PayeeId = null);
 
 public sealed record PayItemResponse(
     Guid Id, string Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod, decimal? DefaultAmount, decimal? Rate,
-    bool Locked, string? LockedKey, bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<AssignmentSummary> Assignments, Guid? PayeeId,
-    string ReferenceSource);
+    bool Locked, string? LockedKey, bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<AssignmentSummary> Assignments, Guid? PayeeId);
 
 /// <summary>Who gets an item at a company, briefly: everyone there, or how many chosen people.</summary>
 public sealed record AssignmentSummary(Guid CompanyId, bool Everyone, int People);
@@ -60,8 +59,6 @@ public static class PayItemsEndpoints
     public static readonly string[] Kinds = ["earning", "deduction", "employer_cost"];
     /// <summary>How an own item is worked out; by_law is only for the law's items.</summary>
     public static readonly string[] CalcMethods = ["fixed", "percent_of_basic", "each_run"];
-    /// <summary>Where each person's account number with the payee comes from.</summary>
-    public static readonly string[] ReferenceSources = ["typed", "national_id", "kra_pin", "staff_no", "phone", "bank_account", "mpesa_number"];
 
     public static IEndpointRouteBuilder MapPayItemsEndpoints(this IEndpointRouteBuilder app)
     {
@@ -318,12 +315,17 @@ public static class PayItemsEndpoints
                 from x in db.EmployeePayItems.AsNoTracking()
                 join i in db.PayItems.AsNoTracking() on x.PayItemId equals i.Id
                 where i.Status == "active" && (x.EmployeeId == id || (x.EmployeeId == null && x.CompanyId == employee.CompanyId))
-                select new { x, i, Payee = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.Name).FirstOrDefault() }).ToListAsync(ct);
+                select new
+                {
+                    x, i,
+                    Payee = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.Name).FirstOrDefault(),
+                    Source = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.ReferenceSource).FirstOrDefault() ?? "typed",
+                }).ToListAsync(ct);
             return Results.Ok(rows
                 .OrderBy(r => Array.IndexOf(Kinds, r.i.Kind)).ThenBy(r => r.i.Name)
                 .Select(r => new EmployeePayItemResponse(r.i.Id, r.i.Name, r.i.Code, r.i.Kind, r.i.CalcMethod,
                     r.x.Amount ?? (r.i.CalcMethod == "fixed" ? r.i.DefaultAmount : null), r.x.Rate ?? (r.i.CalcMethod == "percent_of_basic" ? r.i.Rate : null),
-                    r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference ?? FromProfile(employee, r.i.ReferenceSource), r.Payee))
+                    r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference ?? FromProfile(employee, r.Source), r.Payee))
                 .ToList());
         }).WithTags("Earnings and deductions").Produces<List<EmployeePayItemResponse>>()
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
@@ -341,7 +343,7 @@ public static class PayItemsEndpoints
         .ToDictionary(g => g.Key, g => g.OrderBy(x => x.CompanyId).Select(x => new AssignmentSummary(x.CompanyId, x.Everyone, x.People)).ToList());
 
     /// <summary>
-    /// A person's account number from their profile, as the item says (null: typed, or not in their
+    /// A person's account number from their profile, as the item's payee identifies people (null: typed, or not in their
     /// profile). Encrypted ones (ID number, KRA PIN, bank account, M-Pesa number) only masked: the
     /// payee's file with the real numbers is PAY-09's.
     /// </summary>
@@ -368,7 +370,9 @@ public static class PayItemsEndpoints
     /// </summary>
     private static async Task<List<CompanyAssignmentResponse>> AssignmentsAsync(OrganizationsDbContext db, Guid item, DateOnly today, CancellationToken ct)
     {
-        var source = await db.PayItems.AsNoTracking().Where(i => i.Id == item).Select(i => i.ReferenceSource).SingleAsync(ct);
+        // How the item's payee identifies people (an item without a payee: typed).
+        var source = await db.PayItems.AsNoTracking().Where(i => i.Id == item)
+            .Select(i => db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.ReferenceSource).FirstOrDefault()).SingleAsync(ct) ?? "typed";
         var rows = await db.EmployeePayItems.AsNoTracking().Where(x => x.PayItemId == item).ToListAsync(ct);
         var everyoneAt = rows.Where(x => x.EmployeeId is null).Select(x => x.CompanyId).ToList();
         var chosen = rows.Where(x => x.EmployeeId is not null).Select(x => x.EmployeeId!.Value).ToList();
@@ -430,7 +434,7 @@ public static class PayItemsEndpoints
     }
 
     private sealed record ValidItem(string? Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod,
-        decimal? DefaultAmount, decimal? Rate, bool AllCompanies, List<Guid> CompanyIds, Guid? PayeeId, string ReferenceSource);
+        decimal? DefaultAmount, decimal? Rate, bool AllCompanies, List<Guid> CompanyIds, Guid? PayeeId);
 
     private static async Task<ValidItem> ValidateAsync(PayItemRequest request, OrganizationsDbContext db, CancellationToken ct)
     {
@@ -482,12 +486,6 @@ public static class PayItemsEndpoints
             errors["companyIds"] = "Choose companies from your organization.";
         }
 
-        var source = request.ReferenceSource ?? "typed";
-        if (!ReferenceSources.Contains(source))
-        {
-            errors["referenceSource"] = "Choose where each person's account number comes from.";
-        }
-
         // Who the money goes to: deductions and employer costs only.
         if (request.PayeeId is Guid payee)
         {
@@ -507,8 +505,7 @@ public static class PayItemsEndpoints
         }
 
         return new ValidItem(code, name, kind, kind == "earning" && request.Taxable, kind == "deduction" && request.BeforeTax, calc,
-            amount, rate, request.AllCompanies, request.AllCompanies ? [] : chosen, kind == "earning" ? null : request.PayeeId,
-            kind == "earning" ? "typed" : source);
+            amount, rate, request.AllCompanies, request.AllCompanies ? [] : chosen, kind == "earning" ? null : request.PayeeId);
     }
 
     private static void Apply(PayItem item, ValidItem valid, DateTimeOffset now)
@@ -517,7 +514,6 @@ public static class PayItemsEndpoints
         item.BeforeTax = valid.BeforeTax;
         item.DefaultAmount = valid.DefaultAmount;
         item.PayeeId = valid.PayeeId;
-        item.ReferenceSource = valid.ReferenceSource;
         item.Rate = valid.Rate;
         item.AllCompanies = valid.AllCompanies;
         item.UpdatedAt = now;
@@ -548,5 +544,5 @@ public static class PayItemsEndpoints
 
     private static PayItemResponse ToResponse(PayItem i, Dictionary<Guid, List<AssignmentSummary>> who) => new(
         i.Id, i.Code, i.Name, i.Kind, i.Taxable, i.BeforeTax, i.CalcMethod, i.DefaultAmount, i.Rate,
-        i.LockedKey is not null, i.LockedKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(), who.GetValueOrDefault(i.Id) ?? [], i.PayeeId, i.ReferenceSource);
+        i.LockedKey is not null, i.LockedKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(), who.GetValueOrDefault(i.Id) ?? [], i.PayeeId);
 }

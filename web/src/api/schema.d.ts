@@ -6315,6 +6315,7 @@ export interface components {
             institution?: null | string;
             saccoCode?: null | string;
             saccoBranchCode?: null | string;
+            referenceSource?: null | string;
         };
         PayeeResponse: {
             /** Format: uuid */
@@ -6337,6 +6338,7 @@ export interface components {
             saccoName: null | string;
             saccoBranchCode: null | string;
             saccoBranchName: null | string;
+            referenceSource: string;
         };
         PayItemRequest: {
             code: null | string;
@@ -6353,7 +6355,6 @@ export interface components {
             companyIds: null | string[];
             /** Format: uuid */
             payeeId?: null | string;
-            referenceSource?: null | string;
         };
         PayItemResponse: {
             /** Format: uuid */
@@ -6375,7 +6376,6 @@ export interface components {
             assignments: components["schemas"]["AssignmentSummary"][];
             /** Format: uuid */
             payeeId: null | string;
-            referenceSource: string;
         };
         PaymentAccountRequest: {
             method: null | string;

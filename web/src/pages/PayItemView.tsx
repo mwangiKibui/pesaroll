@@ -76,7 +76,7 @@ export function PayItemView({ item, companies, payee, authority, method, tax, on
         <span className="block text-label text-muted">{payeeDetails(payee).filter(Boolean).join(' · ')}</span>
         {payee.ourReference && <span className="block text-label text-muted">{t('payees.ourReferenceShown', { reference: payee.ourReference })}</span>}
       </> : null)] as [string, ReactNode],
-      [t('payItems.referenceSource'), t(`payItems.sources.${item.referenceSource}`)] as [string, ReactNode],
+      [t('payItems.referenceSource'), t(`payItems.sources.${payee?.referenceSource ?? 'typed'}`)] as [string, ReactNode],
     ] : []),
   ]
 
@@ -103,7 +103,7 @@ export function PayItemView({ item, companies, payee, authority, method, tax, on
           : !assignments.data ? <Loading rows={3} />
             : assignments.data.length === 0 ? <p className="m-0 text-body text-muted">{t('who.noOne')}</p>
               : assignments.data.map(a => <CompanyWho key={a.companyId} assignment={a} company={companyName(a.companyId)} calcMethod={item.calcMethod}
-                referenceSource={item.referenceSource} />)}
+                referenceSource={payee?.referenceSource ?? 'typed'} />)}
       </TabPanel>
     </Drawer>
   )

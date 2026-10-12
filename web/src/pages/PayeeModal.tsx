@@ -25,9 +25,12 @@ interface Values {
   paybillAccount: string
   chequePayableTo: string
   ourReference: string
+  referenceSource: string
 }
 
 const methods = ['bank', 'mpesa_paybill', 'cheque', 'cash'] as const
+/** How a payee identifies each person (the API's keys). */
+const referenceSources = ['typed', 'national_id', 'kra_pin', 'staff_no', 'phone', 'bank_account', 'mpesa_number'] as const
 
 /**
  * Adding a payee from an item's drawer (a small form on top of it): who a deduction's money is
@@ -41,7 +44,7 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
   const saccos = useSaccos('KE')
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
-    defaultValues: { name: '', method: 'bank', institution: 'bank', saccoCode: '', saccoBranchCode: '', bankCode: '', branchCode: '', accountNumber: '', paybill: '', paybillAccount: '', chequePayableTo: '', ourReference: '' },
+    defaultValues: { name: '', method: 'bank', institution: 'bank', saccoCode: '', saccoBranchCode: '', bankCode: '', branchCode: '', accountNumber: '', paybill: '', paybillAccount: '', chequePayableTo: '', ourReference: '', referenceSource: 'typed' },
   })
   const [method, institution, bankCode, saccoCode] = useWatch({ control, name: ['method', 'institution', 'bankCode', 'saccoCode'] })
   const bank = banks.data?.find(b => b.code === bankCode)
@@ -63,6 +66,7 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
       paybill: v.method === 'mpesa_paybill' ? v.paybill.trim() : null, paybillAccount: v.method === 'mpesa_paybill' ? v.paybillAccount.trim() || null : null,
       chequePayableTo: v.method === 'cheque' ? v.chequePayableTo.trim() || null : null,
       ourReference: v.ourReference.trim() || null,
+      referenceSource: v.referenceSource,
     }
     try {
       const { data, error } = await api.POST('/api/payees', { body })
@@ -138,6 +142,10 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
           <TextField label={t('payees.chequePayableTo')} placeholder={t('payees.chequePayableToPlaceholder')} optional hint={t('payees.chequePayableToHint')}
             maxLength={120} error={errors.chequePayableTo?.message} {...register('chequePayableTo')} />
         )}
+        <Controller control={control} name="referenceSource" render={({ field }) => (
+          <SelectField label={t('payees.referenceSource')} placeholder={t('payees.referenceSourcePlaceholder')} hint={t('payees.referenceSourceHint')}
+            error={errors.referenceSource?.message} options={referenceSources.map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
+        )} />
         <TextField label={t('payees.ourReference')} placeholder={t('payees.ourReferencePlaceholder')} optional hint={t('payees.ourReferenceHint')}
           maxLength={40} error={errors.ourReference?.message} {...register('ourReference')} />
       </form>

@@ -301,11 +301,13 @@ it('a deduction is paid to a payee, added from the drawer; the law\'s items show
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Paybill number' }), '510800')
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Account optional' }), 'EMP-4471')
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Your reference with them optional' }), 'EMP-4471')
+  await userEvent.click(within(modal).getByRole('combobox', { name: 'How they identify each person' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Their staff number' }))
   await userEvent.click(within(modal).getByRole('button', { name: 'Add payee' }))
 
   expect(await within(drawer()).findByRole('combobox', { name: 'Paid to optional' })).toHaveValue('Stima SACCO')   // chosen
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/payees')?.body).toMatchObject({
-    name: 'Stima SACCO', method: 'mpesa_paybill', paybill: '510800', paybillAccount: 'EMP-4471', ourReference: 'EMP-4471',
+    name: 'Stima SACCO', method: 'mpesa_paybill', paybill: '510800', paybillAccount: 'EMP-4471', ourReference: 'EMP-4471', referenceSource: 'staff_no',
   })
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
@@ -388,11 +390,13 @@ it('each tab\'s table is paginated, 20 to a page', async () => {
   expect(within(panel('Deductions')).getByRole('navigation', { name: 'Pages of Deductions' })).toHaveTextContent('Showing 1–4 of 4')
 })
 
-it('account numbers can come from people\'s profiles: shown masked, typed ones win, and who lacks one is named', async () => {
+it('as the payee identifies people, account numbers come from profiles: shown masked, typed ones win, and who lacks one is named', async () => {
   const helb = payItem({ id: 'helb-1', code: 'HEL-01', name: 'HELB loan', kind: 'deduction', taxable: false, calcMethod: 'fixed', defaultAmount: 2000,
-    locked: false, lockedKey: null, referenceSource: 'national_id', assignments: [{ companyId: restaurant.id, everyone: false, people: 2 }] })
+    locked: false, lockedKey: null, payeeId: 'payee-helb', assignments: [{ companyId: restaurant.id, everyone: false, people: 2 }] })
+  const helbPayee = { id: 'payee-helb', name: 'HELB', method: 'mpesa_paybill', paybill: '200800', referenceSource: 'national_id', usedBy: 1 }
   const calls = withItems({
     'GET /api/pay-items': () => json(200, [...lockedPayItems(), helb]),
+    'GET /api/payees': () => json(200, [helbPayee]),
     'GET /api/pay-items/helb-1/assignments': () => json(200, [{ companyId: restaurant.id, everyone: false, amount: null, rate: null, startsOn: null, endsOn: null,
       people: [
         { employeeId: 'e1', name: 'Wanjiru Kamau', staffNo: 'EMP-01', amount: null, rate: null, startsOn: '2026-11-01', endsOn: null, reference: null, shownReference: '•••• 5678', fromProfile: true },
@@ -414,18 +418,15 @@ it('account numbers can come from people\'s profiles: shown masked, typed ones w
   expect((await within(view).findByText('Wanjiru Kamau')).closest('tr')).toHaveTextContent('•••• 5678 (profile)')
   await userEvent.click(within(view).getByRole('button', { name: 'Edit' }))
 
-  // Editing: the setting, each person's from their profile as a hint, and a typed one for Otieno.
+  // Editing: as HELB identifies people, each person's from their profile as a hint, and a typed one for Otieno.
   await userEvent.click(await within(drawer()).findByRole('tab', { name: 'Who gets it' }))
-  expect(within(drawer()).getByRole('combobox', { name: 'Each person\'s account number' })).toHaveValue('Their ID number')
+  expect(within(drawer()).getByText('HELB identifies each person by: Their ID number.')).toBeInTheDocument()
   expect(within(drawer()).getByRole('textbox', { name: 'Member or account number for Wanjiru Kamau' })).toHaveAttribute('placeholder', '•••• 5678')
   expect(within(drawer()).getByText(/no ID number in their profile yet: Otieno Ouma/)).toBeInTheDocument()
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Member or account number for Otieno Ouma' }), 'HB-2201')
-  await userEvent.click(within(drawer()).getByRole('combobox', { name: 'Each person\'s account number' }))
-  await userEvent.click(screen.getByRole('option', { name: 'Their staff number' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
 
   expect(await screen.findByText('Saved')).toBeInTheDocument()
-  expect(calls.find(c => c.method === 'PATCH')?.body).toMatchObject({ referenceSource: 'staff_no' })
   expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({ people: [{ employeeId: 'e1', reference: null }, { employeeId: 'e2', reference: 'HB-2201' }] })
 })
 

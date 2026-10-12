@@ -911,8 +911,6 @@
     "kind": "Type",
     "editButton": "Edit",
     "referenceSource": "Each person's account number",
-    "referenceSourcePlaceholder": "Your choice",
-    "referenceSourceHint": "Their member or account number with the payee: typed for each person, or taken from their profile (HELB uses the ID number).",
     "sources": {
       "typed": "Typed for each person",
       "national_id": "Their ID number",
@@ -1295,6 +1293,10 @@
     "accountShown": "account {{number}}",
     "paybillShown": "Paybill {{paybill}}",
     "chequeShown": "Cheque payable to {{name}}",
-    "ourReferenceShown": "Your reference: {{reference}}"
+    "ourReferenceShown": "Your reference: {{reference}}",
+    "referenceSource": "How they identify each person",
+    "referenceSourcePlaceholder": "Your choice",
+    "referenceSourceHint": "Their member or account number for each person: typed for each, or taken from the person's profile (HELB uses the ID number).",
+    "identifiesAs": "{{payee}} identifies each person by: {{how}}."
   }
 }
