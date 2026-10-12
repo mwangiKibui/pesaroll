@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, IconButton } from './Button'
 import { buttonClasses } from './buttonStyles'
@@ -78,6 +78,13 @@ const keyOf = (line: number | string, column?: string | null) => `${line}:${colu
 /** Rows shown at a time in the review, so files of thousands of rows stay quick to show and edit. */
 const PAGE = 100
 
+/** How far an arrow key scrolls the rows sideways: about one column. */
+const STEP = 320
+
+/** Where the arrow keys belong to what's focused: typing in a cell, a dropdown, a checkbox. */
+const ownsArrows = (target: EventTarget | null) =>
+  target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || !!target.closest('[role="listbox"]'))
+
 /**
  * Uploading many records at once, the same everywhere (locations now; departments, positions and
  * employees later). A drawer: 1 download the template, 2 upload the filled file. Then a large
@@ -101,6 +108,24 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const [page, setPage] = useState(0)
   // The rows that needed fixing when "Only rows to fix" was ticked: fixed rows stay in view until it is unticked.
   const [onlyProblems, setOnlyProblems] = useState<Set<string> | null>(null)
+  const rowsRef = useRef<HTMLDivElement>(null)
+
+  // While the rows are open, ← and → scroll them sideways (wide sheets have 30 columns), unless a cell is being typed in.
+  const showingRows = open && !!rows
+  useEffect(() => {
+    if (!showingRows) return
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.altKey || e.ctrlKey || e.metaKey || ownsArrows(e.target)) return
+      const region = rowsRef.current
+      if (!region) return
+      e.preventDefault()
+      const left = e.key === 'ArrowRight' ? STEP : -STEP
+      if (typeof region.scrollBy === 'function') region.scrollBy({ left, behavior: 'smooth' })
+      else region.scrollLeft = Math.max(0, region.scrollLeft + left)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [showingRows])
 
   const attempt = async <T,>(what: typeof busy, show: (error: ApiError | 'network' | null) => void, work: () => Promise<T>) => {
     setBusy(what)
@@ -249,7 +274,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         </div>
 
         {/* Scrolls on its own, header fixed, so hundreds of rows stay workable. */}
-        <div role="region" aria-label={t('bulk.rows')} tabIndex={0} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
+        <div ref={rowsRef} role="region" aria-label={t('bulk.rows')} tabIndex={0} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
           <table className="w-full border-collapse text-label">
             <thead className="sticky top-0 z-10 bg-raised">
               <tr>

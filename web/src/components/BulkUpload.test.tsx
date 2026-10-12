@@ -309,3 +309,24 @@ it('checks a cell as soon as it is left, offers choices that follow the row, and
   expect(within(sheet).getByText('Enter their name.')).toBeInTheDocument()   // never left, still checked
   expect(check).not.toHaveBeenCalled()
 })
+
+it('the arrow keys scroll the rows sideways, except while typing in a cell', async () => {
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={columns} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={async () => clean} onImport={async () => null}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+  const sheet = screen.getByRole('dialog', { name: 'Add 1 people' })
+  const rows = within(sheet).getByRole('region', { name: 'Rows to import' })
+  rows.scrollBy = vi.fn(({ left }: ScrollToOptions) => { rows.scrollLeft += left ?? 0 }) as never   // jsdom doesn't scroll
+
+  await userEvent.click(within(sheet).getByRole('columnheader', { name: 'County' }))   // out of the cells
+  await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+  expect(rows.scrollLeft).toBe(640)
+  await userEvent.keyboard('{ArrowLeft}')
+  expect(rows.scrollLeft).toBe(320)
+
+  await userEvent.click(within(sheet).getByRole('textbox', { name: 'Location name, row 1' }))
+  await userEvent.keyboard('{ArrowRight}')
+  expect(rows.scrollLeft).toBe(320)   // the cursor moves in the cell instead
+})
