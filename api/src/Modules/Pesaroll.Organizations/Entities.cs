@@ -311,6 +311,8 @@ public sealed class PayItem
     public string Status { get; set; } = "active";
     /// <summary>Who the money goes to (deductions and employer costs).</summary>
     public Guid? PayeeId { get; set; }
+    /// <summary>Where each person's account number comes from: typed, or their profile (national_id, kra_pin, staff_no, phone, bank_account, mpesa_number).</summary>
+    public string ReferenceSource { get; set; } = "typed";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public List<PayItemCompany> Companies { get; set; } = [];

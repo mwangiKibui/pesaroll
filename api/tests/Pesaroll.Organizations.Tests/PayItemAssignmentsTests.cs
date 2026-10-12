@@ -20,9 +20,14 @@ public sealed class PayItemAssignmentsTests(OnboardingTests.Api api) : IClassFix
     private sealed record Item(Guid Id);
     private sealed record Summary(Guid CompanyId, bool Everyone, int People);
     private sealed record PayItem(Guid Id, string Code, bool Locked, List<Summary> Assignments);
-    private sealed record Person(Guid EmployeeId, string Name, string StaffNo, decimal? Amount, decimal? Rate, DateOnly StartsOn, DateOnly? EndsOn);
-    private sealed record Assignment(Guid CompanyId, bool Everyone, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn, List<Person> People);
-    private sealed record Mine(Guid PayItemId, string Name, string Kind, string CalcMethod, decimal? Amount, decimal? Rate, DateOnly StartsOn, DateOnly? EndsOn, bool Everyone);
+    private sealed record Person(Guid EmployeeId, string Name, string StaffNo, decimal? Amount, decimal? Rate, DateOnly StartsOn, DateOnly? EndsOn,
+        string? Reference = null, string? ShownReference = null, bool FromProfile = false);
+    private sealed record Missing(Guid EmployeeId, string Name, string StaffNo);
+    private sealed record Assignment(Guid CompanyId, bool Everyone, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn, List<Person> People,
+        List<Missing>? Missing = null);
+    private sealed record Mine(Guid PayItemId, string Name, string Kind, string CalcMethod, decimal? Amount, decimal? Rate, DateOnly StartsOn, DateOnly? EndsOn, bool Everyone,
+        string? Reference = null);
+    private sealed record ItemSource(Guid Id, string ReferenceSource);
 
     private async Task<(HttpClient Client, Company A, Company B)> Onboarded()
     {
@@ -163,5 +168,41 @@ public sealed class PayItemAssignmentsTests(OnboardingTests.Api api) : IClassFix
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/pay-items/{welfare}")).StatusCode);
         Assert.Empty((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items"))!);
+    }
+
+    [Fact]
+    public async Task Account_numbers_can_come_from_peoples_profiles_masked_with_who_lacks_one()
+    {
+        var (client, a, _) = await Onboarded();
+        var helb = await Make(client, "/api/pay-items", new { name = "HELB loan", kind = "deduction", calcMethod = "fixed", defaultAmount = 2000m, allCompanies = true, referenceSource = "national_id" });
+        Assert.Equal("national_id", (await client.GetFromJsonAsync<List<ItemSource>>("/api/pay-items"))!.Single(i => i.Id == helb).ReferenceSource);
+        var wanjiru = await Make(client, "/api/employees", new { companyId = a.Id, firstName = "Wanjiru", lastName = "Kamau", hireDate = "2024-01-15", nationalId = "12345678",
+            job = new { employmentType = "permanent" }, account = new { method = "bank", bankCode = "68", branchCode = "047", accountNumber = "0123456789012" } });
+        var otieno = await Hire(client, a, "Otieno", "Ouma");   // no ID number yet
+
+        // Everyone at A, from their ID numbers: no typing; who has none is listed.
+        await Assign(client, helb, new { companyId = a.Id, everyone = true });
+        var everyone = Assert.Single((await client.GetFromJsonAsync<List<Assignment>>($"/api/pay-items/{helb}/assignments"))!);
+        Assert.Equal(["Otieno Ouma"], everyone.Missing!.Select(m => m.Name));
+        Assert.Equal("•••• 5678", Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items"))!).Reference);   // masked
+
+        // A profile fix flows through: Otieno's ID is added, and he's no longer missing.
+        var fix = await client.PatchAsJsonAsync($"/api/employees/{otieno}", new { companyId = a.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-15",
+            nationalId = "87654321", job = new { employmentType = "permanent" } });
+        Assert.Equal(HttpStatusCode.OK, fix.StatusCode);
+        Assert.Empty(Assert.Single((await client.GetFromJsonAsync<List<Assignment>>($"/api/pay-items/{helb}/assignments"))!).Missing!);
+
+        // From the bank account they're paid into, for chosen people; a typed number wins.
+        var loan = await Make(client, "/api/pay-items", new { name = "Bank loan", kind = "deduction", calcMethod = "fixed", defaultAmount = 5000m, allCompanies = true, referenceSource = "bank_account" });
+        await Assign(client, loan, new
+        {
+            companyId = a.Id, everyone = false, people = new object[] { new { employeeId = wanjiru }, new { employeeId = otieno, reference = "LN-77" } },
+        });
+        var chosen = Assert.Single((await client.GetFromJsonAsync<List<Assignment>>($"/api/pay-items/{loan}/assignments"))!);
+        Assert.Equal([("Otieno Ouma", "LN-77", false), ("Wanjiru Kamau", "•••• 9012", true)], chosen.People.Select(p => (p.Name, p.ShownReference!, p.FromProfile)));
+        Assert.Empty(chosen.Missing!);   // Otieno's is typed
+
+        var odd = await ErrorFrom(await client.PostAsJsonAsync("/api/pay-items", new { name = "Odd", kind = "deduction", calcMethod = "fixed", allCompanies = true, referenceSource = "shoe_size" }));
+        Assert.Equal("Choose where each person's account number comes from.", odd.Fields!["referenceSource"]);
     }
 }

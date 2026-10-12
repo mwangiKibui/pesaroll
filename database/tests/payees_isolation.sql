@@ -57,6 +57,15 @@ begin
 
   insert into pay_items (id, organization_id, code, name, kind, calc_method, default_amount, all_companies, payee_id)
   values (shares, org1, 'SACCO3', 'SACCO shares', 'deduction', 'fixed', 1500, true, stima);
+  if (select reference_source from pay_items where id = shares) <> 'typed' then raise exception 'account numbers should be typed unless said'; end if;
+  insert into pay_items (id, organization_id, code, name, kind, calc_method, default_amount, all_companies, payee_id, reference_source)
+  values ('00000000-0000-7000-8000-000000000623', org1, 'HELB3', 'HELB loan', 'deduction', 'fixed', 2000, true, stima, 'national_id');
+  begin
+    insert into pay_items (id, organization_id, code, name, kind, calc_method, all_companies, reference_source)
+    values ('00000000-0000-7000-8000-000000000624', org1, 'ODD3', 'Odd', 'deduction', 'fixed', true, 'shoe_size');
+    raise exception 'an unknown source of account numbers was saved';
+  exception when check_violation then null;
+  end;
   begin
     insert into pay_items (id, organization_id, code, name, kind, taxable, calc_method, all_companies, payee_id)
     values ('00000000-0000-7000-8000-000000000622', org1, 'BONUS3', 'Bonus', 'earning', true, 'each_run', true, stima);
