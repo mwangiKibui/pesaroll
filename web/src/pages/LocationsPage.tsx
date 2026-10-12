@@ -378,13 +378,13 @@ function UploadLocations({ companies, country, onClose }: { companies: Company[]
       labels={{
         review: count => t('locations.review', { count }),
         importButton: count => t('locations.importButton', { count }),
-        templateHint: t('locations.templateHint'),
+        // How the main location works goes with the template (the review's title bar has no room for it).
+        templateHint: companies.length > 1 ? `${t('locations.templateHint')} ${t('locations.importMainHint')}` : t('locations.templateHint'),
       }}>
       {companies.length > 1 && (
-        <div className="flex w-full flex-col gap-1.5 sm:w-72">
-          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
+        <div className="w-full sm:w-64" title={t('locations.importMainHint')}>
+          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies} compact
             companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
-          <p className="m-0 text-hint text-muted">{t('locations.importMainHint')}</p>
         </div>
       )}
     </BulkUpload>

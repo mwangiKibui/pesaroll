@@ -15,13 +15,15 @@ interface CompanySelectProps {
   /** Several companies (checkboxes) or one (round options). */
   multiple?: boolean
   placeholder?: string
+  /** Compact (36 px) with its label for screen readers only: in a sheet's title bar. */
+  compact?: boolean
 }
 
 /**
  * The company selector: on every list and setup screen where companies can differ.
  * A button opens a list with a search box on top: typing filters, arrows move, Enter picks, Escape closes.
  */
-export function CompanySelect({ label, companies, value, onChange, multiple = true, placeholder }: CompanySelectProps) {
+export function CompanySelect({ label, companies, value, onChange, multiple = true, placeholder, compact = false }: CompanySelectProps) {
   const { t } = useTranslation()
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -79,10 +81,10 @@ export function CompanySelect({ label, companies, value, onChange, multiple = tr
 
   return (
     <div ref={root} className="relative flex w-full flex-col gap-1.5">
-      <span id={`${id}-label`} className="text-label font-medium text-ink">{label}</span>
+      <span id={`${id}-label`} className={compact ? 'sr-only' : 'text-label font-medium text-ink'}>{label}</span>
       <button ref={button} id={`${id}-button`} type="button" aria-haspopup="listbox" aria-expanded={open}
         aria-labelledby={`${id}-label ${id}-button`} onClick={() => { setActive(0); setQuery(''); setOpen(o => !o) }}
-        className="flex min-h-11 w-full items-center justify-between gap-2 rounded-control border border-field-border bg-card px-3 text-left text-body text-ink">
+        className={`flex w-full items-center justify-between gap-2 rounded-control border border-field-border bg-card px-3 text-left text-ink ${compact ? 'min-h-9 text-label' : 'min-h-11 text-body'}`}>
         <span className={`truncate ${picked.length || value.all ? 'text-ink' : 'text-muted'}`}>{summary}</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`flex-none text-muted ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
       </button>

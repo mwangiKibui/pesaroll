@@ -860,10 +860,11 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
     throw new Error('import')
   }
 
-  // Above the sheet it sits beside the search; in the upload drawer it takes the whole width.
+  // In the sheet's title bar it's compact, beside the search; in the upload drawer it takes the whole width.
   const companyField = (hint?: string, wide = false) => (
-    <div className={wide ? 'w-full' : 'w-full sm:w-72'}>
+    <div className={wide ? 'w-full' : 'w-full sm:w-64'}>
       <SelectField label={t('employees.company')} placeholder={t('employees.companyPlaceholder')} hint={hint} value={companyId}
+        size={wide ? 'md' : 'sm'} hideLabel={!wide}
         onChange={value => value && setCompanyId(value)} options={companies.map(c => ({ value: c.id, label: c.legalName }))} />
     </div>
   )

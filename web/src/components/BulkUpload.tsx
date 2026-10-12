@@ -400,39 +400,36 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
           <Button disabled={!rows?.length} busy={busy === 'import'} onClick={() => void importRows()}>{labels.importButton(rows?.length ?? 0)}</Button>
         </>
 
+  // In the title bar: where the rows apply, the search, Show, what needs fixing, the column filters and the count.
+  const toolbar = <>
+    {children}
+    <div className="w-full sm:w-60">
+      <TextField type="search" size="sm" label={t('bulk.search')} hideLabel placeholder={t('bulk.searchPlaceholder')}
+        value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
+    </div>
+    <div className="w-full sm:w-52">
+      <SelectField size="sm" label={t('bulk.show')} hideLabel placeholder={t('bulk.showPlaceholder')} value={view.kind}
+        options={(['all', 'fix', 'ready'] as const).map(kind => ({ value: kind, label: t(`bulk.views.${kind}`, { count: counts[kind] }) }))}
+        onChange={value => showRows(value as 'all' | 'fix' | 'ready')} />
+    </div>
+    {linesWithProblems.size > 0 && <Tag tone="warning">{t('bulk.toFix', { count: linesWithProblems.size })}</Tag>}
+    {toCreate > 0 && <Tag tone="brand">{t('bulk.toCreate', { count: toCreate })}</Tag>}
+    {filtered.map(c => (
+      <Tag key={c.key} tone="brand">
+        {c.label}
+        <button type="button" aria-label={t('bulk.removeFilter', { column: c.label })} className="ml-1 text-brand hover:text-ink"
+          onClick={() => setFilter(c.key, { text: '', hidden: new Set() })}>×</button>
+      </Tag>
+    ))}
+    {filtered.length > 0 && (
+      <button type="button" className="text-label font-medium text-brand hover:underline" onClick={() => { setFilters({}); setPage(0) }}>{t('bulk.clearFilters')}</button>
+    )}
+    <span className="text-label whitespace-nowrap text-muted">{t('bulk.showing', { shown: shown.length, total: rows?.length ?? 0 })}</span>
+  </>
+
   const review = <>
         {reviewBanner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {reviewBanner && reviewBanner !== 'network' && <FormErrorBanner error={reviewBanner} />}
-        {/* One line: where the rows apply, the search, what needs fixing and the filter for it. */}
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-          {children}
-          {/* Beside a labelled selector, the search shows its label too, so the two fields line up. */}
-          <div className="w-full sm:w-72">
-            <TextField type="search" label={t('bulk.search')} placeholder={t('bulk.searchPlaceholder')}
-              value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
-          </div>
-          <div className="w-full sm:w-56">
-            <SelectField label={t('bulk.show')} placeholder={t('bulk.showPlaceholder')} value={view.kind}
-              options={(['all', 'fix', 'ready'] as const).map(kind => ({ value: kind, label: t(`bulk.views.${kind}`, { count: counts[kind] }) }))}
-              onChange={value => showRows(value as 'all' | 'fix' | 'ready')} />
-          </div>
-          {linesWithProblems.size > 0 && <Notice>{t('bulk.toFix', { count: linesWithProblems.size })}</Notice>}
-          {toCreate > 0 && <Notice tone="brand">{t('bulk.toCreate', { count: toCreate })}</Notice>}
-          {filtered.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {filtered.map(c => (
-                <Tag key={c.key} tone="brand">
-                  {c.label}
-                  <button type="button" aria-label={t('bulk.removeFilter', { column: c.label })} className="ml-1 text-brand hover:text-ink"
-                    onClick={() => setFilter(c.key, { text: '', hidden: new Set() })}>×</button>
-                </Tag>
-              ))}
-              <Button variant="secondary" onClick={() => { setFilters({}); setPage(0) }}>{t('bulk.clearFilters')}</Button>
-            </div>
-          )}
-          <span className="ml-auto text-label text-muted">{t('bulk.showing', { shown: shown.length, total: rows?.length ?? 0 })}</span>
-        </div>
-
         {/* Scrolls on its own, header fixed, so hundreds of rows stay workable. */}
         <div ref={rowsRef} role="region" aria-label={t('bulk.rows')} tabIndex={0} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
           <table className="w-full border-collapse text-label">
@@ -566,7 +563,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
       </Drawer>
 
       {/* Adding by hand and reviewing a file: the same drawer, 97% wide. */}
-      <Drawer open={open && !!rows} size="sheet" initialFocus="panel" title={labels.review(rows?.length ?? 0)} onClose={startRows ? onClose : () => setRows(null)} footer={footer}>
+      <Drawer open={open && !!rows} size="sheet" initialFocus="panel" headerExtra={toolbar} title={labels.review(rows?.length ?? 0)} onClose={startRows ? onClose : () => setRows(null)} footer={footer}>
         <div className="flex min-h-0 flex-1 flex-col gap-4">{review}</div>
       </Drawer>
     </>
