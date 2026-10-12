@@ -2191,6 +2191,250 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/payees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayeeResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PayeeRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayeeResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payees/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PayeeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayeeResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/leave-types": {
         parameters: {
             query?: never;
@@ -5508,6 +5752,7 @@ export interface components {
             startsOn: string;
             /** Format: date */
             endsOn: null | string;
+            reference: null | string;
         };
         AssignmentPersonRequest: {
             /** Format: uuid */
@@ -5520,6 +5765,7 @@ export interface components {
             startsOn: null | string;
             /** Format: date */
             endsOn: null | string;
+            reference?: null | string;
         };
         AssignmentRequest: {
             /** Format: uuid */
@@ -5698,6 +5944,8 @@ export interface components {
             /** Format: date */
             endsOn: null | string;
             everyone: boolean;
+            reference: null | string;
+            payeeName: null | string;
         };
         EmployeeRequest: {
             /** Format: uuid */
@@ -5999,6 +6247,34 @@ export interface components {
             id: string;
             name: string;
         };
+        PayeeRequest: {
+            name: null | string;
+            method: null | string;
+            bankCode: null | string;
+            branchCode: null | string;
+            accountNumber: null | string;
+            paybill: null | string;
+            paybillAccount: null | string;
+            chequePayableTo: null | string;
+            ourReference: null | string;
+        };
+        PayeeResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            method: string;
+            bankCode: null | string;
+            bankName: null | string;
+            branchCode: null | string;
+            branchName: null | string;
+            accountNumber: null | string;
+            paybill: null | string;
+            paybillAccount: null | string;
+            chequePayableTo: null | string;
+            ourReference: null | string;
+            /** Format: int32 */
+            usedBy: number | string;
+        };
         PayItemRequest: {
             code: null | string;
             name: null | string;
@@ -6012,6 +6288,8 @@ export interface components {
             rate: null | number | string;
             allCompanies: boolean;
             companyIds: null | string[];
+            /** Format: uuid */
+            payeeId?: null | string;
         };
         PayItemResponse: {
             /** Format: uuid */
@@ -6031,6 +6309,8 @@ export interface components {
             allCompanies: boolean;
             companyIds: string[];
             assignments: components["schemas"]["AssignmentSummary"][];
+            /** Format: uuid */
+            payeeId: null | string;
         };
         PaymentAccountRequest: {
             method: null | string;

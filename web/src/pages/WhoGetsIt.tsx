@@ -120,7 +120,7 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
           {(found.data ?? []).map(e => (
             <li key={e.id}>
               <Button variant="secondary" disabled={chosen.has(e.id)}
-                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '' }] })}>
+                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '', reference: '' }] })}>
                 {t('who.add', { name: `${e.name} (${e.staffNo})` })}
               </Button>
             </li>
@@ -137,6 +137,7 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
               <tr>
                 <th scope="col">{t('who.employee')}</th>
                 {amounts && <th scope="col">{t(amounts === 'amount' ? 'who.amount' : 'who.rate')}</th>}
+                <th scope="col">{t('who.reference')}</th>
                 <th scope="col">{t('who.from')}</th>
                 <th scope="col">{t('who.untilOptional')}</th>
                 <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
@@ -159,6 +160,10 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
                           value={amounts === 'amount' ? p.amount : p.rate} onChange={e => edit(p.index, { [amounts]: e.target.value })} />
                       </td>
                     )}
+                    <td className="min-w-40">
+                      <TextField size="sm" hideLabel placeholder={t('who.referencePlaceholder')} maxLength={40} label={`${t('who.reference')} ${t('who.for', { name: p.name })}`}
+                        error={problems[`${at}reference`]} value={p.reference} onChange={e => edit(p.index, { reference: e.target.value })} />
+                    </td>
                     <td className="min-w-40">
                       <TextField size="sm" hideLabel type="date" placeholder={t('who.fromPlaceholder')} label={`${t('who.from')} ${t('who.for', { name: p.name })}`}
                         error={problems[`${at}startsOn`]} value={p.startsOn} onChange={e => edit(p.index, { startsOn: e.target.value })} />

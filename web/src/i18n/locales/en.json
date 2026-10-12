@@ -1149,7 +1149,9 @@
     "payItemUntil": "until {{date}}",
     "payItemEveryone": "(everyone at the company)",
     "payItemEachRun": "entered each payroll",
-    "payItemRate": "{{rate}}% of basic pay"
+    "payItemRate": "{{rate}}% of basic pay",
+    "payItemPayee": "to {{payee}}",
+    "payItemPayeeMember": "to {{payee}}, member {{reference}}"
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",
@@ -1207,6 +1209,49 @@
     "remove": "Remove {{name}}",
     "deleteAlso": "It's given to: {{who}}; that goes too.",
     "untilOptional": "Until (optional)",
-    "noEndHint": "Leave Until empty when it has no end date; From empty starts it today."
+    "noEndHint": "Leave Until empty when it has no end date; From empty starts it today.",
+    "reference": "Member or account number",
+    "referencePlaceholder": "Your member number"
+  },
+  "payees": {
+    "paidTo": "Paid to",
+    "paidToPlaceholder": "Your payee",
+    "paidToHint": "Who the money goes to, such as a SACCO, union, insurer or lender.",
+    "add": "Add a payee",
+    "addTitle": "Add a payee",
+    "submit": "Add payee",
+    "name": "Name",
+    "namePlaceholder": "Your payee's name",
+    "nameHint": "Such as Stima SACCO. One payee can be used by several items.",
+    "method": "How you pay them",
+    "methods": {
+      "bank": "Bank transfer",
+      "mpesa_paybill": "M-Pesa paybill",
+      "cheque": "Cheque",
+      "cash": "Cash"
+    },
+    "methodHints": {
+      "bank": "To their bank account.",
+      "mpesa_paybill": "To their paybill.",
+      "cheque": "A cheque made out to them.",
+      "cash": "Paid in person."
+    },
+    "bank": "Bank",
+    "bankPlaceholder": "Your payee's bank",
+    "branch": "Branch",
+    "branchPlaceholder": "Your payee's branch",
+    "accountNumber": "Account number",
+    "accountNumberPlaceholder": "Your payee's account number",
+    "paybill": "Paybill number",
+    "paybillPlaceholder": "Your payee's paybill number",
+    "paybillAccount": "Account",
+    "paybillAccountPlaceholder": "Your account at the paybill",
+    "paybillAccountHint": "What goes in the paybill's account box.",
+    "chequePayableTo": "Payable to",
+    "chequePayableToPlaceholder": "Your payee's name on cheques",
+    "chequePayableToHint": "Empty: the payee's name.",
+    "ourReference": "Your reference with them",
+    "ourReferencePlaceholder": "Your reference",
+    "ourReferenceHint": "Such as your employer code at the SACCO."
   }
 }

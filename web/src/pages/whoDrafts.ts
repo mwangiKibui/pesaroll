@@ -6,7 +6,7 @@ type Assignment = components['schemas']['CompanyAssignmentResponse']
 type AssignmentRequest = components['schemas']['AssignmentRequest']
 
 /** One chosen person, as typed (empty amount or rate: the item's; empty From: today). */
-export interface PersonDraft { employeeId: string; name: string; staffNo: string; amount: string; rate: string; startsOn: string; endsOn: string }
+export interface PersonDraft { employeeId: string; name: string; staffNo: string; amount: string; rate: string; startsOn: string; endsOn: string; reference: string }
 
 /** Who gets the item at one company; dirty once changed, so only changed companies are saved. */
 export interface CompanyDraft {
@@ -30,6 +30,7 @@ export function draftsFrom(assignments: Assignment[]): Record<string, CompanyDra
     amount: text(a.amount), rate: text(a.rate), startsOn: a.startsOn ?? '', endsOn: a.endsOn ?? '', dirty: false,
     people: a.people.map(p => ({
       employeeId: p.employeeId, name: p.name, staffNo: p.staffNo, amount: text(p.amount), rate: text(p.rate), startsOn: p.startsOn, endsOn: p.endsOn ?? '',
+      reference: p.reference ?? '',
     })),
   } satisfies CompanyDraft]))
 }
@@ -43,7 +44,8 @@ export function requestFor(companyId: string, d: CompanyDraft): AssignmentReques
     amount: d.mode === 'everyone' ? number(d.amount) : null, rate: d.mode === 'everyone' ? number(d.rate) : null,
     startsOn: d.mode === 'everyone' ? d.startsOn || null : null, endsOn: d.mode === 'everyone' ? d.endsOn || null : null,
     people: d.mode === 'people'
-      ? d.people.map(p => ({ employeeId: p.employeeId, amount: number(p.amount), rate: number(p.rate), startsOn: p.startsOn || null, endsOn: p.endsOn || null }))
+      ? d.people.map(p => ({ employeeId: p.employeeId, amount: number(p.amount), rate: number(p.rate), startsOn: p.startsOn || null, endsOn: p.endsOn || null,
+        reference: p.reference.trim() || null }))
       : [],
   }
 }

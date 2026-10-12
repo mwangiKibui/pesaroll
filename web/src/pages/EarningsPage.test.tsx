@@ -69,7 +69,8 @@ it('shows earnings, deductions and employer costs on tabs; the law\'s items are 
   expect(within(rows[4]).getByRole('button', { name: 'Delete Pension' })).toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('tab', { name: 'Employer costs' }))
-  expect(within(panel('Employer costs')).getByText('NITA')).toBeInTheDocument()
+  const nita = within(panel('Employer costs')).getByText('NITA', { selector: '.font-medium' }).closest('tr')!
+  expect(within(nita).getAllByRole('cell').map(c => c.textContent)).toContain('NITA')   // and it's paid to NITA
   const steps = screen.getByRole('list', { name: 'Setup steps' })
   expect(within(steps).getByText('Earnings and deductions').closest('a')).toHaveAttribute('aria-current', 'page')
   expect(within(steps).getByText('Earnings and deductions').closest('li')).toHaveTextContent('✓')
@@ -221,11 +222,12 @@ it('a new item goes to chosen people found by any identifier, each with their ow
   expect(amount).toHaveAttribute('placeholder', '1,500')   // the item's default unless changed
   await userEvent.type(amount, '2000')
   await userEvent.type(within(drawer()).getByLabelText('Until for Wanjiru Kamau'), '2027-03-31')
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Member or account number for Wanjiru Kamau' }), 'M-10234')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
 
   expect(await screen.findByText('Deduction added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({
-    companyId: restaurant.id, everyone: false, people: [{ employeeId: wanjiru.id, amount: 2000, endsOn: '2027-03-31' }],
+    companyId: restaurant.id, everyone: false, people: [{ employeeId: wanjiru.id, amount: 2000, endsOn: '2027-03-31', reference: 'M-10234' }],
   })
 })
 
@@ -273,6 +275,42 @@ it('everyone at a company, and a problem the server finds shows on its tab', asy
 
   expect(await within(drawer()).findByRole('textbox', { name: 'Rate (%) optional' })).toHaveAccessibleDescription(/Enter a rate above 0 and up to 100./)
   expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({ companyId: restaurant.id, everyone: true, rate: 150 })
+})
+
+it('a deduction is paid to a payee, added from the drawer; the law\'s items show who they go to', async () => {
+  const stima = { id: 'payee-1', name: 'Stima SACCO', method: 'mpesa_paybill', bankCode: null, bankName: null, branchCode: null, branchName: null,
+    accountNumber: null, paybill: '510800', paybillAccount: 'EMP-4471', chequePayableTo: null, ourReference: 'EMP-4471', usedBy: 0 }
+  let payees: unknown[] = []
+  const calls = withItems({
+    'GET /api/payees': () => json(200, payees),
+    'POST /api/payees': () => { payees = [stima]; return json(201, stima) },
+    'POST /api/pay-items': () => json(201, { ...pension, id: 'new-shares', name: 'SACCO savings', calcMethod: 'fixed', rate: null, payeeId: stima.id }),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('tab', { name: 'Deductions' }))
+  const deductions = screen.getByRole('tabpanel', { name: 'Deductions' })
+  expect(within(deductions).getAllByRole('columnheader').map(h => h.textContent)).toContain('Paid to')
+  expect(within(deductions).getByText('SHIF').closest('tr')).toHaveTextContent('SHA')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+  await choose('Start from a common one optional', 'sacco', 'SACCO savings')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add a payee' }))
+  const modal = screen.getByRole('dialog', { name: 'Add a payee' })
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Name' }), 'Stima SACCO')
+  await userEvent.click(within(modal).getByRole('radio', { name: /M-Pesa paybill/ }))
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Paybill number' }), '510800')
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Account optional' }), 'EMP-4471')
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Your reference with them optional' }), 'EMP-4471')
+  await userEvent.click(within(modal).getByRole('button', { name: 'Add payee' }))
+
+  expect(await within(drawer()).findByRole('combobox', { name: 'Paid to optional' })).toHaveValue('Stima SACCO')   // chosen
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/payees')?.body).toMatchObject({
+    name: 'Stima SACCO', method: 'mpesa_paybill', paybill: '510800', paybillAccount: 'EMP-4471', ourReference: 'EMP-4471',
+  })
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
+  expect(await screen.findByText('Deduction added')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-items')?.body).toMatchObject({ payeeId: stima.id })
 })
 
 it('with several companies, the selector filters every tab', async () => {

@@ -17,7 +17,8 @@ import { Money } from '../components/Money'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
-import { useCompanies, usePayItems, useSetupDone } from '../setup/hooks'
+import { useCompanies, usePayees, usePayItems, useSetupDone } from '../setup/hooks'
+import { PayeeModal } from './PayeeModal'
 import { draftsFrom, requestFor, type CompanyDraft } from './whoDrafts'
 import { WhoGetsIt } from './WhoGetsIt'
 import { Proceed } from '../setup/Proceed'
@@ -40,6 +41,7 @@ interface Values {
   calcMethod: string
   defaultAmount: string
   rate: string
+  payeeId: string
   taxable: boolean
   beforeTax: boolean
   applies: CompanySelection
@@ -65,6 +67,11 @@ const commons: { key: string; kind: Kind; calcMethod: string; taxable?: boolean;
 
 const none = <span className="text-muted">—</span>
 
+/** Who the law's items are paid to (their payee is the authority). */
+const authorities: Record<string, string> = {
+  paye: 'KRA', ahl_employee: 'KRA', ahl_employer: 'KRA', shif: 'SHA', nssf_employee: 'NSSF', nssf_employer: 'NSSF', nita: 'NITA',
+}
+
 /**
  * ONB-07, Earnings and deductions ("pay items" in code): Basic pay and the law's items (made with
  * the first company, locked, worked out by the rule pack) and the organization's own, for all or
@@ -78,6 +85,7 @@ export default function EarningsPage() {
   const tabsId = useId()
   const companies = useCompanies()
   const items = usePayItems()
+  const payees = usePayees()
   const done = useSetupDone(true)
   const [tab, setTab] = useState<Kind>('earning')
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
@@ -161,6 +169,7 @@ export default function EarningsPage() {
                           <th scope="col">{t('payItems.tax')}</th>
                           <th scope="col">{t('payItems.defaultAmount')}</th>
                           <th scope="col">{t('payItems.appliesTo')}</th>
+                          {k !== 'earning' && <th scope="col">{t('payees.paidTo')}</th>}
                           <th scope="col">{t('who.title')}</th>
                           <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
                         </tr>
@@ -177,6 +186,8 @@ export default function EarningsPage() {
                             <td>{tax(i)}</td>
                             <td>{i.defaultAmount != null ? <Money amount={i.defaultAmount} /> : none}</td>
                             <td>{i.allCompanies ? t('payItems.allCompanies') : companyNames(i.companyIds) || none}</td>
+                            {k !== 'earning' && <td>{i.lockedKey ? authorities[i.lockedKey] ?? none
+                              : payees.data?.find(p => p.id === i.payeeId)?.name ?? none}</td>}
                             <td>{whoGetsIt(i)}</td>
                             <td className="whitespace-nowrap text-right">
                               {i.locked ? (
@@ -266,6 +277,8 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
   const [whoErrors, setWhoErrors] = useState<Record<string, Record<string, string>>>({})
   const [item, setItem] = useState(opened)
   const adding = !opened
+  const payees = usePayees()
+  const [addingPayee, setAddingPayee] = useState(false)
 
   const { register, handleSubmit, control, setError, setValue, getValues, clearErrors, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
@@ -276,6 +289,7 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       calcMethod: item?.calcMethod ?? 'fixed',
       defaultAmount: item?.defaultAmount != null ? String(item.defaultAmount) : '',
       rate: item?.rate != null ? String(item.rate) : '',
+      payeeId: item?.payeeId ?? '',
       taxable: item ? item.taxable : kind === 'earning',
       beforeTax: item?.beforeTax ?? false,
       applies: item ? { all: item.allCompanies, ids: item.allCompanies ? companies.map(c => c.id) : item.companyIds } : defaultApplies,
@@ -323,6 +337,7 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       calcMethod: v.calcMethod,
       defaultAmount: v.calcMethod === 'fixed' && v.defaultAmount.trim() ? Number(v.defaultAmount.replace(/,/g, '')) : null,
       rate: v.calcMethod === 'percent_of_basic' ? Number(v.rate) : null,
+      payeeId: v.kind !== 'earning' && v.payeeId ? v.payeeId : null,
       allCompanies: v.applies.all,
       companyIds: v.applies.all ? [] : v.applies.ids,
     }
@@ -366,7 +381,7 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       return setError('code', { message: errorMessage(t, error) })
     }
     const fields: Record<string, FieldPath<Values>> = {
-      name: 'name', kind: 'kind', code: 'code', calcMethod: 'calcMethod', rate: 'rate', defaultAmount: 'defaultAmount', companyIds: 'applies',
+      name: 'name', kind: 'kind', code: 'code', calcMethod: 'calcMethod', rate: 'rate', defaultAmount: 'defaultAmount', companyIds: 'applies', payeeId: 'payeeId',
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
@@ -429,6 +444,18 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
             <Switch label={t('payItems.beforeTaxLabel')} hint={t('payItems.beforeTaxHint')} checked={field.value} onChange={field.onChange} />
           )} />
         )}
+        {chosenKind !== 'earning' && (
+          // Who the money goes to: a SACCO, union, insurer or lender; Add a payee opens a small form on top.
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full max-w-md">
+              <Controller control={control} name="payeeId" render={({ field }) => (
+                <SelectField label={t('payees.paidTo')} placeholder={t('payees.paidToPlaceholder')} optional hint={t('payees.paidToHint')}
+                  error={errors.payeeId?.message} options={(payees.data ?? []).map(p => ({ value: p.id, label: p.name }))} {...field} />
+              )} />
+            </div>
+            <Button variant="secondary" onClick={() => setAddingPayee(true)}><PlusIcon />{t('payees.add')}</Button>
+          </div>
+        )}
         {companies.length > 1 && (
           <div className="flex flex-col gap-1.5">
             <Controller control={control} name="applies" render={({ field }) => (
@@ -444,6 +471,10 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
             drafts={drafts} errors={whoErrors} onChange={(id, draft) => setDrafts(d => ({ ...d, [id]: draft }))} />
         </TabPanel>
       </form>
+      {addingPayee && (
+        <PayeeModal onCancel={() => setAddingPayee(false)}
+          onSaved={payee => { setValue('payeeId', payee.id); setAddingPayee(false) }} />
+      )}
     </Drawer>
   )
 }

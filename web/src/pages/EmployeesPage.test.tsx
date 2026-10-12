@@ -359,8 +359,8 @@ it('the eye opens an employee to read, tab by tab, with Edit to change them', as
     'GET /api/structure/departments': () => json(200, [kitchen]),
     [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail({ job: { ...employeeDetail().job, departmentId: 'dp1' } })),
     [`GET /api/employees/${wanjiru.id}/pay-items`]: () => json(200, [
-      { payItemId: 'h1', name: 'House allowance', code: 'HOU-01', kind: 'earning', calcMethod: 'percent_of_basic', amount: null, rate: 10, startsOn: '2026-11-01', endsOn: null, everyone: true },
-      { payItemId: 's1', name: 'SACCO shares', code: 'SAC-01', kind: 'deduction', calcMethod: 'fixed', amount: 2000, rate: null, startsOn: '2026-11-01', endsOn: '2027-03-31', everyone: false },
+      { payItemId: 'h1', name: 'House allowance', code: 'HOU-01', kind: 'earning', calcMethod: 'percent_of_basic', amount: null, rate: 10, startsOn: '2026-11-01', endsOn: null, everyone: true, reference: null, payeeName: null },
+      { payItemId: 's1', name: 'SACCO shares', code: 'SAC-01', kind: 'deduction', calcMethod: 'fixed', amount: 2000, rate: null, startsOn: '2026-11-01', endsOn: '2027-03-31', everyone: false, reference: 'M-10234', payeeName: 'Stima SACCO' },
     ]),
   })
   renderApp('/setup/employees')
@@ -382,7 +382,7 @@ it('the eye opens an employee to read, tab by tab, with Edit to change them', as
   const extras = within(view).getByRole('region', { name: 'Earnings and deductions' })
   expect(within(extras).getAllByRole('listitem').map(li => li.textContent)).toEqual([
     'House allowance · 10% of basic pay · from 1 Nov 2026 (everyone at the company)',
-    'SACCO shares · KES 2,000 · from 1 Nov 2026 until 31 Mar 2027',
+    'SACCO shares · KES 2,000 · from 1 Nov 2026 until 31 Mar 2027 · to Stima SACCO, member M-10234',
   ])
   await userEvent.click(within(view).getByRole('tab', { name: 'Paid into' }))
   expect(within(view).getByText('M-Pesa')).toBeInTheDocument()

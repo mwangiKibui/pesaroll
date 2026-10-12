@@ -233,3 +233,31 @@ export function nextSetupPath(done: SetupStep[]) {
   const built = setupSteps.filter(s => setupPaths[s.key])
   return setupPaths[(built.find(s => !done.includes(s.key)) ?? built[built.length - 1]).key]!
 }
+
+/** The banks of a country, with their branches and how long their account numbers are. */
+export function useBanks(country: string) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['banks', country],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/banks', { params: { query: { country } } })
+      if (error || !data) throw new Error('banks')
+      return data
+    },
+  })
+}
+
+/** The organization's payees (ONB-07): who deductions and employer costs are paid to. */
+export function usePayees(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['payees'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/payees')
+      if (error || !data) throw new Error('payees')
+      return data
+    },
+  })
+}

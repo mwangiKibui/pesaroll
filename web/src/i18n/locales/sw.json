@@ -1149,7 +1149,9 @@
     "payItemUntil": "hadi {{date}}",
     "payItemEveryone": "(wote katika kampuni)",
     "payItemEachRun": "huwekwa kila malipo",
-    "payItemRate": "{{rate}}% ya mshahara wa msingi"
+    "payItemRate": "{{rate}}% ya mshahara wa msingi",
+    "payItemPayee": "kwa {{payee}}",
+    "payItemPayeeMember": "kwa {{payee}}, mwanachama {{reference}}"
   },
   "pagination": {
     "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",
@@ -1207,6 +1209,49 @@
     "remove": "Ondoa {{name}}",
     "deleteAlso": "Kinapewa: {{who}}; hiyo pia itaondolewa.",
     "untilOptional": "Hadi (si lazima)",
-    "noEndHint": "Acha Hadi tupu kama haina tarehe ya mwisho; Kuanzia tupu huanza leo."
+    "noEndHint": "Acha Hadi tupu kama haina tarehe ya mwisho; Kuanzia tupu huanza leo.",
+    "reference": "Nambari ya uanachama au akaunti",
+    "referencePlaceholder": "Nambari yako ya uanachama"
+  },
+  "payees": {
+    "paidTo": "Hulipwa kwa",
+    "paidToPlaceholder": "Mpokeaji wako",
+    "paidToHint": "Pesa inakoenda, kama SACCO, chama, bima au mkopeshaji.",
+    "add": "Ongeza mpokeaji",
+    "addTitle": "Ongeza mpokeaji",
+    "submit": "Ongeza mpokeaji",
+    "name": "Jina",
+    "namePlaceholder": "Jina la mpokeaji wako",
+    "nameHint": "Kama Stima SACCO. Mpokeaji mmoja anaweza kutumika na vipengele kadhaa.",
+    "method": "Unavyowalipa",
+    "methods": {
+      "bank": "Uhamisho wa benki",
+      "mpesa_paybill": "Paybill ya M-Pesa",
+      "cheque": "Hundi",
+      "cash": "Pesa taslimu"
+    },
+    "methodHints": {
+      "bank": "Kwa akaunti yao ya benki.",
+      "mpesa_paybill": "Kwa paybill yao.",
+      "cheque": "Hundi kwa jina lao.",
+      "cash": "Hulipwa ana kwa ana."
+    },
+    "bank": "Benki",
+    "bankPlaceholder": "Benki ya mpokeaji wako",
+    "branch": "Tawi",
+    "branchPlaceholder": "Tawi la mpokeaji wako",
+    "accountNumber": "Nambari ya akaunti",
+    "accountNumberPlaceholder": "Nambari ya akaunti ya mpokeaji wako",
+    "paybill": "Nambari ya paybill",
+    "paybillPlaceholder": "Nambari ya paybill ya mpokeaji wako",
+    "paybillAccount": "Akaunti",
+    "paybillAccountPlaceholder": "Akaunti yako kwenye paybill",
+    "paybillAccountHint": "Kinachoandikwa kwenye kisanduku cha akaunti cha paybill.",
+    "chequePayableTo": "Hundi kwa jina la",
+    "chequePayableToPlaceholder": "Jina la mpokeaji wako kwenye hundi",
+    "chequePayableToHint": "Tupu: jina la mpokeaji.",
+    "ourReference": "Kumbukumbu yako kwao",
+    "ourReferencePlaceholder": "Kumbukumbu yako",
+    "ourReferenceHint": "Kama nambari yako ya mwajiri kwenye SACCO."
   }
 }
