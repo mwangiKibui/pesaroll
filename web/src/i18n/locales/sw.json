@@ -364,7 +364,6 @@
     "searchPlaceholder": "Utafutaji wako",
     "toFix_one": "Mstari {{count}} unahitaji kurekebishwa.",
     "toFix_other": "Mistari {{count}} inahitaji kurekebishwa.",
-    "onlyProblems": "Mistari ya kurekebisha pekee",
     "showing": "Inaonyesha {{shown}} kati ya {{total}}",
     "rows": "Mistari ya kuingiza",
     "rowHeader": "Mstari",
@@ -391,7 +390,14 @@
       "descending": "Imepangwa Z hadi A"
     },
     "proceed": "Endelea kwa onyesho",
-    "wrongType": "Faili za .xlsx au .csv pekee ndizo zinazoweza kuingizwa. {{name}} si mojawapo: chagua kiolezo au faili ya .csv."
+    "wrongType": "Faili za .xlsx au .csv pekee ndizo zinazoweza kuingizwa. {{name}} si mojawapo: chagua kiolezo au faili ya .csv.",
+    "show": "Onyesha",
+    "showPlaceholder": "Chaguo lako",
+    "views": {
+      "all": "Safu zote ({{count}})",
+      "fix": "Safu za kurekebisha ({{count}})",
+      "ready": "Safu zilizo tayari ({{count}})"
+    }
   },
   "structure": {
     "title": "Shirika lako limepangwa vipi?",

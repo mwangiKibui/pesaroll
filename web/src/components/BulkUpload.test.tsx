@@ -36,6 +36,10 @@ function Page({ read = async () => good, check = async () => clean, importRows =
 }
 
 const review = () => screen.getByRole('dialog', { name: /Review/ })
+async function show(view: RegExp) {
+  await userEvent.click(within(review()).getByRole('combobox', { name: 'Show' }))
+  await userEvent.click(screen.getByRole('option', { name: view }))
+}
 const cell = (column: string, line: number) => within(review()).getByRole(column === 'County' ? 'combobox' : 'textbox', { name: `${column}, row ${line}` })
 
 it('after the upload, a large review shows every column and row, editable, before anything is saved', async () => {
@@ -99,7 +103,7 @@ it('problems show in their cells; fixing a cell clears it; import checks again a
   expect(cell('County', 3)).toHaveValue('Atlantis')   // what was typed stays visible
   expect(cell('County', 3)).toHaveAccessibleDescription('"Atlantis" isn\'t a county we know.')
   expect(within(review()).getByText('1 row needs fixing.')).toBeInTheDocument()
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^Rows to fix/)
   expect(within(review()).getAllByRole('row')).toHaveLength(2)
 
   await userEvent.clear(cell('County', 3))
@@ -107,7 +111,7 @@ it('problems show in their cells; fixing a cell clears it; import checks again a
   await userEvent.click(within(review()).getByRole('option', { name: 'Mombasa' }))
   expect(cell('County', 3)).not.toHaveAccessibleDescription(/Atlantis/)
 
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^All rows/)
   await userEvent.clear(cell('Location name', 2))
   await userEvent.click(within(review()).getByRole('button', { name: 'Import 2 locations' }))
   expect(await within(review()).findByText("Enter the location's name.")).toBeInTheDocument()
@@ -149,7 +153,7 @@ it('a file the server refuses stays in the drawer; a failed import shows in the 
   expect(await within(review()).findByRole('alert')).toHaveTextContent('AB12CD34')
 })
 
-it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look across every page', async () => {
+it('a big file is reviewed 100 rows a page; search and Show look across every page', async () => {
   const big: BulkUploadRead = {
     rows: Array.from({ length: 250 }, (_, i) => row(i + 2, `Shop ${i + 1}`, 'Nairobi')),
     problems: [{ line: 240, column: 'county', message: 'Choose a county from the list.' }],
@@ -170,10 +174,10 @@ it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look a
 
   // The problem is on page 3; the filter finds it from anywhere and starts at page 1.
   await userEvent.click(within(review()).getByRole('button', { name: 'Previous page' }))
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^Rows to fix/)
   expect(within(review()).getAllByRole('row')).toHaveLength(2)
   expect(within(review()).getByText('Page 1 of 1')).toBeInTheDocument()
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^All rows/)
 
   // Pasted in one go: typing letter by letter redraws 100 editable rows each time.
   await userEvent.click(within(review()).getByRole('searchbox', { name: 'Search rows' }))
@@ -430,4 +434,22 @@ it('a chosen file waits for Proceed to preview, so the wrong one can be swapped;
   await userEvent.click(proceed)
   expect(await screen.findByRole('dialog', { name: /Review 2 locations/ })).toBeInTheDocument()
   expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'locations.xlsx' }))
+})
+
+it('Show picks the rows to fix or the ready ones, with their counts; the sheet opens with nothing focused', async () => {
+  render(<Page read={async () => withProblems} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 2 locations' })
+  expect(sheet).toHaveFocus()   // not the search: nothing looks active yet
+  expect(within(sheet).getByRole('searchbox', { name: 'Search rows' })).not.toHaveFocus()
+
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Show' }))
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['All rows (2)', 'Rows to fix (1)', 'Ready rows (1)'])
+  await userEvent.click(screen.getByRole('option', { name: 'Ready rows (1)' }))
+  expect(within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)).toEqual(['Westlands branch'])
+  await show(/^Rows to fix/)
+  expect(within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)).toEqual(['Atlantis office'])
+  await show(/^All rows/)
+  expect(within(sheet).getAllByRole('textbox', { name: /^Location name, row/ })).toHaveLength(2)
 })

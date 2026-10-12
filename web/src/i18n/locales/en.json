@@ -364,7 +364,6 @@
     "searchPlaceholder": "Your search",
     "toFix_one": "{{count}} row needs fixing.",
     "toFix_other": "{{count}} rows need fixing.",
-    "onlyProblems": "Only rows to fix",
     "showing": "Showing {{shown}} of {{total}}",
     "rows": "Rows to import",
     "rowHeader": "Row",
@@ -391,7 +390,14 @@
       "descending": "Sorted Z to A"
     },
     "proceed": "Proceed to preview",
-    "wrongType": "Only .xlsx or .csv files can be imported. {{name}} isn't one: choose the template or a .csv file."
+    "wrongType": "Only .xlsx or .csv files can be imported. {{name}} isn't one: choose the template or a .csv file.",
+    "show": "Show",
+    "showPlaceholder": "Your choice",
+    "views": {
+      "all": "All rows ({{count}})",
+      "fix": "Rows to fix ({{count}})",
+      "ready": "Ready rows ({{count}})"
+    }
   },
   "structure": {
     "title": "How is your organization organised?",

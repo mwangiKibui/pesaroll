@@ -16,6 +16,8 @@ interface DrawerProps {
   size?: 'md' | 'wide' | 'sheet'
   /** Tabs under the title; they stay in place while the content scrolls. */
   tabs?: ReactNode
+  /** Where focus starts: the first field (a form), or the drawer itself (a sheet, where no field should look active yet). */
+  initialFocus?: 'first' | 'panel'
 }
 
 /**
@@ -24,7 +26,7 @@ interface DrawerProps {
  * separate page. Escape and the scrim close it, Tab stays inside, and focus returns to the
  * button that opened it.
  */
-export function Drawer({ open, title, onClose, children, footer, size = 'md', tabs }: DrawerProps) {
+export function Drawer({ open, title, onClose, children, footer, size = 'md', tabs, initialFocus = 'first' }: DrawerProps) {
   const { t } = useTranslation()
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -34,7 +36,7 @@ export function Drawer({ open, title, onClose, children, footer, size = 'md', ta
   useEffect(() => {
     if (!open) return
     const opener = document.activeElement as HTMLElement | null
-    const first = body.current?.querySelector<HTMLElement>(focusable) ?? panel.current
+    const first = (initialFocus === 'first' ? body.current?.querySelector<HTMLElement>(focusable) : null) ?? panel.current
     first?.focus()
 
     const onKey = (e: KeyboardEvent) => {
@@ -55,7 +57,7 @@ export function Drawer({ open, title, onClose, children, footer, size = 'md', ta
       document.removeEventListener('keydown', onKey)
       opener?.focus()
     }
-  }, [open])
+  }, [open, initialFocus])
 
   if (!open) return null
   return (

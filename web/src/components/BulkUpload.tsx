@@ -200,10 +200,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const [busy, setBusy] = useState<'template' | 'read' | 'import' | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
-  // The rows that needed fixing when "Only rows to fix" was ticked: fixed rows stay in view until it is unticked.
-  const [onlyProblems, setOnlyProblems] = useState<Set<string> | null>(null)
+  // Show: all rows, the ones to fix, or the ready ones, as they were when chosen: a row being fixed stays in view until the choice changes.
+  const [view, setView] = useState<{ kind: 'all' | 'fix' | 'ready'; lines: Set<string> | null }>({ kind: 'all', lines: null })
   const rowsRef = useRef<HTMLDivElement>(null)
-  // Each column's search and unticked values, applied with the search above and "Only rows to fix".
+  // Each column's search and unticked values, applied with the search above and Show.
   const [filters, setFilters] = useState<Record<string, ColumnFilterState>>({})
   const setFilter = (key: string, filter: ColumnFilterState) => { setFilters(all => ({ ...all, [key]: filter })); setPage(0) }
   // One column's sort, as the rows were when it was clicked: rows don't move while a cell is being fixed. Click again to re-sort.
@@ -259,7 +259,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     setNotes(result.notes ?? [])
     setSearch('')
     setPage(0)
-    setOnlyProblems(null)
+    setView({ kind: 'all', lines: null })
     // A file with rows opens the review; one with none says why, here.
     setRows(result.rows.length > 0 ? result.rows : null)
   }
@@ -363,6 +363,12 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   })).size
   const linesWithProblems = new Set(problems.filter(p => Number(p.line) > 0).map(p => String(p.line)))
   const fileProblems = problems.filter(p => Number(p.line) === 0)
+  const allLines = (rows ?? []).map(r => String(r.line))
+  const counts = { all: allLines.length, fix: linesWithProblems.size, ready: allLines.filter(l => !linesWithProblems.has(l)).length }
+  const showRows = (kind: 'all' | 'fix' | 'ready') => {
+    setView({ kind, lines: kind === 'all' ? null : new Set(allLines.filter(l => linesWithProblems.has(l) === (kind === 'fix'))) })
+    setPage(0)
+  }
   const cellText = (r: BulkUploadRow, key: string) => (r.cells[key] ?? '').trim()
   const passesFilters = (r: BulkUploadRow) => columns.every(c => {
     const f = filters[c.key]
@@ -371,7 +377,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     return (!f.text.trim() || matches(display(c, value), f.text)) && !f.hidden.has(value)
   })
   const shown = (rows ?? []).filter(r =>
-    (!onlyProblems || onlyProblems.has(String(r.line))) && passesFilters(r)
+    (!view.lines || view.lines.has(String(r.line))) && passesFilters(r)
     && (!search.trim() || matches(`${r.line} ${Object.values(r.cells).join(' ')}`, search)))
   // Rows added since the sort go after the sorted ones, in their own order.
   if (sort) shown.sort((a, b) => (sort.order.get(String(a.line)) ?? Infinity) - (sort.order.get(String(b.line)) ?? Infinity))
@@ -402,14 +408,16 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
           {children}
           {/* Beside a labelled selector, the search shows its label too, so the two fields line up. */}
           <div className="w-full sm:w-72">
-            <TextField type="search" label={t('bulk.search')} placeholder={t('bulk.searchPlaceholder')} hideLabel={!children}
+            <TextField type="search" label={t('bulk.search')} placeholder={t('bulk.searchPlaceholder')}
               value={search} onChange={e => { setSearch(e.target.value); setPage(0) }} />
+          </div>
+          <div className="w-full sm:w-56">
+            <SelectField label={t('bulk.show')} placeholder={t('bulk.showPlaceholder')} value={view.kind}
+              options={(['all', 'fix', 'ready'] as const).map(kind => ({ value: kind, label: t(`bulk.views.${kind}`, { count: counts[kind] }) }))}
+              onChange={value => showRows(value as 'all' | 'fix' | 'ready')} />
           </div>
           {linesWithProblems.size > 0 && <Notice>{t('bulk.toFix', { count: linesWithProblems.size })}</Notice>}
           {toCreate > 0 && <Notice tone="brand">{t('bulk.toCreate', { count: toCreate })}</Notice>}
-          {(linesWithProblems.size > 0 || onlyProblems) && <>
-            <Checkbox label={t('bulk.onlyProblems')} checked={!!onlyProblems} onChange={e => { setOnlyProblems(e.target.checked ? new Set(linesWithProblems) : null); setPage(0) }} />
-          </>}
           {filtered.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               {filtered.map(c => (
@@ -558,7 +566,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
       </Drawer>
 
       {/* Adding by hand and reviewing a file: the same drawer, 97% wide. */}
-      <Drawer open={open && !!rows} size="sheet" title={labels.review(rows?.length ?? 0)} onClose={startRows ? onClose : () => setRows(null)} footer={footer}>
+      <Drawer open={open && !!rows} size="sheet" initialFocus="panel" title={labels.review(rows?.length ?? 0)} onClose={startRows ? onClose : () => setRows(null)} footer={footer}>
         <div className="flex min-h-0 flex-1 flex-col gap-4">{review}</div>
       </Drawer>
     </>
