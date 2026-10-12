@@ -14,7 +14,9 @@ import { EmptyState, FormErrorBanner, Loading, Notice } from '../components/feed
 import { RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { PlusIcon } from '../components/icons'
 import { Money } from '../components/Money'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { usePaged } from '../components/usePaged'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { useCompanies, usePayees, usePayItems, useSetupDone } from '../setup/hooks'
@@ -97,6 +99,12 @@ export default function EarningsPage() {
 
   const ready = companies.data && items.data
   const visible = (items.data ?? []).filter(i => shown.all || i.allCompanies || i.companyIds.some(id => shown.ids.includes(id)))
+  // Each tab's table pages on its own (every table has pagination).
+  const paged: Record<Kind, ReturnType<typeof usePaged<PayItem>>> = {
+    earning: usePaged(visible.filter(i => i.kind === 'earning')),
+    deduction: usePaged(visible.filter(i => i.kind === 'deduction')),
+    employer_cost: usePaged(visible.filter(i => i.kind === 'employer_cost')),
+  }
   const companyNames = (ids: string[]) => (companies.data ?? []).filter(c => ids.includes(c.id)).map(c => c.legalName).join(', ')
 
   const remove = async () => {
@@ -161,7 +169,8 @@ export default function EarningsPage() {
             const list = visible.filter(i => i.kind === k)
             return (
               <TabPanel key={k} id={tabsId} tab={k} current={tab}>
-                <TableCard title={t(`payItems.tabs.${k}`)} count={list.length}>
+                <TableCard title={t(`payItems.tabs.${k}`)} count={list.length}
+                  footer={<Pagination label={t('pagination.of', { what: t(`payItems.tabs.${k}`) })} {...paged[k].pagination} />}>
                   {list.length === 0 ? <EmptyState title={t('payItems.emptyTitle')}>{t('payItems.emptyText')}</EmptyState> : (
                     <table>
                       <thead>
@@ -177,7 +186,7 @@ export default function EarningsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {list.map(i => (
+                        {paged[k].items.map(i => (
                           <tr key={i.id}>
                             <td>
                               <span className="block font-medium text-ink">{i.name}</span>

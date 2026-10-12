@@ -371,6 +371,22 @@ it('the eye opens an item to read: who it\'s paid to and who gets it, with membe
   expect(await screen.findByRole('dialog', { name: 'Edit earning or deduction' })).toBeInTheDocument()
 })
 
+it('each tab\'s table is paginated, 20 to a page', async () => {
+  const many = Array.from({ length: 25 }, (_, n) => payItem({ id: `own-${n}`, code: `OWN-${n + 1}`, name: `Allowance ${String(n + 1).padStart(2, '0')}`,
+    locked: false, lockedKey: null }))
+  withItems({ 'GET /api/pay-items': () => json(200, [...lockedPayItems(), ...many]) })
+  renderApp('/setup/earnings-and-deductions')
+  const earnings = await screen.findByRole('tabpanel', { name: 'Earnings' })
+  const pages = await within(earnings).findByRole('navigation', { name: 'Pages of Earnings' })
+  expect(within(pages).getByText('Showing 1–20 of 26')).toBeInTheDocument()   // Basic pay and 25 own
+  await userEvent.click(within(pages).getByRole('button', { name: 'Next page' }))
+  expect(within(pages).getByText('Showing 21–26 of 26')).toBeInTheDocument()
+  expect(within(earnings).getByText('Allowance 25')).toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('tab', { name: 'Deductions' }))
+  expect(within(panel('Deductions')).getByRole('navigation', { name: 'Pages of Deductions' })).toHaveTextContent('Showing 1–4 of 4')
+})
+
 it('with several companies, the selector filters every tab', async () => {
   withItems({ 'GET /api/companies': () => json(200, [restaurant, catering]), 'GET /api/pay-items': () => json(200, [...lockedPayItems(), house]) })
   renderApp('/setup/earnings-and-deductions')
