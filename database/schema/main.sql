@@ -26,6 +26,7 @@
 \i tenancy/structure.sql
 \i tenancy/structure_companies.sql
 \i tenancy/employees.sql
+\i tenancy/employee_pay_items.sql
 \i tenancy/notification_deliveries.sql
 \i identity/memberships.sql
 \i identity/users_policies.sql
