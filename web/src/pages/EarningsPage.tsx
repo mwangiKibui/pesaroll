@@ -496,7 +496,8 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
         </TabPanel>
         <TabPanel id={tabsId} tab="who" current={tab}>
           {payee && (
-            <p className="m-0 text-label text-muted">{t('payees.identifiesAs', { payee: payee.name, how: t(`payItems.sources.${referenceSource}`) })}</p>
+            <p className="m-0 text-label text-muted">{referenceSource === 'typed' ? t('payees.enteredFor', { payee: payee.name })
+              : t('payees.pickedFrom', { what: t(`payItems.sourceWhat.${referenceSource}`), payee: payee.name })}</p>
           )}
           <WhoGetsIt referenceSource={referenceSource} companies={served} itemName={itemName} method={calcMethod} defaultAmount={defaultAmount} rate={rate}
             drafts={drafts} errors={whoErrors} onChange={(id, draft) => setDrafts(d => ({ ...d, [id]: draft }))} />

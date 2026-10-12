@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useServices } from '../app/services'
 import { Button, IconButton } from '../components/Button'
 import { Notice } from '../components/feedback'
-import { RadioGroup, SelectField, TextField } from '../components/fields'
+import { RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
 import { usePaged } from '../components/usePaged'
@@ -126,7 +126,7 @@ function People({ companyId, draft, amounts, placeholder, problems, change, refe
           {(found.data ?? []).map(e => (
             <li key={e.id}>
               <Button variant="secondary" disabled={chosen.has(e.id)}
-                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '', reference: '', profile: '' }] })}>
+                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '', reference: '', profile: '', manual: false }] })}>
                 {t('who.add', { name: `${e.name} (${e.staffNo})` })}
               </Button>
             </li>
@@ -166,11 +166,19 @@ function People({ companyId, draft, amounts, placeholder, problems, change, refe
                           value={amounts === 'amount' ? p.amount : p.rate} onChange={e => edit(p.index, { [amounts]: e.target.value })} />
                       </td>
                     )}
-                    <td className="min-w-40">
-                      {/* From their profile unless typed: the profile's number shows as the hint (masked where sensitive). */}
-                      <TextField size="sm" hideLabel maxLength={40}
-                        placeholder={p.profile || (referenceSource === 'typed' ? t('who.referencePlaceholder') : t('who.fromProfile', { what: t(`payItems.sourceWhat.${referenceSource}`) }))} label={`${t('who.reference')} ${t('who.for', { name: p.name })}`}
-                        error={problems[`${at}reference`]} value={p.reference} onChange={e => edit(p.index, { reference: e.target.value })} />
+                    <td className="min-w-56">
+                      {/* Picked from their profile (shown, masked where sensitive, or flagged) unless the toggle is off for this person. */}
+                      <div className="flex flex-col gap-1">
+                        {referenceSource !== 'typed' && (
+                          <Switch label={t('who.fromProfileToggle')} accessibleLabel={t('who.fromProfileFor', { name: p.name })} checked={!p.manual}
+                            onChange={on => edit(p.index, on ? { manual: false, reference: '' } : { manual: true })} />
+                        )}
+                        {referenceSource !== 'typed' && !p.manual
+                          ? (p.profile ? <span className="font-mono text-ink">{p.profile}</span>
+                            : <span className="text-hint font-medium text-warning-ink">{draft.missing.includes(p.name) ? t('who.notInProfile') : t('who.fromProfileOnSave')}</span>)
+                          : <TextField size="sm" hideLabel maxLength={40} placeholder={t('who.referencePlaceholder')} label={`${t('who.reference')} ${t('who.for', { name: p.name })}`}
+                              error={problems[`${at}reference`]} value={p.reference} onChange={e => edit(p.index, { reference: e.target.value, manual: true })} />}
+                      </div>
                     </td>
                     <td className="min-w-40">
                       <TextField size="sm" hideLabel type="date" placeholder={t('who.fromPlaceholder')} label={`${t('who.from')} ${t('who.for', { name: p.name })}`}

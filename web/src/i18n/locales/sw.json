@@ -1238,10 +1238,13 @@
     "byLaw": "Wote: kimewekwa na sheria, kwa hivyo kinamhusu kila mfanyakazi.",
     "itemDefault": "Kiasi cha kipengele",
     "dates": "Tarehe",
-    "fromProfile": "Kutoka kwa {{what}} yao",
     "profileTag": "(wasifu)",
     "missing_one": "Mtu {{count}} hana {{what}} kwenye wasifu wake bado: {{names}}.",
-    "missing_other": "Watu {{count}} hawana {{what}} kwenye wasifu wao bado: {{names}}."
+    "missing_other": "Watu {{count}} hawana {{what}} kwenye wasifu wao bado: {{names}}.",
+    "notInProfile": "Haipo kwenye wasifu wao",
+    "fromProfileOnSave": "Kutoka kwa wasifu wao ikihifadhiwa",
+    "fromProfileToggle": "Kutoka kwa wasifu",
+    "fromProfileFor": "Kutoka kwa wasifu kwa {{name}}"
   },
   "payees": {
     "paidTo": "Hulipwa kwa",
@@ -1294,9 +1297,14 @@
     "paybillShown": "Paybill {{paybill}}",
     "chequeShown": "Hundi kwa jina la {{name}}",
     "ourReferenceShown": "Kumbukumbu yako: {{reference}}",
-    "referenceSource": "Wanavyomtambua kila mtu",
-    "referenceSourcePlaceholder": "Chaguo lako",
-    "referenceSourceHint": "Nambari yao ya uanachama au akaunti kwa kila mtu: huandikwa kwa kila mmoja, au huchukuliwa kutoka kwa wasifu wa mtu (HELB hutumia nambari ya kitambulisho).",
-    "identifiesAs": "{{payee}} humtambua kila mtu kwa: {{how}}."
+    "profileDetail": "Maelezo gani?",
+    "profileDetailPlaceholder": "Chaguo lako",
+    "profileDetailHint": "Huchukuliwa kutoka kwa wasifu wa kila mtu anapopewa kipengele kinacholipwa kwa mpokeaji huyu.",
+    "profileDetailRequired": "Chagua maelezo ya wasifu ya kutumia.",
+    "enteredFor": "Nambari za akaunti huandikwa kwa kila mtu, kama ilivyowekwa kwa {{payee}}.",
+    "pickedFrom": "Nambari za akaunti huchukuliwa kutoka kwa {{what}} ya kila mtu, kama ilivyowekwa kwa {{payee}}.",
+    "fromProfile": "Chukua nambari ya akaunti ya kila mtu kutoka kwa wasifu wake",
+    "fromProfileOffHint": "Imezimwa: unaandika nambari ya uanachama au akaunti ya kila mtu kwenye kila makato.",
+    "fromProfileOnHint": "Imewashwa: huchukuliwa kutoka kwa maelezo uliyonayo tayari, kama nambari ya kitambulisho (HELB huitumia)."
   }
 }

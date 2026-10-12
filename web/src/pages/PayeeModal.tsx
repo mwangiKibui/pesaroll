@@ -6,7 +6,7 @@ import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices, type ApiError } from '../app/services'
 import { Button } from '../components/Button'
 import { FormErrorBanner, Loading, Notice } from '../components/feedback'
-import { RadioGroup, SelectField, TextField } from '../components/fields'
+import { RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { Modal } from '../components/Modal'
 import { useBanks, useSaccos } from '../setup/hooks'
 
@@ -25,12 +25,14 @@ interface Values {
   paybillAccount: string
   chequePayableTo: string
   ourReference: string
-  referenceSource: string
+  /** Each person's account number: entered for each person (off), or picked from their profile (on, then which detail). */
+  fromProfile: boolean
+  profileDetail: string
 }
 
 const methods = ['bank', 'mpesa_paybill', 'cheque', 'cash'] as const
-/** How a payee identifies each person (the API's keys). */
-const referenceSources = ['typed', 'national_id', 'kra_pin', 'staff_no', 'phone', 'bank_account', 'mpesa_number'] as const
+/** Profile details a payee can identify people by (the API's keys). */
+const profileDetails = ['national_id', 'kra_pin', 'staff_no', 'phone', 'bank_account', 'mpesa_number'] as const
 
 /**
  * Adding a payee from an item's drawer (a small form on top of it): who a deduction's money is
@@ -44,9 +46,9 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
   const saccos = useSaccos('KE')
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
-    defaultValues: { name: '', method: 'bank', institution: 'bank', saccoCode: '', saccoBranchCode: '', bankCode: '', branchCode: '', accountNumber: '', paybill: '', paybillAccount: '', chequePayableTo: '', ourReference: '', referenceSource: 'typed' },
+    defaultValues: { name: '', method: 'bank', institution: 'bank', saccoCode: '', saccoBranchCode: '', bankCode: '', branchCode: '', accountNumber: '', paybill: '', paybillAccount: '', chequePayableTo: '', ourReference: '', fromProfile: false, profileDetail: '' },
   })
-  const [method, institution, bankCode, saccoCode] = useWatch({ control, name: ['method', 'institution', 'bankCode', 'saccoCode'] })
+  const [method, institution, bankCode, saccoCode, fromProfile] = useWatch({ control, name: ['method', 'institution', 'bankCode', 'saccoCode', 'fromProfile'] })
   const bank = banks.data?.find(b => b.code === bankCode)
   const sacco = saccos.data?.find(s => s.code === saccoCode)
   const toBank = method === 'bank' && institution === 'bank'
@@ -54,6 +56,7 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
 
   const onSubmit = async (v: Values) => {
     setBanner(null)
+    if (v.fromProfile && !v.profileDetail) return setError('profileDetail', { message: t('payees.profileDetailRequired') })
     // Only the chosen way's details are sent.
     const body = {
       name: v.name.trim(), method: v.method,
@@ -66,7 +69,7 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
       paybill: v.method === 'mpesa_paybill' ? v.paybill.trim() : null, paybillAccount: v.method === 'mpesa_paybill' ? v.paybillAccount.trim() || null : null,
       chequePayableTo: v.method === 'cheque' ? v.chequePayableTo.trim() || null : null,
       ourReference: v.ourReference.trim() || null,
-      referenceSource: v.referenceSource,
+      referenceSource: v.fromProfile ? v.profileDetail : 'typed',
     }
     try {
       const { data, error } = await api.POST('/api/payees', { body })
@@ -142,10 +145,16 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
           <TextField label={t('payees.chequePayableTo')} placeholder={t('payees.chequePayableToPlaceholder')} optional hint={t('payees.chequePayableToHint')}
             maxLength={120} error={errors.chequePayableTo?.message} {...register('chequePayableTo')} />
         )}
-        <Controller control={control} name="referenceSource" render={({ field }) => (
-          <SelectField label={t('payees.referenceSource')} placeholder={t('payees.referenceSourcePlaceholder')} hint={t('payees.referenceSourceHint')}
-            error={errors.referenceSource?.message} options={referenceSources.map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
+        <Controller control={control} name="fromProfile" render={({ field }) => (
+          <Switch label={t('payees.fromProfile')} hint={t(field.value ? 'payees.fromProfileOnHint' : 'payees.fromProfileOffHint')}
+            checked={field.value} onChange={field.onChange} />
         )} />
+        {fromProfile && (
+          <Controller control={control} name="profileDetail" render={({ field }) => (
+            <SelectField label={t('payees.profileDetail')} placeholder={t('payees.profileDetailPlaceholder')} hint={t('payees.profileDetailHint')}
+              error={errors.profileDetail?.message} options={profileDetails.map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
+          )} />
+        )}
         <TextField label={t('payees.ourReference')} placeholder={t('payees.ourReferencePlaceholder')} optional hint={t('payees.ourReferenceHint')}
           maxLength={40} error={errors.ourReference?.message} {...register('ourReference')} />
       </form>

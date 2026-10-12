@@ -1238,10 +1238,13 @@
     "byLaw": "Everyone: it's set by law, so it applies to every employee.",
     "itemDefault": "The item's amount",
     "dates": "Dates",
-    "fromProfile": "From their {{what}}",
     "profileTag": "(profile)",
     "missing_one": "{{count}} person has no {{what}} in their profile yet: {{names}}.",
-    "missing_other": "{{count}} people have no {{what}} in their profile yet: {{names}}."
+    "missing_other": "{{count}} people have no {{what}} in their profile yet: {{names}}.",
+    "notInProfile": "Not in their profile",
+    "fromProfileOnSave": "From their profile when saved",
+    "fromProfileToggle": "From profile",
+    "fromProfileFor": "From profile for {{name}}"
   },
   "payees": {
     "paidTo": "Paid to",
@@ -1294,9 +1297,14 @@
     "paybillShown": "Paybill {{paybill}}",
     "chequeShown": "Cheque payable to {{name}}",
     "ourReferenceShown": "Your reference: {{reference}}",
-    "referenceSource": "How they identify each person",
-    "referenceSourcePlaceholder": "Your choice",
-    "referenceSourceHint": "Their member or account number for each person: typed for each, or taken from the person's profile (HELB uses the ID number).",
-    "identifiesAs": "{{payee}} identifies each person by: {{how}}."
+    "profileDetail": "Which detail?",
+    "profileDetailPlaceholder": "Your choice",
+    "profileDetailHint": "Taken from each person's profile when they're given an item paid to this payee.",
+    "profileDetailRequired": "Choose which detail of their profile to use.",
+    "enteredFor": "Account numbers are entered for each person, as set on {{payee}}.",
+    "pickedFrom": "Account numbers are picked from each person's {{what}}, as set on {{payee}}.",
+    "fromProfile": "Pick each person's account number from their employee profile",
+    "fromProfileOffHint": "Off: you enter each person's member or account number on each deduction.",
+    "fromProfileOnHint": "On: it's taken from a detail you already have, such as their ID number (HELB uses it)."
   }
 }

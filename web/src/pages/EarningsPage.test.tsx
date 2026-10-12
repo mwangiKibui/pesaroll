@@ -301,7 +301,12 @@ it('a deduction is paid to a payee, added from the drawer; the law\'s items show
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Paybill number' }), '510800')
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Account optional' }), 'EMP-4471')
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Your reference with them optional' }), 'EMP-4471')
-  await userEvent.click(within(modal).getByRole('combobox', { name: 'How they identify each person' }))
+  // Entered for each person to start; or picked from the profile, then which detail.
+  const fromProfile = within(modal).getByRole('switch', { name: 'Pick each person\'s account number from their employee profile' })
+  expect(fromProfile).not.toBeChecked()
+  expect(within(modal).queryByRole('combobox', { name: 'Which detail?' })).not.toBeInTheDocument()
+  await userEvent.click(fromProfile)
+  await userEvent.click(within(modal).getByRole('combobox', { name: 'Which detail?' }))
   await userEvent.click(screen.getByRole('option', { name: 'Their staff number' }))
   await userEvent.click(within(modal).getByRole('button', { name: 'Add payee' }))
 
@@ -418,12 +423,18 @@ it('as the payee identifies people, account numbers come from profiles: shown ma
   expect((await within(view).findByText('Wanjiru Kamau')).closest('tr')).toHaveTextContent('•••• 5678 (profile)')
   await userEvent.click(within(view).getByRole('button', { name: 'Edit' }))
 
-  // Editing: as HELB identifies people, each person's from their profile as a hint, and a typed one for Otieno.
+  // Editing: picked from each profile (as set on HELB); shown, not typed; Enter instead for an exception.
   await userEvent.click(await within(drawer()).findByRole('tab', { name: 'Who gets it' }))
-  expect(within(drawer()).getByText('HELB identifies each person by: Their ID number.')).toBeInTheDocument()
-  expect(within(drawer()).getByRole('textbox', { name: 'Member or account number for Wanjiru Kamau' })).toHaveAttribute('placeholder', '•••• 5678')
+  expect(within(drawer()).getByText('Account numbers are picked from each person\'s ID number, as set on HELB.')).toBeInTheDocument()
+  const wanjiru = within(drawer()).getByText('Wanjiru Kamau').closest('tr')!
+  expect(within(wanjiru).getByText('•••• 5678')).toBeInTheDocument()
+  expect(within(wanjiru).queryByRole('textbox', { name: /Member or account number/ })).not.toBeInTheDocument()
+  const otieno = within(drawer()).getByText('Otieno Ouma').closest('tr')!
+  expect(within(otieno).getByText('Not in their profile')).toBeInTheDocument()
   expect(within(drawer()).getByText(/no ID number in their profile yet: Otieno Ouma/)).toBeInTheDocument()
-  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Member or account number for Otieno Ouma' }), 'HB-2201')
+  expect(within(wanjiru).getByRole('switch', { name: 'From profile for Wanjiru Kamau' })).toBeChecked()
+  await userEvent.click(within(otieno).getByRole('switch', { name: 'From profile for Otieno Ouma' }))   // off: enter his
+  await userEvent.type(within(otieno).getByRole('textbox', { name: 'Member or account number for Otieno Ouma' }), 'HB-2201')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
 
   expect(await screen.findByText('Saved')).toBeInTheDocument()
