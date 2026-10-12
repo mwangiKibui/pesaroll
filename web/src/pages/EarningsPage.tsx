@@ -382,9 +382,10 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       footer={<>
         <Button variant="secondary" className={adding && tab === 'who' ? 'mr-auto' : undefined} onClick={onClose}>{t('common.cancel')}</Button>
         {adding && tab === 'who' && <Button variant="secondary" onClick={() => setTab('details')}>{t('common.back')}</Button>}
+        {/* Separate buttons (keys): if Next became Add in place, the browser would take the Next click as a submit. */}
         {adding && tab === 'details'
-          ? <Button onClick={() => { if (check(getValues())) setTab('who') }}>{t('common.next')}</Button>
-          : <Button type="submit" form={formId} busy={isSubmitting}>{item ? t('payItems.save') : t('payItems.add')}</Button>}
+          ? <Button key="next" type="button" onClick={() => { if (check(getValues())) setTab('who') }}>{t('common.next')}</Button>
+          : <Button key="submit" type="submit" form={formId} busy={isSubmitting}>{item ? t('payItems.save') : t('payItems.add')}</Button>}
       </>}>
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}

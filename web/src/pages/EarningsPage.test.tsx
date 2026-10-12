@@ -122,7 +122,7 @@ it('a deduction can come off before tax, as a percentage of basic pay', async ()
 })
 
 it('adding goes Details, Next, then Who gets it with Back and Add; a details problem from the server goes back to Details', async () => {
-  withItems({ 'POST /api/pay-items': () => apiError(409, 'ONB-3529', 'Another earning or deduction already has this code. Choose a different one or leave it empty.') })
+  const calls = withItems({ 'POST /api/pay-items': () => apiError(409, 'ONB-3529', 'Another earning or deduction already has this code. Choose a different one or leave it empty.') })
   renderApp('/setup/earnings-and-deductions')
   await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
   expect(within(drawer()).queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
@@ -133,6 +133,7 @@ it('adding goes Details, Next, then Who gets it with Back and Add; a details pro
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Code optional' }), 'basic')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   expect(within(drawer()).getByRole('tab', { name: 'Who gets it' })).toHaveAttribute('aria-selected', 'true')
+  expect(calls.some(c => c.method === 'POST' && c.path === '/api/pay-items')).toBe(false)   // Next saves nothing
 
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Back' }))
   expect(within(drawer()).getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true')
