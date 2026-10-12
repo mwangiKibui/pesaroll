@@ -86,6 +86,15 @@ internal static class OnboardingErrors
 
     public static AppException PayItemLocked() =>
         new("ONB-3531", "This one is set by law (or is basic pay), so it can't be changed or deleted.", 409);
+
+    public static AppException PayItemForEveryone() =>
+        new("ONB-3545", "This one is set by law (or is basic pay): it applies to everyone, so there's no one to choose.", 409);
+
+    public static AppException PayItemNotForCompany(string company) =>
+        new("ONB-3546", $"This isn't used by {company}. Add the company to it first.", 409);
+
+    public static AppException AssignmentInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3547", "Some details of who gets it don't look right. Check the fields marked.") { Fields = fields };
     public static AppException LeaveDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("ONB-3532", "Some leave details don't look right. Check the fields marked.") { Fields = fields };
 

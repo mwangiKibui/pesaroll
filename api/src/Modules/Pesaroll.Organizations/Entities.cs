@@ -228,6 +228,22 @@ public sealed class StatutoryItem
 /// companies or the ones in <see cref="Companies"/>. Locked ones (<see cref="LockedKey"/>: basic or a
 /// statutory item) are made with the first company and never changed by the app.
 /// </summary>
+/// <summary>Who gets an earning or deduction at a company: everyone (no employee) or one person, from a date.</summary>
+public sealed class EmployeePayItem
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid PayItemId { get; set; }
+    public Guid? EmployeeId { get; set; }
+    public decimal? Amount { get; set; }
+    public decimal? Rate { get; set; }
+    public DateOnly StartsOn { get; set; }
+    public DateOnly? EndsOn { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 public sealed class PayItem
 {
     public Guid Id { get; set; }

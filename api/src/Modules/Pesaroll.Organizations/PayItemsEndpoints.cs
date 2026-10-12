@@ -20,7 +20,29 @@ public sealed record PayItemRequest(
 
 public sealed record PayItemResponse(
     Guid Id, string Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod, decimal? DefaultAmount, decimal? Rate,
-    bool Locked, string? LockedKey, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
+    bool Locked, string? LockedKey, bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<AssignmentSummary> Assignments);
+
+/// <summary>Who gets an item at a company, briefly: everyone there, or how many chosen people.</summary>
+public sealed record AssignmentSummary(Guid CompanyId, bool Everyone, int People);
+
+/// <summary>
+/// Who gets an item at one company, replacing what was there: everyone (people hired later too), or
+/// the people listed (none: nobody). Amount for fixed items, rate for a percentage of basic pay
+/// (empty: the item's); nothing for items entered each payroll. Starts today unless said.
+/// </summary>
+public sealed record AssignmentRequest(Guid CompanyId, bool Everyone, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn,
+    List<AssignmentPersonRequest>? People);
+
+public sealed record AssignmentPersonRequest(Guid EmployeeId, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn);
+
+public sealed record CompanyAssignmentResponse(Guid CompanyId, bool Everyone, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn,
+    IReadOnlyList<AssignedPersonResponse> People);
+
+public sealed record AssignedPersonResponse(Guid EmployeeId, string Name, string StaffNo, decimal? Amount, decimal? Rate, DateOnly StartsOn, DateOnly? EndsOn);
+
+/// <summary>An item someone gets, with what applies to them (their own amount or rate, else the item's).</summary>
+public sealed record EmployeePayItemResponse(Guid PayItemId, string Name, string Code, string Kind, string CalcMethod, decimal? Amount, decimal? Rate,
+    DateOnly StartsOn, DateOnly? EndsOn, bool Everyone);
 
 /// <summary>
 /// ONB-07, the Earnings and deductions step ("pay items" in code). Basic pay and the law's items
@@ -47,13 +69,14 @@ public static class PayItemsEndpoints
             }
 
             var list = await query.ToListAsync(ct);
+            var who = await SummariesAsync(db, list.Select(i => i.Id).ToList(), ct);
             var order = await db.StatutoryItems.AsNoTracking().ToDictionaryAsync(s => (s.CountryCode, s.Key), s => s.SortOrder, ct);
             // Basic pay, then the law's items in their order, then the organization's own by kind and age.
             return Results.Ok(list
                 .OrderBy(i => i.LockedKey == "basic" ? 0 : i.LockedKey is not null ? 1 : 2)
                 .ThenBy(i => i.LockedKey is null ? 0 : order.GetValueOrDefault((i.CountryCode ?? "", i.LockedKey)))
                 .ThenBy(i => Array.IndexOf(Kinds, i.Kind)).ThenBy(i => i.CreatedAt).ThenBy(i => i.Code)
-                .Select(ToResponse).ToList());
+                .Select(i => ToResponse(i, who)).ToList());
         }).Produces<List<PayItemResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         items.MapPost("/", async (PayItemRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
@@ -72,7 +95,7 @@ public static class PayItemsEndpoints
             Apply(item, valid, now);
             db.PayItems.Add(item);
             await SaveAsync(db, ct);
-            return Results.Created($"/api/pay-items/{item.Id}", ToResponse(item));
+            return Results.Created($"/api/pay-items/{item.Id}", ToResponse(item, []));
         }).Produces<PayItemResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
@@ -93,17 +116,30 @@ public static class PayItemsEndpoints
             item.Code = valid.Code ?? item.Code;
             item.Name = valid.Name;
             item.Kind = valid.Kind;
-            item.CalcMethod = valid.CalcMethod;
             var dropped = item.Companies.Where(c => !valid.CompanyIds.Contains(c.CompanyId)).ToList();
+            var methodChanged = item.CalcMethod != valid.CalcMethod;
+            item.CalcMethod = valid.CalcMethod;
             Apply(item, valid, clock.GetUtcNow());
 
             // New links before old ones go: an item is visible (row-level security) through its links.
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // Who gets it follows: not at companies it no longer serves; a new way of working it out drops their amounts and rates.
+            if (!valid.AllCompanies)
+            {
+                await db.EmployeePayItems.Where(x => x.PayItemId == id && !valid.CompanyIds.Contains(x.CompanyId)).ExecuteDeleteAsync(ct);
+            }
+
+            if (methodChanged)
+            {
+                await db.EmployeePayItems.Where(x => x.PayItemId == id).ExecuteUpdateAsync(x => x.SetProperty(y => y.Amount, (decimal?)null).SetProperty(y => y.Rate, (decimal?)null), ct);
+            }
+
             await SaveAsync(db, ct);
             db.PayItemCompanies.RemoveRange(dropped);
             await SaveAsync(db, ct);
             await transaction.CommitAsync(ct);
-            return Results.Ok(ToResponse(await db.PayItems.AsNoTracking().Include(i => i.Companies).SingleAsync(i => i.Id == id, ct)));
+            return Results.Ok(ToResponse(await db.PayItems.AsNoTracking().Include(i => i.Companies).SingleAsync(i => i.Id == id, ct),
+                await SummariesAsync(db, [id], ct)));
         }).Produces<PayItemResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
@@ -119,14 +155,191 @@ public static class PayItemsEndpoints
                 throw OnboardingErrors.PayItemLocked();
             }
 
-            db.PayItems.Remove(item);   // its company links go with it (on delete cascade)
+            db.PayItems.Remove(item);   // its company links and who gets it go with it (on delete cascade)
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
 
+        items.MapGet("/{id:guid}/assignments", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            _ = await db.PayItems.AsNoTracking().SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct) ?? throw OnboardingErrors.PayItemNotFound();
+            return Results.Ok(await AssignmentsAsync(db, id, ct));
+        }).Produces<List<CompanyAssignmentResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        items.MapPut("/{id:guid}/assignments", async (Guid id, AssignmentRequest request, OrganizationsDbContext db, TenantContext tenant,
+            HttpContext http, TimeProvider clock, CancellationToken ct) =>
+        {
+            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            var item = await db.PayItems.AsNoTracking().Include(i => i.Companies).SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
+                ?? throw OnboardingErrors.PayItemNotFound();
+            if (item.LockedKey is not null)
+            {
+                throw OnboardingErrors.PayItemForEveryone();
+            }
+
+            var company = await db.Companies.AsNoTracking().SingleOrDefaultAsync(c => c.Id == request.CompanyId, ct) ?? throw OnboardingErrors.CompanyNotFound();
+            if (!item.AllCompanies && item.Companies.All(c => c.CompanyId != company.Id))
+            {
+                throw OnboardingErrors.PayItemNotForCompany(company.LegalName);
+            }
+
+            var now = clock.GetUtcNow();
+            var today = PayDates.TodayInKenya(now);
+            var errors = new Dictionary<string, string>();
+            var rows = new List<EmployeePayItem>();
+            EmployeePayItem Row(Guid? employee, decimal? amount, decimal? rate, DateOnly? startsOn, DateOnly? endsOn, string at)
+            {
+                if (amount is not null && item.CalcMethod != "fixed")
+                {
+                    errors[$"{at}amount"] = item.CalcMethod == "each_run" ? $"{item.Name} is entered each payroll, so it has no amount here."
+                        : $"{item.Name} is a percentage of basic pay: give a rate, not an amount.";
+                }
+                else if (amount < 0)
+                {
+                    errors[$"{at}amount"] = "Enter an amount of 0 or more.";
+                }
+                else if (amount is null && item.CalcMethod == "fixed" && item.DefaultAmount is null)
+                {
+                    errors[$"{at}amount"] = $"Enter the amount: {item.Name} has no default.";
+                }
+
+                if (rate is not null && item.CalcMethod != "percent_of_basic")
+                {
+                    errors[$"{at}rate"] = item.CalcMethod == "fixed" ? $"{item.Name} is a fixed amount: give an amount, not a rate."
+                        : $"{item.Name} is entered each payroll, so it has no rate here.";
+                }
+                else if (rate is <= 0 or > 100)
+                {
+                    errors[$"{at}rate"] = "Enter a rate above 0 and up to 100.";
+                }
+
+                var starts = startsOn ?? today;
+                if (endsOn < starts)
+                {
+                    errors[$"{at}endsOn"] = "The end can't be before the start.";
+                }
+
+                return new EmployeePayItem
+                {
+                    Id = Guid.CreateVersion7(), OrganizationId = organizationId, CompanyId = company.Id, PayItemId = item.Id, EmployeeId = employee,
+                    Amount = amount, Rate = rate, StartsOn = starts, EndsOn = endsOn, CreatedAt = now, UpdatedAt = now,
+                };
+            }
+
+            if (request.Everyone)
+            {
+                rows.Add(Row(null, request.Amount, request.Rate, request.StartsOn, request.EndsOn, ""));
+            }
+            else
+            {
+                var people = request.People ?? [];
+                var ids = people.Select(p => p.EmployeeId).Distinct().ToList();
+                var found = await db.Employees.AsNoTracking().Where(e => ids.Contains(e.Id)).ToDictionaryAsync(e => e.Id, ct);
+                var companyNames = await db.Companies.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.LegalName, ct);
+                var seen = new HashSet<Guid>();
+                for (var i = 0; i < people.Count; i++)
+                {
+                    var p = people[i];
+                    var at = $"people[{i}].";
+                    if (!found.TryGetValue(p.EmployeeId, out var e))
+                    {
+                        errors[$"{at}employeeId"] = "We couldn't find this person. They may have been deleted.";
+                    }
+                    else if (!seen.Add(e.Id))
+                    {
+                        errors[$"{at}employeeId"] = $"{e.FirstName} {e.LastName} is on the list twice.";
+                    }
+                    else if (e.CompanyId != company.Id)
+                    {
+                        errors[$"{at}employeeId"] = $"{e.FirstName} {e.LastName} works at {companyNames.GetValueOrDefault(e.CompanyId, "another company")}.";
+                    }
+                    else if (e.ExitDate is DateOnly left && left < today)
+                    {
+                        errors[$"{at}employeeId"] = $"{e.FirstName} {e.LastName} has left {company.LegalName}.";
+                    }
+                    else
+                    {
+                        rows.Add(Row(e.Id, p.Amount, p.Rate, p.StartsOn, p.EndsOn, at));
+                    }
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                throw OnboardingErrors.AssignmentInvalid(errors);
+            }
+
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.EmployeePayItems.Where(x => x.PayItemId == item.Id && x.CompanyId == company.Id).ExecuteDeleteAsync(ct);
+            db.EmployeePayItems.AddRange(rows);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException error) when (error.InnerException is PostgresException { MessageText: "ONB-3545" or "ONB-3546" or "ONB-3547" } p)
+            {
+                // Changed meanwhile: the item became one set by law, left the company or changed how it's worked out.
+                throw p.MessageText == "ONB-3546" ? OnboardingErrors.PayItemNotForCompany(company.LegalName) : OnboardingErrors.PayItemForEveryone();
+            }
+
+            await transaction.CommitAsync(ct);
+            return Results.Ok(await AssignmentsAsync(db, item.Id, ct));
+        }).Produces<List<CompanyAssignmentResponse>>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+
+        // What one person gets: their own rows and their company's "everyone" rows.
+        app.MapGet("/api/employees/{id:guid}/pay-items", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            var employee = await db.Employees.AsNoTracking().SingleOrDefaultAsync(e => e.Id == id, ct) ?? throw OnboardingErrors.EmployeeNotFound();
+            var rows = await (
+                from x in db.EmployeePayItems.AsNoTracking()
+                join i in db.PayItems.AsNoTracking() on x.PayItemId equals i.Id
+                where i.Status == "active" && (x.EmployeeId == id || (x.EmployeeId == null && x.CompanyId == employee.CompanyId))
+                select new { x, i }).ToListAsync(ct);
+            return Results.Ok(rows
+                .OrderBy(r => Array.IndexOf(Kinds, r.i.Kind)).ThenBy(r => r.i.Name)
+                .Select(r => new EmployeePayItemResponse(r.i.Id, r.i.Name, r.i.Code, r.i.Kind, r.i.CalcMethod,
+                    r.x.Amount ?? (r.i.CalcMethod == "fixed" ? r.i.DefaultAmount : null), r.x.Rate ?? (r.i.CalcMethod == "percent_of_basic" ? r.i.Rate : null),
+                    r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null))
+                .ToList());
+        }).WithTags("Earnings and deductions").Produces<List<EmployeePayItemResponse>>()
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
         return app;
+    }
+
+    /// <summary>Who gets each item, by company: everyone, or how many chosen people.</summary>
+    private static async Task<Dictionary<Guid, List<AssignmentSummary>>> SummariesAsync(OrganizationsDbContext db, List<Guid> items, CancellationToken ct) =>
+        (await db.EmployeePayItems.AsNoTracking().Where(x => items.Contains(x.PayItemId))
+            .GroupBy(x => new { x.PayItemId, x.CompanyId })
+            .Select(g => new { g.Key.PayItemId, g.Key.CompanyId, Everyone = g.Any(x => x.EmployeeId == null), People = g.Count(x => x.EmployeeId != null) })
+            .ToListAsync(ct))
+        .GroupBy(x => x.PayItemId)
+        .ToDictionary(g => g.Key, g => g.OrderBy(x => x.CompanyId).Select(x => new AssignmentSummary(x.CompanyId, x.Everyone, x.People)).ToList());
+
+    /// <summary>Who gets an item, company by company, chosen people by name.</summary>
+    private static async Task<List<CompanyAssignmentResponse>> AssignmentsAsync(OrganizationsDbContext db, Guid item, CancellationToken ct)
+    {
+        var rows = await (
+            from x in db.EmployeePayItems.AsNoTracking()
+            where x.PayItemId == item
+            join e in db.Employees.AsNoTracking() on x.EmployeeId equals e.Id into people
+            from e in people.DefaultIfEmpty()
+            select new { x, Name = e == null ? null : e.FirstName + " " + e.LastName, StaffNo = e == null ? null : e.StaffNo }).ToListAsync(ct);
+        return rows.GroupBy(r => r.x.CompanyId).Select(g =>
+        {
+            var everyone = g.FirstOrDefault(r => r.x.EmployeeId is null)?.x;
+            return new CompanyAssignmentResponse(g.Key, everyone is not null, everyone?.Amount, everyone?.Rate, everyone?.StartsOn, everyone?.EndsOn,
+                g.Where(r => r.x.EmployeeId is not null).OrderBy(r => r.Name)
+                    .Select(r => new AssignedPersonResponse(r.x.EmployeeId!.Value, r.Name!, r.StaffNo!, r.x.Amount, r.x.Rate, r.x.StartsOn, r.x.EndsOn)).ToList());
+        }).ToList();
     }
 
     /// <summary>
@@ -255,7 +468,7 @@ public static class PayItemsEndpoints
         }
     }
 
-    private static PayItemResponse ToResponse(PayItem i) => new(
+    private static PayItemResponse ToResponse(PayItem i, Dictionary<Guid, List<AssignmentSummary>> who) => new(
         i.Id, i.Code, i.Name, i.Kind, i.Taxable, i.BeforeTax, i.CalcMethod, i.DefaultAmount, i.Rate,
-        i.LockedKey is not null, i.LockedKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList());
+        i.LockedKey is not null, i.LockedKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(), who.GetValueOrDefault(i.Id) ?? []);
 }
