@@ -206,6 +206,8 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   // Each column's search and unticked values, applied with the search above and "Only rows to fix".
   const [filters, setFilters] = useState<Record<string, ColumnFilterState>>({})
   const setFilter = (key: string, filter: ColumnFilterState) => { setFilters(all => ({ ...all, [key]: filter })); setPage(0) }
+  // One column's sort, as the rows were when it was clicked: rows don't move while a cell is being fixed. Click again to re-sort.
+  const [sort, setSort] = useState<{ key: string; direction: 'ascending' | 'descending'; order: Map<string, number> } | null>(null)
 
   // While the rows are open, ← and → scroll them sideways (wide sheets have 30 columns), unless a cell is being typed in.
   const showingRows = open && !!rows
@@ -325,6 +327,19 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     return [...counts].map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === '' ? -1 : b.value === '' ? 1 : a.value.localeCompare(b.value)))
   }
   const filtered = columns.filter(c => isActive(filters[c.key]))
+  const sortBy = (c: BulkUploadColumn) => {
+    const direction = sort?.key !== c.key ? 'ascending' : sort.direction === 'ascending' ? 'descending' : null
+    if (!direction) return setSort(null)
+    const text = (r: BulkUploadRow) => display(c, cellText(r, c.key))
+    const sorted = [...(rows ?? [])].sort((a, b) => {
+      const [x, y] = [text(a), text(b)]
+      if (!x || !y) return !x && !y ? 0 : !x ? 1 : -1   // empty cells last, either way
+      const order = x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' })
+      return direction === 'ascending' ? order : -order
+    })
+    setSort({ key: c.key, direction, order: new Map(sorted.map((r, i) => [String(r.line), i])) })
+    setPage(0)
+  }
   const problemAt = new Map<string, string>()
   for (const p of problems) {
     const key = p.column && shownKeys.has(p.column) ? keyOf(p.line, p.column) : keyOf(p.line)
@@ -348,6 +363,8 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const shown = (rows ?? []).filter(r =>
     (!onlyProblems || onlyProblems.has(String(r.line))) && passesFilters(r)
     && (!search.trim() || matches(`${r.line} ${Object.values(r.cells).join(' ')}`, search)))
+  // Rows added since the sort go after the sorted ones, in their own order.
+  if (sort) shown.sort((a, b) => (sort.order.get(String(a.line)) ?? Infinity) - (sort.order.get(String(b.line)) ?? Infinity))
   // Search and the filter look across every row; the table shows one page of what they find.
   const pages = Math.max(1, Math.ceil(shown.length / PAGE))
   const at = Math.min(page, pages - 1)
@@ -405,9 +422,19 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
               <tr>
                 <th scope="col" className="border-b border-line px-3 py-2 text-left font-medium text-muted">{t('bulk.rowHeader')}</th>
                 {columns.map(c => (
-                  <th key={c.key} scope="col" className="min-w-40 border-b border-line px-3 py-1.5 text-left font-medium whitespace-nowrap text-muted">
-                    <span className="flex items-center justify-between gap-2">
-                      {c.label}
+                  <th key={c.key} scope="col" aria-sort={sort?.key === c.key ? sort.direction : undefined}
+                    className="min-w-40 border-b border-line px-3 py-1.5 text-left font-medium whitespace-nowrap text-muted">
+                    <span className="flex items-center gap-1">
+                      <span className="mr-auto">{c.label}</span>
+                      <button type="button" aria-label={t('bulk.sort', { column: c.label })} onClick={() => sortBy(c)}
+                        title={sort?.key === c.key ? t(`bulk.sorted.${sort.direction}`) : undefined}
+                        className={`inline-flex size-7 shrink-0 items-center justify-center rounded-control ${sort?.key === c.key ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-card hover:text-ink'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          {sort?.key !== c.key && <path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4" />}
+                          {sort?.key === c.key && sort.direction === 'ascending' && <path d="M12 20V4M6 10l6-6 6 6" />}
+                          {sort?.key === c.key && sort.direction === 'descending' && <path d="M12 4v16M6 14l6 6 6-6" />}
+                        </svg>
+                      </button>
                       <ColumnFilter label={c.label} values={valuesOf(c.key)} display={value => display(c, value)}
                         filter={filters[c.key] ?? { text: '', hidden: new Set() }} onChange={f => setFilter(c.key, f)} />
                     </span>

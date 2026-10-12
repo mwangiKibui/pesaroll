@@ -364,3 +364,32 @@ it('each column can be searched and filtered by its values, together, across eve
   await userEvent.click(within(sheet).getByRole('button', { name: 'Clear filters' }))
   expect(shownNames()).toHaveLength(4)
 })
+
+it('each column sorts A to Z, Z to A, then back to the file order; a row being fixed stays put', async () => {
+  const many: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Mombasa shop', 'Mombasa'), row(4, '', 'Nairobi'), row(5, 'Kilimani office', 'Nairobi')],
+    problems: [],
+  }
+  render(<Page read={async () => many} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  const sheet = review()
+  const names = () => within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)
+  const sort = () => within(sheet).getByRole('button', { name: 'Sort Location name' })
+  const header = () => within(sheet).getByRole('columnheader', { name: /Location name/ })
+
+  expect(header()).not.toHaveAttribute('aria-sort')
+  await userEvent.click(sort())
+  expect(names()).toEqual(['Kilimani office', 'Mombasa shop', 'Westlands branch', ''])   // empty last
+  expect(header()).toHaveAttribute('aria-sort', 'ascending')
+
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 5' }), ' Z')   // "Kilimani office Z" stays first
+  expect(names()[0]).toBe('Kilimani office Z')
+
+  await userEvent.click(sort())
+  expect(names()).toEqual(['Westlands branch', 'Mombasa shop', 'Kilimani office Z', ''])
+  expect(header()).toHaveAttribute('aria-sort', 'descending')
+
+  await userEvent.click(sort())
+  expect(names()).toEqual(['Westlands branch', 'Mombasa shop', '', 'Kilimani office Z'])   // the file's order
+  expect(header()).not.toHaveAttribute('aria-sort')
+})

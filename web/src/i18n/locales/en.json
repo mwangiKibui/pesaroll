@@ -384,7 +384,12 @@
     "clearFilter": "Clear this filter",
     "clearFilters": "Clear filters",
     "removeFilter": "Remove filter {{column}}",
-    "tooManyValues": "Showing the first {{count}} values. Search to narrow them."
+    "tooManyValues": "Showing the first {{count}} values. Search to narrow them.",
+    "sort": "Sort {{column}}",
+    "sorted": {
+      "ascending": "Sorted A to Z",
+      "descending": "Sorted Z to A"
+    }
   },
   "structure": {
     "title": "How is your organization organised?",

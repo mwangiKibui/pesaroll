@@ -384,7 +384,12 @@
     "clearFilter": "Ondoa kichujio hiki",
     "clearFilters": "Ondoa vichujio",
     "removeFilter": "Ondoa kichujio {{column}}",
-    "tooManyValues": "Thamani {{count}} za kwanza zinaonyeshwa. Tafuta ili kupunguza."
+    "tooManyValues": "Thamani {{count}} za kwanza zinaonyeshwa. Tafuta ili kupunguza.",
+    "sort": "Panga {{column}}",
+    "sorted": {
+      "ascending": "Imepangwa A hadi Z",
+      "descending": "Imepangwa Z hadi A"
+    }
   },
   "structure": {
     "title": "Shirika lako limepangwa vipi?",
