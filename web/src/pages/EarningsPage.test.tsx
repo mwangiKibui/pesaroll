@@ -89,6 +89,7 @@ it('adds an earning from a common one; it starts on the tab you are on', async (
   expect(within(drawer()).getByRole('switch', { name: 'Taxed' })).toBeChecked()
   expect(within(drawer()).getByRole('switch', { name: 'Taxed' })).toHaveAccessibleDescription(/Almost all earnings are taxed/)
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Default amount (KES) optional' }), '15000')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
 
   expect(await screen.findByText('Earning added')).toBeInTheDocument()
@@ -110,13 +111,35 @@ it('a deduction can come off before tax, as a percentage of basic pay', async ()
   await userEvent.clear(within(drawer()).getByRole('combobox', { name: 'How it\'s worked out' }))
   await choose('How it\'s worked out', 'perc', 'A percentage of basic pay')
   await userEvent.click(within(drawer()).getByRole('switch', { name: 'Taken off before tax' }))
-  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   expect(within(drawer()).getByRole('textbox', { name: 'Percentage of basic pay' })).toHaveAccessibleDescription('Enter a percentage from 0.01 to 100.')
 
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Percentage of basic pay' }), '5')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
   expect(await screen.findByText('Deduction added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-items')?.body).toMatchObject({ kind: 'deduction', beforeTax: true, taxable: false, calcMethod: 'percent_of_basic', rate: 5, defaultAmount: null })
+})
+
+it('adding goes Details, Next, then Who gets it with Back and Add; a details problem from the server goes back to Details', async () => {
+  withItems({ 'POST /api/pay-items': () => apiError(409, 'ONB-3529', 'Another earning or deduction already has this code. Choose a different one or leave it empty.') })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+  expect(within(drawer()).queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
+
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))   // no name yet: stays
+  expect(within(drawer()).getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true')
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Name' }), 'Housing')
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Code optional' }), 'basic')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
+  expect(within(drawer()).getByRole('tab', { name: 'Who gets it' })).toHaveAttribute('aria-selected', 'true')
+
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Back' }))
+  expect(within(drawer()).getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
+  expect(await within(drawer()).findByText(/already has this code/)).toBeInTheDocument()
+  expect(within(drawer()).getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true')
 })
 
 it('a code another item has shows under the code', async () => {
@@ -125,6 +148,7 @@ it('a code another item has shows under the code', async () => {
   await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Name' }), 'Housing')
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Code optional' }), 'basic')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
 
   expect(await within(drawer()).findByText(/already has this code/)).toBeInTheDocument()

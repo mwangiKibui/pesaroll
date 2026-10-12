@@ -9,7 +9,9 @@
     "noMatches": "No matches",
     "needsFixing": ", needs fixing",
     "searchIn": "Search {{what}}",
-    "searchPlaceholder": "Your search"
+    "searchPlaceholder": "Your search",
+    "back": "Back",
+    "next": "Next"
   },
   "nav": {
     "main": "Main",

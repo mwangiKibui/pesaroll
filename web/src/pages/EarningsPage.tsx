@@ -265,8 +265,9 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
   const [drafts, setDrafts] = useState(initial)
   const [whoErrors, setWhoErrors] = useState<Record<string, Record<string, string>>>({})
   const [item, setItem] = useState(opened)
+  const adding = !opened
 
-  const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
+  const { register, handleSubmit, control, setError, setValue, getValues, clearErrors, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
       kind: (item?.kind as Kind) ?? kind,
       common: '',
@@ -297,6 +298,7 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
 
   // The same checks as the API, so most mistakes show before anything is sent.
   const check = (v: Values) => {
+    clearErrors()
     const problems: [FieldPath<Values>, string][] = []
     if (v.name.trim().length < 2 || v.name.trim().length > 80) problems.push(['name', t('payItems.nameInvalid')])
     if (v.code.trim() && !/^[A-Z0-9][A-Z0-9-]{1,19}$/.test(v.code.trim().toUpperCase())) problems.push(['code', t('payItems.codeInvalid')])
@@ -310,7 +312,7 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
 
   const onSubmit = async (v: Values) => {
     setBanner(null)
-    if (!check(v)) return
+    if (!check(v)) return setTab('details')
     // Only what fits its kind and way of working out is sent.
     const body = {
       code: v.code.trim() ? v.code.trim().toUpperCase() : null,
@@ -358,22 +360,31 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
 
   const showError = (error: unknown) => {
     if (!isApiError(error)) return setBanner('network')
-    if (error.code === 'ONB-3529') return setError('code', { message: errorMessage(t, error) })
+    // The item's own problems are on Details.
+    if (error.code === 'ONB-3529') {
+      setTab('details')
+      return setError('code', { message: errorMessage(t, error) })
+    }
     const fields: Record<string, FieldPath<Values>> = {
       name: 'name', kind: 'kind', code: 'code', calcMethod: 'calcMethod', rate: 'rate', defaultAmount: 'defaultAmount', companyIds: 'applies',
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
     if (known.length === 0) setBanner(error)
+    else setTab('details')
   }
 
   return (
     <Drawer open size="wide" title={item ? t('payItems.editTitle') : t('payItems.addTitle')} onClose={onClose}
       tabs={<Tabs id={tabsId} label={t('who.sections')} current={tab} onChange={k => setTab(k as DrawerTab)}
         tabs={drawerTabs.map(k => ({ key: k, label: t(`who.tabs.${k}`), invalid: k === 'who' && Object.keys(whoErrors).length > 0 }))} />}
+      // Adding: Details, Next (checks them), then Who gets it with Back and Add. Editing: Save changes on either tab.
       footer={<>
-        <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
-        <Button type="submit" form={formId} busy={isSubmitting}>{item ? t('payItems.save') : t('payItems.add')}</Button>
+        <Button variant="secondary" className={adding && tab === 'who' ? 'mr-auto' : undefined} onClick={onClose}>{t('common.cancel')}</Button>
+        {adding && tab === 'who' && <Button variant="secondary" onClick={() => setTab('details')}>{t('common.back')}</Button>}
+        {adding && tab === 'details'
+          ? <Button onClick={() => { if (check(getValues())) setTab('who') }}>{t('common.next')}</Button>
+          : <Button type="submit" form={formId} busy={isSubmitting}>{item ? t('payItems.save') : t('payItems.add')}</Button>}
       </>}>
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}

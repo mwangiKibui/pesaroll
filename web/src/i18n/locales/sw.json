@@ -9,7 +9,9 @@
     "noMatches": "Hakuna kinacholingana",
     "needsFixing": ", inahitaji kurekebishwa",
     "searchIn": "Tafuta {{what}}",
-    "searchPlaceholder": "Unachotafuta"
+    "searchPlaceholder": "Unachotafuta",
+    "back": "Rudi",
+    "next": "Endelea"
   },
   "nav": {
     "main": "Menyu kuu",
