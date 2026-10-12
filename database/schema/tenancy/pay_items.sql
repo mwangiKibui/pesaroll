@@ -23,10 +23,13 @@ create table pay_items (
     country_code     char(2),                                            -- the statutory item's country
     all_companies    boolean not null default false,
     status           text not null default 'active' check (status in ('active', 'archived')),
+    payee_id         uuid,                                               -- who the money goes to (deductions, employer costs)
     created_at       timestamptz not null default now(),
     updated_at       timestamptz not null default now(),
     unique (organization_id, id),
     foreign key (country_code, locked_key) references statutory_items (country_code, key),
+    foreign key (organization_id, payee_id) references payees (organization_id, id),   -- a payee in use can't be deleted
+    check (payee_id is null or kind <> 'earning'),
     check (kind = 'earning' or not taxable),
     check (kind = 'deduction' or not before_tax),
     check ((calc_method = 'percent_of_basic') = (rate is not null)),

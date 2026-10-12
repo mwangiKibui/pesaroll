@@ -13,6 +13,7 @@ create table employee_pay_items (
     rate             numeric(9, 4) check (rate > 0 and rate <= 100),
     starts_on        date not null,
     ends_on          date,
+    reference        text check (char_length(btrim(reference)) between 1 and 40),   -- their member or account number with the payee
     created_at       timestamptz not null default now(),
     updated_at       timestamptz not null default now(),
     foreign key (organization_id, pay_item_id) references pay_items (organization_id, id) on delete cascade,

@@ -20,6 +20,7 @@
 \i tenancy/location_companies.sql
 \i tenancy/pay_schedule_companies.sql
 \i tenancy/pay_schedule_reminders.sql
+\i tenancy/payees.sql
 \i tenancy/pay_items.sql
 \i tenancy/pay_item_companies.sql
 \i tenancy/leave_plan_rules.sql
