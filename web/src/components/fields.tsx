@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref } from 'react'
+import { forwardRef, useEffect, useId, useRef, useState, type CSSProperties, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { matches } from './search'
 
@@ -20,6 +20,10 @@ interface FieldProps {
 
 const control = 'w-full rounded-control border border-field-border bg-card px-3 text-ink placeholder:text-muted aria-invalid:border-danger-ink'
 const controlSize: Record<Size, string> = { sm: 'min-h-9 text-label', md: 'min-h-11 text-body', lg: 'min-h-[52px] text-lg' }
+
+/** A dropdown list's tallest (max-h-64 plus its padding) and its gap from the field, in px. */
+const LIST_MAX = 268
+const GAP = 4
 
 function useFieldIds(hint: unknown, error: unknown) {
   const id = useId()
@@ -91,6 +95,42 @@ export function SelectField({ label, hint, error, optional, size = 'md', hideLab
   const [query, setQuery] = useState<string | null>(null)   // null: not typing, show the choice
   const [active, setActive] = useState(0)
   const list = useRef<HTMLUListElement>(null)
+  const box = useRef<HTMLDivElement>(null)
+  const [at, setAt] = useState<CSSProperties>({})
+
+  // The list floats (fixed) so a card or a scrolling table can't clip it, next to the field, and
+  // opens upward when there's no room below. Inside a centred dialog (a transformed box) fixed is
+  // measured from that box, not the screen.
+  const place = () => {
+    const field = box.current
+    if (!field) return
+    const rect = field.getBoundingClientRect()
+    let frame = { top: 0, left: 0, bottom: window.innerHeight }
+    for (let el = field.parentElement; el; el = el.parentElement) {
+      if (getComputedStyle(el).transform !== 'none') {
+        const r = el.getBoundingClientRect()
+        frame = { top: r.top, left: r.left, bottom: r.bottom }
+        break
+      }
+    }
+    const tall = Math.min(LIST_MAX, options.length * 44 + 12)
+    const upward = window.innerHeight - rect.bottom < tall + GAP && rect.top > window.innerHeight - rect.bottom
+    setAt(upward
+      ? { bottom: frame.bottom - rect.top + GAP, left: rect.left - frame.left, minWidth: rect.width }
+      : { top: rect.bottom - frame.top + GAP, left: rect.left - frame.left, minWidth: rect.width })
+  }
+
+  // While open it follows the field when the page or a table scrolls, or the window resizes.
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const chosen = options.find(o => o.value === value)
   const shown = query === null ? options : options.filter(o => matches(o.label, query))
@@ -101,6 +141,7 @@ export function SelectField({ label, hint, error, optional, size = 'md', hideLab
 
   const openList = () => {
     if (open) return
+    place()
     setActive(Math.max(0, options.findIndex(o => o.value === value)))
     setOpen(true)
   }
@@ -144,20 +185,20 @@ export function SelectField({ label, hint, error, optional, size = 'md', hideLab
 
   return (
     <Field {...ids} label={label} hint={hint} error={error} optional={optional} hideLabel={hideLabel}>
-      <div className="relative">
+      <div ref={box} className="relative">
         <input ref={ref} id={ids.id} name={name} type="text" role="combobox" autoComplete="off" disabled={disabled}
           aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
           aria-activedescendant={open && shown[active] ? `${listId}-${active}` : undefined}
           aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
           // A value not in the list (typed in an uploaded file) stays visible, to be fixed.
           placeholder={placeholder} value={query ?? chosen?.label ?? value}
-          onChange={e => { setQuery(e.target.value); setActive(0); setOpen(true) }}
+          onChange={e => { setQuery(e.target.value); setActive(0); if (!open) place(); setOpen(true) }}
           onClick={openList} onKeyDown={onKeyDown} onBlur={leave}
           className={`${control} ${controlSize[size]} cursor-pointer pr-10`} />
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
           className={`pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted ${open ? 'rotate-180' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
         {open && (
-          <div className="absolute inset-x-0 top-full z-30 mt-1 rounded-card border border-line bg-card p-1.5 shadow-float">
+          <div style={at} className="fixed z-[80] w-max max-w-[min(32rem,calc(100vw-2rem))] rounded-card border border-line bg-card p-1.5 shadow-float">
             <ul ref={list} id={listId} role="listbox" aria-label={typeof label === 'string' ? label : undefined}
               className="m-0 flex max-h-64 list-none flex-col gap-0.5 overflow-y-auto p-0">
               {shown.map((o, i) => (
@@ -185,13 +226,17 @@ interface RadioGroupProps {
   options: { value: string; label: string; hint?: string }[]
   value: string
   onChange: (value: string) => void
+  /** Under the choices: what to know, or (error) what to fix. */
+  hint?: string
+  error?: string
 }
 
 /** One choice from a few (two to four) shown side by side; more than that is a SelectField. */
-export function RadioGroup({ label, name, options, value, onChange }: RadioGroupProps) {
+export function RadioGroup({ label, name, options, value, onChange, hint, error }: RadioGroupProps) {
   const id = useId()
+  const note = error ?? hint
   return (
-    <fieldset role="radiogroup" aria-labelledby={`${id}-label`} className="m-0 flex flex-col gap-1.5 border-0 p-0">
+    <fieldset role="radiogroup" aria-labelledby={`${id}-label`} aria-describedby={note ? `${id}-note` : undefined} aria-invalid={error ? true : undefined} className="m-0 flex flex-col gap-1.5 border-0 p-0">
       <legend id={`${id}-label`} className="mb-1.5 p-0 text-label font-medium text-ink">{label}</legend>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {options.map(o => (
@@ -205,6 +250,7 @@ export function RadioGroup({ label, name, options, value, onChange }: RadioGroup
           </label>
         ))}
       </div>
+      {note && <p id={`${id}-note`} className={`m-0 text-hint ${error ? 'font-medium text-danger-ink' : 'text-muted'}`}>{note}</p>}
     </fieldset>
   )
 }

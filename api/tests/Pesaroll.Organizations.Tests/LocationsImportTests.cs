@@ -163,8 +163,19 @@ public sealed class LocationsImportTests(OnboardingTests.Api api) : IClassFixtur
         Assert.Equal(HttpStatusCode.BadRequest, garbage.StatusCode);
         Assert.Equal("ONB-3516", (await ErrorFrom(garbage)).Code);
 
+        // Only .xlsx and .csv, whatever the file says it is.
+        var pdf = await Check(client, Encoding.UTF8.GetBytes("Location name,Type\r\n"), "locations.pdf", "text/csv");
+        var wrongType = await ErrorFrom(pdf);
+        Assert.Equal(("ONB-3543", "Only .xlsx or .csv files can be imported. locations.pdf is a .pdf file."), (wrongType.Code, wrongType.Message));
+
+        // The columns are checked first: a file that isn't the template says why.
         var noHeader = await Check(client, Encoding.UTF8.GetBytes("Name,Place\r\nShop,Nairobi\r\n"), "x.csv", "text/csv");
-        Assert.Equal("ONB-3516", (await ErrorFrom(noHeader)).Code);
+        var mismatch = await ErrorFrom(noHeader);
+        Assert.Equal("ONB-3544", mismatch.Code);
+        Assert.Equal("Invalid file: it doesn't match the locations template. Missing columns: Location name, Type, Code, County, Town, Address, Main location. "
+            + "Columns the template doesn't have: Name, Place. Download the template and copy your rows into it.", mismatch.Message);
+        var oneMissing = await ErrorFrom(await Check(client, Encoding.UTF8.GetBytes("Location name,Type,Code,County,Town,Address\r\nShop,Branch,,Nairobi,,\r\n"), "x.csv", "text/csv"));
+        Assert.Equal("Invalid file: it doesn't match the locations template. Missing columns: Main location. Download the template and copy your rows into it.", oneMissing.Message);
 
         var empty = (await (await Check(client, Workbook())).Content.ReadFromJsonAsync<Checked>())!;
         Assert.Equal("The file has no locations.", Assert.Single(empty.Problems).Message);

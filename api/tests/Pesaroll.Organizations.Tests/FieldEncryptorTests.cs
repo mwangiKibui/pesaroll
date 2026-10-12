@@ -10,6 +10,30 @@ public sealed class FieldEncryptorTests
 
     private static FieldEncryptor With(params EncryptionKey[] keys) => new(Options.Create(new EncryptionOptions { Keys = [.. keys] }));
 
+    private static readonly string LookupKey = Convert.ToBase64String(Enumerable.Repeat((byte)9, 32).ToArray());
+
+    private static FieldEncryptor WithLookup(params EncryptionKey[] keys) =>
+        new(Options.Create(new EncryptionOptions { Keys = [.. keys], LookupKey = LookupKey }));
+
+    [Fact]
+    public void A_lookup_finds_the_same_value_again_without_storing_it_and_survives_a_key_change()
+    {
+        var before = WithLookup(Key("2026-10", 1));
+        var after = WithLookup(Key("2027-01", 2), Key("2026-10", 1));   // a new encryption key, the same lookup key
+
+        var lookup = before.Lookup("A012345678Z", "kra_pin:org-1");
+
+        Assert.Equal(lookup, after.Lookup("A012345678Z", "kra_pin:org-1"));
+        Assert.NotEqual(lookup, before.Lookup("A012345678Z", "kra_pin:org-2"));   // another organization can't match it
+        Assert.NotEqual(lookup, before.Lookup("A012345679Z", "kra_pin:org-1"));
+        Assert.DoesNotContain("A012345678Z", lookup);
+        Assert.Equal(64, lookup.Length);
+    }
+
+    [Fact]
+    public void Lookups_need_their_own_key() =>
+        Assert.Throws<InvalidOperationException>(() => With(Key("2026-10", 1)).Lookup("A012345678Z", "kra_pin:org-1"));
+
     [Fact]
     public void A_value_comes_back_only_with_the_same_context_and_never_appears_in_the_stored_bytes()
     {

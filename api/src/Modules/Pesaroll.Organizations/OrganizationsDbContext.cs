@@ -25,6 +25,10 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
     public DbSet<PaySchedule> PaySchedules => Set<PaySchedule>();
     public DbSet<PayScheduleCompany> PayScheduleCompanies => Set<PayScheduleCompany>();
+    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<Employment> Employments => Set<Employment>();
+    public DbSet<Compensation> Compensations => Set<Compensation>();
+    public DbSet<EmployeePaymentAccount> EmployeePaymentAccounts => Set<EmployeePaymentAccount>();
     public DbSet<StatutoryLeave> StatutoryLeave => Set<StatutoryLeave>();
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
     public DbSet<LeavePlan> LeavePlans => Set<LeavePlan>();
@@ -81,6 +85,23 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
         model.Entity<PaySchedule>().HasMany(s => s.Companies).WithOne().HasForeignKey(c => c.PayScheduleId);
         model.Entity<PayScheduleCompany>().HasKey(c => new { c.PayScheduleId, c.CompanyId });
+        // Employees: the app makes every id, so rows added to an employee are new, not updates.
+        model.Entity<Employee>().HasMany(e => e.Employments).WithOne().HasForeignKey(x => x.EmployeeId);
+        model.Entity<Employee>().HasMany(e => e.Compensations).WithOne().HasForeignKey(x => x.EmployeeId);
+        model.Entity<Employee>().HasMany(e => e.Accounts).WithOne().HasForeignKey(x => x.EmployeeId);
+        model.Entity<Employment>().Property(x => x.Id).ValueGeneratedNever();
+        // A job's references, so EF writes a new department or position (from an upload) before the job.
+        model.Entity<Employment>().HasOne<Position>().WithMany().HasForeignKey(x => x.PositionId);
+        model.Entity<Employment>().HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId);
+        model.Entity<Employment>().HasOne<Unit>().WithMany().HasForeignKey(x => x.UnitId);
+        model.Entity<Employment>().HasOne<Location>().WithMany().HasForeignKey(x => x.LocationId);
+        model.Entity<Employment>().HasOne<PaySchedule>().WithMany().HasForeignKey(x => x.PayScheduleId);
+        model.Entity<Employment>().HasOne<LeavePlan>().WithMany().HasForeignKey(x => x.LeavePlanId);
+        model.Entity<Employment>().HasOne<Employee>().WithMany().HasForeignKey(x => x.LineManagerId).OnDelete(DeleteBehavior.ClientSetNull);
+        model.Entity<Compensation>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<Compensation>().Property(x => x.Currency).HasColumnType("char(3)");
+        model.Entity<EmployeePaymentAccount>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<EmployeePaymentAccount>().Property(x => x.CountryCode).HasColumnType("char(2)");
         model.Entity<StatutoryLeave>().ToTable("statutory_leave").HasKey(s => new { s.CountryCode, s.Key });
         model.Entity<StatutoryLeave>().Property(s => s.CountryCode).HasColumnType("char(2)");
         model.Entity<LeaveType>().Property(t => t.CountryCode).HasColumnType("char(2)");

@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using System.Globalization;
 using System.Text;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Builder;
@@ -32,8 +34,19 @@ public sealed record ImportRequest(List<ImportRow>? Rows, bool AllCompanies, Lis
 
 public sealed record ImportResult(int Imported);
 
-/// <summary>A template column: its key in a row's cells and its header in the file.</summary>
-public sealed record ImportColumn(string Key, string Header);
+/// <summary>
+/// A template column: its key in a row's cells, its header in the file, and optionally its cells'
+/// format: "@" keeps text as typed (leading zeros in account numbers). A date column (Date) says
+/// how to write it in its header, "Start date (DD/MM/YYYY)", and is read back as yyyy-mm-dd when it
+/// is one. A column left out of the template (InTemplate false) is filled in by the app, such as the
+/// company chosen before the upload. A column that DependsOn another (Branch on Bank) offers the
+/// choices for that row's value of it: its choices are keyed "branch:Equity Bank".
+/// </summary>
+public sealed record ImportColumn(string Key, string Header, string? Format = null, bool InTemplate = true, bool IsDate = false, string? DependsOn = null)
+{
+    /// <summary>A date column: day first, as written in Kenya.</summary>
+    public static ImportColumn Date(string key, string header) => new(key, $"{header} (DD/MM/YYYY)", "dd/mm/yyyy", IsDate: true);
+}
 
 /// <summary>
 /// What one kind of record (locations, departments…) tells the shared import: its columns, its
@@ -48,12 +61,15 @@ public sealed class ImportSpec<TValid>
     public required IReadOnlyList<string> RequiredKeys { get; init; }
     public required int MaxRows { get; init; }
     public required int MaxMegabytes { get; init; }
-    /// <summary>The template's dropdowns: choices by column key.</summary>
-    public required Func<OrganizationsDbContext, CancellationToken, Task<Dictionary<string, List<string>>>> Choices { get; init; }
-    /// <summary>Checks the rows (the same rules as adding one by hand): the valid rows, problems, and notes of what will be created.</summary>
-    public required Func<List<ImportRow>, OrganizationsDbContext, CancellationToken, Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)>> Check { get; init; }
+    /// <summary>The template's dropdowns: choices by column key, for the company chosen (when the template is for one).</summary>
+    public required Func<OrganizationsDbContext, Guid?, CancellationToken, Task<Dictionary<string, List<string>>>> Choices { get; init; }
+    /// <summary>
+    /// Checks the rows (the same rules as adding one by hand): the valid rows, problems, and notes of
+    /// what will be created. The request's services are there for what needs them (the field encryptor).
+    /// </summary>
+    public required Func<List<ImportRow>, OrganizationsDbContext, IServiceProvider, CancellationToken, Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)>> Check { get; init; }
     /// <summary>Saves the checked rows for the chosen companies; returns how many were saved.</summary>
-    public required Func<List<TValid>, ImportRequest, Guid, OrganizationsDbContext, DateTimeOffset, CancellationToken, Task<int>> Save { get; init; }
+    public required Func<List<TValid>, ImportRequest, Guid, OrganizationsDbContext, DateTimeOffset, IServiceProvider, CancellationToken, Task<int>> Save { get; init; }
 }
 
 /// <summary>
@@ -69,13 +85,13 @@ public static class SpreadsheetImport
 
     public static void MapImport<TValid>(RouteGroupBuilder group, string prefix, ImportSpec<TValid> spec)
     {
-        group.MapGet($"{prefix}/template", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        group.MapGet($"{prefix}/template", async (Guid? companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            return Results.File(Template(spec, await spec.Choices(db, ct)), Xlsx, $"pesaroll-{spec.Things}-template.xlsx");
+            return Results.File(Template(spec, await spec.Choices(db, companyId, ct)), Xlsx, $"pesaroll-{spec.Things}-template.xlsx");
         }).Produces(StatusCodes.Status200OK, contentType: Xlsx).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
-        group.MapPost($"{prefix}/import/read", async (IFormFile file, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        group.MapPost($"{prefix}/import/read", async (IFormFile file, Guid? companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
@@ -85,7 +101,17 @@ public static class SpreadsheetImport
             }
 
             var rows = await ReadAsync(file, spec, ct);
-            var (_, problems, notes) = await CheckAsync(spec, rows, db, ct);
+            // The company chosen before the upload, for a file without a Company column.
+            if (companyId is Guid id && spec.Columns.Any(c => c.Key == "company" && !c.InTemplate)
+                && await db.Companies.AsNoTracking().Where(c => c.Id == id).Select(c => c.LegalName).SingleOrDefaultAsync(ct) is { } company)
+            {
+                foreach (var row in rows)
+                {
+                    row.Cells["company"] = company;
+                }
+            }
+
+            var (_, problems, notes) = await CheckAsync(spec, rows, db, http.RequestServices, ct);
             return Results.Ok(new ImportRead(rows, problems, notes));
         }).DisableAntiforgery()   // the origin check (OriginCheckMiddleware) protects it, as for JSON requests
           .Produces<ImportRead>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -96,7 +122,7 @@ public static class SpreadsheetImport
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (_, problems, notes) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
+            var (_, problems, notes) = await CheckAsync(spec, Clean(request.Rows, spec), db, http.RequestServices, ct);
             return Results.Ok(new ImportCheck(problems, notes));
         }).Produces<ImportCheck>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
@@ -106,19 +132,19 @@ public static class SpreadsheetImport
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (valid, problems, _) = await CheckAsync(spec, Clean(request.Rows, spec), db, ct);
+            var (valid, problems, _) = await CheckAsync(spec, Clean(request.Rows, spec), db, http.RequestServices, ct);
             if (problems.Count > 0)
             {
                 throw RowsNeedFixing(problems);
             }
 
-            return Results.Ok(new ImportResult(await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), ct)));
+            return Results.Ok(new ImportResult(await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct)));
         }).Produces<ImportResult>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
     }
 
     private static async Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)> CheckAsync<TValid>(
-        ImportSpec<TValid> spec, List<ImportRow> rows, OrganizationsDbContext db, CancellationToken ct)
+        ImportSpec<TValid> spec, List<ImportRow> rows, OrganizationsDbContext db, IServiceProvider services, CancellationToken ct)
     {
         if (rows.Count == 0)
         {
@@ -126,7 +152,7 @@ public static class SpreadsheetImport
         }
 
         // In file order: by row, then by column.
-        var (valid, problems, notes) = await spec.Check(rows, db, ct);
+        var (valid, problems, notes) = await spec.Check(rows, db, services, ct);
         var order = spec.Columns.Select((c, i) => (c.Key, i)).ToDictionary(c => c.Key, c => c.i);
         List<ImportProblem> Sorted(List<ImportProblem> list) =>
             list.OrderBy(p => p.Line).ThenBy(p => p.Column is null ? -1 : order.GetValueOrDefault(p.Column, 99)).ToList();
@@ -135,6 +161,16 @@ public static class SpreadsheetImport
 
     private static AppException Unreadable() =>
         new("ONB-3516", "We couldn't read this file. Use the template (.xlsx) or a .csv file with the same columns.");
+
+    private static AppException WrongType(string fileName) =>
+        new("ONB-3543", $"Only .xlsx or .csv files can be imported. {fileName} is {(Path.GetExtension(fileName) is { Length: > 1 } ext ? $"a {ext.ToLowerInvariant()} file" : "not one")}.");
+
+    /// <summary>"Invalid file: it doesn't match the locations template. Missing columns: … Columns the template doesn't have: …"</summary>
+    private static AppException NotTheTemplate<TValid>(ImportSpec<TValid> spec, List<string> missing, List<string> unknown) =>
+        new("ONB-3544", $"Invalid file: it doesn't match the {spec.Things} template."
+            + (missing.Count > 0 ? $" Missing columns: {string.Join(", ", missing)}." : "")
+            + (unknown.Count > 0 ? $" Columns the template doesn't have: {string.Join(", ", unknown)}." : "")
+            + " Download the template and copy your rows into it.");
 
     private static AppException TooBig<TValid>(ImportSpec<TValid> spec) =>
         new("ONB-3517", $"The file is too big. Upload up to {spec.MaxRows:N0} {spec.Things} and {spec.MaxMegabytes} MB at a time.");
@@ -154,10 +190,45 @@ public static class SpreadsheetImport
         var lists = book.AddWorksheet("Lists");
         var last = spec.MaxRows + 1;
         var listColumn = 0;
-        for (var c = 0; c < spec.Columns.Count; c++)
+        var inTemplate = spec.Columns.Where(x => x.InTemplate).ToList();
+        for (var c = 0; c < inTemplate.Count; c++)
         {
-            sheet.Cell(1, c + 1).Value = spec.Columns[c].Header;
-            if (choices.GetValueOrDefault(spec.Columns[c].Key) is not { } options)
+            sheet.Cell(1, c + 1).Value = inTemplate[c].Header;
+            if (inTemplate[c].Format is { } format)
+            {
+                sheet.Range(2, c + 1, last, c + 1).Style.NumberFormat.Format = format;
+            }
+
+            if (inTemplate[c].DependsOn is { } parent && inTemplate.FindIndex(x => x.Key == parent) is var p and >= 0)
+            {
+                // A list per value of the other column (a named range), found through a lookup table of
+                // value → name: the cell's dropdown is INDIRECT(VLOOKUP(that row's value)).
+                var prefix = inTemplate[c].Key + ":";
+                var groups = choices.Where(x => x.Key.StartsWith(prefix, StringComparison.Ordinal) && x.Value.Count > 0).ToList();
+                if (groups.Count == 0)
+                {
+                    continue;
+                }
+
+                var table = ++listColumn;
+                listColumn++;
+                for (var g = 0; g < groups.Count; g++)
+                {
+                    var name = $"{inTemplate[c].Key}_{g + 1}";
+                    lists.Cell(g + 1, table).Value = groups[g].Key[prefix.Length..];
+                    lists.Cell(g + 1, table + 1).Value = name;
+                    listColumn++;
+                    for (var i = 0; i < groups[g].Value.Count; i++) lists.Cell(i + 1, listColumn).Value = groups[g].Value[i];
+                    book.DefinedNames.Add(name, lists.Range(1, listColumn, groups[g].Value.Count, listColumn));
+                }
+
+                var parentCell = sheet.Cell(2, p + 1).Address.ToString(XLReferenceStyle.A1, includeSheet: false).Replace("$", "");
+                var lookup = $"Lists!{lists.Range(1, table, groups.Count, table + 1).RangeAddress.ToStringFixed(XLReferenceStyle.A1)}";
+                sheet.Range(2, c + 1, last, c + 1).CreateDataValidation().List($"INDIRECT(VLOOKUP({parentCell},{lookup},2,FALSE))");
+                continue;
+            }
+
+            if (choices.GetValueOrDefault(inTemplate[c].Key) is not { } options)
             {
                 continue;
             }
@@ -174,38 +245,65 @@ public static class SpreadsheetImport
         lists.Hide();
         sheet.Row(1).Style.Font.Bold = true;
         sheet.SheetView.FreezeRows(1);
-        sheet.Columns(1, spec.Columns.Count).Width = 22;
+        sheet.Columns(1, inTemplate.Count).Width = 22;
         using var stream = new MemoryStream();
         book.SaveAs(stream);
         return stream.ToArray();
     }
 
+    /// <summary>A date as written: 2024-01-15, 15/01/2024 (day first, as in Kenya), 15 Jan 2024; null if it isn't one.</summary>
+    public static DateOnly? ParseDate(string text)
+    {
+        string[] formats = ["yyyy-MM-dd", "d/M/yyyy", "d-M-yyyy", "d.M.yyyy", "d MMM yyyy", "d-MMM-yyyy", "d MMMM yyyy", "yyyy-MM-dd HH:mm:ss", "d/M/yyyy HH:mm:ss"];
+        return DateTime.TryParseExact(text.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var d) ? DateOnly.FromDateTime(d) : null;
+    }
+
     /// <summary>The file's rows by column key: the first sheet of an .xlsx, or a .csv. Empty rows are skipped.</summary>
     private static async Task<List<ImportRow>> ReadAsync<TValid>(IFormFile file, ImportSpec<TValid> spec, CancellationToken ct)
     {
+        // Only the template's kinds of file, by name: an .xlsx or a .csv.
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension is not (".xlsx" or ".csv"))
+        {
+            throw WrongType(file.FileName);
+        }
+
         await using var stream = file.OpenReadStream();
         using var copy = new MemoryStream();
         await stream.CopyToAsync(copy, ct);
         copy.Position = 0;
-        var isCsv = file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) || file.ContentType.Contains("csv", StringComparison.OrdinalIgnoreCase);
+        var isCsv = extension == ".csv";
         var table = isCsv ? ReadCsv(Encoding.UTF8.GetString(copy.ToArray())) : ReadXlsx(copy);
         if (table.Count == 0)
         {
             throw Unreadable();
         }
 
-        // The header finds the columns; a file without the required ones isn't ours.
+        // First, the columns: the template's, all of them and nothing else, or the file isn't ours.
         var header = table[0].Select(h => h.Trim()).ToList();
-        var index = spec.Columns.ToDictionary(c => c.Key, c => header.FindIndex(h => string.Equals(h, c.Header, StringComparison.OrdinalIgnoreCase)));
-        if (spec.RequiredKeys.Any(k => index[k] < 0))
+        // "Start date (DD/MM/YYYY)" and "Start date" are the same column (older templates).
+        static string Bare(string text) => Regex.Replace(text, @"\s*\([^)]*\)\s*$", "");
+        bool Same(string a, string b) => string.Equals(Bare(a), Bare(b), StringComparison.OrdinalIgnoreCase);
+        var index = spec.Columns.ToDictionary(c => c.Key, c => header.FindIndex(h => Same(h, c.Header)));
+        var missing = spec.Columns.Where(c => c.InTemplate && index[c.Key] < 0).Select(c => c.Header).ToList();
+        var unknown = header.Where(h => h.Length > 0 && !spec.Columns.Any(c => c.InTemplate && Same(h, c.Header))).Distinct().ToList();
+        if (missing.Count > 0 || unknown.Count > 0)
         {
-            throw Unreadable();
+            throw NotTheTemplate(spec, missing, unknown);
         }
 
         var rows = new List<ImportRow>();
         for (var r = 1; r < table.Count; r++)
         {
             var cells = spec.Columns.ToDictionary(c => c.Key, c => index[c.Key] >= 0 && index[c.Key] < table[r].Count ? table[r][index[c.Key]].Trim() : "");
+            // Dates as yyyy-mm-dd, whichever way they were written; what isn't a date stays as typed, to be fixed.
+            foreach (var column in spec.Columns.Where(c => c.IsDate))
+            {
+                if (ParseDate(cells[column.Key]) is DateOnly date)
+                {
+                    cells[column.Key] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                }
+            }
             if (cells.Values.All(string.IsNullOrEmpty))
             {
                 continue;

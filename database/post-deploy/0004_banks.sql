@@ -10,6 +10,13 @@ insert into banks (country_code, code, name, legal_name, sort_order) values
 on conflict (country_code, code) do update set
   name = excluded.name, legal_name = excluded.legal_name, sort_order = excluded.sort_order, active = true;
 
+-- How long each bank's account numbers are (digits only), from the banks' own pages where they say
+-- (Absa 10, I&M 14) and published examples and guides otherwise (Equity 13, NCBA 10 to 12); KCB's
+-- isn't confirmed, so it stays wide. The back office corrects these (BO-11).
+update banks b set account_digits_min = v.min, account_digits_max = v.max
+from (values ('68', 13, 13), ('03', 10, 10), ('57', 14, 14), ('07', 10, 12), ('01', 10, 16)) as v(code, min, max)
+where b.country_code = 'KE' and b.code = v.code;
+
 insert into bank_branches (country_code, bank_code, code, name, sort_order) values
   ('KE', '68', '047', 'Moi Avenue, Nairobi', 1),
   ('KE', '68', '025', 'Mombasa', 2),

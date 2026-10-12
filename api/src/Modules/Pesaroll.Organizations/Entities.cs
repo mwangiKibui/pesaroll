@@ -116,6 +116,9 @@ public sealed class Bank
     public required string Code { get; set; }
     public required string Name { get; set; }
     public required string LegalName { get; set; }
+    /// <summary>How many digits its account numbers have (ONB-09).</summary>
+    public int AccountDigitsMin { get; set; }
+    public int AccountDigitsMax { get; set; }
     public bool Active { get; set; }
     public int SortOrder { get; set; }
 }
@@ -242,6 +245,98 @@ public sealed class PaySchedule
     public List<PayScheduleReminder> Reminders { get; set; } = [];
     /// <summary>The leave plan for people on this schedule (ONB-08), before their company's default.</summary>
     public Guid? DefaultLeavePlanId { get; set; }
+}
+
+/// <summary>
+/// An employee of one company (ONB-09). The ID number and KRA PIN are encrypted
+/// (<see cref="Pesaroll.Shared.Security.FieldEncryptor"/>) with a lookup for duplicates and the last
+/// four kept for screens. An exit date means they've left.
+/// </summary>
+public sealed class Employee
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public required string StaffNo { get; set; }
+    public required string FirstName { get; set; }
+    public string? MiddleName { get; set; }
+    public required string LastName { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? Address { get; set; }
+    public byte[]? NationalIdEnc { get; set; }
+    public string? NationalIdLookup { get; set; }
+    public string? NationalIdLast4 { get; set; }
+    public byte[]? KraPinEnc { get; set; }
+    public string? KraPinLookup { get; set; }
+    public string? KraPinLast4 { get; set; }
+    public string? NssfNo { get; set; }
+    public string? ShaNo { get; set; }
+    public DateOnly HireDate { get; set; }
+    public DateOnly? ExitDate { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<Employment> Employments { get; set; } = [];
+    public List<Compensation> Compensations { get; set; } = [];
+    public List<EmployeePaymentAccount> Accounts { get; set; } = [];
+}
+
+/// <summary>An employee's job from <see cref="ValidFrom"/> (to <see cref="ValidTo"/>; empty while current).</summary>
+public sealed class Employment
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public DateOnly ValidFrom { get; set; }
+    public DateOnly? ValidTo { get; set; }
+    public Guid? PositionId { get; set; }
+    public Guid? DepartmentId { get; set; }
+    public Guid? UnitId { get; set; }
+    public Guid? LocationId { get; set; }
+    public Guid? LineManagerId { get; set; }
+    public Guid PayScheduleId { get; set; }
+    public Guid LeavePlanId { get; set; }
+    /// <summary>permanent, contract, casual or intern.</summary>
+    public required string EmploymentType { get; set; }
+    public DateOnly? ContractEnd { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>An employee's basic pay from <see cref="ValidFrom"/>: monthly, daily or hourly.</summary>
+public sealed class Compensation
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public DateOnly ValidFrom { get; set; }
+    public DateOnly? ValidTo { get; set; }
+    public decimal BasicAmount { get; set; }
+    public required string PayBasis { get; set; }
+    public required string Currency { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Where an employee's pay goes from <see cref="ValidFrom"/>: a bank account or M-Pesa (encrypted).</summary>
+public sealed class EmployeePaymentAccount
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public required string Method { get; set; }
+    public string? CountryCode { get; set; }
+    public string? BankCode { get; set; }
+    public string? BranchCode { get; set; }
+    public byte[]? AccountNoEnc { get; set; }
+    public string? AccountLast4 { get; set; }
+    public byte[]? MpesaPhoneEnc { get; set; }
+    public string? MpesaLast4 { get; set; }
+    public DateOnly ValidFrom { get; set; }
+    public DateOnly? ValidTo { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
 }
 
 /// <summary>The leave the law gives in a country (reference data, ONB-08).</summary>

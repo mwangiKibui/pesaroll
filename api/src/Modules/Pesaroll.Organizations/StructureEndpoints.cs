@@ -225,6 +225,8 @@ public static class StructureEndpoints
             var item = await level.Items(db).SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
                 ?? throw OnboardingErrors.StructureNotFound();
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            // Employees' jobs first (ids are unique across the levels, so one check covers them all).
+            await EmployeesEndpoints.RequireUnusedAsync(db, item.Name, e => e.PositionId == id || e.DepartmentId == id || e.UnitId == id, ct);
             if (level.InUse is not null && await level.InUse(db, item, ct) is { } uses)
             {
                 throw OnboardingErrors.StructureInUse(item.Name, uses);

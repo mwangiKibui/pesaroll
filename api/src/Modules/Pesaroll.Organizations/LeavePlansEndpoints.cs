@@ -202,6 +202,7 @@ public static class LeavePlansEndpoints
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var plan = await db.LeavePlans.SingleOrDefaultAsync(p => p.Id == id && p.Status == "active", ct) ?? throw OnboardingErrors.LeaveNotFound();
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            await EmployeesEndpoints.RequireUnusedAsync(db, plan.Name, e => e.LeavePlanId == id, ct);
             var defaultOf = await db.Companies.Where(c => c.DefaultLeavePlanId == id).Select(c => c.LegalName).ToListAsync(ct);
             if (defaultOf.Count > 0)
             {

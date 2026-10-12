@@ -144,6 +144,7 @@ public static class PaySchedulesEndpoints
             var schedule = await db.PaySchedules.SingleOrDefaultAsync(s => s.Id == id && s.Status == "active", ct)
                 ?? throw OnboardingErrors.ScheduleNotFound();
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            await EmployeesEndpoints.RequireUnusedAsync(db, schedule.Name, e => e.PayScheduleId == id, ct);
             var defaultOf = await db.Companies.Where(c => c.DefaultPayScheduleId == id).Select(c => c.LegalName).ToListAsync(ct);
             if (defaultOf.Count > 0)
             {

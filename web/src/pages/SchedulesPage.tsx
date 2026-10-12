@@ -15,7 +15,9 @@ import { Checkbox, RadioGroup, SelectField, Switch, TextField } from '../compone
 import { Modal } from '../components/Modal'
 import { MultiSelectField } from '../components/MultiSelectField'
 import { PlusIcon } from '../components/icons'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { usePaged } from '../components/usePaged'
 import { useToast } from '../components/toast'
 import { useCompanies, useSchedules, useSetupDone } from '../setup/hooks'
 import { Proceed } from '../setup/Proceed'
@@ -101,6 +103,7 @@ export default function SchedulesPage() {
 
   const ready = companies.data && schedules.data
   const list = (schedules.data ?? []).filter(s => shown.all || s.allCompanies || s.companyIds.some(id => shown.ids.includes(id)))
+  const paged = usePaged(list)
   const companyNames = (ids: string[]) => (companies.data ?? []).filter(c => ids.includes(c.id)).map(c => c.legalName).join(', ')
   const payDay = (s: Schedule) => {
     const weekday = t(`schedules.weekdays.${s.payWeekday}`)
@@ -150,7 +153,7 @@ export default function SchedulesPage() {
               companies={companies.data.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
           </div>
         )}
-        <TableCard title={t('schedules.tableTitle')} count={list.length}
+        <TableCard footer={<Pagination label={t('pagination.of', { what: t('schedules.tableTitle') })} {...paged.pagination} />} title={t('schedules.tableTitle')} count={list.length}
           actions={<Button onClick={() => setEditing('new')}><PlusIcon />{t('schedules.add')}</Button>}>
           {list.length === 0 ? <EmptyState title={t('schedules.emptyTitle')}>{t('schedules.emptyText')}</EmptyState> : (
             <table>
@@ -168,7 +171,7 @@ export default function SchedulesPage() {
                 </tr>
               </thead>
               <tbody>
-                {list.map(s => (
+                {paged.items.map(s => (
                   <tr key={s.id}>
                     <td className="font-medium text-ink">{s.name}</td>
                     <td>{t(`schedules.frequencies.${s.frequency}`)}</td>

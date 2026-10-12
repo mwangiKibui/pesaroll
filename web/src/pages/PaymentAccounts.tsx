@@ -11,7 +11,9 @@ import { Button, IconButton } from '../components/Button'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { Modal } from '../components/Modal'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { usePaged } from '../components/usePaged'
 import { RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { useToast } from '../components/toast'
 
@@ -96,12 +98,13 @@ export function PaymentAccounts({ company }: { company: Company }) {
   }
 
   const list = accounts.data ?? []
+  const paged = usePaged(list)
   const addButton = <Button onClick={() => setEditing('new')}><PlusIcon />{t('payingAccounts.add')}</Button>
   return (
     <div className="flex flex-col gap-3">
       <p className="m-0 text-hint text-muted">{t('payingAccounts.intro')}</p>
       {!accounts.data ? <Loading rows={2} /> : (
-        <TableCard title={t('payingAccounts.title')} count={list.length} actions={addButton}>
+        <TableCard footer={<Pagination label={t('pagination.of', { what: t('payingAccounts.title') })} {...paged.pagination} />} title={t('payingAccounts.title')} count={list.length} actions={addButton}>
           {list.length === 0 ? <p className="m-0 px-4 py-6 text-muted">{t('payingAccounts.none')}</p> : (
             <table>
               <thead>
@@ -115,7 +118,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
                 </tr>
               </thead>
               <tbody>
-                {list.map(a => (
+                {paged.items.map(a => (
                   <tr key={a.id}>
                     <td>{a.method === 'mpesa' ? t('payingAccounts.mpesa') : t('payingAccounts.bank')}</td>
                     <td>

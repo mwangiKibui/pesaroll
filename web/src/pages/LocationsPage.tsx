@@ -13,7 +13,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice } from '../components/feedback'
 import { Checkbox, SelectField, TextField } from '../components/fields'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { usePaged } from '../components/usePaged'
 import { useToast } from '../components/toast'
 import i18n from '../i18n'
 import { useCompanies, useCountries, useLocations, useSetupDone } from '../setup/hooks'
@@ -67,6 +69,7 @@ export default function LocationsPage() {
 
   const ready = companies.data && locations.data && countries.data
   const list = (locations.data ?? []).filter(l => shown.all || l.allCompanies || l.companyIds.some(id => shown.ids.includes(id)))
+  const paged = usePaged(list)
   const country = countries.data?.find(c => c.code === companies.data?.[0]?.countryCode) ?? countries.data?.[0]
   const companyNames = (ids: string[]) => (companies.data ?? []).filter(c => ids.includes(c.id)).map(c => c.legalName).join(', ')
 
@@ -107,7 +110,7 @@ export default function LocationsPage() {
               companies={companies.data.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
           </div>
         )}
-        <TableCard title={t('locations.tableTitle')} count={list.length} actions={addButton}>
+        <TableCard footer={<Pagination label={t('pagination.of', { what: t('locations.tableTitle') })} {...paged.pagination} />} title={t('locations.tableTitle')} count={list.length} actions={addButton}>
           {list.length === 0 ? <EmptyState title={t('locations.emptyTitle')}>{t('locations.emptyText')}</EmptyState> : (
             <table>
               <thead>
@@ -121,7 +124,7 @@ export default function LocationsPage() {
                 </tr>
               </thead>
               <tbody>
-                {list.map(l => {
+                {paged.items.map(l => {
                   const region = country.regions.find(r => r.code === l.regionCode)?.name
                   return (
                     <tr key={l.id}>
@@ -378,15 +381,15 @@ function UploadLocations({ companies, country, onClose }: { companies: Company[]
       labels={{
         review: count => t('locations.review', { count }),
         importButton: count => t('locations.importButton', { count }),
-        templateHint: t('locations.templateHint'),
+        // How the main location works goes with the template (the review's title bar has no room for it).
+        templateHint: companies.length > 1 ? `${t('locations.templateHint')} ${t('locations.importMainHint')}` : t('locations.templateHint'),
       }}>
-      {companies.length > 1 && <>
-        <div className="max-w-sm">
-          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies}
+      {companies.length > 1 && (
+        <div className="w-full sm:w-64" title={t('locations.importMainHint')}>
+          <CompanySelect label={t('locations.applyTo')} value={applies} onChange={setApplies} compact
             companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
         </div>
-        <p className="m-0 text-hint text-muted">{t('locations.importMainHint')}</p>
-      </>}
+      )}
     </BulkUpload>
   )
 }

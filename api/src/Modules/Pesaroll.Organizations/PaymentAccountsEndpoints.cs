@@ -12,7 +12,8 @@ namespace Pesaroll.Organizations;
 
 public sealed record BranchResponse(string Code, string Name);
 
-public sealed record BankResponse(string Code, string Name, IReadOnlyList<BranchResponse> Branches);
+/// <summary>A bank, its branches, and how many digits its account numbers have.</summary>
+public sealed record BankResponse(string Code, string Name, IReadOnlyList<BranchResponse> Branches, int AccountDigitsMin, int AccountDigitsMax);
 
 /// <summary>
 /// Adding or editing a paying account: a bank account (bank, branch, name, number) or an M-Pesa
@@ -48,7 +49,7 @@ public static class PaymentAccountsEndpoints
             var banks = await db.Banks.Where(b => b.CountryCode == code && b.Active).OrderBy(b => b.SortOrder).ThenBy(b => b.Name).ToListAsync(ct);
             var branches = await db.BankBranches.Where(b => b.CountryCode == code && b.Active).OrderBy(b => b.SortOrder).ThenBy(b => b.Name).ToListAsync(ct);
             return Results.Ok(banks.Select(b => new BankResponse(b.Code, b.Name,
-                branches.Where(r => r.BankCode == b.Code).Select(r => new BranchResponse(r.Code, r.Name)).ToList())).ToList());
+                branches.Where(r => r.BankCode == b.Code).Select(r => new BranchResponse(r.Code, r.Name)).ToList(), b.AccountDigitsMin, b.AccountDigitsMax)).ToList());
         }).WithTags("Companies").Produces<List<BankResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 
         var accounts = app.MapGroup("/api/companies/{companyId:guid}/payment-accounts").WithTags("Companies");

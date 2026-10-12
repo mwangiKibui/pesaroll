@@ -171,6 +171,7 @@ it('uploads locations: template, then a review of every row before importing for
   await vi.waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled())
 
   await userEvent.upload(within(upload).getByLabelText('Choose a file'), new File(['x'], 'branches.xlsx'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const review = await screen.findByRole('dialog', { name: 'Review 2 locations' })
   const sent = calls.find(c => c.path === '/api/locations/import/read')!
   expect(((sent.body as FormData).get('file') as Blob).size).toBe(1)   // the file went as form data
@@ -182,7 +183,8 @@ it('uploads locations: template, then a review of every row before importing for
   await userEvent.click(within(review).getByRole('button', { name: /Apply to/ }))
   await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Ltd/ }))
   await userEvent.keyboard('{Escape}')
-  expect(within(review).getByText(/The row marked Main location becomes the main location of the companies you choose/)).toBeInTheDocument()
+  // How the main location works: the selector's tooltip here (and the template step's hint).
+  expect(within(review).getByRole('button', { name: /Apply to/ }).closest('[title]')).toHaveAttribute('title', expect.stringMatching(/The row marked Main location becomes the main location of the companies you choose/))
   await userEvent.click(within(review).getByRole('button', { name: 'Import 2 locations' }))
 
   expect(await screen.findByText('2 locations imported')).toBeInTheDocument()
@@ -202,6 +204,7 @@ it('with one company, the review has no company choice', async () => {
 
   await userEvent.click(await screen.findByRole('button', { name: 'Upload locations' }))
   await userEvent.upload(within(screen.getByRole('dialog', { name: 'Upload locations' })).getByLabelText('Choose a file'), new File(['x'], 'branches.csv'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const review = await screen.findByRole('dialog', { name: 'Review 1 location' })
   expect(within(review).queryByRole('button', { name: /Apply to/ })).not.toBeInTheDocument()
   await userEvent.click(within(review).getByRole('button', { name: 'Import 1 location' }))

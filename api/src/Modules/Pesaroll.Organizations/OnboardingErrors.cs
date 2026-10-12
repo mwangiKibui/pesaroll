@@ -93,6 +93,24 @@ internal static class OnboardingErrors
     public static AppException LeaveTypeInUse(string plans) =>
         new("ONB-3537", $"This leave is in {plans}. Take it out of those plans first.", 409);
 
+    public static AppException EmployeeDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3538", "Some employee details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException EmployeeNotFound() =>
+        new("ONB-3539", "We couldn't find that employee. They may have been deleted.", 404);
+
+    /// <summary>A number or contact another current employee has: holder is "Wanjiru Kamau (EMP-01)".</summary>
+    public static AppException EmployeeNumberTaken(string field, string label, string holder) =>
+        new("ONB-3540", $"{holder} already has this {label}. Each current employee has their own.", 409)
+        { Fields = new Dictionary<string, string> { [field] = $"{holder} already has this {label}." } };
+
+    public static AppException UsedByEmployees(string name, int count) =>
+        new("ONB-3541", $"{name} is used by {count} {(count == 1 ? "employee" : "employees")}. Move them first.", 409);
+
+    public static AppException StaffNoTaken() =>
+        new("ONB-3542", "Another employee in this company has this staff number. Choose a different one or leave it empty.", 409)
+        { Fields = new Dictionary<string, string> { ["staffNo"] = "Another employee in this company has this staff number." } };
+
     public static AppException NoOrganizationYet() =>
         new("ONB-3503", "You haven't set up your organization yet.", 404);
 }

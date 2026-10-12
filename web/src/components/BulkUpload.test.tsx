@@ -36,6 +36,10 @@ function Page({ read = async () => good, check = async () => clean, importRows =
 }
 
 const review = () => screen.getByRole('dialog', { name: /Review/ })
+async function show(view: RegExp) {
+  await userEvent.click(within(review()).getByRole('combobox', { name: 'Show' }))
+  await userEvent.click(screen.getByRole('option', { name: view }))
+}
 const cell = (column: string, line: number) => within(review()).getByRole(column === 'County' ? 'combobox' : 'textbox', { name: `${column}, row ${line}` })
 
 it('after the upload, a large review shows every column and row, editable, before anything is saved', async () => {
@@ -50,6 +54,7 @@ it('after the upload, a large review shows every column and row, editable, befor
   await userEvent.click(within(drawer).getByRole('button', { name: 'Download template' }))
   expect(download).toHaveBeenCalled()
   await userEvent.upload(within(drawer).getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
 
   expect(await screen.findByRole('dialog', { name: 'Review 2 locations' })).toBeInTheDocument()
   expect(read).toHaveBeenCalledWith(expect.any(File))
@@ -77,6 +82,7 @@ it('search narrows the rows; the table scrolls inside the review with its header
   const many: BulkUploadRead = { rows: Array.from({ length: 40 }, (_, i) => row(i + 2, `Shop ${i + 1}`, i % 2 ? 'Mombasa' : 'Nairobi')), problems: [] }
   render(<Page read={async () => many} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 40 locations' })
 
   expect(within(review()).getByRole('region', { name: 'Rows to import' })).toHaveAttribute('tabindex', '0')
@@ -91,12 +97,13 @@ it('problems show in their cells; fixing a cell clears it; import checks again a
   const importRows = vi.fn(async () => null)
   render(<Page read={async () => withProblems} check={check} importRows={importRows} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 2 locations' })
 
   expect(cell('County', 3)).toHaveValue('Atlantis')   // what was typed stays visible
   expect(cell('County', 3)).toHaveAccessibleDescription('"Atlantis" isn\'t a county we know.')
   expect(within(review()).getByText('1 row needs fixing.')).toBeInTheDocument()
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^Rows to fix/)
   expect(within(review()).getAllByRole('row')).toHaveLength(2)
 
   await userEvent.clear(cell('County', 3))
@@ -104,7 +111,7 @@ it('problems show in their cells; fixing a cell clears it; import checks again a
   await userEvent.click(within(review()).getByRole('option', { name: 'Mombasa' }))
   expect(cell('County', 3)).not.toHaveAccessibleDescription(/Atlantis/)
 
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^All rows/)
   await userEvent.clear(cell('Location name', 2))
   await userEvent.click(within(review()).getByRole('button', { name: 'Import 2 locations' }))
   expect(await within(review()).findByText("Enter the location's name.")).toBeInTheDocument()
@@ -119,6 +126,7 @@ it('a row can be taken out before importing', async () => {
   const importRows = vi.fn(async () => null)
   render(<Page importRows={importRows} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 2 locations' })
 
   await userEvent.click(within(review()).getByRole('button', { name: 'Remove row 3' }))
@@ -135,21 +143,24 @@ it('a file the server refuses stays in the drawer; a failed import shows in the 
   const drawer = screen.getByRole('dialog', { name: 'Upload locations' })
 
   await userEvent.upload(within(drawer).getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   expect(await within(drawer).findByRole('alert')).toHaveTextContent('ONB-3516')
   expect(screen.queryByRole('dialog', { name: /Review/ })).not.toBeInTheDocument()
 
   await userEvent.upload(within(drawer).getByLabelText('Choose another file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await userEvent.click(await within(await screen.findByRole('dialog', { name: /Review/ })).findByRole('button', { name: 'Import 2 locations' }))
   expect(await within(review()).findByRole('alert')).toHaveTextContent('AB12CD34')
 })
 
-it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look across every page', async () => {
+it('a big file is reviewed 100 rows a page; search and Show look across every page', async () => {
   const big: BulkUploadRead = {
     rows: Array.from({ length: 250 }, (_, i) => row(i + 2, `Shop ${i + 1}`, 'Nairobi')),
     problems: [{ line: 240, column: 'county', message: 'Choose a county from the list.' }],
   }
   render(<Page read={async () => big} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 250 locations' })
 
   expect(within(review()).getAllByRole('row')).toHaveLength(101)                 // the header and 100 rows
@@ -163,10 +174,10 @@ it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look a
 
   // The problem is on page 3; the filter finds it from anywhere and starts at page 1.
   await userEvent.click(within(review()).getByRole('button', { name: 'Previous page' }))
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^Rows to fix/)
   expect(within(review()).getAllByRole('row')).toHaveLength(2)
   expect(within(review()).getByText('Page 1 of 1')).toBeInTheDocument()
-  await userEvent.click(within(review()).getByRole('checkbox', { name: 'Only rows to fix' }))
+  await show(/^All rows/)
 
   // Pasted in one go: typing letter by letter redraws 100 editable rows each time.
   await userEvent.click(within(review()).getByRole('searchbox', { name: 'Search rows' }))
@@ -187,6 +198,7 @@ it('what a row names that does not exist yet is noted as "will be created", and 
   const importRows = vi.fn(async () => null)
   const { container } = render(<Page read={async () => withNotes} check={async () => ({ problems: [], notes: withNotes.notes })} importRows={importRows} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 3 locations' })
 
   expect(cell('County', 3)).toHaveValue('Kericho')
@@ -198,4 +210,320 @@ it('what a row names that does not exist yet is noted as "will be created", and 
 
   await userEvent.click(within(review()).getByRole('button', { name: 'Import 3 locations' }))
   expect(importRows).toHaveBeenCalled()
+})
+
+it('adding several opens the review with empty rows to type into; empty rows are left out', async () => {
+  const importRows = vi.fn(async () => null)
+  const check = vi.fn(async () => clean)
+  render(
+    <BulkUpload open startRows={3} title="Add several" columns={columns} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={check} onImport={importRows}
+      labels={{ review: n => `Add ${n} locations`, importButton: n => `Add ${n} locations`, templateHint: '' }} />,
+  )
+
+  const sheet = screen.getByRole('dialog', { name: /Add \d locations/ })
+  expect(within(sheet).getAllByRole('textbox', { name: /Location name, row/ })).toHaveLength(3)
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Add row' }))
+  expect(within(sheet).getAllByRole('textbox', { name: /Location name, row/ })).toHaveLength(4)
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 1' }), 'Westlands branch')
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 3' }), 'Mombasa shop')
+  await userEvent.click(within(sheet).getByRole('button', { name: /^Add \d locations$/ }))
+
+  expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Westlands branch' } }, { line: 3, cells: { name: 'Mombasa shop' } }])
+  expect(importRows).toHaveBeenCalledOnce()
+})
+
+it('a sheet can have checkbox columns, defaults, and cells that only open when another says so', async () => {
+  const importRows = vi.fn(async () => null)
+  const check = vi.fn(async () => clean)
+  const cols = [
+    { key: 'name', label: 'Name' },
+    { key: 'stillHere', label: 'Still works here', type: 'checkbox' as const, defaultValue: 'Yes' },
+    { key: 'exitDate', label: 'Date left', type: 'date' as const, disabledWhen: (cells: Record<string, string>) => cells.stillHere === 'Yes' },
+  ]
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={cols} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={check} onImport={importRows}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+  const sheet = screen.getByRole('dialog', { name: /Add \d people/ })
+
+  const stillHere = within(sheet).getByRole('checkbox', { name: 'Still works here, row 1' })
+  const left = within(sheet).getByLabelText('Date left, row 1')
+  expect(stillHere).toBeChecked()
+  expect(left).toBeDisabled()
+  expect(left).toHaveAttribute('type', 'date')
+
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Add row' }))   // an untouched row stays empty
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Name, row 1' }), 'Akinyi')
+  await userEvent.click(stillHere)
+  expect(left).toBeEnabled()
+  await userEvent.type(left, '2025-06-30')
+  await userEvent.click(within(sheet).getByRole('button', { name: /^Add \d people$/ }))
+
+  expect(check).toHaveBeenCalledWith([{ line: 1, cells: { name: 'Akinyi', stillHere: 'No', exitDate: '2025-06-30' } }])
+})
+
+it('adding by hand happens in a drawer 97% of the screen wide', () => {
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={columns} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={async () => clean} onImport={async () => null}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+
+  expect(screen.getByRole('dialog', { name: 'Add 1 people' })).toHaveClass('max-w-[97vw]')
+  expect(screen.getByTestId('drawer-scrim')).toBeInTheDocument()
+})
+
+it('checks a cell as soon as it is left, offers choices that follow the row, and checks every cell before importing', async () => {
+  const check = vi.fn(async () => clean)
+  const branches: Record<string, { value: string; label: string }[]> = {
+    Equity: [{ value: 'Kilimani', label: 'Kilimani' }], KCB: [{ value: 'Moi Avenue', label: 'Moi Avenue' }],
+  }
+  const cols = [
+    { key: 'name', label: 'Name', validate: (v: string) => (v.trim() ? null : 'Enter their name.') },
+    { key: 'pin', label: 'KRA PIN', validate: (v: string) => (!v || /^A\d{9}[A-Z]$/.test(v) ? null : 'Enter a PIN like A012345678Z.') },
+    { key: 'bank', label: 'Bank', options: [{ value: 'Equity', label: 'Equity' }, { value: 'KCB', label: 'KCB' }] },
+    { key: 'branch', label: 'Branch', optionsFor: (cells: Record<string, string>) => branches[cells.bank] ?? [], disabledWhen: (cells: Record<string, string>) => !cells.bank },
+  ]
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={cols} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={check} onImport={async () => null}
+      onCellsChange={(cells, changed) => (changed === 'bank' ? { ...cells, branch: '' } : cells)}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+  const sheet = screen.getByRole('dialog', { name: /Add \d people/ })
+  const pin = within(sheet).getByRole('textbox', { name: 'KRA PIN, row 1' })
+
+  await userEvent.type(pin, 'P123')
+  expect(within(sheet).queryByText('Enter a PIN like A012345678Z.')).not.toBeInTheDocument()   // not while typing
+  await userEvent.tab()
+  expect(within(sheet).getByText('Enter a PIN like A012345678Z.')).toBeInTheDocument()
+  await userEvent.clear(pin)
+  await userEvent.type(pin, 'A012345678Z')
+  await userEvent.tab()
+  expect(within(sheet).queryByText('Enter a PIN like A012345678Z.')).not.toBeInTheDocument()
+
+  const branch = within(sheet).getByRole('combobox', { name: 'Branch, row 1' })
+  expect(branch).toBeDisabled()
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }))
+  await userEvent.click(screen.getByRole('option', { name: 'KCB' }))
+  expect(branch).toBeEnabled()
+  await userEvent.click(branch)
+  expect(screen.queryByRole('option', { name: 'Kilimani' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('option', { name: 'Moi Avenue' }))
+  expect(branch).toHaveValue('Moi Avenue')
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Bank, row 1' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Equity' }))
+  expect(branch).toHaveValue('')   // a new bank clears the branch
+
+  await userEvent.click(within(sheet).getByRole('button', { name: /^Add \d people$/ }))
+  expect(within(sheet).getByText('Enter their name.')).toBeInTheDocument()   // never left, still checked
+  expect(check).not.toHaveBeenCalled()
+})
+
+it('the arrow keys scroll the rows sideways, except while typing in a cell', async () => {
+  render(
+    <BulkUpload open startRows={1} title="Add employee" columns={columns} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => good} onCheck={async () => clean} onImport={async () => null}
+      labels={{ review: n => `Add ${n} people`, importButton: n => `Add ${n} people`, templateHint: '' }} />,
+  )
+  const sheet = screen.getByRole('dialog', { name: 'Add 1 people' })
+  const rows = within(sheet).getByRole('region', { name: 'Rows to import' })
+  rows.scrollBy = vi.fn(({ left }: ScrollToOptions) => { rows.scrollLeft += left ?? 0 }) as never   // jsdom doesn't scroll
+
+  await userEvent.click(within(sheet).getByRole('columnheader', { name: 'County' }))   // out of the cells
+  await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+  expect(rows.scrollLeft).toBe(640)
+  await userEvent.keyboard('{ArrowLeft}')
+  expect(rows.scrollLeft).toBe(320)
+
+  await userEvent.click(within(sheet).getByRole('textbox', { name: 'Location name, row 1' }))
+  await userEvent.keyboard('{ArrowRight}')
+  expect(rows.scrollLeft).toBe(320)   // the cursor moves in the cell instead
+})
+
+it('each column can be searched and filtered by its values, together, across every page', async () => {
+  const many: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Mombasa shop', 'Mombasa'), row(4, 'Westgate kiosk', 'Nairobi'), row(5, 'Kilimani office', '')],
+    problems: [],
+  }
+  render(<Page read={async () => many} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = review()
+  const shownNames = () => within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)
+
+  // Values: untick one, and its rows go.
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Filter County' }))
+  const panel = screen.getByRole('dialog', { name: 'Filter County' })
+  expect(within(panel).getAllByRole('checkbox').map(c => c.closest('label')?.textContent)).toEqual(['All', '(Empty)1', 'Mombasa1', 'Nairobi2'])
+  await userEvent.click(within(panel).getByRole('checkbox', { name: /^Mombasa/ }))
+  await userEvent.click(within(panel).getByRole('checkbox', { name: /^\(Empty\)/ }))
+  expect(shownNames()).toEqual(['Westlands branch', 'Westgate kiosk'])
+  await userEvent.keyboard('{Escape}')   // closes the filter, not the sheet
+  expect(screen.queryByRole('dialog', { name: 'Filter County' })).not.toBeInTheDocument()
+  expect(within(sheet).getByRole('button', { name: 'Filter County' })).toHaveAttribute('aria-pressed', 'true')
+
+  // Search within a column, on top of the other filter.
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Filter Location name' }))
+  await userEvent.type(within(screen.getByRole('dialog', { name: 'Filter Location name' })).getByRole('searchbox', { name: 'Search Location name' }), 'westg')
+  expect(shownNames()).toEqual(['Westgate kiosk'])
+  expect(within(screen.getByRole('dialog', { name: 'Filter Location name' })).getAllByRole('checkbox', { name: /kiosk|branch|shop|office/ })
+    .map(c => c.closest('label')?.textContent)).toEqual(['Westgate kiosk1'])   // the list narrows too
+  await userEvent.keyboard('{Escape}')
+
+  expect(within(sheet).getByText('Showing 1 of 4')).toBeInTheDocument()
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Clear filters' }))
+  expect(shownNames()).toHaveLength(4)
+})
+
+it('each column sorts A to Z, Z to A, then back to the file order; a row being fixed stays put', async () => {
+  const many: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Mombasa shop', 'Mombasa'), row(4, '', 'Nairobi'), row(5, 'Kilimani office', 'Nairobi')],
+    problems: [],
+  }
+  render(<Page read={async () => many} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = review()
+  const names = () => within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)
+  const sort = () => within(sheet).getByRole('button', { name: 'Sort Location name' })
+  const header = () => within(sheet).getByRole('columnheader', { name: /Location name/ })
+
+  expect(header()).not.toHaveAttribute('aria-sort')
+  await userEvent.click(sort())
+  expect(names()).toEqual(['Kilimani office', 'Mombasa shop', 'Westlands branch', ''])   // empty last
+  expect(header()).toHaveAttribute('aria-sort', 'ascending')
+
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 5' }), ' Z')   // "Kilimani office Z" stays first
+  expect(names()[0]).toBe('Kilimani office Z')
+
+  await userEvent.click(sort())
+  expect(names()).toEqual(['Westlands branch', 'Mombasa shop', 'Kilimani office Z', ''])
+  expect(header()).toHaveAttribute('aria-sort', 'descending')
+
+  await userEvent.click(sort())
+  expect(names()).toEqual(['Westlands branch', 'Mombasa shop', '', 'Kilimani office Z'])   // the file's order
+  expect(header()).not.toHaveAttribute('aria-sort')
+})
+
+it('a chosen file waits for Proceed to preview, so the wrong one can be swapped; only .xlsx and .csv, and the template\'s columns', async () => {
+  const read = vi.fn(async (picked: File): Promise<BulkUploadRead | ApiError> => (picked.name === 'other.xlsx'
+    ? { code: 'ONB-3544', message: 'Invalid file: it doesn\'t match the locations template. Missing columns: County.', reference: '7F3K92QD' }
+    : good))
+  render(<Page read={read} />)
+  const upload = screen.getByRole('dialog', { name: 'Upload locations' })
+  const proceed = within(upload).getByRole('button', { name: 'Proceed to preview' })
+  expect(proceed).toBeDisabled()
+
+  await userEvent.upload(within(upload).getByLabelText('Choose a file'), file('salaries.xlsx'))
+  expect(within(upload).getByText('salaries.xlsx')).toBeInTheDocument()
+  expect(read).not.toHaveBeenCalled()   // nothing happens until Proceed
+  // A browser's "All files" choice gets past the input's accept list.
+  await userEvent.setup({ applyAccept: false }).upload(within(upload).getByLabelText('Choose another file'), new File(['x'], 'notes.pdf'))
+  expect(within(upload).getByText(/Only .xlsx or .csv files can be imported. notes.pdf isn't one/)).toBeInTheDocument()
+  expect(proceed).toBeDisabled()
+
+  await userEvent.upload(within(upload).getByLabelText('Choose another file'), file('other.xlsx'))
+  await userEvent.click(proceed)
+  expect(await within(upload).findByText(/Invalid file: it doesn't match the locations template. Missing columns: County./)).toBeInTheDocument()
+
+  await userEvent.upload(within(upload).getByLabelText('Choose another file'), file('locations.xlsx'))
+  expect(within(upload).queryByText(/Invalid file/)).not.toBeInTheDocument()   // a new file starts clean
+  await userEvent.click(proceed)
+  expect(await screen.findByRole('dialog', { name: /Review 2 locations/ })).toBeInTheDocument()
+  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'locations.xlsx' }))
+})
+
+it('Show picks the rows to fix or the ready ones, with their counts; the sheet opens with nothing focused', async () => {
+  render(<Page read={async () => withProblems} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 2 locations' })
+  expect(sheet).toHaveFocus()   // not the search: nothing looks active yet
+  expect(within(sheet).getByRole('searchbox', { name: 'Search rows' })).not.toHaveFocus()
+
+  await userEvent.click(within(sheet).getByRole('combobox', { name: 'Show' }))
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['All rows (2)', 'Rows to fix (1)', 'Ready rows (1)'])
+  await userEvent.click(screen.getByRole('option', { name: 'Ready rows (1)' }))
+  expect(within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)).toEqual(['Westlands branch'])
+  await show(/^Rows to fix/)
+  expect(within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)).toEqual(['Atlantis office'])
+  await show(/^All rows/)
+  expect(within(sheet).getAllByRole('textbox', { name: /^Location name, row/ })).toHaveLength(2)
+})
+
+it('a row stays marked while any of its cells needs fixing; fixing a duplicate clears its pair too', async () => {
+  const read: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Atlantis office', 'Atlantis'), row(4, 'Westlands branch', 'Nairobi')],
+    problems: [
+      { line: 3, column: 'name', message: 'Use a shorter name.' },
+      { line: 3, column: 'county', message: '"Atlantis" isn\'t a county we know.' },
+      { line: 2, column: 'name', message: 'Row 4 has this location name too.' },
+      { line: 4, column: 'name', message: 'Row 2 has this location name too.' },
+    ],
+  }
+  render(<Page read={async () => read} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 3 locations' })
+  const marked = () => within(sheet).getAllByRole('row').slice(1).filter(r => r.className.includes('bg-warning-soft'))
+    .map(r => parseInt(within(r).getAllByRole('cell')[0].textContent ?? '', 10))   // the row numbers
+  expect(marked()).toEqual([2, 3, 4])
+
+  // Row 3: fixing one of its two cells leaves it marked; fixing both clears it.
+  await userEvent.clear(within(sheet).getByRole('textbox', { name: 'Location name, row 3' }))
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 3' }), 'Kisumu office')
+  expect(marked()).toContain(3)
+  await userEvent.type(within(sheet).getByRole('combobox', { name: 'County, row 3' }), '{Control>}a{/Control}nai')
+  await userEvent.click(screen.getByRole('option', { name: 'Nairobi' }))
+  expect(marked()).not.toContain(3)
+
+  // Rows 2 and 4 share a name: changing row 4's clears both.
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 4' }), ' annex')
+  expect(marked()).toEqual([])
+})
+
+it('fixing one cell leaves the other cells of its row marked; a server-found problem stays until its own cell changes', async () => {
+  const cols = [
+    { key: 'name', label: 'Name', validate: (v: string) => (v.trim() ? null : 'Enter their name.') },
+    { key: 'phone', label: 'Phone', validate: (v: string) => (!v || /^07\d{8}$/.test(v) ? null : 'Enter a mobile number.') },
+    { key: 'email', label: 'Email' },
+  ]
+  const read: BulkUploadRead = {
+    rows: [{ line: 2, cells: { name: '', phone: '0712345678', email: 'w@example' } }],
+    problems: [
+      { line: 2, column: 'name', message: 'Enter their name.' },
+      { line: 2, column: 'phone', message: 'Wanjiru Kamau (K-1) already has this phone number.' },   // only the server knows
+      { line: 2, column: 'email', message: 'Enter a valid email address.' },
+    ],
+  }
+  render(
+    <BulkUpload open title="Upload people" columns={cols} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => read} onCheck={async () => clean} onImport={async () => null}
+      labels={{ review: n => `Review ${n} people`, importButton: n => `Import ${n} people`, templateHint: '' }} />,
+  )
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 1 people' })
+  const phone = within(sheet).getByRole('textbox', { name: 'Phone, row 2' })
+  const email = within(sheet).getByRole('textbox', { name: 'Email, row 2' })
+
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Name, row 2' }), 'Akinyi')
+  await userEvent.tab()
+  expect(phone).toHaveAccessibleDescription('Wanjiru Kamau (K-1) already has this phone number.')
+  expect(email).toHaveAccessibleDescription('Enter a valid email address.')
+
+  await userEvent.click(phone)   // looked at, not changed
+  await userEvent.tab()
+  expect(phone).toHaveAccessibleDescription('Wanjiru Kamau (K-1) already has this phone number.')
+  expect(within(sheet).getAllByRole('row')[1]).toHaveClass('bg-warning-soft')
+
+  await userEvent.clear(phone)
+  await userEvent.type(phone, '0722000111')
+  await userEvent.tab()
+  expect(phone).not.toHaveAccessibleDescription(/already has/)
+  expect(email).toHaveAccessibleDescription('Enter a valid email address.')
+  expect(within(sheet).getAllByRole('row')[1]).toHaveClass('bg-warning-soft')   // email still to fix
 })
