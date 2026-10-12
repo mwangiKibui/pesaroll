@@ -5,7 +5,7 @@ import type { components } from '../api/schema'
 import { useServices } from '../app/services'
 import { Button } from '../components/Button'
 import { Drawer } from '../components/Drawer'
-import { Loading } from '../components/feedback'
+import { Loading, Notice } from '../components/feedback'
 import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
@@ -56,6 +56,7 @@ export function PayItemView({ item, companies, payee, authority, method, tax, on
   const money = (amount: number | string | null | undefined) => (amount != null ? formatMoney(amount) : null)
 
   const payeeDetails = (p: Payee) => {
+    if (p.method === 'bank' && !p.institution) return [t('payees.intoOwnAccount')]
     if (p.method === 'bank' && p.institution === 'sacco') return [p.saccoName, p.saccoBranchName, t('payees.accountShown', { number: p.accountNumber })]
     if (p.method === 'bank') return [p.bankName, p.branchName, t('payees.accountShown', { number: p.accountNumber })]
     if (p.method === 'mpesa_paybill') return [t('payees.paybillShown', { paybill: p.paybill }), p.paybillAccount && t('payees.accountShown', { number: p.paybillAccount })]
@@ -76,6 +77,7 @@ export function PayItemView({ item, companies, payee, authority, method, tax, on
         <span className="block text-label text-muted">{payeeDetails(payee).filter(Boolean).join(' · ')}</span>
         {payee.ourReference && <span className="block text-label text-muted">{t('payees.ourReferenceShown', { reference: payee.ourReference })}</span>}
       </> : null)] as [string, ReactNode],
+      [t('payItems.referenceSource'), t(`payItems.sources.${payee?.referenceSource ?? 'typed'}`)] as [string, ReactNode],
     ] : []),
   ]
 
@@ -101,14 +103,15 @@ export function PayItemView({ item, companies, payee, authority, method, tax, on
         {item.locked ? <p className="m-0 text-body text-ink">{t('who.byLaw')}</p>
           : !assignments.data ? <Loading rows={3} />
             : assignments.data.length === 0 ? <p className="m-0 text-body text-muted">{t('who.noOne')}</p>
-              : assignments.data.map(a => <CompanyWho key={a.companyId} assignment={a} company={companyName(a.companyId)} calcMethod={item.calcMethod} />)}
+              : assignments.data.map(a => <CompanyWho key={a.companyId} assignment={a} company={companyName(a.companyId)} calcMethod={item.calcMethod}
+                referenceSource={payee?.referenceSource ?? 'typed'} />)}
       </TabPanel>
     </Drawer>
   )
 }
 
 /** Who gets it at one company: everyone (with the shared amount and dates) or a table of people. */
-function CompanyWho({ assignment: a, company, calcMethod }: { assignment: Assignment; company: string; calcMethod: string }) {
+function CompanyWho({ assignment: a, company, calcMethod, referenceSource }: { assignment: Assignment; company: string; calcMethod: string; referenceSource: string }) {
   const { t } = useTranslation()
   const paged = usePaged(a.people, 10)
   const value = (amount: number | string | null | undefined, rate: number | string | null | undefined) =>
@@ -118,9 +121,14 @@ function CompanyWho({ assignment: a, company, calcMethod }: { assignment: Assign
   const dates = (from: string | null | undefined, until: string | null | undefined) =>
     [from && t('employees.payItemFrom', { date: shortDate(from) }), until && t('employees.payItemUntil', { date: shortDate(until) })].filter(Boolean).join(' ')
 
+  // Who lacks the number the item takes from profiles.
+  const missing = referenceSource !== 'typed' && a.missing.length > 0 && (
+    <Notice>{t('who.missing', { count: a.missing.length, what: t(`payItems.sourceWhat.${referenceSource}`), names: a.missing.map(m => m.name).join(', ') })}</Notice>
+  )
   if (a.everyone) {
     return (
       <section aria-label={company} className="flex flex-col gap-1">
+        {missing}
         <h3 className="m-0 text-label font-semibold text-ink">{t('who.everyone', { company })}</h3>
         <p className="m-0 text-body text-ink">{value(a.amount, a.rate)} · {dates(a.startsOn, a.endsOn)}</p>
         <p className="m-0 text-hint text-muted">{t('who.everyoneHint')}</p>
@@ -128,6 +136,8 @@ function CompanyWho({ assignment: a, company, calcMethod }: { assignment: Assign
     )
   }
   return (
+    <>
+    {missing}
     <TableCard title={company} count={a.people.length} footer={<Pagination label={t('pagination.of', { what: company })} {...paged.pagination} />}>
       <table>
         <thead>
@@ -146,12 +156,13 @@ function CompanyWho({ assignment: a, company, calcMethod }: { assignment: Assign
                 <span className="block font-mono text-hint text-muted">{p.staffNo}</span>
               </td>
               <td className="tabular-nums">{value(p.amount, p.rate)}</td>
-              <td className="font-mono">{p.reference ?? none}</td>
+              <td className="font-mono">{p.shownReference ? <>{p.shownReference}{p.fromProfile && <span className="font-sans text-hint text-muted"> {t('who.profileTag')}</span>}</> : none}</td>
               <td className="whitespace-nowrap">{dates(p.startsOn, p.endsOn)}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </TableCard>
+    </>
   )
 }

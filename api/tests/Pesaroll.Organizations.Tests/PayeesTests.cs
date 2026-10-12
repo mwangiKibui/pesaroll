@@ -20,7 +20,7 @@ public sealed class PayeesTests(OnboardingTests.Api api) : IClassFixture<Onboard
     private sealed record Item(Guid Id);
     private sealed record Payee(Guid Id, string Name, string Method, string? BankCode, string? BankName, string? BranchCode, string? AccountNumber,
         string? Paybill, string? PaybillAccount, string? ChequePayableTo, string? OurReference, int UsedBy, string? Institution = null, string? SaccoCode = null, string? SaccoName = null,
-        string? SaccoBranchName = null);
+        string? SaccoBranchName = null, string? ReferenceSource = null);
     private sealed record Sacco(string Code, string Name, List<Branch> Branches);
     private sealed record Branch(string Code, string Name);
     private sealed record PayItem(Guid Id, string Name, Guid? PayeeId);
@@ -88,6 +88,16 @@ public sealed class PayeesTests(OnboardingTests.Api api) : IClassFixture<Onboard
         Assert.Equal("Enter the paybill number: 5 to 7 digits.", paybill.Fields!["paybill"]);
         var twin = await client.PostAsJsonAsync("/api/payees", new { name = "stima sacco", method = "cash" });
         Assert.Equal(("ONB-3551", HttpStatusCode.Conflict), ((await ErrorFrom(twin)).Code, twin.StatusCode));
+
+        // Accounts per person from their profiles: a transfer into each person's own bank account needs no
+        // bank details of the payee's; a paybill no account; cheques and cash have no account numbers.
+        var savings = await Make(client, "/api/payees", new { name = "Staff savings", method = "bank", referenceSource = "bank_account" });
+        var helb = await Make(client, "/api/payees", new { name = "HELB", method = "mpesa_paybill", paybill = "200800", paybillAccount = "ignored", referenceSource = "national_id" });
+        var cheque = await Make(client, "/api/payees", new { name = "Insurer", method = "cheque", referenceSource = "national_id" });
+        var now = (await client.GetFromJsonAsync<List<Payee>>("/api/payees"))!;
+        Assert.Equal(("bank_account", (string?)null, (string?)null), (now.Single(p => p.Id == savings).ReferenceSource, now.Single(p => p.Id == savings).Institution, now.Single(p => p.Id == savings).AccountNumber));
+        Assert.Equal(("national_id", (string?)null), (now.Single(p => p.Id == helb).ReferenceSource, now.Single(p => p.Id == helb).PaybillAccount));
+        Assert.Equal("typed", now.Single(p => p.Id == cheque).ReferenceSource);
 
         var edit = await client.PatchAsJsonAsync($"/api/payees/{stima}", new { name = "Stima DT SACCO", method = "mpesa_paybill", paybill = "510800", paybillAccount = "EMP-4471" });
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);

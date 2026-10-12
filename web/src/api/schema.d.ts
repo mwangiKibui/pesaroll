@@ -5799,6 +5799,8 @@ export interface components {
             /** Format: date */
             endsOn: null | string;
             reference: null | string;
+            shownReference: null | string;
+            fromProfile: boolean;
         };
         AssignmentPersonRequest: {
             /** Format: uuid */
@@ -5860,6 +5862,7 @@ export interface components {
             /** Format: date */
             endsOn: null | string;
             people: components["schemas"]["AssignedPersonResponse"][];
+            missing: components["schemas"]["MissingPersonResponse"][];
         };
         CompanyFieldResponse: {
             key: string;
@@ -6288,6 +6291,12 @@ export interface components {
             key: string;
             label: components["schemas"]["LocalizedText"];
         };
+        MissingPersonResponse: {
+            /** Format: uuid */
+            employeeId: string;
+            name: string;
+            staffNo: string;
+        };
         OrganizationResponse: {
             /** Format: uuid */
             id: string;
@@ -6306,6 +6315,7 @@ export interface components {
             institution?: null | string;
             saccoCode?: null | string;
             saccoBranchCode?: null | string;
+            referenceSource?: null | string;
         };
         PayeeResponse: {
             /** Format: uuid */
@@ -6328,6 +6338,7 @@ export interface components {
             saccoName: null | string;
             saccoBranchCode: null | string;
             saccoBranchName: null | string;
+            referenceSource: string;
         };
         PayItemRequest: {
             code: null | string;

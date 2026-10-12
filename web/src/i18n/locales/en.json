@@ -909,7 +909,26 @@
     "deleted": "Deleted",
     "view": "View {{name}}",
     "kind": "Type",
-    "editButton": "Edit"
+    "editButton": "Edit",
+    "referenceSource": "Each person's account number",
+    "sources": {
+      "typed": "Typed for each person",
+      "national_id": "Their ID number",
+      "kra_pin": "Their KRA PIN",
+      "staff_no": "Their staff number",
+      "phone": "Their phone number",
+      "bank_account": "The bank account they're paid into",
+      "mpesa_number": "The M-Pesa number they're paid into"
+    },
+    "sourceWhat": {
+      "typed": "account number",
+      "national_id": "ID number",
+      "kra_pin": "KRA PIN",
+      "staff_no": "staff number",
+      "phone": "phone number",
+      "bank_account": "bank account",
+      "mpesa_number": "M-Pesa number"
+    }
   },
   "employees": {
     "title": "Who works for you?",
@@ -1218,7 +1237,14 @@
     "referencePlaceholder": "Your member number",
     "byLaw": "Everyone: it's set by law, so it applies to every employee.",
     "itemDefault": "The item's amount",
-    "dates": "Dates"
+    "dates": "Dates",
+    "profileTag": "(profile)",
+    "missing_one": "{{count}} person has no {{what}} in their profile yet: {{names}}.",
+    "missing_other": "{{count}} people have no {{what}} in their profile yet: {{names}}.",
+    "notInProfile": "Not in their profile",
+    "fromProfileOnSave": "From their profile when saved",
+    "fromProfileToggle": "From profile",
+    "fromProfileFor": "From profile for {{name}}"
   },
   "payees": {
     "paidTo": "Paid to",
@@ -1270,6 +1296,16 @@
     "accountShown": "account {{number}}",
     "paybillShown": "Paybill {{paybill}}",
     "chequeShown": "Cheque payable to {{name}}",
-    "ourReferenceShown": "Your reference: {{reference}}"
+    "ourReferenceShown": "Your reference: {{reference}}",
+    "profileDetail": "Which detail?",
+    "profileDetailPlaceholder": "Your choice",
+    "profileDetailHint": "Taken from each person's profile when they're given an item paid to this payee.",
+    "profileDetailRequired": "Choose which detail of their profile to use.",
+    "enteredFor": "Account numbers are entered for each person, as set on {{payee}}.",
+    "pickedFrom": "Account numbers are picked from each person's {{what}}, as set on {{payee}}.",
+    "fromProfile": "Pick each person's account number from their employee profile",
+    "fromProfileOffHint": "Off: you enter each person's member or account number, or give the payee's account details.",
+    "fromProfileOnHint": "On: taken from each person's profile, such as their ID number (HELB uses it) or the bank account they're paid into.",
+    "intoOwnAccount": "Into each person's own account (from their profile)"
   }
 }

@@ -15,12 +15,12 @@ namespace Pesaroll.Organizations;
 /// </summary>
 public sealed record PayeeRequest(string? Name, string? Method, string? BankCode, string? BranchCode, string? AccountNumber,
     string? Paybill, string? PaybillAccount, string? ChequePayableTo, string? OurReference, string? Institution = null, string? SaccoCode = null,
-    string? SaccoBranchCode = null);
+    string? SaccoBranchCode = null, string? ReferenceSource = null);
 
 /// <summary>A payee, with how many earnings and deductions name it.</summary>
 public sealed record PayeeResponse(Guid Id, string Name, string Method, string? BankCode, string? BankName, string? BranchCode, string? BranchName,
     string? AccountNumber, string? Paybill, string? PaybillAccount, string? ChequePayableTo, string? OurReference, int UsedBy, string? Institution,
-    string? SaccoCode, string? SaccoName, string? SaccoBranchCode, string? SaccoBranchName);
+    string? SaccoCode, string? SaccoName, string? SaccoBranchCode, string? SaccoBranchName, string ReferenceSource);
 
 /// <summary>A SACCO and its branches, to choose from.</summary>
 public sealed record SaccoResponse(string Code, string Name, IReadOnlyList<BranchResponse> Branches);
@@ -32,6 +32,8 @@ public sealed record SaccoResponse(string Code, string Name, IReadOnlyList<Branc
 public static class PayeesEndpoints
 {
     public static readonly string[] Methods = ["bank", "mpesa_paybill", "cheque", "cash"];
+    /// <summary>How a payee identifies each person: a number typed for each, or one from their profile.</summary>
+    public static readonly string[] ReferenceSources = ["typed", "national_id", "kra_pin", "staff_no", "phone", "bank_account", "mpesa_number"];
 
     public static IEndpointRouteBuilder MapPayeesEndpoints(this IEndpointRouteBuilder app)
     {
@@ -121,9 +123,23 @@ public static class PayeesEndpoints
             errors["method"] = "Choose bank, M-Pesa paybill, cheque or cash.";
         }
 
+        // Each person's account number: entered for each, or from their profile (then the payee's own
+        // account details aren't needed: a transfer goes into each person's account; a paybill takes theirs).
+        // Cheques and cash have no account numbers.
+        var source = method is "cheque" or "cash" ? "typed" : request.ReferenceSource ?? "typed";
+        if (!ReferenceSources.Contains(source))
+        {
+            errors["referenceSource"] = "Choose how they identify each person.";
+        }
+
+        var fromProfile = source != "typed";
         string? bankCode = null, branchCode = null, account = null, paybill = null, paybillAccount = null, payableTo = null, institution = null,
             saccoCode = null, saccoBranch = null;
-        if (method == "bank" && request.Institution is not ("bank" or "sacco"))
+        if (method == "bank" && fromProfile)
+        {
+            // Into each person's own account, from their profile: nothing of the payee's to keep.
+        }
+        else if (method == "bank" && request.Institution is not ("bank" or "sacco"))
         {
             errors["institution"] = "Choose bank or SACCO.";
         }
@@ -181,7 +197,7 @@ public static class PayeesEndpoints
                 errors["paybill"] = "Enter the paybill number: 5 to 7 digits.";
             }
 
-            paybillAccount = Text(request.PaybillAccount);
+            paybillAccount = fromProfile ? null : Text(request.PaybillAccount);
             if (paybillAccount?.Length > 40)
             {
                 errors["paybillAccount"] = "Keep the account to 40 characters.";
@@ -213,6 +229,7 @@ public static class PayeesEndpoints
         (payee.Institution, payee.SaccoCode, payee.SaccoBranchCode) = (institution, saccoCode, saccoBranch);
         (payee.BankCode, payee.BranchCode, payee.AccountNumber) = (bankCode, branchCode, account);
         (payee.Paybill, payee.PaybillAccount, payee.ChequePayableTo, payee.OurReference) = (paybill, paybillAccount, payableTo, reference);
+        payee.ReferenceSource = source;
         payee.UpdatedAt = now;
     }
 
@@ -241,6 +258,6 @@ public static class PayeesEndpoints
             p.BranchCode, branches.FirstOrDefault(b => b.BankCode == p.BankCode && b.Code == p.BranchCode)?.Name, p.AccountNumber,
             p.Paybill, p.PaybillAccount, p.ChequePayableTo, p.OurReference, used.GetValueOrDefault(p.Id), p.Institution,
             p.SaccoCode, p.SaccoCode is null ? null : saccos.GetValueOrDefault(p.SaccoCode), p.SaccoBranchCode,
-            saccoBranches.FirstOrDefault(b => b.SaccoCode == p.SaccoCode && b.Code == p.SaccoBranchCode)?.Name)).ToList();
+            saccoBranches.FirstOrDefault(b => b.SaccoCode == p.SaccoCode && b.Code == p.SaccoBranchCode)?.Name, p.ReferenceSource)).ToList();
     }
 }

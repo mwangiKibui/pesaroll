@@ -267,7 +267,10 @@ interface SwitchProps {
 }
 
 /** A setting that is on or off and applies at once in the form ("Use as the default"). Space or click toggles. */
-export function Switch({ label, hint, checked, onChange, disabled }: SwitchProps) {
+export function Switch({ label, hint, checked, onChange, disabled, accessibleLabel }: SwitchProps & {
+  /** A fuller name for screen readers when the visible label repeats (a toggle per table row: "From profile for Wanjiru Kamau"). */
+  accessibleLabel?: string
+}) {
   const id = useId()
   return (
     <div className="flex items-start justify-between gap-4">
@@ -275,7 +278,7 @@ export function Switch({ label, hint, checked, onChange, disabled }: SwitchProps
         <span id={`${id}-label`} className="text-label font-medium text-ink">{label}</span>
         {hint && <span id={`${id}-hint`} className="text-hint text-muted">{hint}</span>}
       </span>
-      <button type="button" role="switch" aria-checked={checked} aria-labelledby={`${id}-label`}
+      <button type="button" role="switch" aria-checked={checked} aria-labelledby={accessibleLabel ? undefined : `${id}-label`} aria-label={accessibleLabel}
         aria-describedby={hint ? `${id}-hint` : undefined} disabled={disabled} onClick={() => onChange(!checked)}
         className="flex min-h-11 min-w-14 flex-none items-center justify-center rounded-control">
         {/* 44 px to tap; the track inside is smaller. */}

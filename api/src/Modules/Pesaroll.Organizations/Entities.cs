@@ -269,6 +269,8 @@ public sealed class Payee
     public string? PaybillAccount { get; set; }
     public string? ChequePayableTo { get; set; }
     public string? OurReference { get; set; }
+    /// <summary>How they identify each person: typed, or the person's profile (national_id, kra_pin, staff_no, phone, bank_account, mpesa_number).</summary>
+    public string ReferenceSource { get; set; } = "typed";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

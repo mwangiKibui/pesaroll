@@ -909,7 +909,26 @@
     "deleted": "Imefutwa",
     "view": "Tazama {{name}}",
     "kind": "Aina",
-    "editButton": "Hariri"
+    "editButton": "Hariri",
+    "referenceSource": "Nambari ya akaunti ya kila mtu",
+    "sources": {
+      "typed": "Huandikwa kwa kila mtu",
+      "national_id": "Nambari yao ya kitambulisho",
+      "kra_pin": "PIN yao ya KRA",
+      "staff_no": "Nambari yao ya mfanyakazi",
+      "phone": "Nambari yao ya simu",
+      "bank_account": "Akaunti ya benki wanayolipwa",
+      "mpesa_number": "Nambari ya M-Pesa wanayolipwa"
+    },
+    "sourceWhat": {
+      "typed": "nambari ya akaunti",
+      "national_id": "nambari ya kitambulisho",
+      "kra_pin": "PIN ya KRA",
+      "staff_no": "nambari ya mfanyakazi",
+      "phone": "nambari ya simu",
+      "bank_account": "akaunti ya benki",
+      "mpesa_number": "nambari ya M-Pesa"
+    }
   },
   "employees": {
     "title": "Nani anafanya kazi kwako?",
@@ -1218,7 +1237,14 @@
     "referencePlaceholder": "Nambari yako ya uanachama",
     "byLaw": "Wote: kimewekwa na sheria, kwa hivyo kinamhusu kila mfanyakazi.",
     "itemDefault": "Kiasi cha kipengele",
-    "dates": "Tarehe"
+    "dates": "Tarehe",
+    "profileTag": "(wasifu)",
+    "missing_one": "Mtu {{count}} hana {{what}} kwenye wasifu wake bado: {{names}}.",
+    "missing_other": "Watu {{count}} hawana {{what}} kwenye wasifu wao bado: {{names}}.",
+    "notInProfile": "Haipo kwenye wasifu wao",
+    "fromProfileOnSave": "Kutoka kwa wasifu wao ikihifadhiwa",
+    "fromProfileToggle": "Kutoka kwa wasifu",
+    "fromProfileFor": "Kutoka kwa wasifu kwa {{name}}"
   },
   "payees": {
     "paidTo": "Hulipwa kwa",
@@ -1270,6 +1296,16 @@
     "accountShown": "akaunti {{number}}",
     "paybillShown": "Paybill {{paybill}}",
     "chequeShown": "Hundi kwa jina la {{name}}",
-    "ourReferenceShown": "Kumbukumbu yako: {{reference}}"
+    "ourReferenceShown": "Kumbukumbu yako: {{reference}}",
+    "profileDetail": "Maelezo gani?",
+    "profileDetailPlaceholder": "Chaguo lako",
+    "profileDetailHint": "Huchukuliwa kutoka kwa wasifu wa kila mtu anapopewa kipengele kinacholipwa kwa mpokeaji huyu.",
+    "profileDetailRequired": "Chagua maelezo ya wasifu ya kutumia.",
+    "enteredFor": "Nambari za akaunti huandikwa kwa kila mtu, kama ilivyowekwa kwa {{payee}}.",
+    "pickedFrom": "Nambari za akaunti huchukuliwa kutoka kwa {{what}} ya kila mtu, kama ilivyowekwa kwa {{payee}}.",
+    "fromProfile": "Chukua nambari ya akaunti ya kila mtu kutoka kwa wasifu wake",
+    "fromProfileOffHint": "Imezimwa: unaandika nambari ya uanachama au akaunti ya kila mtu, au maelezo ya akaunti ya mpokeaji.",
+    "fromProfileOnHint": "Imewashwa: huchukuliwa kutoka kwa wasifu wa kila mtu, kama nambari ya kitambulisho (HELB huitumia) au akaunti ya benki anayolipwa.",
+    "intoOwnAccount": "Kwa akaunti ya kila mtu (kutoka kwa wasifu wake)"
   }
 }

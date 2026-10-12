@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useServices } from '../app/services'
 import { Button, IconButton } from '../components/Button'
 import { Notice } from '../components/feedback'
-import { RadioGroup, SelectField, TextField } from '../components/fields'
+import { RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
 import { usePaged } from '../components/usePaged'
@@ -17,10 +17,12 @@ import { emptyDraft, number, type CompanyDraft, type PersonDraft } from './whoDr
  * with their own amount or rate (the item's unless changed) and From / Until dates. Items entered
  * each payroll only say who can have them.
  */
-export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, drafts, errors, onChange }: {
+export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, referenceSource = 'typed', drafts, errors, onChange }: {
   companies: { id: string; legalName: string }[]
   itemName: string
   method: string
+  /** Where each person's account number comes from (typed, or a profile field). */
+  referenceSource?: string
   defaultAmount: string
   rate: string
   drafts: Record<string, CompanyDraft>
@@ -61,6 +63,9 @@ export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, dr
           { value: 'none', label: t('who.none') },
         ]} />
       {method === 'each_run' && draft.mode !== 'none' && <Notice>{t('who.eachRun', { name: itemName })}</Notice>}
+      {referenceSource !== 'typed' && draft.mode !== 'none' && draft.missing.length > 0 && (
+        <Notice>{t('who.missing', { count: draft.missing.length, what: t(`payItems.sourceWhat.${referenceSource}`), names: draft.missing.join(', ') })}</Notice>
+      )}
 
       {draft.mode === 'everyone' && (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -77,15 +82,16 @@ export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, dr
       )}
 
       {draft.mode === 'people' && (
-        <People companyId={company.id} draft={draft} amounts={amounts} placeholder={placeholder} problems={problems} change={change} />
+        <People companyId={company.id} draft={draft} amounts={amounts} placeholder={placeholder} problems={problems} change={change} referenceSource={referenceSource} />
       )}
     </div>
   )
 }
 
 /** Specific people: found on the server by any identifier, then a table of the chosen with their own amounts and dates. */
-function People({ companyId, draft, amounts, placeholder, problems, change }: {
+function People({ companyId, draft, amounts, placeholder, problems, change, referenceSource }: {
   companyId: string
+  referenceSource: string
   draft: CompanyDraft
   amounts: 'amount' | 'rate' | null
   placeholder: string
@@ -120,7 +126,7 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
           {(found.data ?? []).map(e => (
             <li key={e.id}>
               <Button variant="secondary" disabled={chosen.has(e.id)}
-                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '', reference: '' }] })}>
+                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '', reference: '', profile: '', manual: false }] })}>
                 {t('who.add', { name: `${e.name} (${e.staffNo})` })}
               </Button>
             </li>
@@ -160,9 +166,19 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
                           value={amounts === 'amount' ? p.amount : p.rate} onChange={e => edit(p.index, { [amounts]: e.target.value })} />
                       </td>
                     )}
-                    <td className="min-w-40">
-                      <TextField size="sm" hideLabel placeholder={t('who.referencePlaceholder')} maxLength={40} label={`${t('who.reference')} ${t('who.for', { name: p.name })}`}
-                        error={problems[`${at}reference`]} value={p.reference} onChange={e => edit(p.index, { reference: e.target.value })} />
+                    <td className="min-w-56">
+                      {/* Picked from their profile (shown, masked where sensitive, or flagged) unless the toggle is off for this person. */}
+                      <div className="flex flex-col gap-1">
+                        {referenceSource !== 'typed' && (
+                          <Switch label={t('who.fromProfileToggle')} accessibleLabel={t('who.fromProfileFor', { name: p.name })} checked={!p.manual}
+                            onChange={on => edit(p.index, on ? { manual: false, reference: '' } : { manual: true })} />
+                        )}
+                        {referenceSource !== 'typed' && !p.manual
+                          ? (p.profile ? <span className="font-mono text-ink">{p.profile}</span>
+                            : <span className="text-hint font-medium text-warning-ink">{draft.missing.includes(p.name) ? t('who.notInProfile') : t('who.fromProfileOnSave')}</span>)
+                          : <TextField size="sm" hideLabel maxLength={40} placeholder={t('who.referencePlaceholder')} label={`${t('who.reference')} ${t('who.for', { name: p.name })}`}
+                              error={problems[`${at}reference`]} value={p.reference} onChange={e => edit(p.index, { reference: e.target.value, manual: true })} />}
+                      </div>
                     </td>
                     <td className="min-w-40">
                       <TextField size="sm" hideLabel type="date" placeholder={t('who.fromPlaceholder')} label={`${t('who.from')} ${t('who.for', { name: p.name })}`}

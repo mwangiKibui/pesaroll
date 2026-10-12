@@ -314,8 +314,11 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       applies: item ? { all: item.allCompanies, ids: item.allCompanies ? companies.map(c => c.id) : item.companyIds } : defaultApplies,
     },
   })
-  const [chosenKind, calcMethod, applies, itemName, defaultAmount, rate] =
-    useWatch({ control, name: ['kind', 'calcMethod', 'applies', 'name', 'defaultAmount', 'rate'] })
+  const [chosenKind, calcMethod, applies, itemName, defaultAmount, rate, payeeId] =
+    useWatch({ control, name: ['kind', 'calcMethod', 'applies', 'name', 'defaultAmount', 'rate', 'payeeId'] })
+  // Each person's number is as the payee identifies people (set on the payee); no payee: typed.
+  const payee = chosenKind !== 'earning' ? payees.data?.find(p => p.id === payeeId) : undefined
+  const referenceSource = payee?.referenceSource ?? 'typed'
   const served = applies.all ? companies : companies.filter(c => applies.ids.includes(c.id))
 
   // A common item fills in the form; anything can still be changed.
@@ -366,9 +369,6 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
         : await api.POST('/api/pay-items', { body })
       if (data) {
         setItem(data)
-        void queryClient.invalidateQueries({ queryKey: ['payItems'] })
-        // People's own views list what they get.
-        void queryClient.invalidateQueries({ queryKey: ['employee'] })
         // Then who gets it, for each company changed (among those the item serves).
         const failed: Record<string, Record<string, string>> = {}
         for (const c of served.filter(c => drafts[c.id]?.dirty)) {
@@ -383,6 +383,9 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
           }
         }
         setWhoErrors(failed)
+        // Refreshed once who gets it is saved too, so the table's Who gets it is current; people's own views list what they get.
+        await queryClient.invalidateQueries({ queryKey: ['payItems'] })
+        void queryClient.invalidateQueries({ queryKey: ['employee'] })
         if (Object.keys(failed).length > 0) return setTab('who')
         toast.show(item ? t('payItems.saved') : t(`payItems.added.${v.kind}`))
         onClose()
@@ -492,7 +495,11 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
         )}
         </TabPanel>
         <TabPanel id={tabsId} tab="who" current={tab}>
-          <WhoGetsIt companies={served} itemName={itemName} method={calcMethod} defaultAmount={defaultAmount} rate={rate}
+          {payee && (
+            <p className="m-0 text-label text-muted">{referenceSource === 'typed' ? t('payees.enteredFor', { payee: payee.name })
+              : t('payees.pickedFrom', { what: t(`payItems.sourceWhat.${referenceSource}`), payee: payee.name })}</p>
+          )}
+          <WhoGetsIt referenceSource={referenceSource} companies={served} itemName={itemName} method={calcMethod} defaultAmount={defaultAmount} rate={rate}
             drafts={drafts} errors={whoErrors} onChange={(id, draft) => setDrafts(d => ({ ...d, [id]: draft }))} />
         </TabPanel>
       </form>

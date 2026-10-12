@@ -35,11 +35,15 @@ public sealed record AssignmentRequest(Guid CompanyId, bool Everyone, decimal? A
 
 public sealed record AssignmentPersonRequest(Guid EmployeeId, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn, string? Reference = null);
 
+/// <summary>Who gets an item at a company; Missing: people whose profile lacks the account number it takes from there.</summary>
 public sealed record CompanyAssignmentResponse(Guid CompanyId, bool Everyone, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn,
-    IReadOnlyList<AssignedPersonResponse> People);
+    IReadOnlyList<AssignedPersonResponse> People, IReadOnlyList<MissingPersonResponse> Missing);
 
+/// <summary>Reference: as typed for them; ShownReference: what applies (typed, else from their profile, masked where sensitive).</summary>
 public sealed record AssignedPersonResponse(Guid EmployeeId, string Name, string StaffNo, decimal? Amount, decimal? Rate, DateOnly StartsOn, DateOnly? EndsOn,
-    string? Reference);
+    string? Reference, string? ShownReference, bool FromProfile);
+
+public sealed record MissingPersonResponse(Guid EmployeeId, string Name, string StaffNo);
 
 /// <summary>An item someone gets, with what applies to them (their own amount or rate, else the item's).</summary>
 public sealed record EmployeePayItemResponse(Guid PayItemId, string Name, string Code, string Kind, string CalcMethod, decimal? Amount, decimal? Rate,
@@ -163,11 +167,12 @@ public static class PayItemsEndpoints
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
 
-        items.MapGet("/{id:guid}/assignments", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        items.MapGet("/{id:guid}/assignments", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
+            CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             _ = await db.PayItems.AsNoTracking().SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct) ?? throw OnboardingErrors.PayItemNotFound();
-            return Results.Ok(await AssignmentsAsync(db, id, ct));
+            return Results.Ok(await AssignmentsAsync(db, id, PayDates.TodayInKenya(clock.GetUtcNow()), ct));
         }).Produces<List<CompanyAssignmentResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
@@ -295,7 +300,7 @@ public static class PayItemsEndpoints
             }
 
             await transaction.CommitAsync(ct);
-            return Results.Ok(await AssignmentsAsync(db, item.Id, ct));
+            return Results.Ok(await AssignmentsAsync(db, item.Id, today, ct));
         }).Produces<List<CompanyAssignmentResponse>>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
@@ -304,17 +309,23 @@ public static class PayItemsEndpoints
         app.MapGet("/api/employees/{id:guid}/pay-items", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            var employee = await db.Employees.AsNoTracking().SingleOrDefaultAsync(e => e.Id == id, ct) ?? throw OnboardingErrors.EmployeeNotFound();
+            var employee = await db.Employees.AsNoTracking().Include(e => e.Accounts.Where(a => a.ValidTo == null))
+                .SingleOrDefaultAsync(e => e.Id == id, ct) ?? throw OnboardingErrors.EmployeeNotFound();
             var rows = await (
                 from x in db.EmployeePayItems.AsNoTracking()
                 join i in db.PayItems.AsNoTracking() on x.PayItemId equals i.Id
                 where i.Status == "active" && (x.EmployeeId == id || (x.EmployeeId == null && x.CompanyId == employee.CompanyId))
-                select new { x, i, Payee = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.Name).FirstOrDefault() }).ToListAsync(ct);
+                select new
+                {
+                    x, i,
+                    Payee = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.Name).FirstOrDefault(),
+                    Source = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.ReferenceSource).FirstOrDefault() ?? "typed",
+                }).ToListAsync(ct);
             return Results.Ok(rows
                 .OrderBy(r => Array.IndexOf(Kinds, r.i.Kind)).ThenBy(r => r.i.Name)
                 .Select(r => new EmployeePayItemResponse(r.i.Id, r.i.Name, r.i.Code, r.i.Kind, r.i.CalcMethod,
                     r.x.Amount ?? (r.i.CalcMethod == "fixed" ? r.i.DefaultAmount : null), r.x.Rate ?? (r.i.CalcMethod == "percent_of_basic" ? r.i.Rate : null),
-                    r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference, r.Payee))
+                    r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference ?? FromProfile(employee, r.Source), r.Payee))
                 .ToList());
         }).WithTags("Earnings and deductions").Produces<List<EmployeePayItemResponse>>()
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
@@ -331,21 +342,63 @@ public static class PayItemsEndpoints
         .GroupBy(x => x.PayItemId)
         .ToDictionary(g => g.Key, g => g.OrderBy(x => x.CompanyId).Select(x => new AssignmentSummary(x.CompanyId, x.Everyone, x.People)).ToList());
 
-    /// <summary>Who gets an item, company by company, chosen people by name.</summary>
-    private static async Task<List<CompanyAssignmentResponse>> AssignmentsAsync(OrganizationsDbContext db, Guid item, CancellationToken ct)
+    /// <summary>
+    /// A person's account number from their profile, as the item's payee identifies people (null: typed, or not in their
+    /// profile). Encrypted ones (ID number, KRA PIN, bank account, M-Pesa number) only masked: the
+    /// payee's file with the real numbers is PAY-09's.
+    /// </summary>
+    internal static string? FromProfile(Employee e, string source)
     {
-        var rows = await (
-            from x in db.EmployeePayItems.AsNoTracking()
-            where x.PayItemId == item
-            join e in db.Employees.AsNoTracking() on x.EmployeeId equals e.Id into people
-            from e in people.DefaultIfEmpty()
-            select new { x, Name = e == null ? null : e.FirstName + " " + e.LastName, StaffNo = e == null ? null : e.StaffNo }).ToListAsync(ct);
-        return rows.GroupBy(r => r.x.CompanyId).Select(g =>
+        static string? Masked(string? last4) => last4 is null ? null : $"•••• {last4}";
+        var account = e.Accounts.FirstOrDefault(a => a.ValidTo == null);
+        return source switch
         {
-            var everyone = g.FirstOrDefault(r => r.x.EmployeeId is null)?.x;
+            "national_id" => Masked(e.NationalIdLast4),
+            "kra_pin" => Masked(e.KraPinLast4),
+            "staff_no" => e.StaffNo,
+            "phone" => e.Phone,
+            "bank_account" => account?.Method == "bank" ? Masked(account.AccountLast4) : null,
+            "mpesa_number" => account?.Method == "mpesa" ? Masked(account.MpesaLast4) : null,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Who gets an item, company by company, chosen people by name, each with the account number that
+    /// applies; and, when it comes from profiles, who lacks one (everyone current at the company, or
+    /// the chosen people without a typed one).
+    /// </summary>
+    private static async Task<List<CompanyAssignmentResponse>> AssignmentsAsync(OrganizationsDbContext db, Guid item, DateOnly today, CancellationToken ct)
+    {
+        // How the item's payee identifies people (an item without a payee: typed).
+        var source = await db.PayItems.AsNoTracking().Where(i => i.Id == item)
+            .Select(i => db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.ReferenceSource).FirstOrDefault()).SingleAsync(ct) ?? "typed";
+        var rows = await db.EmployeePayItems.AsNoTracking().Where(x => x.PayItemId == item).ToListAsync(ct);
+        var everyoneAt = rows.Where(x => x.EmployeeId is null).Select(x => x.CompanyId).ToList();
+        var chosen = rows.Where(x => x.EmployeeId is not null).Select(x => x.EmployeeId!.Value).ToList();
+        var people = await db.Employees.AsNoTracking().Include(e => e.Accounts.Where(a => a.ValidTo == null))
+            .Where(e => chosen.Contains(e.Id) || (source != "typed" && everyoneAt.Contains(e.CompanyId) && (e.ExitDate == null || e.ExitDate >= today)))
+            .ToDictionaryAsync(e => e.Id, ct);
+        static string Name(Employee e) => $"{e.FirstName} {e.LastName}";
+        MissingPersonResponse Missing(Employee e) => new(e.Id, Name(e), e.StaffNo);
+
+        return rows.GroupBy(r => r.CompanyId).Select(g =>
+        {
+            var everyone = g.FirstOrDefault(r => r.EmployeeId is null);
+            var listed = g.Where(r => r.EmployeeId is not null && people.ContainsKey(r.EmployeeId.Value))
+                .Select(r => (Row: r, Person: people[r.EmployeeId!.Value])).OrderBy(x => Name(x.Person)).ToList();
+            var missing = source == "typed" ? []
+                : everyone is not null
+                    ? people.Values.Where(e => e.CompanyId == g.Key && !chosen.Contains(e.Id) && FromProfile(e, source) is null).OrderBy(Name).Select(Missing).ToList()
+                    : listed.Where(x => x.Row.Reference is null && FromProfile(x.Person, source) is null).Select(x => Missing(x.Person)).ToList();
             return new CompanyAssignmentResponse(g.Key, everyone is not null, everyone?.Amount, everyone?.Rate, everyone?.StartsOn, everyone?.EndsOn,
-                g.Where(r => r.x.EmployeeId is not null).OrderBy(r => r.Name)
-                    .Select(r => new AssignedPersonResponse(r.x.EmployeeId!.Value, r.Name!, r.StaffNo!, r.x.Amount, r.x.Rate, r.x.StartsOn, r.x.EndsOn, r.x.Reference)).ToList());
+                listed.Select(x =>
+                {
+                    var fromProfile = x.Row.Reference is null ? FromProfile(x.Person, source) : null;
+                    return new AssignedPersonResponse(x.Person.Id, Name(x.Person), x.Person.StaffNo, x.Row.Amount, x.Row.Rate, x.Row.StartsOn, x.Row.EndsOn,
+                        x.Row.Reference, x.Row.Reference ?? fromProfile, fromProfile is not null);
+                }).ToList(),
+                missing);
         }).ToList();
     }
 
