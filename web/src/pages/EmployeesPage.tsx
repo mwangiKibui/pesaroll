@@ -353,6 +353,15 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
   const positions = useStructure('positions')
   const units = useStructure('units')
   const banks = useBanks(company.countryCode)
+  // What they get besides basic pay: their own items and their company's "everyone" items.
+  const payItems = useQuery({
+    queryKey: ['employee', id, 'payItems'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/employees/{id}/pay-items', { params: { path: { id } } })
+      if (error || !data) throw new Error('payItems')
+      return data
+    },
+  })
   const managers = useQuery({
     queryKey: ['employees', 'choices', company.id],
     queryFn: async () => {
@@ -425,6 +434,25 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
               </div>
             ))}
           </dl>
+          {k === 'pay' && (
+            <section aria-label={t('employees.payItemsTitle')} className="flex flex-col gap-2">
+              <h3 className="m-0 text-label font-semibold text-ink">{t('employees.payItemsTitle')}</h3>
+              {payItems.data?.length === 0 && <p className="m-0 text-label text-muted">{t('employees.payItemsNone')}</p>}
+              <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                {(payItems.data ?? []).map(i => (
+                  <li key={i.payItemId} className="text-body text-ink">
+                    <span className="font-medium">{i.name}</span>{' · '}
+                    {i.calcMethod === 'each_run' ? t('employees.payItemEachRun')
+                      : i.rate != null ? t('employees.payItemRate', { rate: Number(i.rate) })
+                        : i.amount != null ? formatMoney(i.amount) : none}
+                    {' · '}{t('employees.payItemFrom', { date: shortDate(i.startsOn) })}
+                    {i.endsOn && <> {t('employees.payItemUntil', { date: shortDate(i.endsOn) })}</>}
+                    {i.everyone && <span className="text-muted"> {t('employees.payItemEveryone')}</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </TabPanel>
       ))}
     </Drawer>

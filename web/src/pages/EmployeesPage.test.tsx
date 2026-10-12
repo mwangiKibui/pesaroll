@@ -358,6 +358,10 @@ it('the eye opens an employee to read, tab by tab, with Edit to change them', as
   withPeople({
     'GET /api/structure/departments': () => json(200, [kitchen]),
     [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail({ job: { ...employeeDetail().job, departmentId: 'dp1' } })),
+    [`GET /api/employees/${wanjiru.id}/pay-items`]: () => json(200, [
+      { payItemId: 'h1', name: 'House allowance', code: 'HOU-01', kind: 'earning', calcMethod: 'percent_of_basic', amount: null, rate: 10, startsOn: '2026-11-01', endsOn: null, everyone: true },
+      { payItemId: 's1', name: 'SACCO shares', code: 'SAC-01', kind: 'deduction', calcMethod: 'fixed', amount: 2000, rate: null, startsOn: '2026-11-01', endsOn: '2027-03-31', everyone: false },
+    ]),
   })
   renderApp('/setup/employees')
   const row = (await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')).closest('tr')!
@@ -375,6 +379,11 @@ it('the eye opens an employee to read, tab by tab, with Edit to change them', as
   expect(within(view).getByText('Monthly')).toBeInTheDocument()
   await userEvent.click(within(view).getByRole('tab', { name: 'Pay' }))
   expect(within(view).getByText('KES 85,000 a month')).toBeInTheDocument()
+  const extras = within(view).getByRole('region', { name: 'Earnings and deductions' })
+  expect(within(extras).getAllByRole('listitem').map(li => li.textContent)).toEqual([
+    'House allowance · 10% of basic pay · from 1 Nov 2026 (everyone at the company)',
+    'SACCO shares · KES 2,000 · from 1 Nov 2026 until 31 Mar 2027',
+  ])
   await userEvent.click(within(view).getByRole('tab', { name: 'Paid into' }))
   expect(within(view).getByText('M-Pesa')).toBeInTheDocument()
 

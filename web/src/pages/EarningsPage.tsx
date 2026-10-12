@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useId, useState } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
@@ -17,6 +18,8 @@ import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { useCompanies, usePayItems, useSetupDone } from '../setup/hooks'
+import { draftsFrom, requestFor, type CompanyDraft } from './whoDrafts'
+import { WhoGetsIt } from './WhoGetsIt'
 import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
 
@@ -108,6 +111,14 @@ export default function EarningsPage() {
   const method = (i: PayItem) => (i.calcMethod === 'percent_of_basic'
     ? t('payItems.percentOfBasic', { rate: Number(i.rate) })
     : t(`payItems.methodShort.${i.calcMethod}`))
+  // "Everyone at Pesaroll Ltd · 3 people at Centrail Ltd"; the law's items and basic pay are everyone's.
+  const whoGetsIt = (i: PayItem) => {
+    if (i.locked) return t('who.everyoneShort')
+    if (i.assignments.length === 0) return <span className="text-muted">{t('who.noOne')}</span>
+    const name = (id: string) => companies.data?.find(c => c.id === id)?.legalName ?? ''
+    return i.assignments.map(a => (a.everyone ? t('who.everyoneAt', { company: name(a.companyId) })
+      : t('who.peopleAt', { count: Number(a.people), company: name(a.companyId) }))).join(' · ')
+  }
   const tax = (i: PayItem) => {
     if (i.kind === 'earning') return t(i.taxable ? 'payItems.taxed' : 'payItems.notTaxed')
     if (i.kind === 'deduction') return t(i.beforeTax ? 'payItems.beforeTax' : 'payItems.afterTax')
@@ -150,6 +161,7 @@ export default function EarningsPage() {
                           <th scope="col">{t('payItems.tax')}</th>
                           <th scope="col">{t('payItems.defaultAmount')}</th>
                           <th scope="col">{t('payItems.appliesTo')}</th>
+                          <th scope="col">{t('who.title')}</th>
                           <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
                         </tr>
                       </thead>
@@ -165,6 +177,7 @@ export default function EarningsPage() {
                             <td>{tax(i)}</td>
                             <td>{i.defaultAmount != null ? <Money amount={i.defaultAmount} /> : none}</td>
                             <td>{i.allCompanies ? t('payItems.allCompanies') : companyNames(i.companyIds) || none}</td>
+                            <td>{whoGetsIt(i)}</td>
                             <td className="whitespace-nowrap text-right">
                               {i.locked ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-raised px-2.5 py-1 text-tag text-muted">
@@ -203,23 +216,55 @@ export default function EarningsPage() {
       <ConfirmDialog open={!!deleting} title={t('payItems.deleteTitle', { name: deleting?.name })}
         confirmLabel={t('payItems.deleteConfirm')} busy={busy} onConfirm={remove} onCancel={() => setDeleting(null)}>
         {t('payItems.deleteText')}
+        {deleting && deleting.assignments.length > 0 && ` ${t('who.deleteAlso', { who: whoGetsIt(deleting) })}`}
       </ConfirmDialog>
     </SetupLayout>
   )
 }
 
-function PayItemDrawer({ item, kind, companies, defaultApplies, onClose }: {
+/** An item's drawer: for an existing one, who gets it is read first. */
+function PayItemDrawer(props: { item: PayItem | null; kind: Kind; companies: Company[]; defaultApplies: CompanySelection; onClose: () => void }) {
+  const { t } = useTranslation()
+  const { api } = useServices()
+  const id = props.item?.id
+  const assignments = useQuery({
+    queryKey: ['payItems', id, 'assignments'],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/pay-items/{id}/assignments', { params: { path: { id: id! } } })
+      if (error || !data) throw new Error('assignments')
+      return data
+    },
+  })
+  if (id && !assignments.data) {
+    return <Drawer open size="wide" title={t('payItems.editTitle')} onClose={props.onClose}><Loading rows={6} /></Drawer>
+  }
+  return <PayItemForm {...props} initial={draftsFrom(assignments.data ?? [])} />
+}
+
+const drawerTabs = ['details', 'who'] as const
+type DrawerTab = (typeof drawerTabs)[number]
+
+function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, onClose }: {
   item: PayItem | null
   kind: Kind
   companies: Company[]
   defaultApplies: CompanySelection
+  initial: Record<string, CompanyDraft>
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
   const formId = useId()
+  const tabsId = useId()
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
+  const [tab, setTab] = useState<DrawerTab>('details')
+  // Who gets it, per company; saved after the item. A new item that's saved but whose people need
+  // fixing stays open as the saved item, so the next save edits it.
+  const [drafts, setDrafts] = useState(initial)
+  const [whoErrors, setWhoErrors] = useState<Record<string, Record<string, string>>>({})
+  const [item, setItem] = useState(opened)
 
   const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
@@ -235,7 +280,9 @@ function PayItemDrawer({ item, kind, companies, defaultApplies, onClose }: {
       applies: item ? { all: item.allCompanies, ids: item.allCompanies ? companies.map(c => c.id) : item.companyIds } : defaultApplies,
     },
   })
-  const [chosenKind, calcMethod] = useWatch({ control, name: ['kind', 'calcMethod'] })
+  const [chosenKind, calcMethod, applies, itemName, defaultAmount, rate] =
+    useWatch({ control, name: ['kind', 'calcMethod', 'applies', 'name', 'defaultAmount', 'rate'] })
+  const served = applies.all ? companies : companies.filter(c => applies.ids.includes(c.id))
 
   // A common item fills in the form; anything can still be changed.
   const startFrom = (key: string) => {
@@ -282,7 +329,23 @@ function PayItemDrawer({ item, kind, companies, defaultApplies, onClose }: {
         ? await api.PATCH('/api/pay-items/{id}', { params: { path: { id: item.id } }, body })
         : await api.POST('/api/pay-items', { body })
       if (data) {
+        setItem(data)
         void queryClient.invalidateQueries({ queryKey: ['payItems'] })
+        // Then who gets it, for each company changed (among those the item serves).
+        const failed: Record<string, Record<string, string>> = {}
+        for (const c of served.filter(c => drafts[c.id]?.dirty)) {
+          const { error: whoError } = await api.PUT('/api/pay-items/{id}/assignments', { params: { path: { id: data.id } }, body: requestFor(c.id, drafts[c.id]) })
+          if (!whoError) {
+            setDrafts(d => ({ ...d, [c.id]: { ...d[c.id], dirty: false } }))
+          } else if (isApiError(whoError)) {
+            failed[c.id] = whoError.fields ?? {}
+            if (!whoError.fields) setBanner(whoError)
+          } else {
+            setBanner('network')
+          }
+        }
+        setWhoErrors(failed)
+        if (Object.keys(failed).length > 0) return setTab('who')
         toast.show(item ? t('payItems.saved') : t(`payItems.added.${v.kind}`))
         onClose()
         return
@@ -306,6 +369,8 @@ function PayItemDrawer({ item, kind, companies, defaultApplies, onClose }: {
 
   return (
     <Drawer open size="wide" title={item ? t('payItems.editTitle') : t('payItems.addTitle')} onClose={onClose}
+      tabs={<Tabs id={tabsId} label={t('who.sections')} current={tab} onChange={k => setTab(k as DrawerTab)}
+        tabs={drawerTabs.map(k => ({ key: k, label: t(`who.tabs.${k}`), invalid: k === 'who' && Object.keys(whoErrors).length > 0 }))} />}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{item ? t('payItems.save') : t('payItems.add')}</Button>
@@ -313,7 +378,8 @@ function PayItemDrawer({ item, kind, companies, defaultApplies, onClose }: {
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
-        {!item && <>
+        <TabPanel id={tabsId} tab="details" current={tab}>
+        {!opened && <>
           <Controller control={control} name="kind" render={({ field }) => (
             <RadioGroup label={t('payItems.whatAdding')} name={field.name} value={field.value}
               onChange={value => { field.onChange(value); setValue('common', '') }}
@@ -360,6 +426,11 @@ function PayItemDrawer({ item, kind, companies, defaultApplies, onClose }: {
             {errors.applies?.message && <p className="m-0 text-hint font-medium text-danger-ink">{errors.applies.message}</p>}
           </div>
         )}
+        </TabPanel>
+        <TabPanel id={tabsId} tab="who" current={tab}>
+          <WhoGetsIt companies={served} itemName={itemName} method={calcMethod} defaultAmount={defaultAmount} rate={rate}
+            drafts={drafts} errors={whoErrors} onChange={(id, draft) => setDrafts(d => ({ ...d, [id]: draft }))} />
+        </TabPanel>
       </form>
     </Drawer>
   )

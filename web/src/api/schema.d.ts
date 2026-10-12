@@ -171,6 +171,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/employees/{id}/pay-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EmployeePayItemResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/signup-roles": {
         parameters: {
             query?: never;
@@ -2009,6 +2064,131 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/pay-items/{id}/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CompanyAssignmentResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AssignmentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CompanyAssignmentResponse"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/leave-types": {
@@ -5315,6 +5495,53 @@ export interface components {
             accountMasked: null | string;
             mpesaMasked: null | string;
         };
+        AssignedPersonResponse: {
+            /** Format: uuid */
+            employeeId: string;
+            name: string;
+            staffNo: string;
+            /** Format: double */
+            amount: null | number | string;
+            /** Format: double */
+            rate: null | number | string;
+            /** Format: date */
+            startsOn: string;
+            /** Format: date */
+            endsOn: null | string;
+        };
+        AssignmentPersonRequest: {
+            /** Format: uuid */
+            employeeId: string;
+            /** Format: double */
+            amount: null | number | string;
+            /** Format: double */
+            rate: null | number | string;
+            /** Format: date */
+            startsOn: null | string;
+            /** Format: date */
+            endsOn: null | string;
+        };
+        AssignmentRequest: {
+            /** Format: uuid */
+            companyId: string;
+            everyone: boolean;
+            /** Format: double */
+            amount: null | number | string;
+            /** Format: double */
+            rate: null | number | string;
+            /** Format: date */
+            startsOn: null | string;
+            /** Format: date */
+            endsOn: null | string;
+            people: null | components["schemas"]["AssignmentPersonRequest"][];
+        };
+        AssignmentSummary: {
+            /** Format: uuid */
+            companyId: string;
+            everyone: boolean;
+            /** Format: int32 */
+            people: number | string;
+        };
         BankResponse: {
             code: string;
             name: string;
@@ -5327,6 +5554,20 @@ export interface components {
         BranchResponse: {
             code: string;
             name: string;
+        };
+        CompanyAssignmentResponse: {
+            /** Format: uuid */
+            companyId: string;
+            everyone: boolean;
+            /** Format: double */
+            amount: null | number | string;
+            /** Format: double */
+            rate: null | number | string;
+            /** Format: date */
+            startsOn: null | string;
+            /** Format: date */
+            endsOn: null | string;
+            people: components["schemas"]["AssignedPersonResponse"][];
         };
         CompanyFieldResponse: {
             key: string;
@@ -5440,6 +5681,23 @@ export interface components {
             page: number | string;
             /** Format: int32 */
             pageSize: number | string;
+        };
+        EmployeePayItemResponse: {
+            /** Format: uuid */
+            payItemId: string;
+            name: string;
+            code: string;
+            kind: string;
+            calcMethod: string;
+            /** Format: double */
+            amount: null | number | string;
+            /** Format: double */
+            rate: null | number | string;
+            /** Format: date */
+            startsOn: string;
+            /** Format: date */
+            endsOn: null | string;
+            everyone: boolean;
         };
         EmployeeRequest: {
             /** Format: uuid */
@@ -5772,6 +6030,7 @@ export interface components {
             lockedKey: null | string;
             allCompanies: boolean;
             companyIds: string[];
+            assignments: components["schemas"]["AssignmentSummary"][];
         };
         PaymentAccountRequest: {
             method: null | string;

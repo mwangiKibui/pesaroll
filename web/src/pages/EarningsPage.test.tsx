@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { apiError, company, fakeApi, json, location, lockedPayItems, orgToken, payItem, schedule } from '../test/fakeApi'
+import { apiError, company, employeeRow, fakeApi, json, location, lockedPayItems, orgToken, payItem, schedule } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -134,6 +134,7 @@ it('edits and deletes the organization\'s own items', async () => {
   const calls = withItems({
     'GET /api/companies': () => json(200, [restaurant, catering]),
     'GET /api/pay-items': () => json(200, [...lockedPayItems(), house]),
+    [`GET /api/pay-items/${house.id}/assignments`]: () => json(200, []),
     [`PATCH /api/pay-items/${house.id}`]: () => json(200, { ...house, name: 'Housing allowance' }),
     [`DELETE /api/pay-items/${house.id}`]: () => new Response(null, { status: 204 }),
   })
@@ -152,6 +153,76 @@ it('edits and deletes the organization\'s own items', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Delete House allowance' }))
   await userEvent.click(within(screen.getByRole('alertdialog', { name: 'Delete House allowance?' })).getByRole('button', { name: 'Delete' }))
   expect(await screen.findByText('Deleted')).toBeInTheDocument()
+})
+
+it('the table says who gets each item', async () => {
+  withItems({
+    'GET /api/companies': () => json(200, [restaurant, catering]),
+    'GET /api/pay-items': () => json(200, [...lockedPayItems(), { ...house, allCompanies: true, assignments: [
+      { companyId: restaurant.id, everyone: true, people: 0 }, { companyId: catering.id, everyone: false, people: 3 }] }]),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  const earnings = await screen.findByRole('tabpanel', { name: 'Earnings' })
+  const row = (await within(earnings).findByText('House allowance')).closest('tr')!
+  expect(within(earnings).getAllByRole('columnheader').map(h => h.textContent)).toContain('Who gets it')
+  expect(row).toHaveTextContent('Everyone at Mama Oliech Restaurant Ltd · 3 people at Oliech Catering Ltd')
+  expect(within(earnings).getByText('Basic pay').closest('tr')).toHaveTextContent('Everyone')
+})
+
+it('a new item goes to chosen people found by any identifier, each with their own amount and dates', async () => {
+  const wanjiru = employeeRow()
+  const searches: string[] = []
+  const calls = withItems({
+    'POST /api/pay-items': () => json(201, { ...house, id: 'new-sacco', name: 'SACCO shares', kind: 'deduction', taxable: false, defaultAmount: 1500, companyIds: [restaurant.id] }),
+    'PUT /api/pay-items/new-sacco/assignments': () => json(200, []),
+    'GET /api/employees': req => {
+      const q = new URL(req.url).searchParams
+      if (q.get('search')) searches.push(q.get('search')!)
+      return json(200, { items: q.get('search') ? [wanjiru] : [], total: q.get('search') ? 1 : 0, page: 1, pageSize: 8 })
+    },
+  })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Deduction' }))
+  await choose('Start from a common one optional', 'sacco', 'SACCO savings')
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Default amount (KES) optional' }), '1500')
+
+  await userEvent.click(within(drawer()).getByRole('tab', { name: 'Who gets it' }))
+  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Specific employees' }))
+  await userEvent.type(within(drawer()).getByRole('searchbox', { name: 'Find people' }), '0712 345 678')
+  await userEvent.click(await within(drawer()).findByRole('button', { name: 'Add Wanjiru Kamau (EMP-01)' }))
+  expect(searches.at(-1)).toBe('0712 345 678')   // the API matches any identifier
+  const amount = within(drawer()).getByRole('textbox', { name: 'Amount (KES) for Wanjiru Kamau' })
+  expect(amount).toHaveAttribute('placeholder', '1,500')   // the item's default unless changed
+  await userEvent.type(amount, '2000')
+  await userEvent.type(within(drawer()).getByLabelText('Until for Wanjiru Kamau'), '2027-03-31')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
+
+  expect(await screen.findByText('Deduction added')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({
+    companyId: restaurant.id, everyone: false, people: [{ employeeId: wanjiru.id, amount: 2000, endsOn: '2027-03-31' }],
+  })
+})
+
+it('everyone at a company, and a problem the server finds shows on its tab', async () => {
+  const calls = withItems({
+    'GET /api/pay-items': () => json(200, [...lockedPayItems(), pension]),
+    [`GET /api/pay-items/${pension.id}/assignments`]: () => json(200, []),
+    [`PATCH /api/pay-items/${pension.id}`]: () => json(200, pension),
+    [`PUT /api/pay-items/${pension.id}/assignments`]: () => json(400, { code: 'ONB-3547', message: 'Some details of who gets it don\'t look right.', reference: '7F3K92QD',
+      fields: { rate: 'Enter a rate above 0 and up to 100.' } }),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('tab', { name: 'Deductions' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Pension' }))
+  await userEvent.click(within(drawer()).getByRole('tab', { name: 'Who gets it' }))
+  await userEvent.click(within(drawer()).getByRole('radio', { name: 'All employees of Mama Oliech Restaurant Ltd' }))
+  expect(within(drawer()).getByText(/including people hired later/)).toBeInTheDocument()
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Rate (%) optional' }), '150')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
+
+  expect(await within(drawer()).findByRole('textbox', { name: 'Rate (%) optional' })).toHaveAccessibleDescription(/Enter a rate above 0 and up to 100./)
+  expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({ companyId: restaurant.id, everyone: true, rate: 150 })
 })
 
 it('with several companies, the selector filters every tab', async () => {
