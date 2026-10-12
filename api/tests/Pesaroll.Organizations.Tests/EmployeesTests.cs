@@ -275,6 +275,27 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
     }
 
     [Fact]
+    public async Task Search_finds_someone_by_any_of_their_identifiers()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+        await Add(client, Full(company.Id));   // Wanjiru: 0798 765 432, Wanjiru@Example.com, ID 12345678, KRA A012345678Z, NSSF 2098765432, SHA CR1234567-8
+        await Add(client, new { companyId = company.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-15", phone = "0711 000 222",
+            email = "otieno@example.com", job = new { employmentType = "permanent" } });
+
+        async Task<List<string>> Found(string search) =>
+            (await client.GetFromJsonAsync<Page>($"/api/employees?search={Uri.EscapeDataString(search)}"))!.Items.Select(r => r.Name).ToList();
+
+        foreach (var search in new[] { "wanjiru kamau", "EMP-01", "0798 765 432", "0798765432", "+254798765432", "798765", "wanjiru@example", "2098765432", "cr1234567", "12345678", "a012345678z" })
+        {
+            Assert.True((await Found(search)).SequenceEqual(["Wanjiru Kamau"]), $"searching \"{search}\" should find only Wanjiru");
+        }
+        Assert.Empty(await Found("345678"));      // part of an ID number (12345678): stored one way only
+        Assert.Empty(await Found("A0123456"));    // part of a KRA PIN
+        Assert.Equal(["Otieno Ouma"], await Found("0711000222"));
+    }
+
+    [Fact]
     public async Task The_list_is_searched_paged_and_filtered_on_the_server()
     {
         var (client, _, _) = await Onboarded();
