@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, IconButton } from './Button'
 import { buttonClasses } from './buttonStyles'
 import { Drawer } from './Drawer'
-import { FormErrorBanner, Notice, type ApiError } from './feedback'
+import { FormErrorBanner, Notice, Tag, type ApiError } from './feedback'
 import { Checkbox, SelectField, TextField } from './fields'
 import { DownloadIcon, PlusIcon } from './icons'
 import { matches } from './search'
@@ -72,6 +72,100 @@ interface BulkUploadProps {
   onCellsChange?: (cells: Record<string, string>, changed: string) => Record<string, string>
 }
 
+/** A column's filter: rows whose cell contains `text`, without the values in `hidden` ("" for empty cells). */
+interface ColumnFilterState { text: string; hidden: Set<string> }
+const isActive = (f: ColumnFilterState | undefined) => !!f && (!!f.text.trim() || f.hidden.size > 0)
+
+/** Values a filter lists at most; a search narrows the rest. */
+const MAX_VALUES = 200
+
+/**
+ * A column header's filter, as in a spreadsheet: a search over the column (rows whose cell
+ * contains it), and its values with how many rows have each, to untick. It floats over the
+ * sheet (fixed, so the scrolling table doesn't clip it); Escape and a click outside close it.
+ */
+function ColumnFilter({ label, values, display, filter, onChange }: {
+  label: string
+  values: { value: string; count: number }[]
+  display: (value: string) => string
+  filter: ColumnFilterState
+  onChange: (filter: ColumnFilterState) => void
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [at, setAt] = useState({ top: 0, left: 0 })
+  const button = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
+  const name = t('bulk.filter', { column: label })
+
+  useEffect(() => {
+    if (!open) return
+    panel.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()
+    const onDown = (e: MouseEvent) => {
+      if (!panel.current?.contains(e.target as Node) && !button.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  const toggle = () => {
+    const box = button.current?.getBoundingClientRect()
+    if (box) setAt({ top: box.bottom + 4, left: Math.max(8, Math.min(box.left, window.innerWidth - 296)) })
+    setOpen(o => !o)
+  }
+  const close = () => { setOpen(false); button.current?.focus() }
+  const listed = values.filter(v => (filter.text.trim() ? v.value && matches(display(v.value), filter.text) : true))
+  const allTicked = listed.every(v => !filter.hidden.has(v.value))
+  const tick = (value: string, on: boolean) => {
+    const hidden = new Set(filter.hidden)
+    if (on) hidden.delete(value)
+    else hidden.add(value)
+    onChange({ ...filter, hidden })
+  }
+  const tickAll = (on: boolean) => {
+    const hidden = new Set(filter.hidden)
+    for (const v of listed) {
+      if (on) hidden.delete(v.value)
+      else hidden.add(v.value)
+    }
+    onChange({ ...filter, hidden })
+  }
+  const active = isActive(filter)
+
+  return (
+    <>
+      <button ref={button} type="button" aria-label={name} aria-pressed={active} aria-expanded={open} onClick={toggle}
+        className={`inline-flex size-7 shrink-0 items-center justify-center rounded-control ${active ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-card hover:text-ink'}`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" /></svg>
+      </button>
+      {open && (
+        <div ref={panel} role="dialog" aria-label={name} style={{ top: at.top, left: at.left }}
+          onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() } }}
+          className="fixed z-[60] flex w-72 flex-col gap-2 rounded-card border border-line bg-card p-3 text-left font-normal shadow-float">
+          <TextField type="search" size="sm" label={t('bulk.filterSearch', { column: label })} hideLabel placeholder={t('bulk.searchPlaceholder')}
+            value={filter.text} onChange={e => onChange({ ...filter, text: e.target.value })} />
+          <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
+            {listed.length > 0 && <Checkbox label={t('bulk.all')} checked={allTicked} onChange={e => tickAll(e.target.checked)} />}
+            {listed.slice(0, MAX_VALUES).map(v => (
+              <label key={v.value} className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 text-label text-ink hover:bg-raised">
+                <input type="checkbox" checked={!filter.hidden.has(v.value)} onChange={e => tick(v.value, e.target.checked)} className="size-4 accent-brand" />
+                <span className="flex-1 truncate">{v.value ? display(v.value) : t('bulk.empty')}</span>
+                <span className="text-hint text-muted tabular-nums">{v.count}</span>
+              </label>
+            ))}
+            {listed.length > MAX_VALUES && <p className="m-0 px-1 text-hint text-muted">{t('bulk.tooManyValues', { count: MAX_VALUES })}</p>}
+          </div>
+          {active && (
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={() => onChange({ text: '', hidden: new Set() })}>{t('bulk.clearFilter')}</Button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
 const isError = (value: unknown): value is ApiError => typeof value === 'object' && value !== null && 'code' in value && 'reference' in value
 const keyOf = (line: number | string, column?: string | null) => `${line}:${column ?? ''}`
 
@@ -109,6 +203,9 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   // The rows that needed fixing when "Only rows to fix" was ticked: fixed rows stay in view until it is unticked.
   const [onlyProblems, setOnlyProblems] = useState<Set<string> | null>(null)
   const rowsRef = useRef<HTMLDivElement>(null)
+  // Each column's search and unticked values, applied with the search above and "Only rows to fix".
+  const [filters, setFilters] = useState<Record<string, ColumnFilterState>>({})
+  const setFilter = (key: string, filter: ColumnFilterState) => { setFilters(all => ({ ...all, [key]: filter })); setPage(0) }
 
   // While the rows are open, ← and → scroll them sideways (wide sheets have 30 columns), unless a cell is being typed in.
   const showingRows = open && !!rows
@@ -219,6 +316,15 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
 
   // A problem in a column the sheet doesn't show is shown on its row, so nothing to fix is hidden.
   const shownKeys = new Set(columns.map(c => c.key))
+  // A cell as the sheet shows it: a dropdown's label rather than its value.
+  const display = (c: BulkUploadColumn, value: string) => c.options?.find(o => o.value === value)?.label ?? value
+  // Each column's values across every row, empty first, then A to Z, with how many rows have each.
+  const valuesOf = (key: string) => {
+    const counts = new Map<string, number>()
+    for (const r of rows ?? []) counts.set(cellText(r, key), (counts.get(cellText(r, key)) ?? 0) + 1)
+    return [...counts].map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === '' ? -1 : b.value === '' ? 1 : a.value.localeCompare(b.value)))
+  }
+  const filtered = columns.filter(c => isActive(filters[c.key]))
   const problemAt = new Map<string, string>()
   for (const p of problems) {
     const key = p.column && shownKeys.has(p.column) ? keyOf(p.line, p.column) : keyOf(p.line)
@@ -232,8 +338,15 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   })).size
   const linesWithProblems = new Set(problems.filter(p => Number(p.line) > 0).map(p => String(p.line)))
   const fileProblems = problems.filter(p => Number(p.line) === 0)
+  const cellText = (r: BulkUploadRow, key: string) => (r.cells[key] ?? '').trim()
+  const passesFilters = (r: BulkUploadRow) => columns.every(c => {
+    const f = filters[c.key]
+    if (!isActive(f)) return true
+    const value = cellText(r, c.key)
+    return (!f.text.trim() || matches(display(c, value), f.text)) && !f.hidden.has(value)
+  })
   const shown = (rows ?? []).filter(r =>
-    (!onlyProblems || onlyProblems.has(String(r.line)))
+    (!onlyProblems || onlyProblems.has(String(r.line))) && passesFilters(r)
     && (!search.trim() || matches(`${r.line} ${Object.values(r.cells).join(' ')}`, search)))
   // Search and the filter look across every row; the table shows one page of what they find.
   const pages = Math.max(1, Math.ceil(shown.length / PAGE))
@@ -270,6 +383,18 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
           {(linesWithProblems.size > 0 || onlyProblems) && <>
             <Checkbox label={t('bulk.onlyProblems')} checked={!!onlyProblems} onChange={e => { setOnlyProblems(e.target.checked ? new Set(linesWithProblems) : null); setPage(0) }} />
           </>}
+          {filtered.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {filtered.map(c => (
+                <Tag key={c.key} tone="brand">
+                  {c.label}
+                  <button type="button" aria-label={t('bulk.removeFilter', { column: c.label })} className="ml-1 text-brand hover:text-ink"
+                    onClick={() => setFilter(c.key, { text: '', hidden: new Set() })}>×</button>
+                </Tag>
+              ))}
+              <Button variant="secondary" onClick={() => { setFilters({}); setPage(0) }}>{t('bulk.clearFilters')}</Button>
+            </div>
+          )}
           <span className="ml-auto text-label text-muted">{t('bulk.showing', { shown: shown.length, total: rows?.length ?? 0 })}</span>
         </div>
 
@@ -279,7 +404,15 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
             <thead className="sticky top-0 z-10 bg-raised">
               <tr>
                 <th scope="col" className="border-b border-line px-3 py-2 text-left font-medium text-muted">{t('bulk.rowHeader')}</th>
-                {columns.map(c => <th key={c.key} scope="col" className="min-w-40 border-b border-line px-3 py-2 text-left font-medium whitespace-nowrap text-muted">{c.label}</th>)}
+                {columns.map(c => (
+                  <th key={c.key} scope="col" className="min-w-40 border-b border-line px-3 py-1.5 text-left font-medium whitespace-nowrap text-muted">
+                    <span className="flex items-center justify-between gap-2">
+                      {c.label}
+                      <ColumnFilter label={c.label} values={valuesOf(c.key)} display={value => display(c, value)}
+                        filter={filters[c.key] ?? { text: '', hidden: new Set() }} onChange={f => setFilter(c.key, f)} />
+                    </span>
+                  </th>
+                ))}
                 <th scope="col" className="border-b border-line px-3 py-2"><span className="sr-only">{t('companies.actions')}</span></th>
               </tr>
             </thead>

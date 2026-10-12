@@ -330,3 +330,37 @@ it('the arrow keys scroll the rows sideways, except while typing in a cell', asy
   await userEvent.keyboard('{ArrowRight}')
   expect(rows.scrollLeft).toBe(320)   // the cursor moves in the cell instead
 })
+
+it('each column can be searched and filtered by its values, together, across every page', async () => {
+  const many: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Mombasa shop', 'Mombasa'), row(4, 'Westgate kiosk', 'Nairobi'), row(5, 'Kilimani office', '')],
+    problems: [],
+  }
+  render(<Page read={async () => many} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  const sheet = review()
+  const shownNames = () => within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)
+
+  // Values: untick one, and its rows go.
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Filter County' }))
+  const panel = screen.getByRole('dialog', { name: 'Filter County' })
+  expect(within(panel).getAllByRole('checkbox').map(c => c.closest('label')?.textContent)).toEqual(['All', '(Empty)1', 'Mombasa1', 'Nairobi2'])
+  await userEvent.click(within(panel).getByRole('checkbox', { name: /^Mombasa/ }))
+  await userEvent.click(within(panel).getByRole('checkbox', { name: /^\(Empty\)/ }))
+  expect(shownNames()).toEqual(['Westlands branch', 'Westgate kiosk'])
+  await userEvent.keyboard('{Escape}')   // closes the filter, not the sheet
+  expect(screen.queryByRole('dialog', { name: 'Filter County' })).not.toBeInTheDocument()
+  expect(within(sheet).getByRole('button', { name: 'Filter County' })).toHaveAttribute('aria-pressed', 'true')
+
+  // Search within a column, on top of the other filter.
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Filter Location name' }))
+  await userEvent.type(within(screen.getByRole('dialog', { name: 'Filter Location name' })).getByRole('searchbox', { name: 'Search Location name' }), 'westg')
+  expect(shownNames()).toEqual(['Westgate kiosk'])
+  expect(within(screen.getByRole('dialog', { name: 'Filter Location name' })).getAllByRole('checkbox', { name: /kiosk|branch|shop|office/ })
+    .map(c => c.closest('label')?.textContent)).toEqual(['Westgate kiosk1'])   // the list narrows too
+  await userEvent.keyboard('{Escape}')
+
+  expect(within(sheet).getByText('Showing 1 of 4')).toBeInTheDocument()
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Clear filters' }))
+  expect(shownNames()).toHaveLength(4)
+})

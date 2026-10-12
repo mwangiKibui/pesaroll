@@ -376,7 +376,15 @@
     "next": "Next page",
     "toCreate_one": "{{count}} new item will be created when you import.",
     "toCreate_other": "{{count}} new items will be created when you import.",
-    "addRow": "Add row"
+    "addRow": "Add row",
+    "filter": "Filter {{column}}",
+    "filterSearch": "Search {{column}}",
+    "all": "All",
+    "empty": "(Empty)",
+    "clearFilter": "Clear this filter",
+    "clearFilters": "Clear filters",
+    "removeFilter": "Remove filter {{column}}",
+    "tooManyValues": "Showing the first {{count}} values. Search to narrow them."
   },
   "structure": {
     "title": "How is your organization organised?",

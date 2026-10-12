@@ -376,7 +376,15 @@
     "next": "Ukurasa unaofuata",
     "toCreate_one": "Kipengele kipya {{count}} kitaundwa utakapoingiza.",
     "toCreate_other": "Vipengele vipya {{count}} vitaundwa utakapoingiza.",
-    "addRow": "Ongeza safu"
+    "addRow": "Ongeza safu",
+    "filter": "Chuja {{column}}",
+    "filterSearch": "Tafuta {{column}}",
+    "all": "Zote",
+    "empty": "(Tupu)",
+    "clearFilter": "Ondoa kichujio hiki",
+    "clearFilters": "Ondoa vichujio",
+    "removeFilter": "Ondoa kichujio {{column}}",
+    "tooManyValues": "Thamani {{count}} za kwanza zinaonyeshwa. Tafuta ili kupunguza."
   },
   "structure": {
     "title": "Shirika lako limepangwa vipi?",
