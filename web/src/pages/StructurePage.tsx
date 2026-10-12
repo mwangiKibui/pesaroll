@@ -13,7 +13,9 @@ import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice } from '../components/feedback'
 import { RadioGroup, SelectField, TextField } from '../components/fields'
 import { PlusIcon, UploadIcon } from '../components/icons'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { usePaged } from '../components/usePaged'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { useCompanies, useSetupDone, useStructure, type LevelKey, type StructureItem } from '../setup/hooks'
@@ -115,6 +117,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   const [editing, setEditing] = useState<StructureItem | null>(null)
   const [deleting, setDeleting] = useState<StructureItem | null>(null)
   const [busy, setBusy] = useState(false)
+  const paged = usePaged(items)
   const nameOf = (key: LevelKey, id?: string | null) => {
     const found = all[key].data?.find(i => i.id === id)
     return found ? label(found) : null
@@ -157,7 +160,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
 
   return (
     <>
-      <TableCard title={t(`structure.${level}.tab`)} count={items.length}>
+      <TableCard footer={<Pagination label={t('pagination.of', { what: t(`structure.${level}.tab`) })} {...paged.pagination} />} title={t(`structure.${level}.tab`)} count={items.length}>
         {items.length === 0 ? <EmptyState title={t(`structure.${level}.emptyTitle`)}>{t(`structure.${level}.emptyText`)}</EmptyState> : (
           <table>
             <thead>
@@ -169,7 +172,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
               </tr>
             </thead>
             <tbody>
-              {items.map(i => (
+              {paged.items.map(i => (
                 <tr key={i.id}>
                   <td>
                     <span className="block font-medium text-ink">{label(i)}</span>

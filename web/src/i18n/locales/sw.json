@@ -370,9 +370,6 @@
     "cell": "{{column}}, mstari {{line}}",
     "removeRow": "Ondoa mstari {{line}}",
     "pages": "Kurasa za mistari",
-    "page": "Ukurasa {{page}} kati ya {{pages}}",
-    "previous": "Ukurasa uliopita",
-    "next": "Ukurasa unaofuata",
     "toCreate_one": "Kipengele kipya {{count}} kitaundwa utakapoingiza.",
     "toCreate_other": "Vipengele vipya {{count}} vitaundwa utakapoingiza.",
     "addRow": "Ongeza safu",
@@ -845,9 +842,6 @@
       "weekly": "{{amount}} kwa wiki",
       "fortnightly": "{{amount}} kila wiki mbili"
     },
-    "page": "Ukurasa {{page}} wa {{pages}}",
-    "previous": "Ukurasa uliopita",
-    "next": "Ukurasa unaofuata",
     "add": "Ongeza mfanyakazi",
     "upload": "Pakia wafanyakazi",
     "addTitle": "Ongeza mfanyakazi",
@@ -1038,5 +1032,13 @@
     "viewTitle": "Mfanyakazi",
     "editButton": "Hariri",
     "chooseCompanyFirst": "Chagua kampuni kwanza."
+  },
+  "pagination": {
+    "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",
+    "rowsPerPage": "Safu kwa kila ukurasa",
+    "page": "Ukurasa {{page}} wa {{pages}}",
+    "previous": "Ukurasa uliopita",
+    "next": "Ukurasa unaofuata",
+    "of": "Kurasa za {{what}}"
   }
 }

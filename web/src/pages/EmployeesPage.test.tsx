@@ -58,6 +58,15 @@ it('lists employees with their job, pay and what payroll still needs', async () 
   await expectNoA11yViolations(container)
 })
 
+it('the table has pagination even when everyone fits on one page', async () => {
+  withPeople()
+  renderApp('/setup/employees')
+  const pages = await screen.findByRole('navigation', { name: 'Pages of Employees' })
+  expect(within(pages).getByText('Showing 1–2 of 2')).toBeInTheDocument()
+  expect(within(pages).getByText('Page 1 of 1')).toBeInTheDocument()
+  expect(within(pages).getByRole('combobox', { name: 'Rows per page' })).toHaveValue('20')
+})
+
 it('searches and pages on the server', async () => {
   const seen: string[] = []
   withPeople({
@@ -67,10 +76,15 @@ it('searches and pages on the server', async () => {
     },
   })
   renderApp('/setup/employees')
-  expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument()
+  expect(await screen.findByText('Page 1 of 12')).toBeInTheDocument()   // 20 a page to start
+  expect(seen.some(q => q.includes('pageSize=20'))).toBe(true)
 
   await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
-  expect(await screen.findByText('Page 2 of 3')).toBeInTheDocument()
+  expect(await screen.findByText('Page 2 of 12')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('combobox', { name: 'Rows per page' }))
+  await userEvent.click(screen.getByRole('option', { name: '100' }))
+  expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument()
+  await vi.waitFor(() => expect(seen.some(q => q.includes('pageSize=100'))).toBe(true))
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search employees' }), 'kamau')
 
   await vi.waitFor(() => expect(seen.some(q => q.includes('search=kamau') && q.includes('page=1'))).toBe(true))

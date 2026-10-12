@@ -6,6 +6,7 @@ import { Drawer } from './Drawer'
 import { FormErrorBanner, Notice, Tag, type ApiError } from './feedback'
 import { Checkbox, SelectField, TextField } from './fields'
 import { DownloadIcon, PlusIcon } from './icons'
+import { Pagination } from './Pagination'
 import { matches } from './search'
 
 /**
@@ -169,8 +170,8 @@ function ColumnFilter({ label, values, display, filter, onChange }: {
 const isError = (value: unknown): value is ApiError => typeof value === 'object' && value !== null && 'code' in value && 'reference' in value
 const keyOf = (line: number | string, column?: string | null) => `${line}:${column ?? ''}`
 
-/** Rows shown at a time in the review, so files of thousands of rows stay quick to show and edit. */
-const PAGE = 100
+/** Rows per page in the review (100 to start), so files of thousands of rows stay quick to show and edit. */
+const SHEET_SIZES = [50, 100, 200]
 
 /** How far an arrow key scrolls the rows sideways: about one column. */
 const STEP = 320
@@ -200,6 +201,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   const [busy, setBusy] = useState<'template' | 'read' | 'import' | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(100)
   // Show: all rows, the ones to fix, or the ready ones, as they were when chosen: a row being fixed stays in view until the choice changes.
   const [view, setView] = useState<{ kind: 'all' | 'fix' | 'ready'; lines: Set<string> | null }>({ kind: 'all', lines: null })
   const rowsRef = useRef<HTMLDivElement>(null)
@@ -391,9 +393,9 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   // Rows added since the sort go after the sorted ones, in their own order.
   if (sort) shown.sort((a, b) => (sort.order.get(String(a.line)) ?? Infinity) - (sort.order.get(String(b.line)) ?? Infinity))
   // Search and the filter look across every row; the table shows one page of what they find.
-  const pages = Math.max(1, Math.ceil(shown.length / PAGE))
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize))
   const at = Math.min(page, pages - 1)
-  const onPage = shown.slice(at * PAGE, at * PAGE + PAGE)
+  const onPage = shown.slice(at * pageSize, at * pageSize + pageSize)
   const step = 'm-0 text-label font-semibold text-ink'
   const n = firstStep ? 1 : 0
 
@@ -513,13 +515,8 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
             </tbody>
           </table>
         </div>
-        {(rows?.length ?? 0) > PAGE && (
-          <nav aria-label={t('bulk.pages')} className="flex items-center justify-end gap-3">
-            <span className="text-label text-muted">{t('bulk.page', { page: at + 1, pages })}</span>
-            <Button variant="secondary" disabled={at === 0} onClick={() => setPage(at - 1)}>{t('bulk.previous')}</Button>
-            <Button variant="secondary" disabled={at >= pages - 1} onClick={() => setPage(at + 1)}>{t('bulk.next')}</Button>
-          </nav>
-        )}
+        <Pagination label={t('bulk.pages')} page={at + 1} pageSize={pageSize} total={shown.length} sizes={SHEET_SIZES}
+          onPage={p => setPage(p - 1)} onPageSize={size => { setPageSize(size); setPage(0) }} />
   </>
 
   return (

@@ -370,9 +370,6 @@
     "cell": "{{column}}, row {{line}}",
     "removeRow": "Remove row {{line}}",
     "pages": "Pages of rows",
-    "page": "Page {{page}} of {{pages}}",
-    "previous": "Previous page",
-    "next": "Next page",
     "toCreate_one": "{{count}} new item will be created when you import.",
     "toCreate_other": "{{count}} new items will be created when you import.",
     "addRow": "Add row",
@@ -845,9 +842,6 @@
       "weekly": "{{amount}} a week",
       "fortnightly": "{{amount}} every two weeks"
     },
-    "page": "Page {{page}} of {{pages}}",
-    "previous": "Previous page",
-    "next": "Next page",
     "add": "Add employee",
     "upload": "Upload employees",
     "addTitle": "Add employee",
@@ -1038,5 +1032,13 @@
     "viewTitle": "Employee",
     "editButton": "Edit",
     "chooseCompanyFirst": "Choose the company first."
+  },
+  "pagination": {
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "rowsPerPage": "Rows per page",
+    "page": "Page {{page}} of {{pages}}",
+    "previous": "Previous page",
+    "next": "Next page",
+    "of": "Pages of {{what}}"
   }
 }

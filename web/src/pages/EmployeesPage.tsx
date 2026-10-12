@@ -14,6 +14,7 @@ import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { Checkbox, RadioGroup, SelectField, TextField } from '../components/fields'
 import { PlusIcon, UploadIcon } from '../components/icons'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
@@ -28,7 +29,6 @@ type Row = components['schemas']['EmployeeRow']
 type Detail = components['schemas']['EmployeeResponse']
 type ImportRow = components['schemas']['ImportRow']
 
-const pageSize = 100
 const statuses = ['current', 'former', 'all'] as const
 const types = ['permanent', 'contract', 'casual', 'intern'] as const
 const tabs = ['personal', 'ids', 'job', 'pay', 'account'] as const
@@ -92,6 +92,7 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('current')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [editing, setEditing] = useState<string | 'new' | null>(null)
   const [viewing, setViewing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<Row | null>(null)
@@ -112,7 +113,6 @@ export default function EmployeesPage() {
   })
 
   const ready = companies.data && schedules.data && employees.data
-  const pages = Math.max(1, Math.ceil(Number(employees.data?.total ?? 0) / pageSize))
 
   const remove = async () => {
     if (!deleting) return
@@ -167,7 +167,9 @@ export default function EmployeesPage() {
               options={statuses.map(s => ({ value: s, label: t(`employees.statuses.${s}`) }))} />
           </div>
         </div>
-        <TableCard title={t('employees.tableTitle')} count={Number(employees.data.total)} actions={actions}>
+        <TableCard footer={<Pagination label={t('pagination.of', { what: t('employees.tableTitle') })} page={page} pageSize={pageSize}
+          total={Number(employees.data.total)} onPage={setPage} onPageSize={size => { setPageSize(size); setPage(1) }} />}
+          title={t('employees.tableTitle')} count={Number(employees.data.total)} actions={actions}>
           {employees.data.items.length === 0 ? <EmptyState title={t('employees.emptyTitle')}>{t('employees.emptyText')}</EmptyState> : (
             <table>
               <thead>
@@ -213,13 +215,6 @@ export default function EmployeesPage() {
             </table>
           )}
         </TableCard>
-        {pages > 1 && (
-          <nav aria-label={t('employees.tableTitle')} className="flex items-center justify-end gap-3">
-            <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t('employees.previous')}</Button>
-            <span className="text-label text-muted">{t('employees.page', { page, pages })}</span>
-            <Button variant="secondary" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>{t('employees.next')}</Button>
-          </nav>
-        )}
         {/* Earnings and deductions (ONB-07) is next; until it has a page, the dashboard. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
 
