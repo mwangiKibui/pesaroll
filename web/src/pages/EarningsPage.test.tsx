@@ -453,6 +453,33 @@ it('as the payee identifies people, account numbers come from profiles: shown ma
   expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({ people: [{ employeeId: 'e1', reference: null }, { employeeId: 'e2', reference: 'HB-2201' }] })
 })
 
+it('after adding, the table says who gets the new item (once who gets it is saved too)', async () => {
+  const wanjiru = employeeRow()
+  // The API as it is: the item exists once added, and has its person once who gets it is saved (a moment later).
+  let added = false
+  let assigned = false
+  const created = { ...house, id: 'new-1', name: 'Airtime', kind: 'earning', companyIds: [restaurant.id] }
+  const listed = () => (added ? [{ ...created, assignments: assigned ? [{ companyId: restaurant.id, everyone: false, people: 1 }] : [] }] : [])
+  withItems({
+    'GET /api/pay-items': () => json(200, [...lockedPayItems(), ...listed()]),
+    'POST /api/pay-items': () => { added = true; return json(201, created) },
+    'PUT /api/pay-items/new-1/assignments': async () => { await new Promise(done => setTimeout(done, 50)); assigned = true; return json(200, []) },
+    'GET /api/employees': () => json(200, { items: [wanjiru], total: 1, page: 1, pageSize: 8 }),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+  await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Name' }), 'Airtime')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
+  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Specific employees' }))
+  await userEvent.type(within(drawer()).getByRole('searchbox', { name: 'Find people' }), 'wanj')
+  await userEvent.click(await within(drawer()).findByRole('button', { name: 'Add Wanjiru Kamau (EMP-01)' }))
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
+
+  expect(await screen.findByText('Earning added')).toBeInTheDocument()
+  const row = (await within(panel('Earnings')).findByText('Airtime')).closest('tr')!
+  expect(row).toHaveTextContent('1 person at Mama Oliech Restaurant Ltd')
+})
+
 it('with several companies, the selector filters every tab', async () => {
   withItems({ 'GET /api/companies': () => json(200, [restaurant, catering]), 'GET /api/pay-items': () => json(200, [...lockedPayItems(), house]) })
   renderApp('/setup/earnings-and-deductions')

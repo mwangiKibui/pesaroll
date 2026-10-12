@@ -369,9 +369,6 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
         : await api.POST('/api/pay-items', { body })
       if (data) {
         setItem(data)
-        void queryClient.invalidateQueries({ queryKey: ['payItems'] })
-        // People's own views list what they get.
-        void queryClient.invalidateQueries({ queryKey: ['employee'] })
         // Then who gets it, for each company changed (among those the item serves).
         const failed: Record<string, Record<string, string>> = {}
         for (const c of served.filter(c => drafts[c.id]?.dirty)) {
@@ -386,6 +383,9 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
           }
         }
         setWhoErrors(failed)
+        // Refreshed once who gets it is saved too, so the table's Who gets it is current; people's own views list what they get.
+        await queryClient.invalidateQueries({ queryKey: ['payItems'] })
+        void queryClient.invalidateQueries({ queryKey: ['employee'] })
         if (Object.keys(failed).length > 0) return setTab('who')
         toast.show(item ? t('payItems.saved') : t(`payItems.added.${v.kind}`))
         onClose()
