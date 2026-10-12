@@ -144,7 +144,7 @@ public static class EmployeesEndpoints
                 shaped = shaped.Where(x => x.Pay != null && x.Pay <= most);
             }
 
-            // Sorted by what the column shows, either way; empty cells last; ties by name, so pages stay put.
+            // Sorted by what the column shows (company, name, job, schedule, pay, start date), either way; empty cells last; ties by name, so pages stay put.
             var keyed = shaped.Select(x => new
             {
                 x.Employee,
@@ -152,11 +152,13 @@ public static class EmployeesEndpoints
                     + " " + db.Departments.Where(d => x.Job != null && d.Id == x.Job.DepartmentId).Select(d => d.Name).FirstOrDefault(),
                 HasJob = x.Job != null && (x.Job.PositionId != null || x.Job.DepartmentId != null),
                 Schedule = db.PaySchedules.Where(p => x.Job != null && p.Id == x.Job.PayScheduleId).Select(p => p.Name).FirstOrDefault(),
+                Company = db.Companies.Where(c => c.Id == x.Employee.CompanyId).Select(c => c.LegalName).FirstOrDefault(),
                 x.Pay,
             });
             var down = dir == "desc";
             var ordered = sort switch
             {
+                "company" => down ? keyed.OrderByDescending(x => x.Company) : keyed.OrderBy(x => x.Company),
                 "staffNo" => down ? keyed.OrderByDescending(x => x.Employee.StaffNo) : keyed.OrderBy(x => x.Employee.StaffNo),
                 "job" => down ? keyed.OrderBy(x => !x.HasJob).ThenByDescending(x => x.Job) : keyed.OrderBy(x => !x.HasJob).ThenBy(x => x.Job),
                 "schedule" => down ? keyed.OrderBy(x => x.Schedule == null).ThenByDescending(x => x.Schedule) : keyed.OrderBy(x => x.Schedule == null).ThenBy(x => x.Schedule),

@@ -78,7 +78,7 @@ function usePaysBy(companyId: string) {
 const none = <span className="text-muted">—</span>
 
 /** The columns the employees list sorts by (the API's sort keys). */
-type SortKey = 'name' | 'job' | 'schedule' | 'basicPay' | 'hireDate'
+type SortKey = 'company' | 'name' | 'job' | 'schedule' | 'basicPay' | 'hireDate'
 
 /** The column filters: ids ticked (none ticked: no filter), amounts and dates as typed. */
 interface ColumnFilters { departments: string[]; positions: string[]; schedules: string[]; payFrom: string; payTo: string; hiredFrom: string; hiredTo: string }
@@ -183,8 +183,16 @@ export default function EmployeesPage() {
   type Scoped = { allCompanies: boolean; companyIds: string[] }
   const scoped = <T extends Scoped>(items: T[] | undefined) =>
     (items ?? []).filter(i => shown.all || i.allCompanies || i.companyIds.some(id => shown.ids.includes(id)))
+  // The Company column's filter is the company selector's choice: ticking in either changes both. One stays ticked.
+  const pickCompanies = (ids: string[], on: boolean) => {
+    const all = companies.data?.map(c => c.id) ?? []
+    const now = toggle(shown.all ? all : shown.ids, ids, on)
+    if (now.length === 0) return
+    setShown(now.length === all.length ? { all: true, ids: [] } : { all: false, ids: now })
+    setPage(1)
+  }
   const toggle = (list: string[], ids: string[], on: boolean) => (on ? [...new Set([...list, ...ids])] : list.filter(id => !ids.includes(id)))
-  const narrowed = !!term || status !== 'current' || active.length > 0
+  const narrowed = !!term || status !== 'current' || active.length > 0 || !shown.all
   const header = (key: SortKey, label: string, filtered: boolean, panel: ReactNode) => (
     <th scope="col" aria-sort={sort?.key === key ? sort.direction : undefined}>
       <span className="flex items-center gap-1">
@@ -194,12 +202,13 @@ export default function EmployeesPage() {
       </span>
     </th>
   )
-  const chips = (active.length > 0 || status !== 'current') && (
+  const chips = (active.length > 0 || status !== 'current' || !shown.all) && (
     <span role="group" aria-label={t('employees.filteredBy')} className="flex flex-wrap items-center gap-2">
+      {!shown.all && <Tag tone="brand">{t('employees.company')}</Tag>}
       {status !== 'current' && <Tag tone="brand">{t(`employees.statuses.${status}`)}</Tag>}
       {active.map(a => <Tag key={a} tone="brand">{t(`employees.filtered.${a}`)}</Tag>)}
       <button type="button" className="text-label font-medium text-brand hover:underline"
-        onClick={() => { setFilters(noFilters); setStatus('current'); setPage(1) }}>{t('bulk.clearFilters')}</button>
+        onClick={() => { setFilters(noFilters); setStatus('current'); setShown({ all: true, ids: [] }); setPage(1) }}>{t('bulk.clearFilters')}</button>
     </span>
   )
 
@@ -225,6 +234,9 @@ export default function EmployeesPage() {
             <table>
               <thead>
                 <tr>
+                  {header('company', t('employees.company'), !shown.all,
+                    <Checklist values={companies.data.map(c => ({ value: c.id, label: c.legalName }))}
+                      isTicked={id => shown.all || shown.ids.includes(id)} onTick={(ids, on) => pickCompanies(ids, on)} />)}
                   {header('name', t('employees.employee'), status !== 'current', <>
                     <RadioGroup label={t('employees.status')} name="employee-status" value={status} onChange={value => { setStatus(value); setPage(1) }}
                       options={statuses.map(k => ({ value: k, label: t(`employees.statuses.${k}`) }))} />
@@ -260,6 +272,7 @@ export default function EmployeesPage() {
               <tbody>
                 {employees.data.items.map(r => (
                   <tr key={r.id}>
+                    <td>{companies.data.find(c => c.id === r.companyId)?.legalName ?? none}</td>
                     <td>
                       <span className="block font-medium text-ink">{r.name}</span>
                       <span className="block font-mono text-hint text-muted">{r.staffNo}</span>
@@ -287,7 +300,7 @@ export default function EmployeesPage() {
                   </tr>
                 ))}
                 {employees.data.items.length === 0 && (
-                  <tr><td colSpan={6} className="text-center text-muted">{t('employees.noMatches')}</td></tr>
+                  <tr><td colSpan={7} className="text-center text-muted">{t('employees.noMatches')}</td></tr>
                 )}
               </tbody>
             </table>

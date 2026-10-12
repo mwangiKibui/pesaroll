@@ -30,7 +30,7 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
     private sealed record Employee(Guid Id, Guid CompanyId, string StaffNo, string FirstName, string? MiddleName, string LastName, string? Phone,
         string? Email, string? NationalIdMasked, string? KraPinMasked, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
         Job Job, Pay? Pay, Account? Account, Readiness Readiness);
-    private sealed record Row(Guid Id, string StaffNo, string Name, string? PositionTitle, string? DepartmentName, decimal? BasicAmount, string? PayBasis,
+    private sealed record Row(Guid Id, Guid CompanyId, string StaffNo, string Name, string? PositionTitle, string? DepartmentName, decimal? BasicAmount, string? PayBasis,
         DateOnly? ExitDate, Readiness Readiness, DateOnly HireDate = default);
     private sealed record Item(Guid Id);
     private sealed record Page(List<Row> Items, int Total, int PageNumber, int PageSize);
@@ -295,6 +295,12 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         Assert.Equal(11, (await client.GetFromJsonAsync<Page>($"/api/employees?companyIds={a.Id}&companyIds={b.Id}"))!.Total);
         Assert.Equal(1, (await client.GetFromJsonAsync<Page>("/api/employees?status=former"))!.Total);
         Assert.Equal(12, (await client.GetFromJsonAsync<Page>("/api/employees?status=all"))!.Total);
+
+        // By company name, either way (Oliech Catering before Oliech Restaurants), then by name.
+        var byCompany = (await client.GetFromJsonAsync<Page>("/api/employees?sort=company&pageSize=20"))!.Items;
+        Assert.Equal([.. Enumerable.Repeat(b.Id, 3), .. Enumerable.Repeat(a.Id, 8)], byCompany.Select(r => r.CompanyId));
+        var down = (await client.GetFromJsonAsync<Page>("/api/employees?sort=company&dir=desc&pageSize=20"))!.Items;
+        Assert.Equal(a.Id, down[0].CompanyId);
     }
 
     [Fact]

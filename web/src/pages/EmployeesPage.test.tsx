@@ -46,9 +46,9 @@ it('lists employees with their job, schedule, pay and start date', async () => {
   expect(await screen.findByRole('heading', { name: 'Who works for you?' })).toBeInTheDocument()
   const row = (await within(table()).findByText('Wanjiru Kamau')).closest('tr')!
   expect(within(table()).getAllByRole('columnheader').map(h => h.textContent))
-    .toEqual(['Employee', 'Job', 'Payroll schedule', 'Basic pay', 'Start date', 'Actions'])
-  expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 5))
-    .toEqual(['Wanjiru KamauEMP-01', 'Head cook · Kitchen', 'Monthly', 'KES 85,000 a month', '15 Jan 2024'])
+    .toEqual(['Company', 'Employee', 'Job', 'Payroll schedule', 'Basic pay', 'Start date', 'Actions'])
+  expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 6))
+    .toEqual(['Mama Oliech Restaurant Ltd', 'Wanjiru KamauEMP-01', 'Head cook · Kitchen', 'Monthly', 'KES 85,000 a month', '15 Jan 2024'])
 
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search employees' }), 'wanj')
   const steps = screen.getByRole('list', { name: 'Setup steps' })
@@ -90,6 +90,31 @@ it('searches and pages on the server', async () => {
   await userEvent.click(within(table()).getByRole('button', { name: 'Filter Employee' }))
   await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter Employee' })).getByRole('radio', { name: 'People who left' }))
   await vi.waitFor(() => expect(seen.some(q => q.includes('status=former'))).toBe(true))
+})
+
+it('the Company column sorts by company, and its filter is the company selector\'s choice', async () => {
+  const centrail = company({ id: '0199c0de-0000-7000-8000-0000000000c2', legalName: 'Centrail Ltd' })
+  const seen: URLSearchParams[] = []
+  withPeople({
+    'GET /api/companies': () => json(200, [restaurant, centrail]),
+    'GET /api/employees': req => {
+      const q = new URL(req.url).searchParams
+      if (q.get('pageSize') !== '1') seen.push(q)
+      return json(200, { items: [wanjiru, otieno], total: 2, page: 1, pageSize: 20 })
+    },
+  })
+  renderApp('/setup/employees')
+  const list = await screen.findByRole('region', { name: 'Employees' })
+  await within(list).findByText('Wanjiru Kamau')
+
+  await userEvent.click(within(list).getByRole('button', { name: 'Sort Company' }))
+  await vi.waitFor(() => expect(seen.at(-1)!.get('sort')).toBe('company'))
+
+  await userEvent.click(within(list).getByRole('button', { name: 'Filter Company' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter Company' })).getByRole('checkbox', { name: 'Centrail Ltd' }))
+  await vi.waitFor(() => expect(seen.at(-1)!.getAll('companyIds')).toEqual([restaurant.id]))
+  await userEvent.keyboard('{Escape}')
+  expect(screen.getByRole('button', { name: /^Show companies/ })).toHaveTextContent(/Mama Oliech Restaurant Ltd/)   // the selector above agrees
 })
 
 it('every column sorts and filters on the server; chips show what is filtered and Clear filters resets', async () => {
