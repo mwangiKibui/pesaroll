@@ -389,7 +389,9 @@
     "sorted": {
       "ascending": "Sorted A to Z",
       "descending": "Sorted Z to A"
-    }
+    },
+    "proceed": "Proceed to preview",
+    "wrongType": "Only .xlsx or .csv files can be imported. {{name}} isn't one: choose the template or a .csv file."
   },
   "structure": {
     "title": "How is your organization organised?",

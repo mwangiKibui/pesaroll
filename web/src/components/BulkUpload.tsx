@@ -239,9 +239,19 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     }
   }
 
-  const read = async (picked: File | undefined) => {
+  // Choosing a file only picks it: its name shows, another can be chosen, and Proceed to preview reads it.
+  const [wrongType, setWrongType] = useState(false)
+  const pick = (picked: File | undefined) => {
     if (!picked) return
     setFile(picked)
+    setBanner(null)
+    setProblems([])
+    setWrongType(!/\.(xlsx|csv)$/i.test(picked.name))
+  }
+
+  const read = async () => {
+    if (!file || wrongType) return
+    const picked = file
     const result = await attempt('read', setBanner, () => onRead(picked))
     if (isError(result)) return setBanner(result)
     if (!result) return
@@ -501,7 +511,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   return (
     <>
       <Drawer open={open && !rows && !startRows} title={title} onClose={onClose}
-        footer={<Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>}>
+        footer={<>
+          <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button disabled={!file || wrongType || !!locked} busy={busy === 'read'} onClick={() => void read()}>{t('bulk.proceed')}</Button>
+        </>}>
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={banner} />}
 
@@ -529,14 +542,17 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
           <div className="flex flex-wrap items-center gap-3">
             {/* A real file input, hidden behind a button-looking label so it can be styled. */}
             <input id={inputId} type="file" accept=".xlsx,.csv" className="peer sr-only" disabled={busy === 'read' || !!locked}
-              onChange={e => { void read(e.target.files?.[0]); e.target.value = '' }} />
+              onChange={e => { pick(e.target.files?.[0]); e.target.value = '' }} />
             <label htmlFor={inputId} aria-disabled={locked ? true : undefined}
               className={`${buttonClasses('secondary')} ${locked ? 'pointer-events-none opacity-50' : 'cursor-pointer'} peer-focus-visible:outline-2 peer-focus-visible:outline-brand`}>
               {file ? t('bulk.chooseAnother') : t('bulk.choose')}
             </label>
-            {file && <span className="text-label text-muted">{file.name}</span>}
+            {file && <span className="text-label font-medium text-ink">{file.name}</span>}
             {busy === 'read' && <span role="status" className="text-label text-muted">{t('bulk.checking')}</span>}
           </div>
+          {wrongType && file && (
+            <Notice tone="danger">{t('bulk.wrongType', { name: file.name })}</Notice>
+          )}
           {fileProblems.map((p, i) => <Notice key={i}>{p.message}</Notice>)}
         </section>
       </Drawer>

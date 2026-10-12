@@ -171,6 +171,7 @@ it('uploads locations: template, then a review of every row before importing for
   await vi.waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled())
 
   await userEvent.upload(within(upload).getByLabelText('Choose a file'), new File(['x'], 'branches.xlsx'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const review = await screen.findByRole('dialog', { name: 'Review 2 locations' })
   const sent = calls.find(c => c.path === '/api/locations/import/read')!
   expect(((sent.body as FormData).get('file') as Blob).size).toBe(1)   // the file went as form data
@@ -202,6 +203,7 @@ it('with one company, the review has no company choice', async () => {
 
   await userEvent.click(await screen.findByRole('button', { name: 'Upload locations' }))
   await userEvent.upload(within(screen.getByRole('dialog', { name: 'Upload locations' })).getByLabelText('Choose a file'), new File(['x'], 'branches.csv'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const review = await screen.findByRole('dialog', { name: 'Review 1 location' })
   expect(within(review).queryByRole('button', { name: /Apply to/ })).not.toBeInTheDocument()
   await userEvent.click(within(review).getByRole('button', { name: 'Import 1 location' }))

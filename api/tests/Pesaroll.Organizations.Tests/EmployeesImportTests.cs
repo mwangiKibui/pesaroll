@@ -144,20 +144,23 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
         await client.PostAsJsonAsync("/api/companies", new { legalName = "Centrail Ltd", countryCode = "KE", town = "Nairobi", regionCode = "047" });
         using var book = new XLWorkbook();
         var sheet = book.AddWorksheet("Employees");
-        string[] headers = ["First name", "Last name", "Date of birth", "Start date (DD/MM/YYYY)", "Still works here"];   // an older header still reads
+        // Every template column; Date of birth as older templates wrote it (without "(DD/MM/YYYY)") still reads.
+        var template = new XLWorkbook(new MemoryStream(await client.GetByteArrayAsync($"/api/employees/template?companyId={company.Id}"))).Worksheet(1);
+        var headers = template.Row(1).CellsUsed().Select(c => c.GetString()).Select(h => h == "Date of birth (DD/MM/YYYY)" ? "Date of birth" : h).ToArray();
+        int Col(string start) => Array.FindIndex(headers, h => h.StartsWith(start, StringComparison.Ordinal)) + 1;
         for (var c = 0; c < headers.Length; c++)
         {
             sheet.Cell(1, c + 1).Value = headers[c];
         }
-        sheet.Cell(2, 1).Value = "Maggie";
-        sheet.Cell(2, 2).Value = "Kibui";
-        sheet.Cell(2, 3).Value = "17/03/1998";                     // typed as text
-        sheet.Cell(2, 4).Value = new DateTime(2026, 1, 1);          // a real date cell
-        sheet.Cell(2, 4).Style.NumberFormat.Format = "dd/mm/yyyy";
-        sheet.Cell(2, 5).Value = "Yes";
-        sheet.Cell(3, 1).Value = "Otieno";
-        sheet.Cell(3, 2).Value = "Ouma";
-        sheet.Cell(3, 4).Value = "31/02/2024";                     // no such day
+        sheet.Cell(2, Col("First name")).Value = "Maggie";
+        sheet.Cell(2, Col("Last name")).Value = "Kibui";
+        sheet.Cell(2, Col("Date of birth")).Value = "17/03/1998";                     // typed as text
+        sheet.Cell(2, Col("Start date")).Value = new DateTime(2026, 1, 1);          // a real date cell
+        sheet.Cell(2, Col("Start date")).Style.NumberFormat.Format = "dd/mm/yyyy";
+        sheet.Cell(2, Col("Still works here")).Value = "Yes";
+        sheet.Cell(3, Col("First name")).Value = "Otieno";
+        sheet.Cell(3, Col("Last name")).Value = "Ouma";
+        sheet.Cell(3, Col("Start date")).Value = "31/02/2024";                     // no such day
         using var stream = new MemoryStream();
         book.SaveAs(stream);
 

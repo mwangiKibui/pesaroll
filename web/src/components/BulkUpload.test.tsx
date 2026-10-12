@@ -50,6 +50,7 @@ it('after the upload, a large review shows every column and row, editable, befor
   await userEvent.click(within(drawer).getByRole('button', { name: 'Download template' }))
   expect(download).toHaveBeenCalled()
   await userEvent.upload(within(drawer).getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
 
   expect(await screen.findByRole('dialog', { name: 'Review 2 locations' })).toBeInTheDocument()
   expect(read).toHaveBeenCalledWith(expect.any(File))
@@ -77,6 +78,7 @@ it('search narrows the rows; the table scrolls inside the review with its header
   const many: BulkUploadRead = { rows: Array.from({ length: 40 }, (_, i) => row(i + 2, `Shop ${i + 1}`, i % 2 ? 'Mombasa' : 'Nairobi')), problems: [] }
   render(<Page read={async () => many} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 40 locations' })
 
   expect(within(review()).getByRole('region', { name: 'Rows to import' })).toHaveAttribute('tabindex', '0')
@@ -91,6 +93,7 @@ it('problems show in their cells; fixing a cell clears it; import checks again a
   const importRows = vi.fn(async () => null)
   render(<Page read={async () => withProblems} check={check} importRows={importRows} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 2 locations' })
 
   expect(cell('County', 3)).toHaveValue('Atlantis')   // what was typed stays visible
@@ -119,6 +122,7 @@ it('a row can be taken out before importing', async () => {
   const importRows = vi.fn(async () => null)
   render(<Page importRows={importRows} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 2 locations' })
 
   await userEvent.click(within(review()).getByRole('button', { name: 'Remove row 3' }))
@@ -135,10 +139,12 @@ it('a file the server refuses stays in the drawer; a failed import shows in the 
   const drawer = screen.getByRole('dialog', { name: 'Upload locations' })
 
   await userEvent.upload(within(drawer).getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   expect(await within(drawer).findByRole('alert')).toHaveTextContent('ONB-3516')
   expect(screen.queryByRole('dialog', { name: /Review/ })).not.toBeInTheDocument()
 
   await userEvent.upload(within(drawer).getByLabelText('Choose another file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await userEvent.click(await within(await screen.findByRole('dialog', { name: /Review/ })).findByRole('button', { name: 'Import 2 locations' }))
   expect(await within(review()).findByRole('alert')).toHaveTextContent('AB12CD34')
 })
@@ -150,6 +156,7 @@ it('a big file is reviewed 100 rows a page; search and "Only rows to fix" look a
   }
   render(<Page read={async () => big} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 250 locations' })
 
   expect(within(review()).getAllByRole('row')).toHaveLength(101)                 // the header and 100 rows
@@ -187,6 +194,7 @@ it('what a row names that does not exist yet is noted as "will be created", and 
   const importRows = vi.fn(async () => null)
   const { container } = render(<Page read={async () => withNotes} check={async () => ({ problems: [], notes: withNotes.notes })} importRows={importRows} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   await screen.findByRole('dialog', { name: 'Review 3 locations' })
 
   expect(cell('County', 3)).toHaveValue('Kericho')
@@ -338,6 +346,7 @@ it('each column can be searched and filtered by its values, together, across eve
   }
   render(<Page read={async () => many} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const sheet = review()
   const shownNames = () => within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)
 
@@ -372,6 +381,7 @@ it('each column sorts A to Z, Z to A, then back to the file order; a row being f
   }
   render(<Page read={async () => many} />)
   await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const sheet = review()
   const names = () => within(sheet).getAllByRole('textbox', { name: /^Location name, row/ }).map(c => (c as HTMLInputElement).value)
   const sort = () => within(sheet).getByRole('button', { name: 'Sort Location name' })
@@ -392,4 +402,32 @@ it('each column sorts A to Z, Z to A, then back to the file order; a row being f
   await userEvent.click(sort())
   expect(names()).toEqual(['Westlands branch', 'Mombasa shop', '', 'Kilimani office Z'])   // the file's order
   expect(header()).not.toHaveAttribute('aria-sort')
+})
+
+it('a chosen file waits for Proceed to preview, so the wrong one can be swapped; only .xlsx and .csv, and the template\'s columns', async () => {
+  const read = vi.fn(async (picked: File): Promise<BulkUploadRead | ApiError> => (picked.name === 'other.xlsx'
+    ? { code: 'ONB-3544', message: 'Invalid file: it doesn\'t match the locations template. Missing columns: County.', reference: '7F3K92QD' }
+    : good))
+  render(<Page read={read} />)
+  const upload = screen.getByRole('dialog', { name: 'Upload locations' })
+  const proceed = within(upload).getByRole('button', { name: 'Proceed to preview' })
+  expect(proceed).toBeDisabled()
+
+  await userEvent.upload(within(upload).getByLabelText('Choose a file'), file('salaries.xlsx'))
+  expect(within(upload).getByText('salaries.xlsx')).toBeInTheDocument()
+  expect(read).not.toHaveBeenCalled()   // nothing happens until Proceed
+  // A browser's "All files" choice gets past the input's accept list.
+  await userEvent.setup({ applyAccept: false }).upload(within(upload).getByLabelText('Choose another file'), new File(['x'], 'notes.pdf'))
+  expect(within(upload).getByText(/Only .xlsx or .csv files can be imported. notes.pdf isn't one/)).toBeInTheDocument()
+  expect(proceed).toBeDisabled()
+
+  await userEvent.upload(within(upload).getByLabelText('Choose another file'), file('other.xlsx'))
+  await userEvent.click(proceed)
+  expect(await within(upload).findByText(/Invalid file: it doesn't match the locations template. Missing columns: County./)).toBeInTheDocument()
+
+  await userEvent.upload(within(upload).getByLabelText('Choose another file'), file('locations.xlsx'))
+  expect(within(upload).queryByText(/Invalid file/)).not.toBeInTheDocument()   // a new file starts clean
+  await userEvent.click(proceed)
+  expect(await screen.findByRole('dialog', { name: /Review 2 locations/ })).toBeInTheDocument()
+  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'locations.xlsx' }))
 })

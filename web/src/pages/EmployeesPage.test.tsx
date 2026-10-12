@@ -137,7 +137,7 @@ it('a cell is checked as soon as it is left, with the rules for Kenyan numbers a
   await userEvent.click(await screen.findByRole('button', { name: 'Add employee' }))
   const sheet = await screen.findByRole('dialog', { name: /Add 1 employee/ })
 
-  const pin = within(sheet).getByRole('textbox', { name: 'KRA PIN, row 1' })
+  const pin = await within(sheet).findByRole('textbox', { name: 'KRA PIN, row 1' })
   await userEvent.type(pin, 'P0512345')
   await userEvent.tab()
   expect(pin).toHaveAccessibleDescription('Enter a KRA PIN like A012345678Z: A, 9 digits and a letter.')
@@ -190,7 +190,7 @@ it('people who work here are paid into an account the company pays from', async 
   renderApp('/setup/employees')
   await userEvent.click(await screen.findByRole('button', { name: 'Add employee' }))
   const sheet = await screen.findByRole('dialog', { name: /Add 1 employee/ })
-  expect(within(sheet).getByRole('combobox', { name: 'Paid into, row 1' })).toHaveValue('Bank')   // how the company pays
+  expect(await within(sheet).findByRole('combobox', { name: 'Paid into, row 1' })).toHaveValue('Bank')   // how the company pays
   await userEvent.type(within(sheet).getByRole('textbox', { name: 'First name, row 1' }), 'Wanjiru')
   await userEvent.type(within(sheet).getByRole('textbox', { name: 'Last name, row 1' }), 'Kamau')
   await userEvent.type(within(sheet).getByLabelText('Start date, row 1'), '2024-01-15')
@@ -236,6 +236,7 @@ it('Upload employees waits for a company; its template and the file are read for
   await vi.waitFor(() => expect(calls.some(c => c.path === '/api/employees/template' && c.url.includes(`companyId=${centrail.id}`))).toBe(true))
 
   await userEvent.upload(within(upload).getByLabelText(/Choose a file|Choose file/), new File(['x'], 'people.xlsx'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const review = await screen.findByRole('dialog', { name: /Review 1 employee/ })
   expect(review).toHaveClass('max-w-[97vw]')   // the drawer used for adding
   expect(readQuery).toContain(`companyId=${centrail.id}`)

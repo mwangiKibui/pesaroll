@@ -162,6 +162,16 @@ public static class SpreadsheetImport
     private static AppException Unreadable() =>
         new("ONB-3516", "We couldn't read this file. Use the template (.xlsx) or a .csv file with the same columns.");
 
+    private static AppException WrongType(string fileName) =>
+        new("ONB-3543", $"Only .xlsx or .csv files can be imported. {fileName} is {(Path.GetExtension(fileName) is { Length: > 1 } ext ? $"a {ext.ToLowerInvariant()} file" : "not one")}.");
+
+    /// <summary>"Invalid file: it doesn't match the locations template. Missing columns: … Columns the template doesn't have: …"</summary>
+    private static AppException NotTheTemplate<TValid>(ImportSpec<TValid> spec, List<string> missing, List<string> unknown) =>
+        new("ONB-3544", $"Invalid file: it doesn't match the {spec.Things} template."
+            + (missing.Count > 0 ? $" Missing columns: {string.Join(", ", missing)}." : "")
+            + (unknown.Count > 0 ? $" Columns the template doesn't have: {string.Join(", ", unknown)}." : "")
+            + " Download the template and copy your rows into it.");
+
     private static AppException TooBig<TValid>(ImportSpec<TValid> spec) =>
         new("ONB-3517", $"The file is too big. Upload up to {spec.MaxRows:N0} {spec.Things} and {spec.MaxMegabytes} MB at a time.");
 
@@ -251,25 +261,35 @@ public static class SpreadsheetImport
     /// <summary>The file's rows by column key: the first sheet of an .xlsx, or a .csv. Empty rows are skipped.</summary>
     private static async Task<List<ImportRow>> ReadAsync<TValid>(IFormFile file, ImportSpec<TValid> spec, CancellationToken ct)
     {
+        // Only the template's kinds of file, by name: an .xlsx or a .csv.
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension is not (".xlsx" or ".csv"))
+        {
+            throw WrongType(file.FileName);
+        }
+
         await using var stream = file.OpenReadStream();
         using var copy = new MemoryStream();
         await stream.CopyToAsync(copy, ct);
         copy.Position = 0;
-        var isCsv = file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) || file.ContentType.Contains("csv", StringComparison.OrdinalIgnoreCase);
+        var isCsv = extension == ".csv";
         var table = isCsv ? ReadCsv(Encoding.UTF8.GetString(copy.ToArray())) : ReadXlsx(copy);
         if (table.Count == 0)
         {
             throw Unreadable();
         }
 
-        // The header finds the columns; a file without the required ones isn't ours.
+        // First, the columns: the template's, all of them and nothing else, or the file isn't ours.
         var header = table[0].Select(h => h.Trim()).ToList();
         // "Start date (DD/MM/YYYY)" and "Start date" are the same column (older templates).
         static string Bare(string text) => Regex.Replace(text, @"\s*\([^)]*\)\s*$", "");
-        var index = spec.Columns.ToDictionary(c => c.Key, c => header.FindIndex(h => string.Equals(Bare(h), Bare(c.Header), StringComparison.OrdinalIgnoreCase)));
-        if (spec.RequiredKeys.Any(k => index[k] < 0))
+        bool Same(string a, string b) => string.Equals(Bare(a), Bare(b), StringComparison.OrdinalIgnoreCase);
+        var index = spec.Columns.ToDictionary(c => c.Key, c => header.FindIndex(h => Same(h, c.Header)));
+        var missing = spec.Columns.Where(c => c.InTemplate && index[c.Key] < 0).Select(c => c.Header).ToList();
+        var unknown = header.Where(h => h.Length > 0 && !spec.Columns.Any(c => c.InTemplate && Same(h, c.Header))).Distinct().ToList();
+        if (missing.Count > 0 || unknown.Count > 0)
         {
-            throw Unreadable();
+            throw NotTheTemplate(spec, missing, unknown);
         }
 
         var rows = new List<ImportRow>();

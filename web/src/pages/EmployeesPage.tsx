@@ -860,8 +860,9 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
     throw new Error('import')
   }
 
-  const companyField = (hint?: string) => (
-    <div className="w-full sm:w-72">
+  // Above the sheet it sits beside the search; in the upload drawer it takes the whole width.
+  const companyField = (hint?: string, wide = false) => (
+    <div className={wide ? 'w-full' : 'w-full sm:w-72'}>
       <SelectField label={t('employees.company')} placeholder={t('employees.companyPlaceholder')} hint={hint} value={companyId}
         onChange={value => value && setCompanyId(value)} options={companies.map(c => ({ value: c.id, label: c.legalName }))} />
     </div>
@@ -877,7 +878,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
       columns={columns} onCellsChange={follow} onClose={onClose}
       onDownloadTemplate={downloadTemplate} onRead={read} onCheck={check} onImport={importRows}
       locked={companyId ? undefined : t('employees.chooseCompanyFirst')}
-      firstStep={adding ? undefined : { title: t('employees.uploadCompany'), content: companyField(t('employees.uploadCompanyHint')) }}
+      firstStep={adding ? undefined : { title: t('employees.uploadCompany'), content: companyField(t('employees.uploadCompanyHint'), true) }}
       labels={{
         review: count => (adding ? t('employees.several', { count }) : t('employees.review', { count })),
         importButton: count => (adding ? t('employees.several', { count }) : t('employees.importButton', { count })),

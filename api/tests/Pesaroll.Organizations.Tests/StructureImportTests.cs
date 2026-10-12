@@ -234,7 +234,7 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
         Assert.Equal(service.Id, saved.Single(p => p.Title == "Waiter").DepartmentId);
         Assert.Equal(service.Id, saved.Single(p => p.Title == "Host").DepartmentId);
 
-        var units = await ReadOk(client, "units", Workbook(["Unit name", "Code", "Department"], ["Morning shift", null, "KIT"], ["Night shift", null, null]));
+        var units = await ReadOk(client, "units", Workbook(Units, ["Morning shift", null, "KIT"], ["Night shift", null, null]));
         Assert.Equal([(3, "department")], units.Problems.Select(p => (p.Line, p.Column)));
     }
 
@@ -258,8 +258,8 @@ public sealed class StructureImportTests(OnboardingTests.Api api) : IClassFixtur
     {
         var (client, company) = await Onboarded();
         await Post<Item>(client, "/api/structure/departments", new { code = "KIT", name = "Kitchen", allCompanies = true, companyIds = Array.Empty<Guid>() });
-        var csv = new StringBuilder("Position title,Code,Department\r\n");
-        for (var i = 1; i <= 5000; i++) csv.Append($"Position {i},,{(i % 2 == 0 ? "KIT" : "")}\r\n");
+        var csv = new StringBuilder("Position title,Code,Department,Division\r\n");
+        for (var i = 1; i <= 5000; i++) csv.Append($"Position {i},,{(i % 2 == 0 ? "KIT" : "")},\r\n");
         var clock = Stopwatch.StartNew();
 
         var read = (await (await ReadFile(client, "positions", Encoding.UTF8.GetBytes(csv.ToString()), "positions.csv", "text/csv")).Content.ReadFromJsonAsync<Read>())!;
