@@ -200,7 +200,7 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var check = (await res.Content.ReadFromJsonAsync<Check>())!;
-        Assert.Equal([(2, "kraPin"), (3, "staffNo"), (3, "unit"), (3, "payrollSchedule"), (4, "exitDate"), (4, "lineManager"), (4, "bank")],
+        Assert.Equal([(2, "staffNo"), (2, "kraPin"), (3, "staffNo"), (3, "unit"), (3, "payrollSchedule"), (4, "exitDate"), (4, "lineManager"), (4, "bank")],
             check.Problems.Select(p => (p.Line, p.Column)));
         Assert.Contains("Kitchen", check.Notes.Single(n => n.Column == "department").Message);
         Assert.Contains("Head cook", check.Notes.Single(n => n.Column == "position").Message);
@@ -254,7 +254,7 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
             Person("Other", "Kamau", ("nationalId", "87654321")),
             Person("Same", "Id", ("nationalId", "87654321"))))).Content.ReadFromJsonAsync<Check>())!;
 
-        Assert.Equal([(2, "staffNo"), (2, "kraPin"), (4, "nationalId")], check.Problems.Select(p => (p.Line, p.Column)));
+        Assert.Equal([(2, "staffNo"), (2, "kraPin"), (3, "nationalId"), (4, "nationalId")], check.Problems.Select(p => (p.Line, p.Column)));
         Assert.Equal("Wanjiru Kamau (K-1) already has this KRA PIN.", check.Problems[1].Message);
     }
 
@@ -274,10 +274,32 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
             Person("Akinyi", "Odera", ("email", "OTIENO@example.com"), ("phone", "0722000111")),
             Person("Baraka", "Mwangi", ("phone", "0712345678"), ("stillHere", "No"), ("exitDate", "2024-06-30"))))).Content.ReadFromJsonAsync<Check>())!;   // someone who left
 
-        Assert.Equal([(2, "phone"), (2, "email"), (2, "nssfNo"), (2, "shaNo"), (4, "phone"), (4, "email")],
+        Assert.Equal([(2, "phone"), (2, "email"), (2, "nssfNo"), (2, "shaNo"), (3, "phone"), (3, "email"), (4, "phone"), (4, "email")],
             check.Problems.Select(p => (p.Line, p.Column)));
         Assert.Equal("Wanjiru Kamau (K-1) already has this email address.", check.Problems.Single(p => p is { Line: 2, Column: "email" }).Message);
         Assert.Equal("Row 3 has this phone number too.", check.Problems.Single(p => p is { Line: 4, Column: "phone" }).Message);
+        Assert.Equal("Row 4 has this phone number too.", check.Problems.Single(p => p is { Line: 3, Column: "phone" }).Message);   // both rows, to see the pair
+    }
+
+    [Fact]
+    public async Task Rows_of_a_file_cant_share_an_M_Pesa_number_or_bank_account()
+    {
+        var (client, _) = await Onboarded();
+        Dictionary<string, string> Bank(string first, string account) =>
+            Person(first, "Kamau", ("paidInto", "Bank"), ("bank", "Equity Bank"), ("branch", "047"), ("accountNumber", account));
+
+        var check = (await (await client.PostAsJsonAsync("/api/employees/import/check", RowsBody(
+            Person("Wanjiru", "Kamau", ("paidInto", "M-Pesa"), ("mpesa", "0712 345 678")),
+            Person("Otieno", "Ouma", ("paidInto", "M-Pesa"), ("mpesa", "+254712345678")),
+            Bank("Akinyi", "0123456789012"),
+            Bank("Baraka", "0123-4567-89012"),
+            Bank("Chebet", "0123456789099"),
+            Person("Njeri", "Kamau", ("paidInto", "M-Pesa"), ("mpesa", "0712345678"), ("stillHere", "No"), ("exitDate", "2024-06-30"))))).Content   // left: not counted
+            .ReadFromJsonAsync<Check>())!;
+
+        Assert.Equal([(2, "mpesa", "Row 3 has this M-Pesa number too."), (3, "mpesa", "Row 2 has this M-Pesa number too."),
+                      (4, "accountNumber", "Row 5 has this bank account too."), (5, "accountNumber", "Row 4 has this bank account too.")],
+            check.Problems.Select(p => (p.Line, p.Column!, p.Message)));
     }
 
     [Fact]

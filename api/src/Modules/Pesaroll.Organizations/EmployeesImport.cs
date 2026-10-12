@@ -183,6 +183,15 @@ public static class EmployeesImport
         // What the file itself takes: staff numbers per company, numbers of current staff.
         var fileStaff = new Dictionary<(Guid, string), int>();
         var fileNumbers = new Dictionary<string, int>();
+        // A value two rows share is marked on both, once on the earlier row, so the pair shows together.
+        var markedEarlier = new HashSet<(int, string)>();
+        void Earlier(int other, int line, string key, string label)
+        {
+            if (markedEarlier.Add((other, key)))
+            {
+                problems.Add(new ImportProblem(other, key, $"Row {line} has this {label} too."));
+            }
+        }
 
         foreach (var row in raw)
         {
@@ -230,6 +239,7 @@ public static class EmployeesImport
                 else if (fileStaff.TryGetValue((company.Id, staffNo), out var other))
                 {
                     Problem("staffNo", $"Row {other} has this staff number too.");
+                    Earlier(other, line, "staffNo", "staff number");
                 }
                 else
                 {
@@ -304,18 +314,20 @@ public static class EmployeesImport
             var sha = Number("shaNo", EmployeeNumbers.Sha, "Enter the SHA number: 6 to 20 letters, numbers or dashes.");
 
             // No two current employees share a statutory number, phone or email: those already there
-            // (a re-import), then earlier rows. Encrypted numbers are compared by their keyed lookup.
+            // (a re-import), then other rows. Encrypted numbers are compared by their keyed lookup; M-Pesa
+            // numbers and bank accounts (stored encrypted, without one) only between rows.
             void Unique(string? value, string key, string label, string? kind = null)
             {
                 if (string.IsNullOrEmpty(value) || exit is not null) return;
                 var compared = kind is null ? value : encryptor.Lookup(value, $"{kind}:{organizationId}");
-                if (taken[key].TryGetValue(compared, out var holder))
+                if (taken.GetValueOrDefault(key)?.TryGetValue(compared, out var holder) == true)
                 {
                     Problem(key, $"{holder} already has this {label}.");
                 }
                 else if (fileNumbers.TryGetValue(key + compared, out var other))
                 {
                     Problem(key, $"Row {other} has this {label} too.");
+                    Earlier(other, line, key, label);
                 }
                 else
                 {
@@ -478,6 +490,15 @@ public static class EmployeesImport
                 }
 
                 account = new EmployeesEndpoints.ValidAccount("mpesa", null, null, null, mpesa);
+            }
+
+            if (account is { Method: "bank", BankCode: { } accountBank } && accountText.Length > 0)
+            {
+                Unique($"{accountBank}:{accountText}", "accountNumber", "bank account");
+            }
+            else if (account is { Method: "mpesa", MpesaPhone: { } wallet })
+            {
+                Unique(wallet, "mpesa", "M-Pesa number");
             }
 
             // Paid into a bank or M-Pesa: as Paid into says, and for current staff one the company pays from.
