@@ -7,6 +7,7 @@
 \i platform/error_codes.sql
 \i reference/countries.sql
 \i reference/banks.sql
+\i reference/saccos.sql
 \i reference/statutory_items.sql
 \i reference/statutory_leave.sql
 \i identity/signup_roles.sql

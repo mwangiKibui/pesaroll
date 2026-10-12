@@ -19,6 +19,8 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<Industry> Industries => Set<Industry>();
     public DbSet<Bank> Banks => Set<Bank>();
     public DbSet<BankBranch> BankBranches => Set<BankBranch>();
+    public DbSet<Sacco> Saccos => Set<Sacco>();
+    public DbSet<SaccoBranch> SaccoBranches => Set<SaccoBranch>();
     public DbSet<CompanyPaymentAccount> CompanyPaymentAccounts => Set<CompanyPaymentAccount>();
     public DbSet<CountryWageArea> CountryWageAreas => Set<CountryWageArea>();
     public DbSet<Location> Locations => Set<Location>();
@@ -77,6 +79,10 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Bank>().HasKey(b => new { b.CountryCode, b.Code });
         model.Entity<Bank>().Property(b => b.CountryCode).HasColumnType("char(2)");
         model.Entity<BankBranch>().HasKey(b => new { b.CountryCode, b.BankCode, b.Code });
+        model.Entity<Sacco>().HasKey(s => new { s.CountryCode, s.Code });
+        model.Entity<Sacco>().Property(s => s.CountryCode).HasColumnType("char(2)");
+        model.Entity<SaccoBranch>().HasKey(s => new { s.CountryCode, s.SaccoCode, s.Code });
+        model.Entity<SaccoBranch>().Property(s => s.CountryCode).HasColumnType("char(2)");
         model.Entity<BankBranch>().Property(b => b.CountryCode).HasColumnType("char(2)");
         model.Entity<CompanyPaymentAccount>().Property(a => a.CountryCode).HasColumnType("char(2)");
         model.Entity<CompanyPaymentAccount>().Property(a => a.CreatedAt).ValueGeneratedOnAdd();

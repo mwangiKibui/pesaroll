@@ -19,7 +19,10 @@ public sealed class PayeesTests(OnboardingTests.Api api) : IClassFixture<Onboard
     private sealed record Company(Guid Id, string LegalName);
     private sealed record Item(Guid Id);
     private sealed record Payee(Guid Id, string Name, string Method, string? BankCode, string? BankName, string? BranchCode, string? AccountNumber,
-        string? Paybill, string? PaybillAccount, string? ChequePayableTo, string? OurReference, int UsedBy);
+        string? Paybill, string? PaybillAccount, string? ChequePayableTo, string? OurReference, int UsedBy, string? Institution = null, string? SaccoCode = null, string? SaccoName = null,
+        string? SaccoBranchName = null);
+    private sealed record Sacco(string Code, string Name, List<Branch> Branches);
+    private sealed record Branch(string Code, string Name);
     private sealed record PayItem(Guid Id, string Name, Guid? PayeeId);
     private sealed record Person(Guid EmployeeId, string? Reference);
     private sealed record Assignment(Guid CompanyId, List<Person> People);
@@ -56,18 +59,31 @@ public sealed class PayeesTests(OnboardingTests.Api api) : IClassFixture<Onboard
         var (client, _) = await Onboarded();
 
         var stima = await Make(client, "/api/payees", new { name = "Stima SACCO", method = "mpesa_paybill", paybill = "510800", paybillAccount = "EMP-4471", ourReference = "EMP-4471" });
-        await Make(client, "/api/payees", new { name = "Hotel Workers Union", method = "bank", bankCode = "68", branchCode = "047", accountNumber = "0123 4567 89012" });
+        await Make(client, "/api/payees", new { name = "Hotel Workers Union", method = "bank", institution = "bank", bankCode = "68", branchCode = "047", accountNumber = "0123 4567 89012" });
+        var saccos = (await client.GetFromJsonAsync<List<Sacco>>("/api/saccos"))!;
+        Assert.Equal(["Stima SACCO", "Mentor SACCO"], saccos.Select(s => s.Name));
+        Assert.Contains("Kenol", saccos[1].Branches.Select(b => b.Name));
+        await Make(client, "/api/payees", new { name = "Teachers Welfare Fund", method = "bank", institution = "sacco", saccoCode = "STIMA", saccoBranchCode = "005", accountNumber = "ST-00451", bankCode = "68" });
         await Make(client, "/api/payees", new { name = "Jubilee Insurance", method = "cheque", chequePayableTo = "Jubilee Health Insurance Ltd", paybill = "999999" });   // a stray paybill is dropped
 
         var list = (await client.GetFromJsonAsync<List<Payee>>("/api/payees"))!;
-        Assert.Equal(["Hotel Workers Union", "Jubilee Insurance", "Stima SACCO"], list.Select(p => p.Name));
+        Assert.Equal(["Hotel Workers Union", "Jubilee Insurance", "Stima SACCO", "Teachers Welfare Fund"], list.Select(p => p.Name));
         var union = list[0];
-        Assert.Equal(("bank", "Equity Bank", "0123456789012"), (union.Method, union.BankName, union.AccountNumber));
+        Assert.Equal(("bank", "bank", "Equity Bank", "0123456789012"), (union.Method, union.Institution, union.BankName, union.AccountNumber));
         Assert.Null(list[1].Paybill);
+        var welfare = list[3];
+        Assert.Equal(("sacco", "Stima SACCO", "Mombasa", "ST-00451", (string?)null),
+            (welfare.Institution, welfare.SaccoName, welfare.SaccoBranchName, welfare.AccountNumber, welfare.BankCode));   // no stray bank
 
-        var bad = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "X", method = "bank", bankCode = "68", branchCode = "999", accountNumber = "123" }));
+        var bad = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "X", method = "bank", institution = "bank", bankCode = "68", branchCode = "999", accountNumber = "123" }));
         Assert.Equal("ONB-3548", bad.Code);
         Assert.Equal(["accountNumber", "branchCode", "name"], bad.Fields!.Keys.Order());
+        var sacco = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "No SACCO", method = "bank", institution = "sacco", accountNumber = "MW-1" }));
+        Assert.Equal("Choose the SACCO.", sacco.Fields!["saccoCode"]);
+        var branch = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "Wrong branch", method = "bank", institution = "sacco", saccoCode = "MENTOR", saccoBranchCode = "012", accountNumber = "MT-1" }));
+        Assert.Equal("Choose a branch of Mentor SACCO.", branch.Fields!["saccoBranchCode"]);
+        var which = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "Bank or SACCO", method = "bank", accountNumber = "123456" }));
+        Assert.Equal("Choose bank or SACCO.", which.Fields!["institution"]);
         var paybill = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "Bad paybill", method = "mpesa_paybill", paybill = "12" }));
         Assert.Equal("Enter the paybill number: 5 to 7 digits.", paybill.Fields!["paybill"]);
         var twin = await client.PostAsJsonAsync("/api/payees", new { name = "stima sacco", method = "cash" });

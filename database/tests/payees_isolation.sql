@@ -19,8 +19,10 @@ begin
   perform set_config('app.company_ids', ke1 || ',' || ug1, true);
   insert into payees (id, organization_id, name, method, paybill, paybill_account, our_reference)
   values (stima, org1, 'Stima SACCO', 'mpesa_paybill', '510800', 'EMP-4471', 'EMP-4471');
-  insert into payees (id, organization_id, name, method, country_code, bank_code, branch_code, account_number)
-  values (bank, org1, 'Kenya Union of Hotel Workers', 'bank', 'KE', '68', '047', '0123456789012');
+  insert into payees (id, organization_id, name, method, institution, country_code, bank_code, branch_code, account_number)
+  values (bank, org1, 'Kenya Union of Hotel Workers', 'bank', 'bank', 'KE', '68', '047', '0123456789012');
+  insert into payees (id, organization_id, name, method, institution, country_code, sacco_code, sacco_branch_code, account_number)
+  values ('00000000-0000-7000-8000-000000000708', org1, 'Welfare Fund', 'bank', 'sacco', 'KE', 'STIMA', '005', 'ST-00451');
   insert into payees (id, organization_id, name, method, cheque_payable_to)
   values ('00000000-0000-7000-8000-000000000703', org1, 'Jubilee Insurance', 'cheque', 'Jubilee Health Insurance Ltd');
   insert into payees (id, organization_id, name, method) values ('00000000-0000-7000-8000-000000000704', org1, 'Welfare committee', 'cash');
@@ -35,6 +37,18 @@ begin
     raise exception 'a bank payee was saved without its bank details';
   exception when check_violation then null;
   end;
+  begin
+    insert into payees (id, organization_id, name, method, institution, country_code, account_number) values ('00000000-0000-7000-8000-000000000709', org1, 'No SACCO', 'bank', 'sacco', 'KE', 'ST-1');
+    raise exception 'a SACCO transfer was saved without the SACCO';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into payees (id, organization_id, name, method, institution, country_code, sacco_code, sacco_branch_code, account_number)
+    values ('00000000-0000-7000-8000-000000000710', org1, 'Wrong branch', 'bank', 'sacco', 'KE', 'MENTOR', '012', 'MT-1');   -- Mentor has no 012
+    raise exception 'a SACCO branch that does not exist was saved';
+  exception when foreign_key_violation then null;
+  end;
+  if (select count(*) from sacco_branches where country_code = 'KE' and sacco_code = 'STIMA') <> 12 then raise exception 'Stima SACCO should have 12 branches'; end if;
   begin
     insert into payees (id, organization_id, name, method) values ('00000000-0000-7000-8000-000000000707', org1, 'No paybill', 'mpesa_paybill');
     raise exception 'a paybill payee was saved without its paybill';

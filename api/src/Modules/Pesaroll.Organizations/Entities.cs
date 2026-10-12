@@ -123,6 +123,27 @@ public sealed class Bank
     public int SortOrder { get; set; }
 }
 
+/// <summary>A SACCO payees (and later employees) can be paid into; the back office maintains them (BO-11).</summary>
+public sealed class Sacco
+{
+    public required string CountryCode { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public required string LegalName { get; set; }
+    public bool Active { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public sealed class SaccoBranch
+{
+    public required string CountryCode { get; set; }
+    public required string SaccoCode { get; set; }
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public bool Active { get; set; }
+    public int SortOrder { get; set; }
+}
+
 public sealed class BankBranch
 {
     public required string CountryCode { get; set; }
@@ -236,6 +257,10 @@ public sealed class Payee
     public required string Name { get; set; }
     /// <summary>bank, mpesa_paybill, cheque or cash.</summary>
     public required string Method { get; set; }
+    /// <summary>For a transfer: bank or sacco.</summary>
+    public string? Institution { get; set; }
+    public string? SaccoCode { get; set; }
+    public string? SaccoBranchCode { get; set; }
     public string? CountryCode { get; set; }
     public string? BankCode { get; set; }
     public string? BranchCode { get; set; }
