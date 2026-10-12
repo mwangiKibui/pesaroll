@@ -36,14 +36,14 @@ public static class LocationsImport
             RequiredKeys = [NameColumn, CountyColumn],
             MaxRows = 1000,
             MaxMegabytes = 2,
-            Choices = async (db, ct) => new Dictionary<string, List<string>>
+            Choices = async (db, _, ct) => new Dictionary<string, List<string>>
             {
                 [TypeColumn] = [.. KindLabels.Values],
                 [CountyColumn] = (await RegionsAsync(db, ct)).Select(r => r.Name).ToList(),
                 [MainColumn] = ["Yes", "No"],
             },
-            Check = CheckAsync,
-            Save = SaveAsync,
+            Check = (rows, db, _, ct) => CheckAsync(rows, db, ct),
+            Save = (rows, request, org, db, now, _, ct) => SaveAsync(rows, request, org, db, now, ct),
         });
         return app;
     }

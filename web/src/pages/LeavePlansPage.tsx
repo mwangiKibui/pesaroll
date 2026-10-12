@@ -14,7 +14,9 @@ import { Checkbox, RadioGroup, SelectField, Switch, TextField } from '../compone
 import { PlusIcon } from '../components/icons'
 import { Modal } from '../components/Modal'
 import { MultiSelectField } from '../components/MultiSelectField'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { usePaged } from '../components/usePaged'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { useCompanies, useLeavePlans, useLeaveTypes, useSchedules, useSetupDone } from '../setup/hooks'
@@ -111,6 +113,8 @@ export default function LeavePlansPage() {
 
   const ready = companies.data && types.data && plans.data && schedules.data
   const visible = (plans.data ?? []).filter(p => shown.all || p.allCompanies || p.companyIds.some(id => shown.ids.includes(id)))
+  const pagedPlans = usePaged(visible)
+  const pagedTypes = usePaged(types.data ?? [])
   const companyNames = (ids: string[]) => (companies.data ?? []).filter(c => ids.includes(c.id)).map(c => c.legalName)
   const ruleText = useRuleText()
 
@@ -163,7 +167,7 @@ export default function LeavePlansPage() {
             </div>
           </div>
           <TabPanel id={tabsId} tab="plans" current={tab}>
-            <TableCard title={t('leavePlans.tabs.plans')} count={visible.length}>
+            <TableCard footer={<Pagination label={t('pagination.of', { what: t('leavePlans.tabs.plans') })} {...pagedPlans.pagination} />} title={t('leavePlans.tabs.plans')} count={visible.length}>
               {visible.length === 0 ? <EmptyState title={t('leavePlans.emptyTitle')}>{t('leavePlans.emptyText')}</EmptyState> : (
                 <table>
                   <thead>
@@ -176,7 +180,7 @@ export default function LeavePlansPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visible.map(p => (
+                    {pagedPlans.items.map(p => (
                       <tr key={p.id}>
                         <td className="font-medium text-ink">{p.name}</td>
                         <td className="text-hint">
@@ -199,7 +203,7 @@ export default function LeavePlansPage() {
             </TableCard>
           </TabPanel>
           <TabPanel id={tabsId} tab="types" current={tab}>
-            <TableCard title={t('leavePlans.tabs.types')} count={types.data.length}>
+            <TableCard footer={<Pagination label={t('pagination.of', { what: t('leavePlans.tabs.types') })} {...pagedTypes.pagination} />} title={t('leavePlans.tabs.types')} count={types.data.length}>
               <table>
                 <thead>
                   <tr>
@@ -212,7 +216,7 @@ export default function LeavePlansPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {types.data.map(lt => (
+                  {pagedTypes.items.map(lt => (
                     <tr key={lt.id}>
                       <td>
                         <span className="block font-medium text-ink">{lt.name}</span>
@@ -241,8 +245,7 @@ export default function LeavePlansPage() {
             </TableCard>
           </TabPanel>
         </div>
-        {/* Employees (ONB-09) is next; until it has a page, the dashboard. */}
-        <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
+        <Proceed label={t('setup.proceed', { step: t('setup.steps.employees') })} onProceed={() => void navigate({ to: '/setup/employees' })} />
 
         {editing?.kind === 'plan' && (
           <PlanDrawer plan={editing.item} types={types.data} companies={companies.data} schedules={schedules.data}

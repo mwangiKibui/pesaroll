@@ -20,6 +20,9 @@ services:
     #   Encryption__Keys__0__Secret=<base64>
     # Losing it makes stored account numbers unreadable: keep it in the password manager too.
     # To change it, put the new key at 0 and keep the old one at 1 until old values are re-encrypted.
+    # .env must also set the lookup key, used to find duplicate ID numbers and KRA PINs (openssl rand -base64 32):
+    #   Encryption__LookupKey=<base64>
+    # Never change it: every stored lookup would stop matching. Keep it in the password manager too.
     # .env must also set email and SMS (NTF-01; the API and worker refuse to start otherwise):
     #   Notifications__Email__Provider=postmark
     #   Notifications__Email__Postmark__ServerToken=<Postmark server API token>

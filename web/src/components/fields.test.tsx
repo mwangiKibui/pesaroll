@@ -140,6 +140,29 @@ it('a required dropdown keeps its choice when emptied and left', async () => {
   expect(county()).toHaveValue('Nairobi')
 })
 
+it('the list floats over everything near it, and opens upward when there is no room below', async () => {
+  render(
+    // A card that clips what sticks out, as table cards do.
+    <div style={{ overflow: 'hidden' }}><County initial="001" /></div>,
+  )
+  const field = county().parentElement!
+  const rect = (top: number) => ({ top, bottom: top + 36, left: 40, right: 136, width: 96, height: 36, x: 40, y: top, toJSON: () => ({}) })
+
+  field.getBoundingClientRect = () => rect(100)
+  await userEvent.click(county())
+  const below = screen.getByRole('listbox').parentElement!
+  expect(below).toHaveClass('fixed')   // not clipped by the card
+  expect(below.style.top).toBe('140px')
+  expect(below.style.minWidth).toBe('96px')
+  await userEvent.keyboard('{Escape}')
+
+  field.getBoundingClientRect = () => rect(window.innerHeight - 50)   // at the foot of the screen
+  await userEvent.click(county())
+  const above = screen.getByRole('listbox').parentElement!
+  expect(above.style.top).toBe('')
+  expect(above.style.bottom).toBe('54px')   // opens upward, just above the field
+})
+
 it('a dropdown error is shown under it and read out with it', async () => {
   const { container } = render(<SelectField label="Industry" placeholder="Your industry" error="Choose an industry from the list."
     options={[{ value: 'hotels', label: 'Hotels' }]} value="" onChange={() => {}} />)

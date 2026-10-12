@@ -11,6 +11,7 @@ import { PasswordField } from '../components/PasswordField'
 import { Money } from '../components/Money'
 import { AppShell, PhoneShell } from '../components/shells'
 import { LanguageSwitch, ThemeSwitch } from '../components/switches'
+import { Pagination } from '../components/Pagination'
 import { Card, TableCard } from '../components/TableCard'
 import { useToast } from '../components/toast'
 
@@ -124,6 +125,7 @@ export default function ComponentsPage() {
 
         <Section title="Setup page pattern">
           <TableCard title="Locations" count={locations.length} status={<Tag tone="warning">Not saved yet</Tag>}
+            footer={<Pagination label="Pages of locations" page={1} pageSize={20} total={locations.length} onPage={() => {}} onPageSize={() => {}} />}
             actions={<><Button variant="secondary" onClick={() => setUpload(true)}>Upload locations</Button><Button onClick={() => setDrawer(true)}>Add location</Button></>}>
             <table>
               <thead><tr><th>Location</th><th>Town</th><th>Applies to</th><th>Main location for</th><th className="text-right!">Actions</th></tr></thead>

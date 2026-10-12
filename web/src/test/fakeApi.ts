@@ -61,8 +61,8 @@ export const company = (overrides: Record<string, unknown> = {}) => ({
 })
 
 export const banks = [
-  { code: '68', name: 'Equity Bank', branches: [{ code: '047', name: 'Moi Avenue, Nairobi' }, { code: '025', name: 'Mombasa' }] },
-  { code: '01', name: 'KCB Bank', branches: [{ code: '100', name: 'Moi Avenue, Nairobi' }] },
+  { code: '68', name: 'Equity Bank', branches: [{ code: '047', name: 'Moi Avenue, Nairobi' }, { code: '025', name: 'Mombasa' }], accountDigitsMin: 13, accountDigitsMax: 13 },
+  { code: '01', name: 'KCB Bank', branches: [{ code: '100', name: 'Moi Avenue, Nairobi' }], accountDigitsMin: 10, accountDigitsMax: 16 },
 ]
 
 /** A paying account as the API returns it: the number only ever masked. */
@@ -133,6 +133,25 @@ export const leavePlan = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+/** An employee in the list, as the API returns it: ready for payroll by default. */
+export const employeeRow = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000a501', companyId: company().id, staffNo: 'EMP-01', name: 'Wanjiru Kamau', positionTitle: 'Head cook',
+  departmentName: 'Kitchen', payScheduleId: schedule().id, basicAmount: 85000, payBasis: 'monthly', currency: 'KES', exitDate: null,
+  hireDate: '2024-01-15', readiness: { ready: true, missing: [] }, ...overrides,
+})
+
+/** One employee in full, numbers masked, as the API returns it. */
+export const employeeDetail = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000a501', companyId: company().id, staffNo: 'EMP-01', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau',
+  dateOfBirth: '1990-05-01', phone: '+254712345678', email: 'wanjiru@example.com', nationalIdMasked: '•••• 5678', kraPinMasked: '•••• 678Z',
+  address: 'Hse 12, Kilimani, Nairobi', nssfNo: '2098765432', shaNo: 'CR1234567-8', hireDate: '2024-01-15', exitDate: null,
+  job: { positionId: null, departmentId: null, unitId: null, locationId: location().id, lineManagerId: null, payScheduleId: schedule().id,
+    leavePlanId: '0199c0de-0000-7000-8000-00000000f101', employmentType: 'permanent', contractEnd: null },
+  pay: { basicAmount: 85000, payBasis: 'monthly', currency: 'KES' },
+  account: { method: 'mpesa', bankCode: null, branchCode: null, accountMasked: null, mpesaMasked: '•••• 5678' },
+  readiness: { ready: true, missing: [] }, ...overrides,
+})
+
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */
 export const jwt = (org: string | null = organization.id) =>
   `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: me.id, sid: 'session-1', ...(org ? { org } : {}) })}.signature`
@@ -145,7 +164,7 @@ export const orgToken = () => token(jwt())
  * session (refresh answers AUTH-1007) and the role list and /me answer as above.
  */
 export function fakeApi(routes: Record<string, Handler> = {}) {
-  const calls: { method: string; path: string; body: unknown; auth: string | null }[] = []
+  const calls: { method: string; path: string; url: string; body: unknown; auth: string | null }[] = []
   const defaults: Record<string, Handler> = {
     'POST /api/auth/refresh': () => apiError(401, 'AUTH-1007', 'Sign in to continue.'),
     'GET /api/auth/signup-roles': () => json(200, roles),
@@ -166,6 +185,8 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/pay-items': () => json(200, []),
     'GET /api/leave-types': () => json(200, []),
     'GET /api/leave-plans': () => json(200, []),
+    'GET /api/employees': () => json(200, { items: [], total: 0, page: 1, pageSize: 100 }),
+    'GET /api/employees/choices': () => json(200, []),
     [`GET /api/companies/${company().id}/payment-accounts`]: () => json(200, []),
     'PATCH /api/organizations/current': async req => json(200, { ...organization, name: ((await req.json()) as { name: string }).name }),
   }
@@ -176,7 +197,7 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     const isForm = req.headers.get('Content-Type')?.startsWith('multipart/form-data')
     const text = isForm ? '' : await req.clone().text()
     const body = isForm ? await req.clone().formData() : text ? JSON.parse(text) : null
-    calls.push({ method: req.method, path, body, auth: req.headers.get('Authorization') })
+    calls.push({ method: req.method, path, url: req.url, body, auth: req.headers.get('Authorization') })
     const handler = routes[`${req.method} ${path}`] ?? defaults[`${req.method} ${path}`]
     return handler ? handler(req) : json(404, {})
   }))

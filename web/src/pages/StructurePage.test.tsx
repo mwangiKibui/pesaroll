@@ -184,7 +184,7 @@ it('the setup steps in the sidebar are links to their pages, done or not', async
   expect(within(steps).getByRole('link', { name: /Payroll schedules/ })).toHaveAttribute('href', '/setup/schedules')
   expect(within(steps).getByRole('link', { name: /Earnings and deductions/ })).toHaveAttribute('href', '/setup/earnings-and-deductions')
   expect(within(steps).getByRole('link', { name: /Leave plans/ })).toHaveAttribute('href', '/setup/leave-plans')
-  expect(within(steps).queryByRole('link', { name: /Employees/ })).not.toBeInTheDocument()   // not built yet
+  expect(within(steps).getByRole('link', { name: /Employees/ })).toHaveAttribute('href', '/setup/employees')
 
   await userEvent.click(within(steps).getByRole('link', { name: /Companies/ }))
   expect(await screen.findByRole('heading', { name: 'Your companies' })).toBeInTheDocument()
@@ -213,6 +213,7 @@ it('each tab uploads its level through the review, here departments under ones i
     .toEqual(['1. Choose what to upload', '2. Download the template', '3. Upload your file'])
   expect(within(upload).getByRole('radio', { name: 'Departments' })).toBeChecked()
   await userEvent.upload(within(upload).getByLabelText('Choose a file'), new File(['x'], 'departments.xlsx'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const review = await screen.findByRole('dialog', { name: 'Review 2 departments' })
   expect(within(review).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Row', 'Department name', 'Code', 'Division', 'Part of', 'Actions'])
   expect(within(review).getByRole('textbox', { name: 'Part of, row 2' })).toHaveValue('Kitchen')   // typed, not picked
@@ -227,6 +228,7 @@ it('each tab uploads its level through the review, here departments under ones i
   await userEvent.click(screen.getByRole('button', { name: 'Upload structure' }))
   await userEvent.click(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByRole('radio', { name: 'Units' }))
   await userEvent.upload(within(screen.getByRole('dialog', { name: 'Upload structure' })).getByLabelText('Choose a file'), new File(['x'], 'units.xlsx'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
   const units = await screen.findByRole('dialog', { name: 'Review 1 unit' })
   expect(within(units).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Row', 'Unit name', 'Code', 'Department', 'Division', 'Actions'])
   expect(within(units).getByRole('textbox', { name: 'Division, row 2' })).toHaveValue('Restaurants')

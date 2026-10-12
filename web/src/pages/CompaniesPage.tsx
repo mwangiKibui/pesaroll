@@ -13,7 +13,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { SelectField, TextField } from '../components/fields'
+import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { usePaged } from '../components/usePaged'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { PaymentAccounts } from './PaymentAccounts'
@@ -66,6 +68,7 @@ export default function CompaniesPage() {
   const [needOne, setNeedOne] = useState(false)
 
   const list = companies.data ?? []
+  const paged = usePaged(list)
   const ready = companies.data && countries.data && industries.data && organization.data
 
   const remove = async () => {
@@ -110,7 +113,7 @@ export default function CompaniesPage() {
           <EmptyState title={t('companies.emptyTitle')} action={addButton}>{t('companies.emptyText')}</EmptyState>
         </section>
       ) : (
-        <TableCard title={t('companies.tableTitle')} count={list.length} actions={addButton}>
+        <TableCard footer={<Pagination label={t('pagination.of', { what: t('companies.tableTitle') })} {...paged.pagination} />} title={t('companies.tableTitle')} count={list.length} actions={addButton}>
           <table>
             <thead>
               <tr>
@@ -124,7 +127,7 @@ export default function CompaniesPage() {
               </tr>
             </thead>
             <tbody>
-              {list.map(c => (
+              {paged.items.map(c => (
                 <tr key={c.id}>
                   <td>
                     <span className="block font-medium text-ink">{c.legalName}</span>

@@ -6,9 +6,12 @@ create table banks (
     code          text not null check (code ~ '^[0-9A-Z]{2,6}$'),
     name          text not null,                    -- what people call it: "Equity Bank"
     legal_name    text not null,
+    account_digits_min int not null default 6,      -- account numbers are digits only, this long (ONB-09)
+    account_digits_max int not null default 20,
     active        boolean not null default true,
     sort_order    int not null default 0,
-    primary key (country_code, code)
+    primary key (country_code, code),
+    check (account_digits_min between 1 and account_digits_max)
 );
 
 create table bank_branches (

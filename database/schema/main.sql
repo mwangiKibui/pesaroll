@@ -25,6 +25,7 @@
 \i tenancy/leave_plan_rules.sql
 \i tenancy/structure.sql
 \i tenancy/structure_companies.sql
+\i tenancy/employees.sql
 \i tenancy/notification_deliveries.sql
 \i identity/memberships.sql
 \i identity/users_policies.sql

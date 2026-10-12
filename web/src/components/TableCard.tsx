@@ -19,10 +19,12 @@ interface TableCardProps {
   /** Bulk upload, then "Add <thing>". */
   actions?: ReactNode
   children: ReactNode
+  /** Under the table: its Pagination (every table has one). */
+  footer?: ReactNode
 }
 
 /** The setup and list pattern: title and count, actions on the right, a table that scrolls sideways on phones. */
-export function TableCard({ title, count, status, actions, children }: TableCardProps) {
+export function TableCard({ title, count, status, actions, children, footer }: TableCardProps) {
   return (
     <section className="overflow-hidden rounded-card border border-line bg-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3.5">
@@ -36,6 +38,7 @@ export function TableCard({ title, count, status, actions, children }: TableCard
         className="overflow-x-auto [&_table]:w-full [&_table]:border-collapse [&_table]:text-label [&_td]:border-b [&_td]:border-line-soft [&_td]:px-4 [&_td]:py-2.5 [&_th]:whitespace-nowrap [&_th]:border-b [&_th]:border-line [&_th]:bg-raised [&_th]:px-4 [&_th]:py-2.5 [&_th]:text-left [&_th]:font-medium [&_th]:text-muted">
         {children}
       </div>
+      {footer && <div className="border-t border-line px-4 py-3">{footer}</div>}
     </section>
   )
 }

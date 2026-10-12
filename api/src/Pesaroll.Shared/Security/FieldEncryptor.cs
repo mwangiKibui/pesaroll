@@ -21,6 +21,13 @@ public sealed class EncryptionKey
 public sealed class EncryptionOptions
 {
     public List<EncryptionKey> Keys { get; set; } = [];
+
+    /// <summary>
+    /// Base64, 32 bytes: keys lookups of encrypted values (finding a duplicate ID number or KRA PIN
+    /// without storing it readably). Unlike <see cref="Keys"/> it never changes, or every lookup
+    /// would have to be made again.
+    /// </summary>
+    public string? LookupKey { get; set; }
 }
 
 public sealed class FieldDecryptionException(string message) : Exception(message);
@@ -62,6 +69,33 @@ public sealed class FieldEncryptor
         }
 
         current = (configured[0].Id, keys[configured[0].Id]);
+        if (options.Value.LookupKey is { Length: > 0 } lookup)
+        {
+            var bytes = new byte[lookup.Length];
+            if (!Convert.TryFromBase64String(lookup, bytes, out var length) || length != 32)
+            {
+                throw new InvalidOperationException("Encryption:LookupKey must be a base64 secret of exactly 32 bytes (openssl rand -base64 32).");
+            }
+
+            lookupKey = bytes[..length];
+        }
+    }
+
+    private readonly byte[]? lookupKey;
+
+    /// <summary>
+    /// A keyed hash (HMAC-SHA256, hex) of a value, to find it again without storing it readably:
+    /// the same value and context always give the same lookup. The context (for example
+    /// "kra_pin:" and the organization) keeps lookups from matching across organizations.
+    /// </summary>
+    public string Lookup(string value, string context)
+    {
+        if (lookupKey is null)
+        {
+            throw new InvalidOperationException("Encryption:LookupKey is not set: set it to look up encrypted values.");
+        }
+
+        return Convert.ToHexStringLower(HMACSHA256.HashData(lookupKey, Encoding.UTF8.GetBytes(context + "\n" + value)));
     }
 
     public byte[] Encrypt(string plaintext, string context)
