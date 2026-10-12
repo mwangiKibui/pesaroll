@@ -229,6 +229,31 @@ it('a new item goes to chosen people found by any identifier, each with their ow
   })
 })
 
+it('a person can have a From date and no Until', async () => {
+  const wanjiru = employeeRow()
+  const calls = withItems({
+    'GET /api/pay-items': () => json(200, [...lockedPayItems(), pension]),
+    [`GET /api/pay-items/${pension.id}/assignments`]: () => json(200, []),
+    [`PATCH /api/pay-items/${pension.id}`]: () => json(200, pension),
+    [`PUT /api/pay-items/${pension.id}/assignments`]: () => json(200, []),
+    'GET /api/employees': () => json(200, { items: [wanjiru], total: 1, page: 1, pageSize: 8 }),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('tab', { name: 'Deductions' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Pension' }))
+  await userEvent.click(within(drawer()).getByRole('tab', { name: 'Who gets it' }))
+  await userEvent.click(within(drawer()).getByRole('radio', { name: 'Specific employees' }))
+  await userEvent.type(within(drawer()).getByRole('searchbox', { name: 'Find people' }), 'wanj')
+  await userEvent.click(await within(drawer()).findByRole('button', { name: 'Add Wanjiru Kamau (EMP-01)' }))
+  expect(within(drawer()).getByRole('columnheader', { name: 'Until (optional)' })).toBeInTheDocument()
+  expect(within(drawer()).getByText(/Leave Until empty when it has no end date/)).toBeInTheDocument()
+  await userEvent.type(within(drawer()).getByLabelText('From for Wanjiru Kamau'), '2026-11-01')
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Save changes' }))
+
+  expect(await screen.findByText('Saved')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'PUT')?.body).toMatchObject({ people: [{ employeeId: wanjiru.id, startsOn: '2026-11-01', endsOn: null }] })
+})
+
 it('everyone at a company, and a problem the server finds shows on its tab', async () => {
   const calls = withItems({
     'GET /api/pay-items': () => json(200, [...lockedPayItems(), pension]),

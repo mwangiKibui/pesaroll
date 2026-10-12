@@ -1205,6 +1205,8 @@
     "employee": "Employee",
     "for": "for {{name}}",
     "remove": "Remove {{name}}",
-    "deleteAlso": "It's given to: {{who}}; that goes too."
+    "deleteAlso": "It's given to: {{who}}; that goes too.",
+    "untilOptional": "Until (optional)",
+    "noEndHint": "Leave Until empty when it has no end date; From empty starts it today."
   }
 }

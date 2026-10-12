@@ -128,6 +128,7 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
           {found.data?.length === 0 && <li className="text-label text-muted">{t('who.noMatches')}</li>}
         </ul>
       )}
+      {draft.people.length > 0 && <p className="m-0 text-hint text-muted">{t('who.noEndHint')}</p>}
       <TableCard title={t('who.chosen')} count={draft.people.length}
         footer={<Pagination label={t('pagination.of', { what: t('who.chosen') })} {...paged.pagination} />}>
         {draft.people.length === 0 ? <p className="m-0 px-4 py-3 text-label text-muted">{t('who.nobodyChosen')}</p> : (
@@ -137,7 +138,7 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
                 <th scope="col">{t('who.employee')}</th>
                 {amounts && <th scope="col">{t(amounts === 'amount' ? 'who.amount' : 'who.rate')}</th>}
                 <th scope="col">{t('who.from')}</th>
-                <th scope="col">{t('who.until')}</th>
+                <th scope="col">{t('who.untilOptional')}</th>
                 <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
               </tr>
             </thead>

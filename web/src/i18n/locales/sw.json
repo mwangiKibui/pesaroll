@@ -1205,6 +1205,8 @@
     "employee": "Mfanyakazi",
     "for": "kwa {{name}}",
     "remove": "Ondoa {{name}}",
-    "deleteAlso": "Kinapewa: {{who}}; hiyo pia itaondolewa."
+    "deleteAlso": "Kinapewa: {{who}}; hiyo pia itaondolewa.",
+    "untilOptional": "Hadi (si lazima)",
+    "noEndHint": "Acha Hadi tupu kama haina tarehe ya mwisho; Kuanzia tupu huanza leo."
   }
 }
