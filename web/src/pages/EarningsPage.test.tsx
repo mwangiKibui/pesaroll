@@ -58,7 +58,7 @@ it('shows earnings, deductions and employer costs on tabs; the law\'s items are 
   const basic = (await within(await screen.findByRole('tabpanel', { name: 'Earnings' })).findByText('Basic pay')).closest('tr')!
   expect(within(basic).getAllByRole('cell').map(c => c.textContent).slice(0, 4)).toEqual(['Basic payBASIC', 'Fixed amount', 'Taxed', '—'])
   expect(within(basic).getByText('Always included')).toBeInTheDocument()
-  expect(within(basic).queryByRole('button')).not.toBeInTheDocument()
+  expect(within(basic).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['View Basic pay'])   // to read, not to change
 
   await userEvent.click(screen.getByRole('tab', { name: 'Deductions' }))
   const rows = within(panel('Deductions')).getAllByRole('row').slice(1)
@@ -341,6 +341,34 @@ it('a payee can be paid by SACCO transfer, to a SACCO and branch from the list',
   await vi.waitFor(() => expect(calls.find(c => c.method === 'POST' && c.path === '/api/payees')?.body).toMatchObject({
     name: 'Welfare Fund', method: 'bank', institution: 'sacco', saccoCode: 'STIMA', saccoBranchCode: '005', accountNumber: 'ST-00451', bankCode: null,
   }))
+})
+
+it('the eye opens an item to read: who it\'s paid to and who gets it, with member numbers', async () => {
+  const stima = { id: 'payee-1', name: 'Stima SACCO', method: 'bank', institution: 'sacco', saccoCode: 'STIMA', saccoName: 'Stima SACCO', saccoBranchCode: '005',
+    saccoBranchName: 'Mombasa', accountNumber: 'ST-00451', bankCode: null, bankName: null, branchCode: null, branchName: null, paybill: null,
+    paybillAccount: null, chequePayableTo: null, ourReference: 'EMP-4471', usedBy: 1 }
+  const loan = payItem({ id: 'loan-1', code: 'LOA-01', name: 'Loan Repayment', kind: 'deduction', taxable: false, calcMethod: 'fixed', defaultAmount: 5000,
+    locked: false, lockedKey: null, payeeId: stima.id, assignments: [{ companyId: restaurant.id, everyone: false, people: 1 }] })
+  withItems({
+    'GET /api/pay-items': () => json(200, [...lockedPayItems(), loan]),
+    'GET /api/payees': () => json(200, [stima]),
+    'GET /api/pay-items/loan-1/assignments': () => json(200, [{ companyId: restaurant.id, everyone: false, amount: null, rate: null, startsOn: null, endsOn: null,
+      people: [{ employeeId: 'e1', name: 'Wanjiru Kamau', staffNo: 'EMP-01', amount: 2000, rate: null, startsOn: '2026-10-06', endsOn: null, reference: '94737' }] }]),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('tab', { name: 'Deductions' }))
+  expect(within(panel('Deductions')).getByRole('button', { name: 'View SHIF' })).toBeInTheDocument()   // the law's items too
+  await userEvent.click(within(panel('Deductions')).getByRole('button', { name: 'View Loan Repayment' }))
+
+  const view = screen.getByRole('dialog', { name: 'Loan Repayment' })
+  expect(within(view).getByText('Stima SACCO · Mombasa · account ST-00451')).toBeInTheDocument()
+  expect(within(view).getByText('Your reference: EMP-4471')).toBeInTheDocument()
+  await userEvent.click(within(view).getByRole('tab', { name: 'Who gets it' }))
+  const row = (await within(view).findByText('Wanjiru Kamau')).closest('tr')!
+  expect(within(row).getAllByRole('cell').map(c => c.textContent)).toEqual(['Wanjiru KamauEMP-01', 'KES 2,000', '94737', 'from 6 Oct 2026'])
+
+  await userEvent.click(within(view).getByRole('button', { name: 'Edit' }))
+  expect(await screen.findByRole('dialog', { name: 'Edit earning or deduction' })).toBeInTheDocument()
 })
 
 it('with several companies, the selector filters every tab', async () => {

@@ -906,7 +906,10 @@
       "employer_cost": "Gharama ya mwajiri imeongezwa"
     },
     "saved": "Imehifadhiwa",
-    "deleted": "Imefutwa"
+    "deleted": "Imefutwa",
+    "view": "Tazama {{name}}",
+    "kind": "Aina",
+    "editButton": "Hariri"
   },
   "employees": {
     "title": "Nani anafanya kazi kwako?",
@@ -1151,7 +1154,8 @@
     "payItemEachRun": "huwekwa kila malipo",
     "payItemRate": "{{rate}}% ya mshahara wa msingi",
     "payItemPayee": "kwa {{payee}}",
-    "payItemPayeeMember": "kwa {{payee}}, mwanachama {{reference}}"
+    "payItemPayeeMember": "kwa {{payee}}, mwanachama {{reference}}",
+    "payItemMember": "mwanachama {{reference}}"
   },
   "pagination": {
     "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",
@@ -1211,7 +1215,10 @@
     "untilOptional": "Hadi (si lazima)",
     "noEndHint": "Acha Hadi tupu kama haina tarehe ya mwisho; Kuanzia tupu huanza leo.",
     "reference": "Nambari ya uanachama au akaunti",
-    "referencePlaceholder": "Nambari yako ya uanachama"
+    "referencePlaceholder": "Nambari yako ya uanachama",
+    "byLaw": "Wote: kimewekwa na sheria, kwa hivyo kinamhusu kila mfanyakazi.",
+    "itemDefault": "Kiasi cha kipengele",
+    "dates": "Tarehe"
   },
   "payees": {
     "paidTo": "Hulipwa kwa",
@@ -1259,6 +1266,10 @@
       "sacco": "SACCO"
     },
     "sacco": "SACCO",
-    "saccoPlaceholder": "SACCO ya mpokeaji wako"
+    "saccoPlaceholder": "SACCO ya mpokeaji wako",
+    "accountShown": "akaunti {{number}}",
+    "paybillShown": "Paybill {{paybill}}",
+    "chequeShown": "Hundi kwa jina la {{name}}",
+    "ourReferenceShown": "Kumbukumbu yako: {{reference}}"
   }
 }

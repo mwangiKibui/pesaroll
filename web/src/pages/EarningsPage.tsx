@@ -19,6 +19,7 @@ import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { useCompanies, usePayees, usePayItems, useSetupDone } from '../setup/hooks'
 import { PayeeModal } from './PayeeModal'
+import { PayItemView } from './PayItemView'
 import { draftsFrom, requestFor, type CompanyDraft } from './whoDrafts'
 import { WhoGetsIt } from './WhoGetsIt'
 import { Proceed } from '../setup/Proceed'
@@ -90,6 +91,7 @@ export default function EarningsPage() {
   const [tab, setTab] = useState<Kind>('earning')
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [editing, setEditing] = useState<PayItem | 'new' | null>(null)
+  const [viewing, setViewing] = useState<PayItem | null>(null)
   const [deleting, setDeleting] = useState<PayItem | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -190,6 +192,9 @@ export default function EarningsPage() {
                               : payees.data?.find(p => p.id === i.payeeId)?.name ?? none}</td>}
                             <td>{whoGetsIt(i)}</td>
                             <td className="whitespace-nowrap text-right">
+                              <IconButton label={t('payItems.view', { name: i.name })} onClick={() => setViewing(i)}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+                              </IconButton>
                               {i.locked ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-raised px-2.5 py-1 text-tag text-muted">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></svg>
@@ -217,6 +222,11 @@ export default function EarningsPage() {
         {/* Payroll history (ONB-10) is next; until it has a page, the dashboard. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
 
+        {viewing && (
+          <PayItemView item={viewing} companies={companies.data} payee={payees.data?.find(p => p.id === viewing.payeeId)}
+            authority={viewing.lockedKey ? authorities[viewing.lockedKey] : undefined} method={method(viewing)} tax={tax(viewing)}
+            onClose={() => setViewing(null)} onEdit={viewing.locked ? undefined : () => { setEditing(viewing); setViewing(null) }} />
+        )}
         {editing && (
           <PayItemDrawer item={editing === 'new' ? null : editing} kind={tab} companies={companies.data}
             // A new item serves the companies being shown, as the selector suggests.
@@ -348,6 +358,8 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       if (data) {
         setItem(data)
         void queryClient.invalidateQueries({ queryKey: ['payItems'] })
+        // People's own views list what they get.
+        void queryClient.invalidateQueries({ queryKey: ['employee'] })
         // Then who gets it, for each company changed (among those the item serves).
         const failed: Record<string, Record<string, string>> = {}
         for (const c of served.filter(c => drafts[c.id]?.dirty)) {

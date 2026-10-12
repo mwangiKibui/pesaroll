@@ -906,7 +906,10 @@
       "employer_cost": "Employer cost added"
     },
     "saved": "Saved",
-    "deleted": "Deleted"
+    "deleted": "Deleted",
+    "view": "View {{name}}",
+    "kind": "Type",
+    "editButton": "Edit"
   },
   "employees": {
     "title": "Who works for you?",
@@ -1151,7 +1154,8 @@
     "payItemEachRun": "entered each payroll",
     "payItemRate": "{{rate}}% of basic pay",
     "payItemPayee": "to {{payee}}",
-    "payItemPayeeMember": "to {{payee}}, member {{reference}}"
+    "payItemPayeeMember": "to {{payee}}, member {{reference}}",
+    "payItemMember": "member {{reference}}"
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",
@@ -1211,7 +1215,10 @@
     "untilOptional": "Until (optional)",
     "noEndHint": "Leave Until empty when it has no end date; From empty starts it today.",
     "reference": "Member or account number",
-    "referencePlaceholder": "Your member number"
+    "referencePlaceholder": "Your member number",
+    "byLaw": "Everyone: it's set by law, so it applies to every employee.",
+    "itemDefault": "The item's amount",
+    "dates": "Dates"
   },
   "payees": {
     "paidTo": "Paid to",
@@ -1259,6 +1266,10 @@
       "sacco": "SACCO"
     },
     "sacco": "SACCO",
-    "saccoPlaceholder": "Your payee's SACCO"
+    "saccoPlaceholder": "Your payee's SACCO",
+    "accountShown": "account {{number}}",
+    "paybillShown": "Paybill {{paybill}}",
+    "chequeShown": "Cheque payable to {{name}}",
+    "ourReferenceShown": "Your reference: {{reference}}"
   }
 }

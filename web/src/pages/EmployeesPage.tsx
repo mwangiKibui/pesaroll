@@ -433,7 +433,8 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
                         : i.amount != null ? formatMoney(i.amount) : none}
                     {' · '}{t('employees.payItemFrom', { date: shortDate(i.startsOn) })}
                     {i.endsOn && <> {t('employees.payItemUntil', { date: shortDate(i.endsOn) })}</>}
-                    {i.payeeName && <>{' · '}{i.reference ? t('employees.payItemPayeeMember', { payee: i.payeeName, reference: i.reference }) : t('employees.payItemPayee', { payee: i.payeeName })}</>}
+                    {(i.payeeName || i.reference) && <>{' · '}{i.payeeName && i.reference ? t('employees.payItemPayeeMember', { payee: i.payeeName, reference: i.reference })
+                      : i.payeeName ? t('employees.payItemPayee', { payee: i.payeeName }) : t('employees.payItemMember', { reference: i.reference })}</>}
                     {i.everyone && <span className="text-muted"> {t('employees.payItemEveryone')}</span>}
                   </li>
                 ))}
