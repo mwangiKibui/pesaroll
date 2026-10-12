@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, IconButton } from './Button'
+import { Checklist, FilterButton, SortButton } from './ColumnControls'
 import { buttonClasses } from './buttonStyles'
 import { Drawer } from './Drawer'
 import { FormErrorBanner, Notice, Tag, type ApiError } from './feedback'
-import { Checkbox, SelectField, TextField } from './fields'
+import { SelectField, TextField } from './fields'
 import { DownloadIcon, PlusIcon } from './icons'
 import { Pagination } from './Pagination'
 import { matches } from './search'
@@ -80,11 +81,7 @@ const isActive = (f: ColumnFilterState | undefined) => !!f && (!!f.text.trim() |
 /** Values a filter lists at most; a search narrows the rest. */
 const MAX_VALUES = 200
 
-/**
- * A column header's filter, as in a spreadsheet: a search over the column (rows whose cell
- * contains it), and its values with how many rows have each, to untick. It floats over the
- * sheet (fixed, so the scrolling table doesn't clip it); Escape and a click outside close it.
- */
+/** A sheet column's filter: a search over the column (rows whose cell contains it) and its values to untick. */
 function ColumnFilter({ label, values, display, filter, onChange }: {
   label: string
   values: { value: string; count: number }[]
@@ -93,77 +90,27 @@ function ColumnFilter({ label, values, display, filter, onChange }: {
   onChange: (filter: ColumnFilterState) => void
 }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const [at, setAt] = useState({ top: 0, left: 0 })
-  const button = useRef<HTMLButtonElement>(null)
-  const panel = useRef<HTMLDivElement>(null)
-  const name = t('bulk.filter', { column: label })
-
-  useEffect(() => {
-    if (!open) return
-    panel.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()
-    const onDown = (e: MouseEvent) => {
-      if (!panel.current?.contains(e.target as Node) && !button.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
-
-  const toggle = () => {
-    const box = button.current?.getBoundingClientRect()
-    if (box) setAt({ top: box.bottom + 4, left: Math.max(8, Math.min(box.left, window.innerWidth - 296)) })
-    setOpen(o => !o)
-  }
-  const close = () => { setOpen(false); button.current?.focus() }
   const listed = values.filter(v => (filter.text.trim() ? v.value && matches(display(v.value), filter.text) : true))
-  const allTicked = listed.every(v => !filter.hidden.has(v.value))
-  const tick = (value: string, on: boolean) => {
+  const tick = (picked: string[], on: boolean) => {
     const hidden = new Set(filter.hidden)
-    if (on) hidden.delete(value)
-    else hidden.add(value)
-    onChange({ ...filter, hidden })
-  }
-  const tickAll = (on: boolean) => {
-    const hidden = new Set(filter.hidden)
-    for (const v of listed) {
-      if (on) hidden.delete(v.value)
-      else hidden.add(v.value)
+    for (const value of picked) {
+      if (on) hidden.delete(value)
+      else hidden.add(value)
     }
     onChange({ ...filter, hidden })
   }
-  const active = isActive(filter)
-
   return (
-    <>
-      <button ref={button} type="button" aria-label={name} aria-pressed={active} aria-expanded={open} onClick={toggle}
-        className={`inline-flex size-7 shrink-0 items-center justify-center rounded-control ${active ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-card hover:text-ink'}`}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" /></svg>
-      </button>
-      {open && (
-        <div ref={panel} role="dialog" aria-label={name} style={{ top: at.top, left: at.left }}
-          onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() } }}
-          className="fixed z-[60] flex w-72 flex-col gap-2 rounded-card border border-line bg-card p-3 text-left font-normal shadow-float">
-          <TextField type="search" size="sm" label={t('bulk.filterSearch', { column: label })} hideLabel placeholder={t('bulk.searchPlaceholder')}
-            value={filter.text} onChange={e => onChange({ ...filter, text: e.target.value })} />
-          <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
-            {listed.length > 0 && <Checkbox label={t('bulk.all')} checked={allTicked} onChange={e => tickAll(e.target.checked)} />}
-            {listed.slice(0, MAX_VALUES).map(v => (
-              <label key={v.value} className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 text-label text-ink hover:bg-raised">
-                <input type="checkbox" checked={!filter.hidden.has(v.value)} onChange={e => tick(v.value, e.target.checked)} className="size-4 accent-brand" />
-                <span className="flex-1 truncate">{v.value ? display(v.value) : t('bulk.empty')}</span>
-                <span className="text-hint text-muted tabular-nums">{v.count}</span>
-              </label>
-            ))}
-            {listed.length > MAX_VALUES && <p className="m-0 px-1 text-hint text-muted">{t('bulk.tooManyValues', { count: MAX_VALUES })}</p>}
-          </div>
-          {active && (
-            <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => onChange({ text: '', hidden: new Set() })}>{t('bulk.clearFilter')}</Button>
-            </div>
-          )}
+    <FilterButton label={label} active={isActive(filter)}>
+      <TextField type="search" size="sm" label={t('bulk.filterSearch', { column: label })} hideLabel placeholder={t('bulk.searchPlaceholder')}
+        value={filter.text} onChange={e => onChange({ ...filter, text: e.target.value })} />
+      <Checklist values={listed.map(v => ({ value: v.value, label: v.value ? display(v.value) : t('bulk.empty'), count: v.count }))}
+        isTicked={value => !filter.hidden.has(value)} onTick={tick} max={MAX_VALUES} />
+      {isActive(filter) && (
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={() => onChange({ text: '', hidden: new Set() })}>{t('bulk.clearFilter')}</Button>
         </div>
       )}
-    </>
+    </FilterButton>
   )
 }
 
@@ -452,15 +399,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                     className="min-w-40 border-b border-line px-3 py-1.5 text-left font-medium whitespace-nowrap text-muted">
                     <span className="flex items-center gap-1">
                       <span className="mr-auto">{c.label}</span>
-                      <button type="button" aria-label={t('bulk.sort', { column: c.label })} onClick={() => sortBy(c)}
-                        title={sort?.key === c.key ? t(`bulk.sorted.${sort.direction}`) : undefined}
-                        className={`inline-flex size-7 shrink-0 items-center justify-center rounded-control ${sort?.key === c.key ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-card hover:text-ink'}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          {sort?.key !== c.key && <path d="M8 4v16M4 8l4-4 4 4M16 20V4M12 16l4 4 4-4" />}
-                          {sort?.key === c.key && sort.direction === 'ascending' && <path d="M12 20V4M6 10l6-6 6 6" />}
-                          {sort?.key === c.key && sort.direction === 'descending' && <path d="M12 4v16M6 14l6 6 6-6" />}
-                        </svg>
-                      </button>
+                      <SortButton label={c.label} direction={sort?.key === c.key ? sort.direction : null} onClick={() => sortBy(c)} />
                       <ColumnFilter label={c.label} values={valuesOf(c.key)} display={value => display(c, value)}
                         filter={filters[c.key] ?? { text: '', hidden: new Set() }} onChange={f => setFilter(c.key, f)} />
                     </span>

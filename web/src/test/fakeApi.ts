@@ -120,7 +120,7 @@ export const leavePlan = (overrides: Record<string, unknown> = {}) => ({
 export const employeeRow = (overrides: Record<string, unknown> = {}) => ({
   id: '0199c0de-0000-7000-8000-00000000a501', companyId: company().id, staffNo: 'EMP-01', name: 'Wanjiru Kamau', positionTitle: 'Head cook',
   departmentName: 'Kitchen', payScheduleId: schedule().id, basicAmount: 85000, payBasis: 'monthly', currency: 'KES', exitDate: null,
-  readiness: { ready: true, missing: [] }, ...overrides,
+  hireDate: '2024-01-15', readiness: { ready: true, missing: [] }, ...overrides,
 })
 
 /** One employee in full, numbers masked, as the API returns it. */

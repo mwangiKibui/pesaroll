@@ -831,8 +831,6 @@
     "job": "Job",
     "schedule": "Payroll schedule",
     "basicPay": "Basic pay",
-    "ready": "Ready for payroll",
-    "readyTag": "Ready",
     "needs": "Needs {{items}}",
     "left": "Left {{date}}",
     "per": {
@@ -1031,7 +1029,23 @@
     "view": "View {{name}}",
     "viewTitle": "Employee",
     "editButton": "Edit",
-    "chooseCompanyFirst": "Choose the company first."
+    "chooseCompanyFirst": "Choose the company first.",
+    "payFrom": "From",
+    "payFromPlaceholder": "Your amount",
+    "payTo": "To",
+    "payToPlaceholder": "Your amount",
+    "hiredFrom": "From",
+    "hiredFromPlaceholder": "Your date",
+    "hiredTo": "To",
+    "hiredToPlaceholder": "Your date",
+    "noMatches": "No one matches the search and filters. Change or clear them.",
+    "filtered": {
+      "job": "Job",
+      "schedule": "Payroll schedule",
+      "basicPay": "Basic pay",
+      "hireDate": "Start date"
+    },
+    "filteredBy": "Filtered by"
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",

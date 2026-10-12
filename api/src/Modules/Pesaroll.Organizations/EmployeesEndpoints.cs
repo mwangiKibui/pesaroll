@@ -47,7 +47,7 @@ public sealed record EmployeeResponse(
 
 public sealed record EmployeeRow(
     Guid Id, Guid CompanyId, string StaffNo, string Name, string? PositionTitle, string? DepartmentName, Guid? PayScheduleId,
-    decimal? BasicAmount, string? PayBasis, string? Currency, DateOnly? ExitDate, ReadinessResponse Readiness);
+    decimal? BasicAmount, string? PayBasis, string? Currency, DateOnly? ExitDate, ReadinessResponse Readiness, DateOnly HireDate);
 
 /// <summary>Someone to pick (as a line manager): name, staff number and department.</summary>
 public sealed record EmployeeChoice(Guid Id, string Name, string StaffNo, Guid? DepartmentId);
@@ -71,8 +71,9 @@ public static class EmployeesEndpoints
     {
         var employees = app.MapGroup("/api/employees").WithTags("Employees");
 
-        employees.MapGet("/", async (Guid? companyId, Guid[]? companyIds, string? search, string? status, int? page, int? pageSize, OrganizationsDbContext db,
-            TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
+        employees.MapGet("/", async (Guid? companyId, Guid[]? companyIds, string? search, string? status, int? page, int? pageSize,
+            string? sort, string? dir, Guid[]? departmentIds, Guid[]? positionIds, Guid[]? scheduleIds, decimal? payFrom, decimal? payTo,
+            DateOnly? hiredFrom, DateOnly? hiredTo, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             var today = PayDates.TodayInKenya(clock.GetUtcNow());
@@ -101,26 +102,92 @@ public static class EmployeesEndpoints
                     || EF.Functions.ILike(e.StaffNo, term));
             }
 
+            if (hiredFrom is DateOnly from)
+            {
+                query = query.Where(e => e.HireDate >= from);
+            }
+
+            if (hiredTo is DateOnly to)
+            {
+                query = query.Where(e => e.HireDate <= to);
+            }
+
+            // Each person with their current job and pay, for the column filters and sorts (across every page).
+            var shaped = query.Select(e => new
+            {
+                Employee = e,
+                Job = e.Employments.Where(x => x.ValidTo == null).Select(x => new { x.PositionId, x.DepartmentId, x.PayScheduleId }).FirstOrDefault(),
+                Pay = e.Compensations.Where(x => x.ValidTo == null).Select(x => (decimal?)x.BasicAmount).FirstOrDefault(),
+            });
+            if (departmentIds is { Length: > 0 } inDepartments)
+            {
+                shaped = shaped.Where(x => x.Job != null && x.Job.DepartmentId != null && inDepartments.Contains(x.Job.DepartmentId.Value));
+            }
+
+            if (positionIds is { Length: > 0 } inPositions)
+            {
+                shaped = shaped.Where(x => x.Job != null && x.Job.PositionId != null && inPositions.Contains(x.Job.PositionId.Value));
+            }
+
+            if (scheduleIds is { Length: > 0 } onSchedules)
+            {
+                shaped = shaped.Where(x => x.Job != null && onSchedules.Contains(x.Job.PayScheduleId));
+            }
+
+            if (payFrom is decimal least)
+            {
+                shaped = shaped.Where(x => x.Pay != null && x.Pay >= least);
+            }
+
+            if (payTo is decimal most)
+            {
+                shaped = shaped.Where(x => x.Pay != null && x.Pay <= most);
+            }
+
+            // Sorted by what the column shows, either way; empty cells last; ties by name, so pages stay put.
+            var keyed = shaped.Select(x => new
+            {
+                x.Employee,
+                Job = db.Positions.Where(p => x.Job != null && p.Id == x.Job.PositionId).Select(p => p.Name).FirstOrDefault()
+                    + " " + db.Departments.Where(d => x.Job != null && d.Id == x.Job.DepartmentId).Select(d => d.Name).FirstOrDefault(),
+                HasJob = x.Job != null && (x.Job.PositionId != null || x.Job.DepartmentId != null),
+                Schedule = db.PaySchedules.Where(p => x.Job != null && p.Id == x.Job.PayScheduleId).Select(p => p.Name).FirstOrDefault(),
+                x.Pay,
+            });
+            var down = dir == "desc";
+            var ordered = sort switch
+            {
+                "staffNo" => down ? keyed.OrderByDescending(x => x.Employee.StaffNo) : keyed.OrderBy(x => x.Employee.StaffNo),
+                "job" => down ? keyed.OrderBy(x => !x.HasJob).ThenByDescending(x => x.Job) : keyed.OrderBy(x => !x.HasJob).ThenBy(x => x.Job),
+                "schedule" => down ? keyed.OrderBy(x => x.Schedule == null).ThenByDescending(x => x.Schedule) : keyed.OrderBy(x => x.Schedule == null).ThenBy(x => x.Schedule),
+                "basicPay" => down ? keyed.OrderBy(x => x.Pay == null).ThenByDescending(x => x.Pay) : keyed.OrderBy(x => x.Pay == null).ThenBy(x => x.Pay),
+                "hireDate" => down ? keyed.OrderByDescending(x => x.Employee.HireDate) : keyed.OrderBy(x => x.Employee.HireDate),
+                _ => down ? keyed.OrderByDescending(x => x.Employee.FirstName).ThenByDescending(x => x.Employee.LastName)
+                    : keyed.OrderBy(x => x.Employee.FirstName).ThenBy(x => x.Employee.LastName),
+            };
+            ordered = ordered.ThenBy(x => x.Employee.FirstName).ThenBy(x => x.Employee.LastName).ThenBy(x => x.Employee.Id);
+
             var size = Math.Clamp(pageSize ?? MaxPageSize, 1, MaxPageSize);
             var number = Math.Max(page ?? 1, 1);
-            var total = await query.CountAsync(ct);
-            var list = await query.OrderBy(e => e.LastName).ThenBy(e => e.FirstName).ThenBy(e => e.StaffNo)
-                .Skip((number - 1) * size).Take(size)
+            var total = await keyed.CountAsync(ct);
+            var pageIds = await ordered.Skip((number - 1) * size).Take(size).Select(x => x.Employee.Id).ToListAsync(ct);
+            var loaded = await db.Employees.AsNoTracking().Where(e => pageIds.Contains(e.Id))
                 .Include(e => e.Employments.Where(x => x.ValidTo == null))
                 .Include(e => e.Compensations.Where(x => x.ValidTo == null))
                 .Include(e => e.Accounts.Where(x => x.ValidTo == null))
                 .ToListAsync(ct);
-            var positionIds = list.SelectMany(e => e.Employments).Select(x => x.PositionId).OfType<Guid>().ToList();
-            var departmentIds = list.SelectMany(e => e.Employments).Select(x => x.DepartmentId).OfType<Guid>().ToList();
-            var positions = await db.Positions.AsNoTracking().Where(p => positionIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
-            var departments = await db.Departments.AsNoTracking().Where(d => departmentIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.Name, ct);
+            var list = pageIds.Select(id => loaded.Single(e => e.Id == id)).ToList();
+            var shownPositions = list.SelectMany(e => e.Employments).Select(x => x.PositionId).OfType<Guid>().ToList();
+            var shownDepartments = list.SelectMany(e => e.Employments).Select(x => x.DepartmentId).OfType<Guid>().ToList();
+            var positions = await db.Positions.AsNoTracking().Where(p => shownPositions.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+            var departments = await db.Departments.AsNoTracking().Where(d => shownDepartments.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.Name, ct);
             return Results.Ok(new EmployeePage(list.Select(e =>
             {
                 var job = e.Employments.FirstOrDefault();
                 var pay = e.Compensations.FirstOrDefault();
                 return new EmployeeRow(e.Id, e.CompanyId, e.StaffNo, $"{e.FirstName} {e.LastName}",
                     job?.PositionId is Guid p ? positions.GetValueOrDefault(p) : null, job?.DepartmentId is Guid d ? departments.GetValueOrDefault(d) : null,
-                    job?.PayScheduleId, pay?.BasicAmount, pay?.PayBasis, pay?.Currency, e.ExitDate, Readiness(e));
+                    job?.PayScheduleId, pay?.BasicAmount, pay?.PayBasis, pay?.Currency, e.ExitDate, Readiness(e), e.HireDate);
             }).ToList(), total, number, size));
         }).Produces<EmployeePage>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
 

@@ -39,18 +39,16 @@ function withPeople(routes: Parameters<typeof fakeApi>[0] = {}) {
   })
 }
 
-it('lists employees with their job, pay and what payroll still needs', async () => {
+it('lists employees with their job, schedule, pay and start date', async () => {
   withPeople()
   const { container } = renderApp('/setup/employees')
 
   expect(await screen.findByRole('heading', { name: 'Who works for you?' })).toBeInTheDocument()
   const row = (await within(table()).findByText('Wanjiru Kamau')).closest('tr')!
   expect(within(table()).getAllByRole('columnheader').map(h => h.textContent))
-    .toEqual(['Employee', 'Job', 'Payroll schedule', 'Basic pay', 'Ready for payroll', 'Actions'])
+    .toEqual(['Employee', 'Job', 'Payroll schedule', 'Basic pay', 'Start date', 'Actions'])
   expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 5))
-    .toEqual(['Wanjiru KamauEMP-01', 'Head cook · Kitchen', 'Monthly', 'KES 85,000 a month', 'Ready'])
-  const other = within(table()).getByText('Otieno Ouma').closest('tr')!
-  expect(within(other).getAllByRole('cell')[4]).toHaveTextContent('Needs KRA PIN, Basic pay')
+    .toEqual(['Wanjiru KamauEMP-01', 'Head cook · Kitchen', 'Monthly', 'KES 85,000 a month', '15 Jan 2024'])
 
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search employees' }), 'wanj')
   const steps = screen.getByRole('list', { name: 'Setup steps' })
@@ -88,10 +86,68 @@ it('searches and pages on the server', async () => {
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search employees' }), 'kamau')
 
   await vi.waitFor(() => expect(seen.some(q => q.includes('search=kamau') && q.includes('page=1'))).toBe(true))
-  await userEvent.clear(within(screen.getByRole('main')).getByRole('combobox', { name: 'Show' }))
-  await userEvent.type(within(screen.getByRole('main')).getByRole('combobox', { name: 'Show' }), 'left')
-  await userEvent.click(screen.getByRole('option', { name: 'People who left' }))
+  // Who to show (current, left, everyone) is the Employee column's filter.
+  await userEvent.click(within(table()).getByRole('button', { name: 'Filter Employee' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter Employee' })).getByRole('radio', { name: 'People who left' }))
   await vi.waitFor(() => expect(seen.some(q => q.includes('status=former'))).toBe(true))
+})
+
+it('every column sorts and filters on the server; chips show what is filtered and Clear filters resets', async () => {
+  const seen: URLSearchParams[] = []
+  withPeople({
+    'GET /api/structure/positions': () => json(200, [{ id: 'ps1', code: 'COO-01', title: 'Head cook', departmentId: 'dp1', allCompanies: true, companyIds: [] }]),
+    'GET /api/employees': req => {
+      const q = new URL(req.url).searchParams
+      if (q.get('pageSize') !== '1') seen.push(q)
+      const none = q.has('payFrom')   // nobody earns that much
+      return json(200, { items: none ? [] : [wanjiru, otieno], total: none ? 0 : 2, page: 1, pageSize: 20 })
+    },
+  })
+  renderApp('/setup/employees')
+  await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
+  const last = () => seen.at(-1)!
+
+  // Sort: A to Z, Z to A, then off.
+  const sortPay = () => within(table()).getByRole('button', { name: 'Sort Basic pay' })
+  await userEvent.click(sortPay())
+  await vi.waitFor(() => expect([last().get('sort'), last().get('dir')]).toEqual(['basicPay', 'asc']))
+  expect(within(table()).getByRole('columnheader', { name: /Basic pay/ })).toHaveAttribute('aria-sort', 'ascending')
+  await userEvent.click(sortPay())
+  await vi.waitFor(() => expect(last().get('dir')).toBe('desc'))
+  await userEvent.click(sortPay())
+  expect(within(table()).getByRole('columnheader', { name: /Basic pay/ })).not.toHaveAttribute('aria-sort')   // back to by name (already loaded)
+
+  // Job: departments and positions to tick.
+  await userEvent.click(within(table()).getByRole('button', { name: 'Filter Job' }))
+  const job = screen.getByRole('dialog', { name: 'Filter Job' })
+  await userEvent.click(within(job).getByRole('checkbox', { name: 'Kitchen' }))
+  await userEvent.click(within(job).getByRole('checkbox', { name: 'Head cook' }))
+  await vi.waitFor(() => expect([last().getAll('departmentIds'), last().getAll('positionIds')]).toEqual([['dp1'], ['ps1']]))
+  await userEvent.keyboard('{Escape}')
+  expect(within(table()).getByRole('button', { name: 'Filter Job' })).toHaveAttribute('aria-pressed', 'true')
+
+  // Start date: a range.
+  await userEvent.click(within(table()).getByRole('button', { name: 'Filter Start date' }))
+  await userEvent.type(within(screen.getByRole('dialog', { name: 'Filter Start date' })).getByLabelText('From'), '2024-01-01')
+  await vi.waitFor(() => expect(last().get('hiredFrom')).toBe('2024-01-01'))
+  await userEvent.keyboard('{Escape}')
+
+  // Nobody matches: the headers stay, to change or clear the filters.
+  await userEvent.click(within(table()).getByRole('button', { name: 'Filter Basic pay' }))
+  await userEvent.type(within(screen.getByRole('dialog', { name: 'Filter Basic pay' })).getByLabelText('From'), '500000')
+  expect(await within(table()).findByText('No one matches the search and filters. Change or clear them.')).toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  expect(within(table()).getByRole('columnheader', { name: /Start date/ })).toBeInTheDocument()
+
+  expect(within(screen.getByRole('group', { name: 'Filtered by' })).getAllByText(/^(Job|Basic pay|Start date)$/).map(c => c.textContent))
+    .toEqual(['Job', 'Basic pay', 'Start date'])   // a chip per filtered column
+  await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+  // Back to the unfiltered list (already loaded): no chips, no filter on.
+  expect(await within(table()).findByText('Wanjiru Kamau')).toBeInTheDocument()
+  expect(screen.queryByRole('group', { name: 'Filtered by' })).not.toBeInTheDocument()
+  for (const column of ['Job', 'Basic pay', 'Start date']) {
+    expect(within(table()).getByRole('button', { name: `Filter ${column}` })).toHaveAttribute('aria-pressed', 'false')
+  }
 })
 
 it('Add employee opens a sheet with one row: the company\'s lists, its schedule and leave plan filled in, and Date left waits for Still works here', async () => {

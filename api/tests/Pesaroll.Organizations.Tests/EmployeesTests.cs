@@ -31,7 +31,8 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         string? Email, string? NationalIdMasked, string? KraPinMasked, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
         Job Job, Pay? Pay, Account? Account, Readiness Readiness);
     private sealed record Row(Guid Id, string StaffNo, string Name, string? PositionTitle, string? DepartmentName, decimal? BasicAmount, string? PayBasis,
-        DateOnly? ExitDate, Readiness Readiness);
+        DateOnly? ExitDate, Readiness Readiness, DateOnly HireDate = default);
+    private sealed record Item(Guid Id);
     private sealed record Page(List<Row> Items, int Total, int PageNumber, int PageSize);
 
     private const string Password = "Mombasa-raha-7";
@@ -217,6 +218,60 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
 
         Assert.Equal((daily.Id, dailyPlan.Id, "daily"), (casual.Job.PayScheduleId, casual.Job.LeavePlanId, casual.Pay!.PayBasis));
         Assert.NotEqual(standard.Id, casual.Job.LeavePlanId);
+    }
+
+    [Fact]
+    public async Task Every_column_sorts_and_filters_on_the_server_across_pages()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+        async Task<Guid> Make(string path, object body) => (await (await client.PostAsJsonAsync(path, body)).Content.ReadFromJsonAsync<Item>())!.Id;
+        var kitchen = await Make("/api/structure/departments", new { name = "Kitchen", allCompanies = true, companyIds = Array.Empty<Guid>() });
+        var finance = await Make("/api/structure/departments", new { name = "Finance", allCompanies = true, companyIds = Array.Empty<Guid>() });
+        var cook = await Make("/api/structure/positions", new { title = "Cook", allCompanies = true, companyIds = Array.Empty<Guid>() });
+        var accountant = await Make("/api/structure/positions", new { title = "Accountant", allCompanies = true, companyIds = Array.Empty<Guid>() });
+        var monthly = Assert.Single((await client.GetFromJsonAsync<List<Schedule>>("/api/pay-schedules"))!).Id;
+        var weekly = await Make("/api/pay-schedules", new { name = "Weekly", frequency = "weekly", payWeekday = 5, allCompanies = true });
+        async Task Person(string first, string last, string hired, Guid? department, Guid? position, Guid? schedule, decimal? pay, string? left = null) =>
+            await Add(client, new
+            {
+                companyId = company.Id, firstName = first, lastName = last, hireDate = hired, exitDate = left,
+                job = new { employmentType = "permanent", departmentId = department, positionId = position, payScheduleId = schedule },
+                pay = pay is null ? null : new { basicAmount = pay },
+            });
+        await Person("Akinyi", "Odera", "2021-03-01", kitchen, cook, monthly, 50000);
+        await Person("Baraka", "Mwangi", "2023-07-15", finance, accountant, monthly, 120000);
+        await Person("Chebet", "Koech", "2025-01-10", kitchen, cook, weekly, 9000);
+        await Person("Daudi", "Otieno", "2019-05-20", null, null, null, null);
+        await Person("Esther", "Wanjiru", "2024-11-01", finance, accountant, monthly, 85000);
+        await Person("Faith", "Kamau", "2020-01-01", kitchen, cook, monthly, 40000, left: "2025-02-01");
+
+        async Task<List<string>> Names(string query) =>
+            (await client.GetFromJsonAsync<Page>($"/api/employees?{query}"))!.Items.Select(r => r.Name.Split(' ')[0]).ToList();
+
+        // Sorting: what's shown, both ways; empty cells last either way.
+        Assert.Equal(["Akinyi", "Baraka", "Chebet", "Daudi", "Esther"], await Names(""));   // by name to start
+        Assert.Equal(["Esther", "Daudi", "Chebet", "Baraka", "Akinyi"], await Names("sort=name&dir=desc"));
+        Assert.Equal(["Baraka", "Esther", "Akinyi", "Chebet", "Daudi"], await Names("sort=job"));   // Accountant, then Cook; no job last
+        Assert.Equal(["Akinyi", "Chebet", "Baraka", "Esther", "Daudi"], await Names("sort=job&dir=desc"));
+        Assert.Equal(["Akinyi", "Baraka", "Daudi", "Esther", "Chebet"], await Names("sort=schedule"));   // Monthly (Daudi's by default), then Weekly
+        Assert.Equal(["Chebet", "Akinyi", "Esther", "Baraka", "Daudi"], await Names("sort=basicPay"));
+        Assert.Equal(["Baraka", "Esther", "Akinyi", "Chebet", "Daudi"], await Names("sort=basicPay&dir=desc"));
+        Assert.Equal(["Daudi", "Akinyi", "Baraka", "Esther", "Chebet"], await Names("sort=hireDate"));
+        Assert.Equal(["Akinyi", "Baraka", "Chebet", "Daudi", "Esther"], await Names("sort=staffNo"));
+        Assert.Equal(["Akinyi", "Baraka", "Chebet", "Daudi", "Esther"], await Names("sort=nonsense"));   // anything else: by name
+
+        // Filters, each column and together; the total counts every page.
+        Assert.Equal(["Akinyi", "Chebet"], await Names($"departmentIds={kitchen}"));   // Faith left
+        Assert.Equal(["Baraka", "Esther"], await Names($"positionIds={accountant}"));
+        Assert.Equal(["Chebet"], await Names($"scheduleIds={weekly}"));
+        Assert.Equal(["Esther"], await Names("payFrom=60000&payTo=100000"));
+        Assert.Equal(["Baraka", "Esther"], await Names("hiredFrom=2023-01-01&hiredTo=2024-12-31"));
+        Assert.Equal(["Faith"], await Names($"status=former&departmentIds={kitchen}"));
+        var combined = (await client.GetFromJsonAsync<Page>($"/api/employees?departmentIds={kitchen}&departmentIds={finance}&payFrom=45000&sort=basicPay&dir=desc&pageSize=2&page=2"))!;
+        Assert.Equal(3, combined.Total);
+        Assert.Equal(["Akinyi"], combined.Items.Select(r => r.Name.Split(' ')[0]));   // Baraka and Esther are on page 1
+        Assert.Equal(DateOnly.Parse("2021-03-01"), combined.Items[0].HireDate);
     }
 
     [Fact]

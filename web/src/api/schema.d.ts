@@ -2271,6 +2271,15 @@ export interface paths {
                     status?: string;
                     page?: number | string;
                     pageSize?: number | string;
+                    sort?: string;
+                    dir?: string;
+                    departmentIds?: string[];
+                    positionIds?: string[];
+                    scheduleIds?: string[];
+                    payFrom?: number | string;
+                    payTo?: number | string;
+                    hiredFrom?: string;
+                    hiredTo?: string;
                 };
                 header?: never;
                 path?: never;
@@ -5255,6 +5264,8 @@ export interface components {
             /** Format: date */
             exitDate: null | string;
             readiness: components["schemas"]["ReadinessResponse"];
+            /** Format: date */
+            hireDate: string;
         };
         ErrorResponse: {
             code: string;

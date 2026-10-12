@@ -831,8 +831,6 @@
     "job": "Kazi",
     "schedule": "Ratiba ya mishahara",
     "basicPay": "Mshahara wa msingi",
-    "ready": "Tayari kwa mishahara",
-    "readyTag": "Tayari",
     "needs": "Inahitaji {{items}}",
     "left": "Aliondoka {{date}}",
     "per": {
@@ -1031,7 +1029,23 @@
     "view": "Tazama {{name}}",
     "viewTitle": "Mfanyakazi",
     "editButton": "Hariri",
-    "chooseCompanyFirst": "Chagua kampuni kwanza."
+    "chooseCompanyFirst": "Chagua kampuni kwanza.",
+    "payFrom": "Kuanzia",
+    "payFromPlaceholder": "Kiasi chako",
+    "payTo": "Hadi",
+    "payToPlaceholder": "Kiasi chako",
+    "hiredFrom": "Kuanzia",
+    "hiredFromPlaceholder": "Tarehe yako",
+    "hiredTo": "Hadi",
+    "hiredToPlaceholder": "Tarehe yako",
+    "noMatches": "Hakuna anayelingana na utafutaji na vichujio. Vibadilishe au viondoe.",
+    "filtered": {
+      "job": "Kazi",
+      "schedule": "Ratiba ya mishahara",
+      "basicPay": "Mshahara wa msingi",
+      "hireDate": "Tarehe ya kuanza"
+    },
+    "filteredBy": "Imechujwa kwa"
   },
   "pagination": {
     "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",
