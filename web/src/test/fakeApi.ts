@@ -86,6 +86,23 @@ export const schedule = (overrides: Record<string, unknown> = {}) => ({
   usesCutoff: true, cutoffAppliesTo: ['overtime', 'new_employees', 'leavers', 'unpaid_leave', 'pay_changes', 'one_off'], reminders: [], allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], ...overrides,
 })
 
+/** An earning, deduction or employer cost as the API returns it; by default the locked Basic pay. */
+export const payItem = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-00000000e101', code: 'BASIC', name: 'Basic pay', kind: 'earning', taxable: true, beforeTax: false, calcMethod: 'fixed',
+  defaultAmount: null, rate: null, locked: true, lockedKey: 'basic', allCompanies: true, companyIds: [], assignments: [], ...overrides,
+})
+
+/** Basic pay and Kenya's statutory items, as every organization has them after its first company. */
+export const lockedPayItems = () => [
+  payItem(),
+  ...[['paye', 'PAYE', 'PAYE', 'deduction', false], ['shif', 'SHIF', 'SHIF', 'deduction', true], ['nssf_employee', 'NSSF', 'NSSF (employee)', 'deduction', true],
+    ['ahl_employee', 'AHL', 'Housing Levy (employee)', 'deduction', true], ['nssf_employer', 'NSSF-ER', 'NSSF (employer)', 'employer_cost', false],
+    ['ahl_employer', 'AHL-ER', 'Housing Levy (employer)', 'employer_cost', false], ['nita', 'NITA', 'NITA', 'employer_cost', false]]
+    .map(([key, code, name, kind, beforeTax], i) => payItem({
+      id: `0199c0de-0000-7000-8000-00000000e2${String(i).padStart(2, '0')}`, code, name, kind, taxable: false, beforeTax, calcMethod: 'by_law', lockedKey: key,
+    })),
+]
+
 /** Kenya's statutory leave types and Unpaid leave, as every organization has them after its first company. */
 export const leaveTypes = () => [
   ['annual', 'ANNUAL', 'Annual leave', 'working_days', false, 21, 0, 0],
@@ -165,6 +182,9 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/structure/positions': () => json(200, []),
     'GET /api/structure/units': () => json(200, []),
     'GET /api/pay-schedules': () => json(200, []),
+    'GET /api/pay-items': () => json(200, []),
+    'GET /api/payees': () => json(200, []),
+    'GET /api/saccos': () => json(200, []),
     'GET /api/leave-types': () => json(200, []),
     'GET /api/leave-plans': () => json(200, []),
     'GET /api/employees': () => json(200, { items: [], total: 0, page: 1, pageSize: 100 }),

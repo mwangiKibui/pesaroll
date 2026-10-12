@@ -117,6 +117,8 @@ public static class CompaniesEndpoints
             }
 
             company.DefaultPayScheduleId = schedule.Id;
+            // Basic pay and the law's items for its country (ONB-07), locked.
+            db.PayItems.AddRange(await PayItemsEndpoints.LockedForNewCompanyAsync(db, organizationId, company.CountryCode, clock.GetUtcNow(), ct));
             // The law's leave and Unpaid leave, and its default leave plan (ONB-08): Standard to start.
             var (leaveTypes, leavePlan, isNewPlan) = await LeavePlansEndpoints.ForNewCompanyAsync(db, organizationId, company.CountryCode, clock.GetUtcNow(), ct);
             db.LeaveTypes.AddRange(leaveTypes);
@@ -186,7 +188,7 @@ public static class CompaniesEndpoints
             var company = await db.Companies.SingleOrDefaultAsync(c => c.Id == id && c.Status == "active", ct)
                 ?? throw OnboardingErrors.CompanyNotFound();
             await RequireOnboarder(db, userId, organizationId, ct);
-            // Locations, schedules and leave plans only this company used go with it; shared ones stay for the others.
+            // Locations, schedules, leave plans and pay items only this company used go with it; shared ones stay for the others.
             var onlyItsOwn = await db.Locations
                 .Where(l => !l.AllCompanies && l.Companies.Any(c => c.CompanyId == id) && l.Companies.All(c => c.CompanyId == id))
                 .ToListAsync(ct);
@@ -195,6 +197,9 @@ public static class CompaniesEndpoints
                 .ToListAsync(ct);
             var onlyItsSchedules = await db.PaySchedules
                 .Where(s => !s.AllCompanies && s.Companies.Any(c => c.CompanyId == id) && s.Companies.All(c => c.CompanyId == id))
+                .ToListAsync(ct);
+            var onlyItsPayItems = await db.PayItems
+                .Where(i => !i.AllCompanies && i.Companies.Any(c => c.CompanyId == id) && i.Companies.All(c => c.CompanyId == id))
                 .ToListAsync(ct);
             // Locations and schedules first, while their links still make them visible (row-level
             // security), then the company, its numbers and links (on delete cascade).
@@ -213,6 +218,7 @@ public static class CompaniesEndpoints
             db.LeavePlans.RemoveRange(onlyItsLeavePlans);
             db.Locations.RemoveRange(onlyItsOwn);
             db.PaySchedules.RemoveRange(onlyItsSchedules);
+            db.PayItems.RemoveRange(onlyItsPayItems);
             await db.SaveChangesAsync(ct);
             db.Companies.Remove(company);
             await db.SaveChangesAsync(ct);

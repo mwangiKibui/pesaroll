@@ -163,6 +163,17 @@ it('the list floats over everything near it, and opens upward when there is no r
   expect(above.style.bottom).toBe('54px')   // opens upward, just above the field
 })
 
+it('inside a centred dialog the list sits under its field, measured from the dialog', async () => {
+  render(<div data-testid="dialog" style={{ transform: 'translate(-50%, -50%)' }}><County initial="001" /></div>)
+  const dialog = screen.getByTestId('dialog')
+  dialog.getBoundingClientRect = () => ({ top: 200, bottom: 600, left: 300, right: 800, width: 500, height: 400, x: 300, y: 200, toJSON: () => ({}) })
+  county().parentElement!.getBoundingClientRect = () => ({ top: 260, bottom: 296, left: 330, right: 630, width: 300, height: 36, x: 330, y: 260, toJSON: () => ({}) })
+
+  await userEvent.click(county())
+  const list = screen.getByRole('listbox').parentElement!
+  expect([list.style.top, list.style.left]).toEqual(['100px', '30px'])   // just under the field, inside the dialog
+})
+
 it('a dropdown error is shown under it and read out with it', async () => {
   const { container } = render(<SelectField label="Industry" placeholder="Your industry" error="Choose an industry from the list."
     options={[{ value: 'hotels', label: 'Hotels' }]} value="" onChange={() => {}} />)

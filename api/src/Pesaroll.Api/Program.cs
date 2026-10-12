@@ -78,6 +78,8 @@ app.MapCompaniesEndpoints();
 app.MapPaymentAccountsEndpoints();
 app.MapLocationsEndpoints();
 app.MapPaySchedulesEndpoints();
+app.MapPayItemsEndpoints();
+app.MapPayeesEndpoints();
 app.MapLeavePlansEndpoints();
 app.MapEmployeesEndpoints();
 app.MapEmployeesImportEndpoints();

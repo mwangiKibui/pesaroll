@@ -19,12 +19,19 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<Industry> Industries => Set<Industry>();
     public DbSet<Bank> Banks => Set<Bank>();
     public DbSet<BankBranch> BankBranches => Set<BankBranch>();
+    public DbSet<Sacco> Saccos => Set<Sacco>();
+    public DbSet<SaccoBranch> SaccoBranches => Set<SaccoBranch>();
     public DbSet<CompanyPaymentAccount> CompanyPaymentAccounts => Set<CompanyPaymentAccount>();
     public DbSet<CountryWageArea> CountryWageAreas => Set<CountryWageArea>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<LocationCompany> LocationCompanies => Set<LocationCompany>();
     public DbSet<PaySchedule> PaySchedules => Set<PaySchedule>();
     public DbSet<PayScheduleCompany> PayScheduleCompanies => Set<PayScheduleCompany>();
+    public DbSet<StatutoryItem> StatutoryItems => Set<StatutoryItem>();
+    public DbSet<PayItem> PayItems => Set<PayItem>();
+    public DbSet<PayItemCompany> PayItemCompanies => Set<PayItemCompany>();
+    public DbSet<EmployeePayItem> EmployeePayItems => Set<EmployeePayItem>();
+    public DbSet<Payee> Payees => Set<Payee>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Employment> Employments => Set<Employment>();
     public DbSet<Compensation> Compensations => Set<Compensation>();
@@ -72,6 +79,10 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Bank>().HasKey(b => new { b.CountryCode, b.Code });
         model.Entity<Bank>().Property(b => b.CountryCode).HasColumnType("char(2)");
         model.Entity<BankBranch>().HasKey(b => new { b.CountryCode, b.BankCode, b.Code });
+        model.Entity<Sacco>().HasKey(s => new { s.CountryCode, s.Code });
+        model.Entity<Sacco>().Property(s => s.CountryCode).HasColumnType("char(2)");
+        model.Entity<SaccoBranch>().HasKey(s => new { s.CountryCode, s.SaccoCode, s.Code });
+        model.Entity<SaccoBranch>().Property(s => s.CountryCode).HasColumnType("char(2)");
         model.Entity<BankBranch>().Property(b => b.CountryCode).HasColumnType("char(2)");
         model.Entity<CompanyPaymentAccount>().Property(a => a.CountryCode).HasColumnType("char(2)");
         model.Entity<CompanyPaymentAccount>().Property(a => a.CreatedAt).ValueGeneratedOnAdd();
@@ -85,6 +96,15 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<Company>().HasOne<Location>().WithMany().HasForeignKey(c => c.MainLocationId);
         model.Entity<PaySchedule>().HasMany(s => s.Companies).WithOne().HasForeignKey(c => c.PayScheduleId);
         model.Entity<PayScheduleCompany>().HasKey(c => new { c.PayScheduleId, c.CompanyId });
+        model.Entity<StatutoryItem>().HasKey(s => new { s.CountryCode, s.Key });
+        model.Entity<StatutoryItem>().Property(s => s.CountryCode).HasColumnType("char(2)");
+        model.Entity<PayItem>().Property(p => p.CountryCode).HasColumnType("char(2)");
+        model.Entity<PayItem>().HasMany(p => p.Companies).WithOne().HasForeignKey(c => c.PayItemId);
+        model.Entity<PayItemCompany>().HasKey(c => new { c.PayItemId, c.CompanyId });
+        model.Entity<EmployeePayItem>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<Payee>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<Payee>().Property(x => x.CountryCode).HasColumnType("char(2)");
+        model.Entity<PayItemCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
         // Employees: the app makes every id, so rows added to an employee are new, not updates.
         model.Entity<Employee>().HasMany(e => e.Employments).WithOne().HasForeignKey(x => x.EmployeeId);
         model.Entity<Employee>().HasMany(e => e.Compensations).WithOne().HasForeignKey(x => x.EmployeeId);

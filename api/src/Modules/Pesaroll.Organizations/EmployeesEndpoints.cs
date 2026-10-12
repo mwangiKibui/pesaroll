@@ -73,9 +73,10 @@ public static class EmployeesEndpoints
 
         employees.MapGet("/", async (Guid? companyId, Guid[]? companyIds, string? search, string? status, int? page, int? pageSize,
             string? sort, string? dir, Guid[]? departmentIds, Guid[]? positionIds, Guid[]? scheduleIds, decimal? payFrom, decimal? payTo,
-            DateOnly? hiredFrom, DateOnly? hiredTo, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
+            DateOnly? hiredFrom, DateOnly? hiredTo, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
+            FieldEncryptor encryptor, CancellationToken ct) =>
         {
-            CompaniesEndpoints.RequireOrganization(tenant, http);
+            var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var today = PayDates.TodayInKenya(clock.GetUtcNow());
             var query = db.Employees.AsNoTracking();
             if (companyId is Guid id)
@@ -95,11 +96,23 @@ public static class EmployeesEndpoints
                 "all" => query,
                 _ => query.Where(e => e.ExitDate == null || e.ExitDate >= today),
             };
+            // Any of a person's identifiers: name, staff number, phone (any way it's written), email, NSSF or
+            // SHA number (part of them), or a whole ID number or KRA PIN (stored one way: matched by lookup).
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var term = $"%{search.Trim().Replace("%", "").Replace("_", "")}%";
+                var text = search.Trim();
+                var term = $"%{text.Replace("%", "").Replace("_", "")}%";
+                var digits = Regex.Replace(text, @"[\s\-().]", "");
+                var phone = Regex.IsMatch(digits, @"^\+?\d{4,}$")
+                    ? $"%{(digits.StartsWith('0') ? "+254" + digits[1..] : digits.StartsWith("254") ? "+" + digits : digits)}%"
+                    : null;
+                var idLookup = EmployeeNumbers.NationalId(text) is { } nationalId ? encryptor.Lookup(nationalId, $"national_id:{organizationId}") : null;
+                var pinLookup = EmployeeNumbers.KraPin(text) is { } pin ? encryptor.Lookup(pin, $"kra_pin:{organizationId}") : null;
                 query = query.Where(e => EF.Functions.ILike(e.FirstName + " " + e.LastName, term) || EF.Functions.ILike(e.LastName + " " + e.FirstName, term)
-                    || EF.Functions.ILike(e.StaffNo, term));
+                    || EF.Functions.ILike(e.StaffNo, term) || (e.Email != null && EF.Functions.ILike(e.Email, term))
+                    || (phone != null && e.Phone != null && EF.Functions.ILike(e.Phone, phone))
+                    || (e.NssfNo != null && EF.Functions.ILike(e.NssfNo, term)) || (e.ShaNo != null && EF.Functions.ILike(e.ShaNo, term))
+                    || (idLookup != null && e.NationalIdLookup == idLookup) || (pinLookup != null && e.KraPinLookup == pinLookup));
             }
 
             if (hiredFrom is DateOnly from)

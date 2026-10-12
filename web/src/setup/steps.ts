@@ -17,13 +17,14 @@ export const setupSteps = [
 
 export type SetupStep = (typeof setupSteps)[number]['key']
 
-/** Steps with a page so far, in order; the rest come with their tasks (ONB-07 onwards). */
+/** Steps with a page so far, in order; the rest come with their tasks (ONB-08 onwards). */
 export const setupPaths: Partial<Record<SetupStep, string>> = {
   organization: '/setup/organization',
   companies: '/setup/companies',
   locations: '/setup/locations',
   structure: '/setup/structure',
   schedules: '/setup/schedules',
+  payItems: '/setup/earnings-and-deductions',
   leavePlans: '/setup/leave-plans',
   employees: '/setup/employees',
 }

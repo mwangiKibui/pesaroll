@@ -75,6 +75,38 @@ internal static class OnboardingErrors
     public static AppException DefaultScheduleNeeded(string companies) =>
         new("ONB-3527", $"This is the default schedule of {companies}. Make another schedule their default first.", 409);
 
+    public static AppException PayItemDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3528", "Some details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException PayItemCodeTaken() =>
+        new("ONB-3529", "Another earning or deduction already has this code. Choose a different one or leave it empty.", 409);
+
+    public static AppException PayItemNotFound() =>
+        new("ONB-3530", "We couldn't find that earning or deduction. It may have been deleted.", 404);
+
+    public static AppException PayItemLocked() =>
+        new("ONB-3531", "This one is set by law (or is basic pay), so it can't be changed or deleted.", 409);
+
+    public static AppException PayItemForEveryone() =>
+        new("ONB-3545", "This one is set by law (or is basic pay): it applies to everyone, so there's no one to choose.", 409);
+
+    public static AppException PayItemNotForCompany(string company) =>
+        new("ONB-3546", $"This isn't used by {company}. Add the company to it first.", 409);
+
+    public static AppException PayeeDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3548", "Some payee details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException PayeeNotFound() =>
+        new("ONB-3549", "We couldn't find that payee. It may have been deleted.", 404);
+
+    public static AppException PayeeInUse(string name, int items) =>
+        new("ONB-3550", $"{name} is the payee of {items} earnings and deductions. Choose another payee for them first.", 409);
+
+    public static AppException PayeeNameTaken() =>
+        new("ONB-3551", "Another payee already has this name.", 409);
+
+    public static AppException AssignmentInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3547", "Some details of who gets it don't look right. Check the fields marked.") { Fields = fields };
     public static AppException LeaveDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("ONB-3532", "Some leave details don't look right. Check the fields marked.") { Fields = fields };
 
