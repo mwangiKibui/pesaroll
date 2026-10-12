@@ -453,3 +453,77 @@ it('Show picks the rows to fix or the ready ones, with their counts; the sheet o
   await show(/^All rows/)
   expect(within(sheet).getAllByRole('textbox', { name: /^Location name, row/ })).toHaveLength(2)
 })
+
+it('a row stays marked while any of its cells needs fixing; fixing a duplicate clears its pair too', async () => {
+  const read: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Atlantis office', 'Atlantis'), row(4, 'Westlands branch', 'Nairobi')],
+    problems: [
+      { line: 3, column: 'name', message: 'Use a shorter name.' },
+      { line: 3, column: 'county', message: '"Atlantis" isn\'t a county we know.' },
+      { line: 2, column: 'name', message: 'Row 4 has this location name too.' },
+      { line: 4, column: 'name', message: 'Row 2 has this location name too.' },
+    ],
+  }
+  render(<Page read={async () => read} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 3 locations' })
+  const marked = () => within(sheet).getAllByRole('row').slice(1).filter(r => r.className.includes('bg-warning-soft'))
+    .map(r => parseInt(within(r).getAllByRole('cell')[0].textContent ?? '', 10))   // the row numbers
+  expect(marked()).toEqual([2, 3, 4])
+
+  // Row 3: fixing one of its two cells leaves it marked; fixing both clears it.
+  await userEvent.clear(within(sheet).getByRole('textbox', { name: 'Location name, row 3' }))
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 3' }), 'Kisumu office')
+  expect(marked()).toContain(3)
+  await userEvent.type(within(sheet).getByRole('combobox', { name: 'County, row 3' }), '{Control>}a{/Control}nai')
+  await userEvent.click(screen.getByRole('option', { name: 'Nairobi' }))
+  expect(marked()).not.toContain(3)
+
+  // Rows 2 and 4 share a name: changing row 4's clears both.
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Location name, row 4' }), ' annex')
+  expect(marked()).toEqual([])
+})
+
+it('fixing one cell leaves the other cells of its row marked; a server-found problem stays until its own cell changes', async () => {
+  const cols = [
+    { key: 'name', label: 'Name', validate: (v: string) => (v.trim() ? null : 'Enter their name.') },
+    { key: 'phone', label: 'Phone', validate: (v: string) => (!v || /^07\d{8}$/.test(v) ? null : 'Enter a mobile number.') },
+    { key: 'email', label: 'Email' },
+  ]
+  const read: BulkUploadRead = {
+    rows: [{ line: 2, cells: { name: '', phone: '0712345678', email: 'w@example' } }],
+    problems: [
+      { line: 2, column: 'name', message: 'Enter their name.' },
+      { line: 2, column: 'phone', message: 'Wanjiru Kamau (K-1) already has this phone number.' },   // only the server knows
+      { line: 2, column: 'email', message: 'Enter a valid email address.' },
+    ],
+  }
+  render(
+    <BulkUpload open title="Upload people" columns={cols} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={async () => read} onCheck={async () => clean} onImport={async () => null}
+      labels={{ review: n => `Review ${n} people`, importButton: n => `Import ${n} people`, templateHint: '' }} />,
+  )
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 1 people' })
+  const phone = within(sheet).getByRole('textbox', { name: 'Phone, row 2' })
+  const email = within(sheet).getByRole('textbox', { name: 'Email, row 2' })
+
+  await userEvent.type(within(sheet).getByRole('textbox', { name: 'Name, row 2' }), 'Akinyi')
+  await userEvent.tab()
+  expect(phone).toHaveAccessibleDescription('Wanjiru Kamau (K-1) already has this phone number.')
+  expect(email).toHaveAccessibleDescription('Enter a valid email address.')
+
+  await userEvent.click(phone)   // looked at, not changed
+  await userEvent.tab()
+  expect(phone).toHaveAccessibleDescription('Wanjiru Kamau (K-1) already has this phone number.')
+  expect(within(sheet).getAllByRole('row')[1]).toHaveClass('bg-warning-soft')
+
+  await userEvent.clear(phone)
+  await userEvent.type(phone, '0722000111')
+  await userEvent.tab()
+  expect(phone).not.toHaveAccessibleDescription(/already has/)
+  expect(email).toHaveAccessibleDescription('Enter a valid email address.')
+  expect(within(sheet).getAllByRole('row')[1]).toHaveClass('bg-warning-soft')   // email still to fix
+})

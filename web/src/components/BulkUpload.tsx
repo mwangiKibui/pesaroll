@@ -264,13 +264,20 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     setRows(result.rows.length > 0 ? result.rows : null)
   }
 
-  // A cell's own check: its message replaces what was there for that cell, or clears it.
-  const checked = (list: BulkUploadProblem[], line: number | string, cells: Record<string, string>, keys: string[]) => {
-    const found = columns.filter(c => keys.includes(c.key) && c.validate && !c.disabledWhen?.(cells)).flatMap(c => {
+  // A cell's own check: its message replaces what was there for that cell, or clears it. A message the
+  // check didn't write (the server's: a duplicate, an unknown department) stays until that cell changes
+  // (`changed`): looking at a cell, or fixing another one in the row, doesn't clear it.
+  const checked = (list: BulkUploadProblem[], line: number | string, cells: Record<string, string>, keys: string[],
+    before: Record<string, string> = cells, changed: string[] = []) => {
+    const redo = columns.filter(c => keys.includes(c.key) && c.validate).filter(c => {
+      const existing = list.find(p => keyOf(p.line, p.column) === keyOf(line, c.key))
+      return !existing || changed.includes(c.key) || existing.message === c.validate!(before[c.key] ?? '', before)
+    })
+    const found = redo.filter(c => !c.disabledWhen?.(cells)).flatMap(c => {
       const message = c.validate!(cells[c.key] ?? '', cells)
       return message ? [{ line, column: c.key, message }] : []
     })
-    const redone = new Set(columns.filter(c => keys.includes(c.key) && c.validate).map(c => keyOf(line, c.key)))
+    const redone = new Set(redo.map(c => keyOf(line, c.key)))
     return [...list.filter(p => !redone.has(keyOf(p.line, p.column))), ...found]
   }
 
@@ -283,11 +290,13 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     cells = { ...cells, ...Object.fromEntries(columns.filter(c => c.disabledWhen?.(cells)).map(c => [c.key, ''])) }
     setRows(list => list?.map(r => (r.line === line ? { ...r, cells } : r)) ?? null)
     setNotes(list => list.filter(p => keyOf(p.line, p.column) !== keyOf(line, column)))
+    // A duplicate is marked on both rows ("Row 4 has this … too"); changing one side clears the pair's message too.
+    const pairedWith = new RegExp(`^Row ${String(line).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} has this .* too\\.$`)
     // The cell's message goes while typing; cells already marked in the row are checked again, as this one may fix them.
     const marked = problems.filter(p => p.line === line && p.column && p.column !== column).map(p => p.column!)
     const changedOthers = Object.keys(cells).filter(k => k !== column && cells[k] !== row.cells[k])
-    setProblems(list => checked(list.filter(p => keyOf(p.line, p.column) !== keyOf(line, column)), line, cells,
-      [...marked, ...changedOthers, ...(validateNow ? [column] : [])]))
+    setProblems(list => checked(list.filter(p => keyOf(p.line, p.column) !== keyOf(line, column) && !(p.column === column && pairedWith.test(p.message))), line, cells,
+      [...marked, ...changedOthers, ...(validateNow ? [column] : [])], row.cells, [column, ...changedOthers]))
   }
 
   const leave = (line: number | string, column: string) => {
