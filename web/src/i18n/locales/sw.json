@@ -909,7 +909,28 @@
     "deleted": "Imefutwa",
     "view": "Tazama {{name}}",
     "kind": "Aina",
-    "editButton": "Hariri"
+    "editButton": "Hariri",
+    "referenceSource": "Nambari ya akaunti ya kila mtu",
+    "referenceSourcePlaceholder": "Chaguo lako",
+    "referenceSourceHint": "Nambari yao ya uanachama au akaunti kwa mpokeaji: huandikwa kwa kila mtu, au huchukuliwa kutoka kwa wasifu wao (HELB hutumia nambari ya kitambulisho).",
+    "sources": {
+      "typed": "Huandikwa kwa kila mtu",
+      "national_id": "Nambari yao ya kitambulisho",
+      "kra_pin": "PIN yao ya KRA",
+      "staff_no": "Nambari yao ya mfanyakazi",
+      "phone": "Nambari yao ya simu",
+      "bank_account": "Akaunti ya benki wanayolipwa",
+      "mpesa_number": "Nambari ya M-Pesa wanayolipwa"
+    },
+    "sourceWhat": {
+      "typed": "nambari ya akaunti",
+      "national_id": "nambari ya kitambulisho",
+      "kra_pin": "PIN ya KRA",
+      "staff_no": "nambari ya mfanyakazi",
+      "phone": "nambari ya simu",
+      "bank_account": "akaunti ya benki",
+      "mpesa_number": "nambari ya M-Pesa"
+    }
   },
   "employees": {
     "title": "Nani anafanya kazi kwako?",
@@ -1218,7 +1239,11 @@
     "referencePlaceholder": "Nambari yako ya uanachama",
     "byLaw": "Wote: kimewekwa na sheria, kwa hivyo kinamhusu kila mfanyakazi.",
     "itemDefault": "Kiasi cha kipengele",
-    "dates": "Tarehe"
+    "dates": "Tarehe",
+    "fromProfile": "Kutoka kwa {{what}} yao",
+    "profileTag": "(wasifu)",
+    "missing_one": "Mtu {{count}} hana {{what}} kwenye wasifu wake bado: {{names}}.",
+    "missing_other": "Watu {{count}} hawana {{what}} kwenye wasifu wao bado: {{names}}."
   },
   "payees": {
     "paidTo": "Hulipwa kwa",

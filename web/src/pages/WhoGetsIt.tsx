@@ -17,10 +17,12 @@ import { emptyDraft, number, type CompanyDraft, type PersonDraft } from './whoDr
  * with their own amount or rate (the item's unless changed) and From / Until dates. Items entered
  * each payroll only say who can have them.
  */
-export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, drafts, errors, onChange }: {
+export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, referenceSource = 'typed', drafts, errors, onChange }: {
   companies: { id: string; legalName: string }[]
   itemName: string
   method: string
+  /** Where each person's account number comes from (typed, or a profile field). */
+  referenceSource?: string
   defaultAmount: string
   rate: string
   drafts: Record<string, CompanyDraft>
@@ -61,6 +63,9 @@ export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, dr
           { value: 'none', label: t('who.none') },
         ]} />
       {method === 'each_run' && draft.mode !== 'none' && <Notice>{t('who.eachRun', { name: itemName })}</Notice>}
+      {referenceSource !== 'typed' && draft.mode !== 'none' && draft.missing.length > 0 && (
+        <Notice>{t('who.missing', { count: draft.missing.length, what: t(`payItems.sourceWhat.${referenceSource}`), names: draft.missing.join(', ') })}</Notice>
+      )}
 
       {draft.mode === 'everyone' && (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -77,15 +82,16 @@ export function WhoGetsIt({ companies, itemName, method, defaultAmount, rate, dr
       )}
 
       {draft.mode === 'people' && (
-        <People companyId={company.id} draft={draft} amounts={amounts} placeholder={placeholder} problems={problems} change={change} />
+        <People companyId={company.id} draft={draft} amounts={amounts} placeholder={placeholder} problems={problems} change={change} referenceSource={referenceSource} />
       )}
     </div>
   )
 }
 
 /** Specific people: found on the server by any identifier, then a table of the chosen with their own amounts and dates. */
-function People({ companyId, draft, amounts, placeholder, problems, change }: {
+function People({ companyId, draft, amounts, placeholder, problems, change, referenceSource }: {
   companyId: string
+  referenceSource: string
   draft: CompanyDraft
   amounts: 'amount' | 'rate' | null
   placeholder: string
@@ -120,7 +126,7 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
           {(found.data ?? []).map(e => (
             <li key={e.id}>
               <Button variant="secondary" disabled={chosen.has(e.id)}
-                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '', reference: '' }] })}>
+                onClick={() => change({ people: [...draft.people, { employeeId: e.id, name: e.name, staffNo: e.staffNo, amount: '', rate: '', startsOn: '', endsOn: '', reference: '', profile: '' }] })}>
                 {t('who.add', { name: `${e.name} (${e.staffNo})` })}
               </Button>
             </li>
@@ -161,7 +167,9 @@ function People({ companyId, draft, amounts, placeholder, problems, change }: {
                       </td>
                     )}
                     <td className="min-w-40">
-                      <TextField size="sm" hideLabel placeholder={t('who.referencePlaceholder')} maxLength={40} label={`${t('who.reference')} ${t('who.for', { name: p.name })}`}
+                      {/* From their profile unless typed: the profile's number shows as the hint (masked where sensitive). */}
+                      <TextField size="sm" hideLabel maxLength={40}
+                        placeholder={p.profile || (referenceSource === 'typed' ? t('who.referencePlaceholder') : t('who.fromProfile', { what: t(`payItems.sourceWhat.${referenceSource}`) }))} label={`${t('who.reference')} ${t('who.for', { name: p.name })}`}
                         error={problems[`${at}reference`]} value={p.reference} onChange={e => edit(p.index, { reference: e.target.value })} />
                     </td>
                     <td className="min-w-40">

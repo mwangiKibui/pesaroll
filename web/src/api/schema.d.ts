@@ -5799,6 +5799,8 @@ export interface components {
             /** Format: date */
             endsOn: null | string;
             reference: null | string;
+            shownReference: null | string;
+            fromProfile: boolean;
         };
         AssignmentPersonRequest: {
             /** Format: uuid */
@@ -5860,6 +5862,7 @@ export interface components {
             /** Format: date */
             endsOn: null | string;
             people: components["schemas"]["AssignedPersonResponse"][];
+            missing: components["schemas"]["MissingPersonResponse"][];
         };
         CompanyFieldResponse: {
             key: string;
@@ -6288,6 +6291,12 @@ export interface components {
             key: string;
             label: components["schemas"]["LocalizedText"];
         };
+        MissingPersonResponse: {
+            /** Format: uuid */
+            employeeId: string;
+            name: string;
+            staffNo: string;
+        };
         OrganizationResponse: {
             /** Format: uuid */
             id: string;
@@ -6344,6 +6353,7 @@ export interface components {
             companyIds: null | string[];
             /** Format: uuid */
             payeeId?: null | string;
+            referenceSource?: null | string;
         };
         PayItemResponse: {
             /** Format: uuid */
@@ -6365,6 +6375,7 @@ export interface components {
             assignments: components["schemas"]["AssignmentSummary"][];
             /** Format: uuid */
             payeeId: null | string;
+            referenceSource: string;
         };
         PaymentAccountRequest: {
             method: null | string;

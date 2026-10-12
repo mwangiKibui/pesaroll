@@ -45,6 +45,7 @@ interface Values {
   defaultAmount: string
   rate: string
   payeeId: string
+  referenceSource: string
   taxable: boolean
   beforeTax: boolean
   applies: CompanySelection
@@ -69,6 +70,9 @@ const commons: { key: string; kind: Kind; calcMethod: string; taxable?: boolean;
 ]
 
 const none = <span className="text-muted">—</span>
+
+/** Where each person's account number with the payee comes from (the API's keys). */
+const referenceSources = ['typed', 'national_id', 'kra_pin', 'staff_no', 'phone', 'bank_account', 'mpesa_number'] as const
 
 /** Who the law's items are paid to (their payee is the authority). */
 const authorities: Record<string, string> = {
@@ -309,13 +313,14 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       defaultAmount: item?.defaultAmount != null ? String(item.defaultAmount) : '',
       rate: item?.rate != null ? String(item.rate) : '',
       payeeId: item?.payeeId ?? '',
+      referenceSource: item?.referenceSource ?? 'typed',
       taxable: item ? item.taxable : kind === 'earning',
       beforeTax: item?.beforeTax ?? false,
       applies: item ? { all: item.allCompanies, ids: item.allCompanies ? companies.map(c => c.id) : item.companyIds } : defaultApplies,
     },
   })
-  const [chosenKind, calcMethod, applies, itemName, defaultAmount, rate] =
-    useWatch({ control, name: ['kind', 'calcMethod', 'applies', 'name', 'defaultAmount', 'rate'] })
+  const [chosenKind, calcMethod, applies, itemName, defaultAmount, rate, referenceSource] =
+    useWatch({ control, name: ['kind', 'calcMethod', 'applies', 'name', 'defaultAmount', 'rate', 'referenceSource'] })
   const served = applies.all ? companies : companies.filter(c => applies.ids.includes(c.id))
 
   // A common item fills in the form; anything can still be changed.
@@ -357,6 +362,7 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
       defaultAmount: v.calcMethod === 'fixed' && v.defaultAmount.trim() ? Number(v.defaultAmount.replace(/,/g, '')) : null,
       rate: v.calcMethod === 'percent_of_basic' ? Number(v.rate) : null,
       payeeId: v.kind !== 'earning' && v.payeeId ? v.payeeId : null,
+      referenceSource: v.kind !== 'earning' ? v.referenceSource : 'typed',
       allCompanies: v.applies.all,
       companyIds: v.applies.all ? [] : v.applies.ids,
     }
@@ -403,6 +409,7 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
     }
     const fields: Record<string, FieldPath<Values>> = {
       name: 'name', kind: 'kind', code: 'code', calcMethod: 'calcMethod', rate: 'rate', defaultAmount: 'defaultAmount', companyIds: 'applies', payeeId: 'payeeId',
+      referenceSource: 'referenceSource',
     }
     const known = Object.entries(error.fields ?? {}).filter(([name]) => fields[name])
     for (const [name, message] of known) setError(fields[name], { message })
@@ -492,7 +499,16 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
         )}
         </TabPanel>
         <TabPanel id={tabsId} tab="who" current={tab}>
-          <WhoGetsIt companies={served} itemName={itemName} method={calcMethod} defaultAmount={defaultAmount} rate={rate}
+          {chosenKind !== 'earning' && (
+            // Each person's number with the payee: typed, or from their profile (HELB uses the ID number).
+            <div className="max-w-md">
+              <Controller control={control} name="referenceSource" render={({ field }) => (
+                <SelectField label={t('payItems.referenceSource')} placeholder={t('payItems.referenceSourcePlaceholder')} hint={t('payItems.referenceSourceHint')}
+                  error={errors.referenceSource?.message} options={referenceSources.map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
+              )} />
+            </div>
+          )}
+          <WhoGetsIt referenceSource={chosenKind !== 'earning' ? referenceSource : 'typed'} companies={served} itemName={itemName} method={calcMethod} defaultAmount={defaultAmount} rate={rate}
             drafts={drafts} errors={whoErrors} onChange={(id, draft) => setDrafts(d => ({ ...d, [id]: draft }))} />
         </TabPanel>
       </form>
