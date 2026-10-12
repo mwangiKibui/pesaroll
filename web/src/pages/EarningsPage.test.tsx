@@ -305,14 +305,17 @@ it('a deduction is paid to a payee, added from the drawer; the law\'s items show
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Account optional' }), 'EMP-4471')
   await userEvent.click(fromProfile)
   expect(within(modal).queryByRole('textbox', { name: 'Account optional' })).not.toBeInTheDocument()
-  await userEvent.click(within(modal).getByRole('combobox', { name: 'Which detail?' }))
-  await userEvent.click(screen.getByRole('option', { name: 'Their staff number' }))
+  const which = within(modal).getByRole('combobox', { name: 'Which detail?' })
+  expect(which).toHaveValue('Their ID number')   // a paybill's likeliest
+  await userEvent.click(which)
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Their ID number', 'The M-Pesa number they\'re paid into'])
+  await userEvent.click(screen.getByRole('option', { name: 'The M-Pesa number they\'re paid into' }))
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Your reference with them optional' }), 'EMP-4471')
   await userEvent.click(within(modal).getByRole('button', { name: 'Add payee' }))
 
   expect(await within(drawer()).findByRole('combobox', { name: 'Paid to optional' })).toHaveValue('Stima SACCO')   // chosen
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/payees')?.body).toMatchObject({
-    name: 'Stima SACCO', method: 'mpesa_paybill', paybill: '510800', paybillAccount: null, ourReference: 'EMP-4471', referenceSource: 'staff_no',
+    name: 'Stima SACCO', method: 'mpesa_paybill', paybill: '510800', paybillAccount: null, ourReference: 'EMP-4471', referenceSource: 'mpesa_number',
   })
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
@@ -338,7 +341,10 @@ it('a payee can be paid by SACCO transfer, to a SACCO and branch from the list',
   // The toggle comes first; on, only which detail (no bank or SACCO fields); off, the payee's account.
   const toggle = within(modal).getByRole('switch', { name: 'Pick each person\'s account number from their employee profile' })
   await userEvent.click(toggle)
-  expect(within(modal).getByRole('combobox', { name: 'Which detail?' })).toBeInTheDocument()
+  expect(within(modal).getByRole('combobox', { name: 'Which detail?' })).toHaveValue('The bank account they\'re paid into')   // a transfer's likeliest
+  await userEvent.click(within(modal).getByRole('combobox', { name: 'Which detail?' }))
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['The bank account they\'re paid into', 'Their ID number'])
+  await userEvent.keyboard('{Escape}')
   expect(within(modal).queryByRole('radio', { name: 'SACCO' })).not.toBeInTheDocument()
   await userEvent.click(toggle)
   await userEvent.click(within(modal).getByRole('radio', { name: 'SACCO' }))

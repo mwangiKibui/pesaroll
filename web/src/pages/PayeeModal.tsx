@@ -31,8 +31,8 @@ interface Values {
 }
 
 const methods = ['bank', 'mpesa_paybill', 'cheque', 'cash'] as const
-/** Profile details a payee can identify people by (the API's keys). */
-const profileDetails = ['national_id', 'kra_pin', 'staff_no', 'phone', 'bank_account', 'mpesa_number'] as const
+/** The profile details each way offers, likeliest first: a transfer goes to the account they're paid into; a paybill (HELB) usually takes the ID number. */
+const profileDetails: Record<string, string[]> = { bank: ['bank_account', 'national_id'], mpesa_paybill: ['national_id', 'mpesa_number'] }
 
 /**
  * Adding a payee from an item's drawer (a small form on top of it): who a deduction's money is
@@ -94,13 +94,14 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
   const toggle = (
     <Controller control={control} name="fromProfile" render={({ field }) => (
       <Switch label={t('payees.fromProfile')} hint={t(field.value ? 'payees.fromProfileOnHint' : 'payees.fromProfileOffHint')}
-        checked={field.value} onChange={field.onChange} />
+        // On: the section's likeliest detail to start.
+        checked={field.value} onChange={on => { field.onChange(on); if (on) setValue('profileDetail', profileDetails[method]?.[0] ?? '') }} />
     )} />
   )
   const detail = (
     <Controller control={control} name="profileDetail" render={({ field }) => (
       <SelectField label={t('payees.profileDetail')} placeholder={t('payees.profileDetailPlaceholder')} hint={t('payees.profileDetailHint')}
-        error={errors.profileDetail?.message} options={profileDetails.map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
+        error={errors.profileDetail?.message} options={(profileDetails[method] ?? []).map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
     )} />
   )
 
@@ -116,7 +117,9 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
         <TextField label={t('payees.name')} placeholder={t('payees.namePlaceholder')} hint={t('payees.nameHint')} maxLength={120}
           error={errors.name?.message} {...register('name')} />
         <Controller control={control} name="method" render={({ field }) => (
-          <RadioGroup label={t('payees.method')} name={field.name} value={field.value} onChange={field.onChange} error={errors.method?.message}
+          <RadioGroup label={t('payees.method')} name={field.name} value={field.value} error={errors.method?.message}
+            // Another way offers other details: start again from its likeliest.
+            onChange={value => { field.onChange(value); setValue('profileDetail', profileDetails[value]?.[0] ?? '') }}
             options={methods.map(m => ({ value: m, label: t(`payees.methods.${m}`), hint: t(`payees.methodHints.${m}`) }))} />
         )} />
         {/* Bank / SACCO transfer: the toggle first; on, each person's own account from their profile (no account of the payee's). */}
