@@ -446,14 +446,18 @@ function PayItemForm({ item: opened, kind, companies, defaultApplies, initial, o
         )}
         {chosenKind !== 'earning' && (
           // Who the money goes to: a SACCO, union, insurer or lender; Add a payee opens a small form on top.
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full max-w-md">
-              <Controller control={control} name="payeeId" render={({ field }) => (
-                <SelectField label={t('payees.paidTo')} placeholder={t('payees.paidToPlaceholder')} optional hint={t('payees.paidToHint')}
-                  error={errors.payeeId?.message} options={(payees.data ?? []).map(p => ({ value: p.id, label: p.name }))} {...field} />
-              )} />
+          // The field fills the row, the button on the right, level with the field (its hint goes under both).
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-end gap-3">
+              <div className="min-w-0 flex-1">
+                <Controller control={control} name="payeeId" render={({ field }) => (
+                  <SelectField label={t('payees.paidTo')} placeholder={t('payees.paidToPlaceholder')} optional
+                    error={errors.payeeId?.message} options={(payees.data ?? []).map(p => ({ value: p.id, label: p.name }))} {...field} />
+                )} />
+              </div>
+              <Button variant="secondary" className="shrink-0" onClick={() => setAddingPayee(true)}><PlusIcon />{t('payees.add')}</Button>
             </div>
-            <Button variant="secondary" onClick={() => setAddingPayee(true)}><PlusIcon />{t('payees.add')}</Button>
+            <p className="m-0 text-hint text-muted">{t('payees.paidToHint')}</p>
           </div>
         )}
         {companies.length > 1 && (
