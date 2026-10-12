@@ -228,6 +228,26 @@ public sealed class StatutoryItem
 /// companies or the ones in <see cref="Companies"/>. Locked ones (<see cref="LockedKey"/>: basic or a
 /// statutory item) are made with the first company and never changed by the app.
 /// </summary>
+/// <summary>Who a deduction's or employer cost's money is paid to: by bank, M-Pesa paybill, cheque or cash.</summary>
+public sealed class Payee
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public required string Name { get; set; }
+    /// <summary>bank, mpesa_paybill, cheque or cash.</summary>
+    public required string Method { get; set; }
+    public string? CountryCode { get; set; }
+    public string? BankCode { get; set; }
+    public string? BranchCode { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? Paybill { get; set; }
+    public string? PaybillAccount { get; set; }
+    public string? ChequePayableTo { get; set; }
+    public string? OurReference { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 /// <summary>Who gets an earning or deduction at a company: everyone (no employee) or one person, from a date.</summary>
 public sealed class EmployeePayItem
 {
@@ -240,6 +260,8 @@ public sealed class EmployeePayItem
     public decimal? Rate { get; set; }
     public DateOnly StartsOn { get; set; }
     public DateOnly? EndsOn { get; set; }
+    /// <summary>Their member or account number with the item's payee.</summary>
+    public string? Reference { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
@@ -262,6 +284,8 @@ public sealed class PayItem
     public string? CountryCode { get; set; }
     public bool AllCompanies { get; set; }
     public string Status { get; set; } = "active";
+    /// <summary>Who the money goes to (deductions and employer costs).</summary>
+    public Guid? PayeeId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public List<PayItemCompany> Companies { get; set; } = [];

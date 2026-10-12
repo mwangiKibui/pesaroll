@@ -95,6 +95,10 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3545 | This one is set by law (or is basic pay): it applies to everyone, so there's no one to choose. | Customer | Basic pay and statutory items apply to every employee; only the organization's own items are given to people. |
 | ONB-3546 | This isn't used by {company}. Add the company to it first. | Customer | An earning or deduction goes only to people at companies it serves. |
 | ONB-3547 | Some details of who gets it don't look right. Check the fields marked. | Customer | People from another company, people who left, someone twice, an amount on a percentage or each-payroll item, or an end before the start. |
+| ONB-3548 | Some payee details don't look right. Check the fields marked. | Customer | Name, the way they're paid and that way's details: bank, branch and account number (checked per bank), a 5 to 7 digit paybill, or who cheques are payable to. |
+| ONB-3549 | We couldn't find that payee. It may have been deleted. | Customer | The payee doesn't exist in this organization. |
+| ONB-3550 | {name} is the payee of {n} earnings and deductions. Choose another payee for them first. | Customer | A payee in use can't be deleted. |
+| ONB-3551 | Another payee already has this name. | Customer | Payee names are unique in an organization (ignoring case). |
 | NTF-0501 | Enter a valid email address, or a Kenyan mobile number like 0712 345 678. | Customer | A message's recipient isn't a Kenyan mobile number (07…, 01…, +254…) or a plain email address. |
 | NTF-0502 | We couldn't deliver an email to {recipient}. | Support | Postmark kept refusing it (5 attempts); notification_deliveries.error has its reason (inactive recipient, bounced, bad address). Check the address with the customer. |
 | NTF-0503 | We couldn't deliver an SMS to {recipient}. | Support | Africa's Talking kept refusing it (5 attempts); notification_deliveries.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance. |

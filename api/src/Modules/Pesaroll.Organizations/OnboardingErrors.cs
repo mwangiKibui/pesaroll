@@ -93,6 +93,18 @@ internal static class OnboardingErrors
     public static AppException PayItemNotForCompany(string company) =>
         new("ONB-3546", $"This isn't used by {company}. Add the company to it first.", 409);
 
+    public static AppException PayeeDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ONB-3548", "Some payee details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException PayeeNotFound() =>
+        new("ONB-3549", "We couldn't find that payee. It may have been deleted.", 404);
+
+    public static AppException PayeeInUse(string name, int items) =>
+        new("ONB-3550", $"{name} is the payee of {items} earnings and deductions. Choose another payee for them first.", 409);
+
+    public static AppException PayeeNameTaken() =>
+        new("ONB-3551", "Another payee already has this name.", 409);
+
     public static AppException AssignmentInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("ONB-3547", "Some details of who gets it don't look right. Check the fields marked.") { Fields = fields };
     public static AppException LeaveDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>
