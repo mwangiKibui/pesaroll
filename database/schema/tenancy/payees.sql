@@ -29,7 +29,10 @@ create table payees (
     foreign key (country_code, bank_code, branch_code) references bank_branches (country_code, bank_code, code),
     foreign key (country_code, sacco_code, sacco_branch_code) references sacco_branches (country_code, sacco_code, code),
     check (
-        (method = 'bank' and institution = 'bank' and country_code is not null and bank_code is not null and branch_code is not null
+        -- A transfer into each person's own account, picked from their profile: no account of the payee's.
+        (method = 'bank' and reference_source <> 'typed' and institution is null and bank_code is null and branch_code is null and sacco_code is null
+            and sacco_branch_code is null and account_number is null and paybill is null and paybill_account is null and cheque_payable_to is null)
+     or (method = 'bank' and institution = 'bank' and country_code is not null and bank_code is not null and branch_code is not null
             and account_number is not null and sacco_code is null and sacco_branch_code is null and paybill is null and paybill_account is null
             and cheque_payable_to is null)
      or (method = 'bank' and institution = 'sacco' and country_code is not null and sacco_code is not null and sacco_branch_code is not null
@@ -37,6 +40,7 @@ create table payees (
             and cheque_payable_to is null)
      or (method = 'mpesa_paybill' and paybill is not null and institution is null and sacco_code is null and bank_code is null
             and account_number is null and cheque_payable_to is null)
+     -- (an M-Pesa paybill whose account per person comes from profiles keeps no paybill_account: the app leaves it out)
      or (method = 'cheque' and cheque_payable_to is not null and institution is null and sacco_code is null and bank_code is null
             and account_number is null and paybill is null and paybill_account is null)
      or (method = 'cash' and institution is null and sacco_code is null and bank_code is null and account_number is null and paybill is null

@@ -56,20 +56,22 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
 
   const onSubmit = async (v: Values) => {
     setBanner(null)
-    if (v.fromProfile && !v.profileDetail) return setError('profileDetail', { message: t('payees.profileDetailRequired') })
+    const profile = v.fromProfile && (v.method === 'bank' || v.method === 'mpesa_paybill')
+    if (profile && !v.profileDetail) return setError('profileDetail', { message: t('payees.profileDetailRequired') })
     // Only the chosen way's details are sent.
     const body = {
       name: v.name.trim(), method: v.method,
-      institution: v.method === 'bank' ? v.institution : null,
-      bankCode: v.method === 'bank' && v.institution === 'bank' ? v.bankCode : null,
-      branchCode: v.method === 'bank' && v.institution === 'bank' ? v.branchCode : null,
-      saccoCode: v.method === 'bank' && v.institution === 'sacco' ? v.saccoCode : null,
-      saccoBranchCode: v.method === 'bank' && v.institution === 'sacco' ? v.saccoBranchCode : null,
-      accountNumber: v.method === 'bank' ? v.accountNumber : null,
-      paybill: v.method === 'mpesa_paybill' ? v.paybill.trim() : null, paybillAccount: v.method === 'mpesa_paybill' ? v.paybillAccount.trim() || null : null,
+      // Picked from profiles: none of the payee's own account details.
+      institution: v.method === 'bank' && !profile ? v.institution : null,
+      bankCode: v.method === 'bank' && !profile && v.institution === 'bank' ? v.bankCode : null,
+      branchCode: v.method === 'bank' && !profile && v.institution === 'bank' ? v.branchCode : null,
+      saccoCode: v.method === 'bank' && !profile && v.institution === 'sacco' ? v.saccoCode : null,
+      saccoBranchCode: v.method === 'bank' && !profile && v.institution === 'sacco' ? v.saccoBranchCode : null,
+      accountNumber: v.method === 'bank' && !profile ? v.accountNumber : null,
+      paybill: v.method === 'mpesa_paybill' ? v.paybill.trim() : null, paybillAccount: v.method === 'mpesa_paybill' && !profile ? v.paybillAccount.trim() || null : null,
       chequePayableTo: v.method === 'cheque' ? v.chequePayableTo.trim() || null : null,
       ourReference: v.ourReference.trim() || null,
-      referenceSource: v.fromProfile ? v.profileDetail : 'typed',
+      referenceSource: profile ? v.profileDetail : 'typed',
     }
     try {
       const { data, error } = await api.POST('/api/payees', { body })
@@ -88,6 +90,20 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
     }
   }
 
+  // Each person's account number: entered (off) or picked from their profile (on, then which detail). Not for cheques or cash.
+  const toggle = (
+    <Controller control={control} name="fromProfile" render={({ field }) => (
+      <Switch label={t('payees.fromProfile')} hint={t(field.value ? 'payees.fromProfileOnHint' : 'payees.fromProfileOffHint')}
+        checked={field.value} onChange={field.onChange} />
+    )} />
+  )
+  const detail = (
+    <Controller control={control} name="profileDetail" render={({ field }) => (
+      <SelectField label={t('payees.profileDetail')} placeholder={t('payees.profileDetailPlaceholder')} hint={t('payees.profileDetailHint')}
+        error={errors.profileDetail?.message} options={profileDetails.map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
+    )} />
+  )
+
   return (
     <Modal open title={t('payees.addTitle')} onClose={onCancel}
       footer={<>
@@ -103,13 +119,16 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
           <RadioGroup label={t('payees.method')} name={field.name} value={field.value} onChange={field.onChange} error={errors.method?.message}
             options={methods.map(m => ({ value: m, label: t(`payees.methods.${m}`), hint: t(`payees.methodHints.${m}`) }))} />
         )} />
-        {method === 'bank' && (
+        {/* Bank / SACCO transfer: the toggle first; on, each person's own account from their profile (no account of the payee's). */}
+        {method === 'bank' && toggle}
+        {method === 'bank' && fromProfile && detail}
+        {method === 'bank' && !fromProfile && (
           <Controller control={control} name="institution" render={({ field }) => (
             <RadioGroup label={t('payees.institution')} name={field.name} value={field.value} onChange={field.onChange} error={errors.institution?.message}
               options={[{ value: 'bank', label: t('payees.institutions.bank') }, { value: 'sacco', label: t('payees.institutions.sacco') }]} />
           )} />
         )}
-        {toSacco && (!saccos.data ? <Loading rows={2} /> : <>
+        {toSacco && !fromProfile && (!saccos.data ? <Loading rows={2} /> : <>
           <Controller control={control} name="saccoCode" render={({ field }) => (
             <SelectField label={t('payees.sacco')} placeholder={t('payees.saccoPlaceholder')} error={errors.saccoCode?.message}
               options={saccos.data.map(s => ({ value: s.code, label: s.name }))} value={field.value} name={field.name} onBlur={field.onBlur}
@@ -122,7 +141,7 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
           <TextField label={t('payees.accountNumber')} placeholder={t('payees.accountNumberPlaceholder')} maxLength={30}
             error={errors.accountNumber?.message} {...register('accountNumber')} />
         </>)}
-        {toBank && (!banks.data ? <Loading rows={2} /> : <>
+        {toBank && !fromProfile && (!banks.data ? <Loading rows={2} /> : <>
           <Controller control={control} name="bankCode" render={({ field }) => (
             <SelectField label={t('payees.bank')} placeholder={t('payees.bankPlaceholder')} error={errors.bankCode?.message}
               options={banks.data.map(b => ({ value: b.code, label: b.name }))} value={field.value} name={field.name} onBlur={field.onBlur}
@@ -135,25 +154,19 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
           <TextField label={t('payees.accountNumber')} placeholder={t('payees.accountNumberPlaceholder')} inputMode="numeric" maxLength={30}
             error={errors.accountNumber?.message} {...register('accountNumber')} />
         </>)}
-        {method === 'mpesa_paybill' && <div className="grid gap-4 sm:grid-cols-2">
+        {/* M-Pesa paybill: the paybill across, then the toggle; off, the paybill's account; on, which detail of each person's profile. */}
+        {method === 'mpesa_paybill' && <>
           <TextField label={t('payees.paybill')} placeholder={t('payees.paybillPlaceholder')} inputMode="numeric" maxLength={7}
             error={errors.paybill?.message} {...register('paybill')} />
-          <TextField label={t('payees.paybillAccount')} placeholder={t('payees.paybillAccountPlaceholder')} optional hint={t('payees.paybillAccountHint')}
-            maxLength={40} error={errors.paybillAccount?.message} {...register('paybillAccount')} />
-        </div>}
+          {toggle}
+          {fromProfile ? detail : (
+            <TextField label={t('payees.paybillAccount')} placeholder={t('payees.paybillAccountPlaceholder')} optional hint={t('payees.paybillAccountHint')}
+              maxLength={40} error={errors.paybillAccount?.message} {...register('paybillAccount')} />
+          )}
+        </>}
         {method === 'cheque' && (
           <TextField label={t('payees.chequePayableTo')} placeholder={t('payees.chequePayableToPlaceholder')} optional hint={t('payees.chequePayableToHint')}
             maxLength={120} error={errors.chequePayableTo?.message} {...register('chequePayableTo')} />
-        )}
-        <Controller control={control} name="fromProfile" render={({ field }) => (
-          <Switch label={t('payees.fromProfile')} hint={t(field.value ? 'payees.fromProfileOnHint' : 'payees.fromProfileOffHint')}
-            checked={field.value} onChange={field.onChange} />
-        )} />
-        {fromProfile && (
-          <Controller control={control} name="profileDetail" render={({ field }) => (
-            <SelectField label={t('payees.profileDetail')} placeholder={t('payees.profileDetailPlaceholder')} hint={t('payees.profileDetailHint')}
-              error={errors.profileDetail?.message} options={profileDetails.map(k => ({ value: k, label: t(`payItems.sources.${k}`) }))} {...field} />
-          )} />
         )}
         <TextField label={t('payees.ourReference')} placeholder={t('payees.ourReferencePlaceholder')} optional hint={t('payees.ourReferenceHint')}
           maxLength={40} error={errors.ourReference?.message} {...register('ourReference')} />

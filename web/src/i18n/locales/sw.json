@@ -1304,7 +1304,8 @@
     "enteredFor": "Nambari za akaunti huandikwa kwa kila mtu, kama ilivyowekwa kwa {{payee}}.",
     "pickedFrom": "Nambari za akaunti huchukuliwa kutoka kwa {{what}} ya kila mtu, kama ilivyowekwa kwa {{payee}}.",
     "fromProfile": "Chukua nambari ya akaunti ya kila mtu kutoka kwa wasifu wake",
-    "fromProfileOffHint": "Imezimwa: unaandika nambari ya uanachama au akaunti ya kila mtu kwenye kila makato.",
-    "fromProfileOnHint": "Imewashwa: huchukuliwa kutoka kwa maelezo uliyonayo tayari, kama nambari ya kitambulisho (HELB huitumia)."
+    "fromProfileOffHint": "Imezimwa: unaandika nambari ya uanachama au akaunti ya kila mtu, au maelezo ya akaunti ya mpokeaji.",
+    "fromProfileOnHint": "Imewashwa: huchukuliwa kutoka kwa wasifu wa kila mtu, kama nambari ya kitambulisho (HELB huitumia) au akaunti ya benki anayolipwa.",
+    "intoOwnAccount": "Kwa akaunti ya kila mtu (kutoka kwa wasifu wake)"
   }
 }

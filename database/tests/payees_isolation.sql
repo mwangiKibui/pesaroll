@@ -58,6 +58,14 @@ begin
   insert into pay_items (id, organization_id, code, name, kind, calc_method, default_amount, all_companies, payee_id)
   values (shares, org1, 'SACCO3', 'SACCO shares', 'deduction', 'fixed', 1500, true, stima);
   if (select reference_source from payees where id = stima) <> 'typed' then raise exception 'member numbers should be typed unless said'; end if;
+  -- Into each person's own bank account, picked from their profile: no bank details of the payee's.
+  insert into payees (id, organization_id, name, method, reference_source)
+  values ('00000000-0000-7000-8000-000000000713', org1, 'Staff savings', 'bank', 'bank_account');
+  begin
+    insert into payees (id, organization_id, name, method) values ('00000000-0000-7000-8000-000000000714', org1, 'Nowhere', 'bank');
+    raise exception 'a bank transfer with neither account details nor profiles was saved';
+  exception when check_violation then null;
+  end;
   insert into payees (id, organization_id, name, method, paybill, reference_source)
   values ('00000000-0000-7000-8000-000000000711', org1, 'HELB', 'mpesa_paybill', '200800', 'national_id');
   begin

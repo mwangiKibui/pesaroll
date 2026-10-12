@@ -299,20 +299,20 @@ it('a deduction is paid to a payee, added from the drawer; the law\'s items show
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Name' }), 'Stima SACCO')
   await userEvent.click(within(modal).getByRole('radio', { name: /M-Pesa paybill/ }))   // (it starts on Bank / SACCO transfer)
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Paybill number' }), '510800')
-  await userEvent.type(within(modal).getByRole('textbox', { name: 'Account optional' }), 'EMP-4471')
-  await userEvent.type(within(modal).getByRole('textbox', { name: 'Your reference with them optional' }), 'EMP-4471')
-  // Entered for each person to start; or picked from the profile, then which detail.
+  // Under the paybill, the toggle: off, the paybill's account; on, which detail of each person's profile instead.
   const fromProfile = within(modal).getByRole('switch', { name: 'Pick each person\'s account number from their employee profile' })
   expect(fromProfile).not.toBeChecked()
-  expect(within(modal).queryByRole('combobox', { name: 'Which detail?' })).not.toBeInTheDocument()
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Account optional' }), 'EMP-4471')
   await userEvent.click(fromProfile)
+  expect(within(modal).queryByRole('textbox', { name: 'Account optional' })).not.toBeInTheDocument()
   await userEvent.click(within(modal).getByRole('combobox', { name: 'Which detail?' }))
   await userEvent.click(screen.getByRole('option', { name: 'Their staff number' }))
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Your reference with them optional' }), 'EMP-4471')
   await userEvent.click(within(modal).getByRole('button', { name: 'Add payee' }))
 
   expect(await within(drawer()).findByRole('combobox', { name: 'Paid to optional' })).toHaveValue('Stima SACCO')   // chosen
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/payees')?.body).toMatchObject({
-    name: 'Stima SACCO', method: 'mpesa_paybill', paybill: '510800', paybillAccount: 'EMP-4471', ourReference: 'EMP-4471', referenceSource: 'staff_no',
+    name: 'Stima SACCO', method: 'mpesa_paybill', paybill: '510800', paybillAccount: null, ourReference: 'EMP-4471', referenceSource: 'staff_no',
   })
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Next' }))
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
@@ -335,6 +335,12 @@ it('a payee can be paid by SACCO transfer, to a SACCO and branch from the list',
   const modal = screen.getByRole('dialog', { name: 'Add a payee' })
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Name' }), 'Welfare Fund')
   await userEvent.click(within(modal).getByRole('radio', { name: /Bank \/ SACCO transfer/ }))
+  // The toggle comes first; on, only which detail (no bank or SACCO fields); off, the payee's account.
+  const toggle = within(modal).getByRole('switch', { name: 'Pick each person\'s account number from their employee profile' })
+  await userEvent.click(toggle)
+  expect(within(modal).getByRole('combobox', { name: 'Which detail?' })).toBeInTheDocument()
+  expect(within(modal).queryByRole('radio', { name: 'SACCO' })).not.toBeInTheDocument()
+  await userEvent.click(toggle)
   await userEvent.click(within(modal).getByRole('radio', { name: 'SACCO' }))
   expect(within(modal).getByRole('combobox', { name: 'Branch' })).toBeDisabled()   // until a SACCO is chosen
   await userEvent.click(within(modal).getByRole('combobox', { name: 'SACCO' }))

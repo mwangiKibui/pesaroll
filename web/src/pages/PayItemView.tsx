@@ -56,6 +56,7 @@ export function PayItemView({ item, companies, payee, authority, method, tax, on
   const money = (amount: number | string | null | undefined) => (amount != null ? formatMoney(amount) : null)
 
   const payeeDetails = (p: Payee) => {
+    if (p.method === 'bank' && !p.institution) return [t('payees.intoOwnAccount')]
     if (p.method === 'bank' && p.institution === 'sacco') return [p.saccoName, p.saccoBranchName, t('payees.accountShown', { number: p.accountNumber })]
     if (p.method === 'bank') return [p.bankName, p.branchName, t('payees.accountShown', { number: p.accountNumber })]
     if (p.method === 'mpesa_paybill') return [t('payees.paybillShown', { paybill: p.paybill }), p.paybillAccount && t('payees.accountShown', { number: p.paybillAccount })]

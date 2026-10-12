@@ -123,9 +123,23 @@ public static class PayeesEndpoints
             errors["method"] = "Choose bank, M-Pesa paybill, cheque or cash.";
         }
 
+        // Each person's account number: entered for each, or from their profile (then the payee's own
+        // account details aren't needed: a transfer goes into each person's account; a paybill takes theirs).
+        // Cheques and cash have no account numbers.
+        var source = method is "cheque" or "cash" ? "typed" : request.ReferenceSource ?? "typed";
+        if (!ReferenceSources.Contains(source))
+        {
+            errors["referenceSource"] = "Choose how they identify each person.";
+        }
+
+        var fromProfile = source != "typed";
         string? bankCode = null, branchCode = null, account = null, paybill = null, paybillAccount = null, payableTo = null, institution = null,
             saccoCode = null, saccoBranch = null;
-        if (method == "bank" && request.Institution is not ("bank" or "sacco"))
+        if (method == "bank" && fromProfile)
+        {
+            // Into each person's own account, from their profile: nothing of the payee's to keep.
+        }
+        else if (method == "bank" && request.Institution is not ("bank" or "sacco"))
         {
             errors["institution"] = "Choose bank or SACCO.";
         }
@@ -183,7 +197,7 @@ public static class PayeesEndpoints
                 errors["paybill"] = "Enter the paybill number: 5 to 7 digits.";
             }
 
-            paybillAccount = Text(request.PaybillAccount);
+            paybillAccount = fromProfile ? null : Text(request.PaybillAccount);
             if (paybillAccount?.Length > 40)
             {
                 errors["paybillAccount"] = "Keep the account to 40 characters.";
@@ -202,12 +216,6 @@ public static class PayeesEndpoints
         if (reference?.Length > 40)
         {
             errors["ourReference"] = "Keep your reference to 40 characters.";
-        }
-
-        var source = request.ReferenceSource ?? "typed";
-        if (!ReferenceSources.Contains(source))
-        {
-            errors["referenceSource"] = "Choose how they identify each person.";
         }
 
         if (errors.Count > 0)

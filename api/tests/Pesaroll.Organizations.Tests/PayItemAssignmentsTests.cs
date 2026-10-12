@@ -203,7 +203,7 @@ public sealed class PayItemAssignmentsTests(OnboardingTests.Api api) : IClassFix
         Assert.Equal([("Otieno Ouma", "LN-77", false), ("Wanjiru Kamau", "•••• 9012", true)], chosen.People.Select(p => (p.Name, p.ShownReference!, p.FromProfile)));
         Assert.Empty(chosen.Missing!);   // Otieno's is typed
 
-        var odd = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "Odd", method = "cash", referenceSource = "shoe_size" }));
+        var odd = await ErrorFrom(await client.PostAsJsonAsync("/api/payees", new { name = "Odd", method = "mpesa_paybill", paybill = "200800", referenceSource = "shoe_size" }));
         Assert.Equal("Choose how they identify each person.", odd.Fields!["referenceSource"]);
 
         // An item with no payee: numbers are typed.

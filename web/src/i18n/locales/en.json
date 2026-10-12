@@ -1304,7 +1304,8 @@
     "enteredFor": "Account numbers are entered for each person, as set on {{payee}}.",
     "pickedFrom": "Account numbers are picked from each person's {{what}}, as set on {{payee}}.",
     "fromProfile": "Pick each person's account number from their employee profile",
-    "fromProfileOffHint": "Off: you enter each person's member or account number on each deduction.",
-    "fromProfileOnHint": "On: it's taken from a detail you already have, such as their ID number (HELB uses it)."
+    "fromProfileOffHint": "Off: you enter each person's member or account number, or give the payee's account details.",
+    "fromProfileOnHint": "On: taken from each person's profile, such as their ID number (HELB uses it) or the bank account they're paid into.",
+    "intoOwnAccount": "Into each person's own account (from their profile)"
   }
 }
