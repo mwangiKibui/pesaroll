@@ -226,6 +226,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/saccos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    country?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SaccoResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/signup-roles": {
         parameters: {
             query?: never;
@@ -6257,6 +6303,9 @@ export interface components {
             paybillAccount: null | string;
             chequePayableTo: null | string;
             ourReference: null | string;
+            institution?: null | string;
+            saccoCode?: null | string;
+            saccoBranchCode?: null | string;
         };
         PayeeResponse: {
             /** Format: uuid */
@@ -6274,6 +6323,11 @@ export interface components {
             ourReference: null | string;
             /** Format: int32 */
             usedBy: number | string;
+            institution: null | string;
+            saccoCode: null | string;
+            saccoName: null | string;
+            saccoBranchCode: null | string;
+            saccoBranchName: null | string;
         };
         PayItemRequest: {
             code: null | string;
@@ -6441,6 +6495,11 @@ export interface components {
         };
         RenameOrganizationRequest: {
             name: null | string;
+        };
+        SaccoResponse: {
+            code: string;
+            name: string;
+            branches: components["schemas"]["BranchResponse"][];
         };
         SignInRequest: {
             identifier: null | string;

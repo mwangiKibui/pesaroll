@@ -1225,13 +1225,13 @@
     "nameHint": "Kama Stima SACCO. Mpokeaji mmoja anaweza kutumika na vipengele kadhaa.",
     "method": "Unavyowalipa",
     "methods": {
-      "bank": "Uhamisho wa benki",
+      "bank": "Uhamisho wa benki / SACCO",
       "mpesa_paybill": "Paybill ya M-Pesa",
       "cheque": "Hundi",
       "cash": "Pesa taslimu"
     },
     "methodHints": {
-      "bank": "Kwa akaunti yao ya benki.",
+      "bank": "Kwa akaunti yao ya benki au SACCO.",
       "mpesa_paybill": "Kwa paybill yao.",
       "cheque": "Hundi kwa jina lao.",
       "cash": "Hulipwa ana kwa ana."
@@ -1252,6 +1252,13 @@
     "chequePayableToHint": "Tupu: jina la mpokeaji.",
     "ourReference": "Kumbukumbu yako kwao",
     "ourReferencePlaceholder": "Kumbukumbu yako",
-    "ourReferenceHint": "Kama nambari yako ya mwajiri kwenye SACCO."
+    "ourReferenceHint": "Kama nambari yako ya mwajiri kwenye SACCO.",
+    "institution": "Benki au SACCO?",
+    "institutions": {
+      "bank": "Benki",
+      "sacco": "SACCO"
+    },
+    "sacco": "SACCO",
+    "saccoPlaceholder": "SACCO ya mpokeaji wako"
   }
 }

@@ -99,15 +99,17 @@ export function SelectField({ label, hint, error, optional, size = 'md', hideLab
   const [at, setAt] = useState<CSSProperties>({})
 
   // The list floats (fixed) so a card or a scrolling table can't clip it, next to the field, and
-  // opens upward when there's no room below. Inside a centred dialog (a transformed box) fixed is
-  // measured from that box, not the screen.
+  // opens upward when there's no room below. Inside a centred dialog (a box moved with transform or
+  // translate) fixed is measured from that box, not the screen.
   const place = () => {
     const field = box.current
     if (!field) return
     const rect = field.getBoundingClientRect()
     let frame = { top: 0, left: 0, bottom: window.innerHeight }
     for (let el = field.parentElement; el; el = el.parentElement) {
-      if (getComputedStyle(el).transform !== 'none') {
+      // transform, or Tailwind 4's translate (the centred Modal), scale or rotate: any makes fixed measure from that box.
+      const style = getComputedStyle(el)
+      if ([style.transform, style.translate, style.scale, style.rotate, style.filter].some(v => v && v !== 'none')) {
         const r = el.getBoundingClientRect()
         frame = { top: r.top, left: r.left, bottom: r.bottom }
         break

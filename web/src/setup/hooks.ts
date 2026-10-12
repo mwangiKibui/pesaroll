@@ -261,3 +261,17 @@ export function usePayees(enabled = true) {
     },
   })
 }
+
+/** SACCOs and their branches in a country (reference data the back office maintains). */
+export function useSaccos(country: string) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['saccos', country],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/saccos', { params: { query: { country } } })
+      if (error || !data) throw new Error('saccos')
+      return data
+    },
+  })
+}

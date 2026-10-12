@@ -297,7 +297,7 @@ it('a deduction is paid to a payee, added from the drawer; the law\'s items show
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add a payee' }))
   const modal = screen.getByRole('dialog', { name: 'Add a payee' })
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Name' }), 'Stima SACCO')
-  await userEvent.click(within(modal).getByRole('radio', { name: /M-Pesa paybill/ }))
+  await userEvent.click(within(modal).getByRole('radio', { name: /M-Pesa paybill/ }))   // (it starts on Bank / SACCO transfer)
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Paybill number' }), '510800')
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Account optional' }), 'EMP-4471')
   await userEvent.type(within(modal).getByRole('textbox', { name: 'Your reference with them optional' }), 'EMP-4471')
@@ -311,6 +311,36 @@ it('a deduction is paid to a payee, added from the drawer; the law\'s items show
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add' }))
   expect(await screen.findByText('Deduction added')).toBeInTheDocument()
   expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-items')?.body).toMatchObject({ payeeId: stima.id })
+})
+
+it('a payee can be paid by SACCO transfer, to a SACCO and branch from the list', async () => {
+  const calls = withItems({
+    'GET /api/saccos': () => json(200, [
+      { code: 'STIMA', name: 'Stima SACCO', branches: [{ code: '001', name: 'Head Office, Parklands, Nairobi' }, { code: '005', name: 'Mombasa' }] },
+      { code: 'MENTOR', name: 'Mentor SACCO', branches: [{ code: '002', name: 'Kenol' }] },
+    ]),
+    'POST /api/payees': () => json(201, { id: 'payee-2', name: 'Welfare Fund', method: 'bank', institution: 'sacco', usedBy: 0 }),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  await userEvent.click(await screen.findByRole('tab', { name: 'Deductions' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+  await userEvent.click(within(drawer()).getByRole('button', { name: 'Add a payee' }))
+  const modal = screen.getByRole('dialog', { name: 'Add a payee' })
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Name' }), 'Welfare Fund')
+  await userEvent.click(within(modal).getByRole('radio', { name: /Bank \/ SACCO transfer/ }))
+  await userEvent.click(within(modal).getByRole('radio', { name: 'SACCO' }))
+  expect(within(modal).getByRole('combobox', { name: 'Branch' })).toBeDisabled()   // until a SACCO is chosen
+  await userEvent.click(within(modal).getByRole('combobox', { name: 'SACCO' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Stima SACCO' }))
+  await userEvent.click(within(modal).getByRole('combobox', { name: 'Branch' }))
+  expect(screen.queryByRole('option', { name: 'Kenol' })).not.toBeInTheDocument()   // Mentor's
+  await userEvent.click(screen.getByRole('option', { name: 'Mombasa' }))
+  await userEvent.type(within(modal).getByRole('textbox', { name: 'Account number' }), 'ST-00451')
+  await userEvent.click(within(modal).getByRole('button', { name: 'Add payee' }))
+
+  await vi.waitFor(() => expect(calls.find(c => c.method === 'POST' && c.path === '/api/payees')?.body).toMatchObject({
+    name: 'Welfare Fund', method: 'bank', institution: 'sacco', saccoCode: 'STIMA', saccoBranchCode: '005', accountNumber: 'ST-00451', bankCode: null,
+  }))
 })
 
 it('with several companies, the selector filters every tab', async () => {

@@ -1225,13 +1225,13 @@
     "nameHint": "Such as Stima SACCO. One payee can be used by several items.",
     "method": "How you pay them",
     "methods": {
-      "bank": "Bank transfer",
+      "bank": "Bank / SACCO transfer",
       "mpesa_paybill": "M-Pesa paybill",
       "cheque": "Cheque",
       "cash": "Cash"
     },
     "methodHints": {
-      "bank": "To their bank account.",
+      "bank": "To their bank or SACCO account.",
       "mpesa_paybill": "To their paybill.",
       "cheque": "A cheque made out to them.",
       "cash": "Paid in person."
@@ -1252,6 +1252,13 @@
     "chequePayableToHint": "Empty: the payee's name.",
     "ourReference": "Your reference with them",
     "ourReferencePlaceholder": "Your reference",
-    "ourReferenceHint": "Such as your employer code at the SACCO."
+    "ourReferenceHint": "Such as your employer code at the SACCO.",
+    "institution": "Bank or SACCO?",
+    "institutions": {
+      "bank": "Bank",
+      "sacco": "SACCO"
+    },
+    "sacco": "SACCO",
+    "saccoPlaceholder": "Your payee's SACCO"
   }
 }

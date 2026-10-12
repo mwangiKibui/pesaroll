@@ -8,13 +8,16 @@ import { Button } from '../components/Button'
 import { FormErrorBanner, Loading, Notice } from '../components/feedback'
 import { RadioGroup, SelectField, TextField } from '../components/fields'
 import { Modal } from '../components/Modal'
-import { useBanks } from '../setup/hooks'
+import { useBanks, useSaccos } from '../setup/hooks'
 
 type Payee = components['schemas']['PayeeResponse']
 
 interface Values {
   name: string
   method: string
+  institution: string
+  saccoCode: string
+  saccoBranchCode: string
   bankCode: string
   branchCode: string
   accountNumber: string
@@ -35,19 +38,27 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
   const { api, queryClient } = useServices()
   const formId = useId()
   const banks = useBanks('KE')
+  const saccos = useSaccos('KE')
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
-    defaultValues: { name: '', method: 'mpesa_paybill', bankCode: '', branchCode: '', accountNumber: '', paybill: '', paybillAccount: '', chequePayableTo: '', ourReference: '' },
+    defaultValues: { name: '', method: 'bank', institution: 'bank', saccoCode: '', saccoBranchCode: '', bankCode: '', branchCode: '', accountNumber: '', paybill: '', paybillAccount: '', chequePayableTo: '', ourReference: '' },
   })
-  const [method, bankCode] = useWatch({ control, name: ['method', 'bankCode'] })
+  const [method, institution, bankCode, saccoCode] = useWatch({ control, name: ['method', 'institution', 'bankCode', 'saccoCode'] })
   const bank = banks.data?.find(b => b.code === bankCode)
+  const sacco = saccos.data?.find(s => s.code === saccoCode)
+  const toBank = method === 'bank' && institution === 'bank'
+  const toSacco = method === 'bank' && institution === 'sacco'
 
   const onSubmit = async (v: Values) => {
     setBanner(null)
     // Only the chosen way's details are sent.
     const body = {
       name: v.name.trim(), method: v.method,
-      bankCode: v.method === 'bank' ? v.bankCode : null, branchCode: v.method === 'bank' ? v.branchCode : null,
+      institution: v.method === 'bank' ? v.institution : null,
+      bankCode: v.method === 'bank' && v.institution === 'bank' ? v.bankCode : null,
+      branchCode: v.method === 'bank' && v.institution === 'bank' ? v.branchCode : null,
+      saccoCode: v.method === 'bank' && v.institution === 'sacco' ? v.saccoCode : null,
+      saccoBranchCode: v.method === 'bank' && v.institution === 'sacco' ? v.saccoBranchCode : null,
       accountNumber: v.method === 'bank' ? v.accountNumber : null,
       paybill: v.method === 'mpesa_paybill' ? v.paybill.trim() : null, paybillAccount: v.method === 'mpesa_paybill' ? v.paybillAccount.trim() || null : null,
       chequePayableTo: v.method === 'cheque' ? v.chequePayableTo.trim() || null : null,
@@ -85,7 +96,26 @@ export function PayeeModal({ onSaved, onCancel }: { onSaved: (payee: Payee) => v
           <RadioGroup label={t('payees.method')} name={field.name} value={field.value} onChange={field.onChange} error={errors.method?.message}
             options={methods.map(m => ({ value: m, label: t(`payees.methods.${m}`), hint: t(`payees.methodHints.${m}`) }))} />
         )} />
-        {method === 'bank' && (!banks.data ? <Loading rows={2} /> : <>
+        {method === 'bank' && (
+          <Controller control={control} name="institution" render={({ field }) => (
+            <RadioGroup label={t('payees.institution')} name={field.name} value={field.value} onChange={field.onChange} error={errors.institution?.message}
+              options={[{ value: 'bank', label: t('payees.institutions.bank') }, { value: 'sacco', label: t('payees.institutions.sacco') }]} />
+          )} />
+        )}
+        {toSacco && (!saccos.data ? <Loading rows={2} /> : <>
+          <Controller control={control} name="saccoCode" render={({ field }) => (
+            <SelectField label={t('payees.sacco')} placeholder={t('payees.saccoPlaceholder')} error={errors.saccoCode?.message}
+              options={saccos.data.map(s => ({ value: s.code, label: s.name }))} value={field.value} name={field.name} onBlur={field.onBlur}
+              onChange={value => { field.onChange(value); setValue('saccoBranchCode', '') }} />
+          )} />
+          <Controller control={control} name="saccoBranchCode" render={({ field }) => (
+            <SelectField label={t('payees.branch')} placeholder={t('payees.branchPlaceholder')} error={errors.saccoBranchCode?.message} disabled={!sacco}
+              options={(sacco?.branches ?? []).map(b => ({ value: b.code, label: b.name }))} {...field} />
+          )} />
+          <TextField label={t('payees.accountNumber')} placeholder={t('payees.accountNumberPlaceholder')} maxLength={30}
+            error={errors.accountNumber?.message} {...register('accountNumber')} />
+        </>)}
+        {toBank && (!banks.data ? <Loading rows={2} /> : <>
           <Controller control={control} name="bankCode" render={({ field }) => (
             <SelectField label={t('payees.bank')} placeholder={t('payees.bankPlaceholder')} error={errors.bankCode?.message}
               options={banks.data.map(b => ({ value: b.code, label: b.name }))} value={field.value} name={field.name} onBlur={field.onBlur}

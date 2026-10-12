@@ -184,6 +184,7 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
     'GET /api/pay-schedules': () => json(200, []),
     'GET /api/pay-items': () => json(200, []),
     'GET /api/payees': () => json(200, []),
+    'GET /api/saccos': () => json(200, []),
     'GET /api/leave-types': () => json(200, []),
     'GET /api/leave-plans': () => json(200, []),
     'GET /api/employees': () => json(200, { items: [], total: 0, page: 1, pageSize: 100 }),
