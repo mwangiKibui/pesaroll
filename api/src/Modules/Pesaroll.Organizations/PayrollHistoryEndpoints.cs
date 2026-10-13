@@ -377,13 +377,17 @@ public static class PayrollHistoryEndpoints
         {
             var companyId = group.Key;
             var added = new Dictionary<string, Guid>();
+            // Staff numbers made up once for the whole upload, so two new people don't get the same one.
+            var codes = new SpreadsheetImport.CodeMaker(
+                [.. await db.Employees.Where(e => e.CompanyId == companyId).Select(e => e.StaffNo).ToListAsync(ct),
+                 .. group.Where(r => r.NewEmployee?.StaffNo is not null).Select(r => r.NewEmployee!.StaffNo!)]);
             foreach (var person in group.Where(r => r.NewPerson is not null).GroupBy(r => r.NewPerson!))
             {
                 var check = person.First().NewEmployee!;
                 var employee = new Employee
                 {
                     Id = Guid.CreateVersion7(), OrganizationId = organizationId, CompanyId = companyId,
-                    StaffNo = check.StaffNo ?? await EmployeesEndpoints.NextStaffNoAsync(db, companyId, ct),
+                    StaffNo = check.StaffNo ?? codes.Next("EMP"),
                     FirstName = check.FirstName, LastName = check.LastName, CreatedAt = now,
                 };
                 var made = EmployeesEndpoints.Apply(employee, check, encryptor, now, today);

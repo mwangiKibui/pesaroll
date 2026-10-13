@@ -116,11 +116,13 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
         var res = await client.PostAsJsonAsync("/api/payroll-history/import", Body("old-payroll.xlsx",
             Line("2026-01"), Line("2026-02"),
             Line("2026-01", ("staffNo", ""), ("kraPin", "A111111111C"), ("name", "Otieno Ouma"), ("gross", "50000"), ("basic", "50000"), ("paye", "5000"), ("net", "37067")),
-            Line("2026-02", ("staffNo", ""), ("kraPin", "a111111111c"), ("name", "Otieno Ouma"), ("gross", "50000"), ("basic", "50000"), ("paye", "5000"), ("net", "37067"))));
-        Assert.Equal(4, (await res.Content.ReadFromJsonAsync<Result>())!.Imported);
+            Line("2026-02", ("staffNo", ""), ("kraPin", "a111111111c"), ("name", "Otieno Ouma"), ("gross", "50000"), ("basic", "50000"), ("paye", "5000"), ("net", "37067")),
+            // Another new person: each gets their own staff number.
+            Line("2026-01", ("staffNo", ""), ("kraPin", "A222222222D"), ("name", "Akinyi Wekesa"), ("gross", "40000"), ("basic", "40000"), ("paye", "0"), ("net", "32067"))));
+        Assert.Equal(5, (await res.Content.ReadFromJsonAsync<Result>())!.Imported);
 
         var batch = Assert.Single((await client.GetFromJsonAsync<List<Batch>>($"/api/payroll-history/batches?companyIds={company.Id}"))!);
-        Assert.Equal((company.Id, "old-payroll.xlsx", 4, new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1), 270000m, 40000m),
+        Assert.Equal((company.Id, "old-payroll.xlsx", 5, new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1), 310000m, 40000m),
             (batch.CompanyId, batch.FileName, batch.RowCount, batch.FirstPeriod, batch.LastPeriod, batch.GrossTotal, batch.PayeTotal));
         Assert.Single((await client.GetFromJsonAsync<List<Batch>>("/api/payroll-history/batches"))!);   // every company's
 
@@ -128,6 +130,8 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
         var otieno = (await client.GetFromJsonAsync<Page>("/api/employees?status=former&search=otieno"))!.Items.Single();
         var detail = (await client.GetFromJsonAsync<Employee>($"/api/employees/{otieno.Id}"))!;
         Assert.Equal((new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 28), "•••• 111C"), (detail.HireDate, detail.ExitDate!.Value, detail.KraPinMasked));
+        var akinyi = (await client.GetFromJsonAsync<Page>("/api/employees?status=former&search=akinyi"))!.Items.Single();
+        Assert.NotEqual(otieno.StaffNo, akinyi.StaffNo);
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/payroll-history/batches/{batch.Id}")).StatusCode);
         Assert.Empty((await client.GetFromJsonAsync<List<Batch>>("/api/payroll-history/batches"))!);
