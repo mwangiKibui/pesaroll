@@ -11,7 +11,7 @@ import { passwordStrength } from '../auth/password'
 import { Button } from '../components/Button'
 import { FormErrorBanner, Loading, Notice } from '../components/feedback'
 import { TextField } from '../components/fields'
-import { PasswordField } from '../components/PasswordField'
+import { NewPasswordField } from '../components/NewPasswordField'
 import { splitContact } from '../lib/identifiers'
 import { AuthLayout } from './AuthLayout'
 
@@ -100,8 +100,6 @@ export default function SignUpPage() {
     }
   }
 
-  const level = passwordStrength(password)
-
   return (
     <AuthLayout title={t('signUp.title')} intro={t('signUp.intro')} wide>
       <form noValidate onSubmit={step === 1 ? e => { e.preventDefault(); void next() } : handleSubmit(onSubmit)} className="flex flex-col gap-3">
@@ -128,20 +126,8 @@ export default function SignUpPage() {
             </div>
             <TextField label={t('signUp.middleName')} placeholder={t('signUp.middleNamePlaceholder')} optional autoComplete="additional-name" error={fieldError('middleName')} {...register('middleName')} />
             <TextField label={t('auth.contact')} placeholder={t('auth.contactPlaceholder')} hint={t('signUp.contactHint')} autoComplete="username" inputMode="email" error={fieldError('contact')} {...register('contact')} />
-            <div className="flex flex-col gap-1.5">
-              <PasswordField label={t('auth.password')} placeholder={t('signUp.passwordPlaceholder')} isNew
-                hint={password ? t('signUp.strength', { level: t(`signUp.${level}`) }) : t('signUp.passwordHint')}
-                error={fieldError('password')} {...register('password')} />
-              {password && (
-                <div aria-hidden="true" className="flex gap-1">
-                  {(['weak', 'fair', 'strong'] as const).map((s, i) => {
-                    const filled = i <= ['weak', 'fair', 'strong'].indexOf(level)
-                    const colour = level === 'weak' ? 'bg-danger' : level === 'fair' ? 'bg-warning-ink' : 'bg-brand'
-                    return <span key={s} className={`h-1.5 flex-1 rounded-full ${filled ? colour : 'bg-line'}`} />
-                  })}
-                </div>
-              )}
-            </div>
+            <NewPasswordField label={t('auth.password')} placeholder={t('signUp.passwordPlaceholder')} value={password}
+              error={fieldError('password')} {...register('password')} />
             <Button type="submit" size="lg" fullWidth>{t('signUp.continue')}</Button>
           </>
         )}

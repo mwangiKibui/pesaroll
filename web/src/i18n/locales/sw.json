@@ -1383,5 +1383,25 @@
     "show": "Onyesha",
     "view": "Tazama {{name}}",
     "rowsOf": "Safu za {{name}}"
+  },
+  "invite": {
+    "loading": "Mwaliko wako",
+    "title": "Jiunge na {{organization}}",
+    "intro": "{{inviter}} amekualika ujiunge kama {{role}}, kwa {{companies}}.",
+    "roles": {
+      "administrators": "msimamizi",
+      "hr": "Rasilimali watu",
+      "payroll": "Mishahara",
+      "approvers": "mwidhinishaji"
+    },
+    "everyCompany": "kila kampuni",
+    "companies": "{{names}}",
+    "yourAccount": "Akaunti yako",
+    "existing": "Tayari una akaunti ya Pesaroll yenye {{contact}}. Weka nenosiri lake ujiunge.",
+    "accept": "Kubali na ujiunge",
+    "signInAndJoin": "Ingia na ujiunge",
+    "cantUse": "Mwaliko huu hauwezi kutumika",
+    "cantUseIntro": "Muombe aliyekualika akutumie mwingine.",
+    "haveAccount": "Tayari umejiunga?"
   }
 }

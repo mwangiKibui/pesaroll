@@ -747,3 +747,37 @@ public sealed class PayrollHistoryLine
     public string? Notes { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>An invitation to join the organization "as HR, for these companies" (ACC-03).</summary>
+public sealed class Invitation
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public required string FirstName { get; set; }
+    public required string LastName { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+    /// <summary>administrators, hr, payroll or approvers: the starting group whose role they get.</summary>
+    public required string GroupKey { get; set; }
+    public bool AllCompanies { get; set; }
+    public Guid InvitedBy { get; set; }
+    /// <summary>SHA-256 of the link's token; the token itself is only in the message.</summary>
+    public required byte[] TokenHash { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset SentAt { get; set; }
+    public int SendCount { get; set; }
+    public DateTimeOffset? AcceptedAt { get; set; }
+    public Guid? AcceptedBy { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+    public Guid? RevokedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<InvitationCompany> Companies { get; } = [];
+}
+
+public sealed class InvitationCompany
+{
+    public Guid OrganizationId { get; set; }
+    public Guid InvitationId { get; set; }
+    public Guid CompanyId { get; set; }
+}

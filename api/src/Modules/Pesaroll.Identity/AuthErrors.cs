@@ -35,6 +35,24 @@ internal static class AuthErrors
     public static AppException MissingDetails() =>
         new("AUTH-1008", "Enter your first and last name and choose your role.");
 
+    public static AppException MissingName() =>
+        new("AUTH-1016", "Enter your first and last name.");
+
+    public static AppException InvitationNotFound() =>
+        new("AUTH-1011", "This invitation link isn't valid. Check you opened the whole link, or ask for a new invitation.", 404);
+
+    public static AppException InvitationExpired() =>
+        new("AUTH-1012", "This invitation has expired. Ask the person who invited you to send it again.", 410);
+
+    public static AppException InvitationUsed() =>
+        new("AUTH-1013", "This invitation has already been accepted. Sign in instead.", 409);
+
+    public static AppException InvitationRevoked() =>
+        new("AUTH-1014", "This invitation was cancelled. Ask the person who invited you if you still need access.", 410);
+
+    public static AppException InvitationForSomeoneElse() =>
+        new("AUTH-1015", "This invitation is for a different email or phone number.", 403);
+
     public static AppException OtherRoleNotTyped() =>
         new("AUTH-1009", "You chose Other: type your role (up to 80 characters).");
 }

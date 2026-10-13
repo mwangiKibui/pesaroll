@@ -85,6 +85,14 @@ public static partial class Templates
             "Kumbusho: endesha mishahara ya {schedule} kabla ya {payDate}",
             "Hili ni kumbusho la kuendesha mishahara ya {schedule} katika {organization}. Siku ya malipo ni {payDate}.\n\nFungua Pesaroll uiendeshe: {link}\n\nUmepokea ujumbe huu kwa sababu kumbusho liliwekwa kwenye ratiba ya mishahara ya {schedule}.",
             "Pesaroll: kumbusho la kuendesha mishahara ya {schedule} ({organization}). Siku ya malipo ni {payDate}. {link}"),
+        [("team_invitation", "en")] = new(
+            "{inviter} invited you to {organization} on Pesaroll",
+            "Hi {firstName},\n\n{inviter} invited you to join {organization} on Pesaroll as {role}.\n\nAccept the invitation and set your password: {link}\n\nThe link works once and expires in 7 days. If you weren't expecting this, you can ignore this message.",
+            "Pesaroll: {inviter} invited you to join {organization} as {role}. Accept within 7 days: {link}"),
+        [("team_invitation", "sw")] = new(
+            "{inviter} amekualika kwenye {organization} katika Pesaroll",
+            "Habari {firstName},\n\n{inviter} amekualika ujiunge na {organization} katika Pesaroll kama {role}.\n\nKubali mwaliko na uweke nenosiri lako: {link}\n\nKiungo kinafanya kazi mara moja na kinaisha baada ya siku 7. Kama hukutarajia ujumbe huu, unaweza kuupuuza.",
+            "Pesaroll: {inviter} amekualika ujiunge na {organization} kama {role}. Kubali ndani ya siku 7: {link}"),
     };
 
     public static bool Exists(string key) => All.ContainsKey((key, "en"));
