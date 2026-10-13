@@ -11,9 +11,8 @@ beforeEach(() => { URL.createObjectURL = vi.fn(() => 'blob:template'); URL.revok
 const restaurant = company()
 const centrail = company({ id: '0199c0de-0000-7000-8000-0000000000c2', legalName: 'Centrail Ltd' })
 const year = new Date().getFullYear()
-const january = { period: `${year}-01-01`, people: 2, gross: 135000, paye: 20000, net: 99134 }
 const batch = {
-  id: '0199c0de-0000-7000-8000-00000000b001', fileName: 'old-payroll.xlsx', rowCount: 2, firstPeriod: `${year}-01-01`, lastPeriod: `${year}-01-01`,
+  id: '0199c0de-0000-7000-8000-00000000b001', companyId: restaurant.id, fileName: 'old-payroll.xlsx', rowCount: 2, firstPeriod: `${year}-01-01`, lastPeriod: `${year}-01-01`,
   grossTotal: 135000, payeTotal: 20000, createdAt: `${year}-01-20T09:00:00Z`,
 }
 
@@ -21,41 +20,39 @@ function withHistory(routes: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     'POST /api/auth/refresh': () => orgToken(),
     'GET /api/companies': () => json(200, [restaurant, centrail]),
-    'GET /api/payroll-history/summary': () => json(200, [january]),
     'GET /api/payroll-history/batches': () => json(200, [batch]),
     ...routes,
   })
 }
 
-it('shows the months imported for a company, its imports, and which months of this year are missing', async () => {
+it('lists the imports, for every company or those shown, with Upload in the table\'s header', async () => {
   const calls = withHistory()
   const { container } = renderApp('/setup/payroll-history')
 
   expect(await screen.findByRole('heading', { name: 'Bring in your payroll history' })).toBeInTheDocument()
-  const months = await screen.findByRole('region', { name: 'Months imported' })
-  expect(within(months).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Month', 'People', 'Gross pay', 'PAYE', 'Net pay'])
-  expect(within(months).getAllByRole('cell').map(c => c.textContent)).toEqual([`January ${year}`, '2', 'KES 135,000', 'KES 20,000', 'KES 99,134'])
-  expect(screen.getByRole('navigation', { name: 'Pages of Months imported' })).toBeInTheDocument()
-  const imports = screen.getByRole('region', { name: 'Imports' })
-  expect(within(imports).getByText('old-payroll.xlsx')).toBeInTheDocument()
-  expect(within(imports).getByText(`January ${year}`)).toBeInTheDocument()
-  expect(screen.getByRole('navigation', { name: 'Pages of Imports' })).toBeInTheDocument()
-  if (new Date().getMonth() >= 2) expect(screen.getByText(/No history yet for February/)).toBeInTheDocument()
-  expect(calls.some(c => c.path === '/api/payroll-history/summary' && c.url.includes(`companyId=${restaurant.id}`))).toBe(true)
+  const imports = await screen.findByRole('region', { name: 'Payroll history imports' })
+  expect(within(imports).getAllByRole('columnheader').map(h => h.textContent))
+    .toEqual(['Company', 'File', 'Months', 'Rows', 'Gross pay', 'PAYE', 'Imported on', 'Actions'])
+  expect(within(imports).getAllByRole('cell').map(c => c.textContent).slice(0, 7))
+    .toEqual(['Mama Oliech Restaurant Ltd', 'old-payroll.xlsx', `January ${year}`, '2', 'KES 135,000', 'KES 20,000', `20 Jan ${year}`])
+  expect(screen.getByRole('navigation', { name: 'Pages of Payroll history imports' })).toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: /Upload|Add/ }).map(b => b.textContent)).toEqual(['Upload payroll history'])
+  expect(calls.some(c => c.path === '/api/payroll-history/batches' && !c.url.includes('companyIds'))).toBe(true)
 
-  // Another company: its own history.
-  await userEvent.click(screen.getByRole('combobox', { name: 'Company' }))
-  await userEvent.click(screen.getByRole('option', { name: 'Centrail Ltd' }))
-  await vi.waitFor(() => expect(calls.some(c => c.path === '/api/payroll-history/summary' && c.url.includes(`companyId=${centrail.id}`))).toBe(true))
+  // Only one company's.
+  await userEvent.click(screen.getByRole('button', { name: /Show/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Mama Oliech/ }))
+  await vi.waitFor(() => expect(calls.some(c => c.path === '/api/payroll-history/batches' && c.url.includes('companyIds='))).toBe(true))
   const steps = screen.getByRole('list', { name: 'Setup steps' })
   expect(within(steps).getByText('Payroll history').closest('a')).toHaveAttribute('aria-current', 'page')
   await expectNoA11yViolations(container)
 })
 
-it('with no history yet, says what to upload', async () => {
-  withHistory({ 'GET /api/payroll-history/summary': () => json(200, []), 'GET /api/payroll-history/batches': () => json(200, []) })
+it('with nothing imported yet, says what to upload', async () => {
+  withHistory({ 'GET /api/payroll-history/batches': () => json(200, []) })
   renderApp('/setup/payroll-history')
   expect(await screen.findByRole('heading', { name: 'No payroll history yet' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Upload payroll history' })).toBeInTheDocument()
 })
 
 it('deleting an import asks first, then removes its months', async () => {

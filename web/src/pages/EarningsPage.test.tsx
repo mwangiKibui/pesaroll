@@ -494,7 +494,7 @@ it('with several companies, the selector filters every tab', async () => {
 })
 
 it('Proceed goes to Payroll history', async () => {
-  withItems({ 'GET /api/payroll-history/summary': () => json(200, []), 'GET /api/payroll-history/batches': () => json(200, []) })
+  withItems({ 'GET /api/payroll-history/batches': () => json(200, []) })
   renderApp('/setup/earnings-and-deductions')
 
   await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Payroll history' }))

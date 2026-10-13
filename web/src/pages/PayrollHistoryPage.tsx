@@ -7,8 +7,9 @@ import { errorMessage, isApiError } from '../app/apiErrors'
 import { useServices } from '../app/services'
 import { BulkUpload, type BulkUploadColumn, type BulkUploadRow } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
+import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { EmptyState, Loading, Notice } from '../components/feedback'
+import { EmptyState, Loading } from '../components/feedback'
 import { SelectField } from '../components/fields'
 import { UploadIcon } from '../components/icons'
 import { Pagination } from '../components/Pagination'
@@ -38,10 +39,10 @@ const monthName = (iso: string) =>
 const shortDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Nairobi' }).format(new Date(iso))
 
 /**
- * ONB-10, the optional Payroll history step: what the previous system paid, month by month, for
- * one company at a time, so year-to-date totals and P9A tax cards start complete. Uploaded only
- * (one row per person per month); the months imported, the imports (each can be deleted), and a
- * nudge for this year's months still missing.
+ * ONB-10, the optional Payroll history step: what the previous system paid, month by month, so
+ * year-to-date totals and P9A tax cards start complete. The page lists the imports (for all
+ * companies or those shown), each of which can be deleted; Upload opens the import (company first,
+ * then the template and the file, reviewed in the wide drawer, as for employees).
  */
 export default function PayrollHistoryPage() {
   const { t } = useTranslation()
@@ -50,37 +51,23 @@ export default function PayrollHistoryPage() {
   const navigate = useNavigate()
   const companies = useCompanies()
   const done = useSetupDone(true)
-  const [picked, setPicked] = useState('')
+  const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState<Batch | null>(null)
   const [busy, setBusy] = useState(false)
-  const companyId = picked || companies.data?.[0]?.id || ''
+  const companyIds = shown.all ? undefined : shown.ids
 
-  const summary = useQuery({
-    queryKey: ['payrollHistory', companyId, 'summary'],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/payroll-history/summary', { params: { query: { companyId } } })
-      if (error || !data) throw new Error('summary')
-      return data
-    },
-  })
   const batches = useQuery({
-    queryKey: ['payrollHistory', companyId, 'batches'],
-    enabled: !!companyId,
+    queryKey: ['payrollHistory', 'batches', companyIds ?? 'all'],
+    placeholderData: previous => previous,
     queryFn: async () => {
-      const { data, error } = await api.GET('/api/payroll-history/batches', { params: { query: { companyId } } })
+      const { data, error } = await api.GET('/api/payroll-history/batches', { params: { query: { companyIds } } })
       if (error || !data) throw new Error('batches')
       return data
     },
   })
-  const months = usePaged(summary.data ?? [], 20)
-  const imports = usePaged(batches.data ?? [], 10)
-
-  // This year's months up to last month that have nothing yet (January's payroll can't be missing in January).
-  const now = new Date()
-  const have = new Set((summary.data ?? []).map(m => m.period.slice(0, 7)))
-  const missing = Array.from({ length: now.getMonth() }, (_, i) => `${now.getFullYear()}-${String(i + 1).padStart(2, '0')}`).filter(m => !have.has(m))
+  const imports = usePaged(batches.data ?? [], 20)
+  const companyName = (id: string) => companies.data?.find(c => c.id === id)?.legalName ?? ''
 
   const remove = async () => {
     if (!deleting) return
@@ -101,8 +88,9 @@ export default function PayrollHistoryPage() {
     }
   }
 
-  const ready = companies.data && summary.data && batches.data
-  const upload = <Button variant="secondary" onClick={() => setUploading(true)}><UploadIcon />{t('history.upload')}</Button>
+  const ready = companies.data && batches.data
+  const many = (companies.data?.length ?? 0) > 1
+  const upload = <Button onClick={() => setUploading(true)}><UploadIcon />{t('history.upload')}</Button>
 
   return (
     <SetupLayout current="history" done={done} hasOrganization>
@@ -111,51 +99,23 @@ export default function PayrollHistoryPage() {
         <p className="m-0 text-muted">{t('history.intro')}</p>
       </div>
       {!ready ? <Loading rows={4} /> : <>
-        {companies.data.length > 1 && (
+        {many && (
           <div className="w-full max-w-sm">
-            <SelectField label={t('history.company')} placeholder={t('history.companyPlaceholder')} value={companyId}
-              onChange={value => value && setPicked(value)} options={companies.data.map(c => ({ value: c.id, label: c.legalName }))} />
+            <CompanySelect label={t('history.show')} value={shown} onChange={setShown}
+              companies={companies.data.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
           </div>
         )}
-        {summary.data.length > 0 && missing.length > 0 && (
-          <Notice>{t('history.missing', { months: missing.map(m => monthName(m).split(' ')[0]).join(', '), year: now.getFullYear() })}</Notice>
-        )}
-        <TableCard title={t('history.months')} count={summary.data.length} actions={upload}
-          footer={<Pagination label={t('pagination.of', { what: t('history.months') })} {...months.pagination} />}>
-          {summary.data.length === 0 ? <EmptyState title={t('history.emptyTitle')}>{t('history.emptyText')}</EmptyState> : (
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">{t('history.month')}</th>
-                  <th scope="col">{t('history.people')}</th>
-                  <th scope="col">{t('history.gross')}</th>
-                  <th scope="col">{t('history.paye')}</th>
-                  <th scope="col">{t('history.net')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {months.items.map(m => (
-                  <tr key={m.period}>
-                    <td className="font-medium text-ink">{monthName(m.period)}</td>
-                    <td className="tabular-nums">{Number(m.people)}</td>
-                    <td className="tabular-nums">{formatMoney(m.gross)}</td>
-                    <td className="tabular-nums">{formatMoney(m.paye)}</td>
-                    <td className="tabular-nums">{formatMoney(m.net)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </TableCard>
-        <TableCard title={t('history.imports')} count={batches.data.length}
+        <TableCard title={t('history.imports')} count={batches.data.length} actions={upload}
           footer={<Pagination label={t('pagination.of', { what: t('history.imports') })} {...imports.pagination} />}>
-          {batches.data.length === 0 ? <p className="m-0 px-4 py-3 text-label text-muted">{t('history.noImports')}</p> : (
+          {batches.data.length === 0 ? <EmptyState title={t('history.emptyTitle')}>{t('history.emptyText')}</EmptyState> : (
             <table>
               <thead>
                 <tr>
+                  {many && <th scope="col">{t('history.company')}</th>}
                   <th scope="col">{t('history.file')}</th>
                   <th scope="col">{t('history.covers')}</th>
                   <th scope="col">{t('history.rows')}</th>
+                  <th scope="col">{t('history.gross')}</th>
                   <th scope="col">{t('history.paye')}</th>
                   <th scope="col">{t('history.importedOn')}</th>
                   <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
@@ -164,11 +124,13 @@ export default function PayrollHistoryPage() {
               <tbody>
                 {imports.items.map(b => (
                   <tr key={b.id}>
+                    {many && <td>{companyName(b.companyId)}</td>}
                     <td className="font-medium text-ink">{b.fileName}</td>
                     <td className="whitespace-nowrap">
                       {b.firstPeriod === b.lastPeriod ? monthName(b.firstPeriod) : `${monthName(b.firstPeriod)} – ${monthName(b.lastPeriod)}`}
                     </td>
                     <td className="tabular-nums">{Number(b.rowCount)}</td>
+                    <td className="tabular-nums">{formatMoney(b.grossTotal)}</td>
                     <td className="tabular-nums">{formatMoney(b.payeTotal)}</td>
                     <td className="whitespace-nowrap">{shortDate(b.createdAt)}</td>
                     <td className="text-right">
@@ -184,7 +146,8 @@ export default function PayrollHistoryPage() {
         </TableCard>
         {/* Team access (ONB-11) is next; until it has a page, the dashboard. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
-        {uploading && <UploadHistory companies={companies.data} defaultCompany={companies.data.length === 1 ? companyId : ''} onClose={() => setUploading(false)} />}
+        {uploading && <UploadHistory companies={companies.data} onClose={() => setUploading(false)}
+          defaultCompany={companies.data.length === 1 ? companies.data[0].id : !shown.all && shown.ids.length === 1 ? shown.ids[0] : ''} />}
       </>}
       <ConfirmDialog open={!!deleting} title={t('history.deleteTitle', { name: deleting?.fileName })}
         confirmLabel={t('history.deleteConfirm')} busy={busy} onConfirm={remove} onCancel={() => setDeleting(null)}>

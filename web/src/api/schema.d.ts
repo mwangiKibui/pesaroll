@@ -6013,52 +6013,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/payroll-history/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query: {
-                    companyId: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PayrollHistoryMonth"][];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/payroll-history/batches": {
         parameters: {
             query?: never;
@@ -6068,8 +6022,8 @@ export interface paths {
         };
         get: {
             parameters: {
-                query: {
-                    companyId: string;
+                query?: {
+                    companyIds?: string[];
                 };
                 header?: never;
                 path?: never;
@@ -6817,6 +6771,8 @@ export interface components {
         PayrollHistoryBatchResponse: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            companyId: string;
             fileName: string;
             /** Format: int32 */
             rowCount: number | string;
@@ -6830,18 +6786,6 @@ export interface components {
             payeTotal: number | string;
             /** Format: date-time */
             createdAt: string;
-        };
-        PayrollHistoryMonth: {
-            /** Format: date */
-            period: string;
-            /** Format: int32 */
-            people: number | string;
-            /** Format: double */
-            gross: number | string;
-            /** Format: double */
-            paye: number | string;
-            /** Format: double */
-            net: number | string;
         };
         PayScheduleRequest: {
             name: null | string;

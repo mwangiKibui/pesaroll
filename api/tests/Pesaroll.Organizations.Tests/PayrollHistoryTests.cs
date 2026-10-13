@@ -23,8 +23,7 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
     private sealed record Problem(int Line, string? Column, string Message, string? Kind);
     private sealed record Check(List<Problem> Problems, List<Problem> Notes);
     private sealed record Result(int Imported);
-    private sealed record Month(DateOnly Period, int People, decimal Gross, decimal Paye, decimal Net);
-    private sealed record Batch(Guid Id, string FileName, int RowCount, DateOnly FirstPeriod, DateOnly LastPeriod, decimal GrossTotal, decimal PayeTotal);
+    private sealed record Batch(Guid Id, Guid CompanyId, string FileName, int RowCount, DateOnly FirstPeriod, DateOnly LastPeriod, decimal GrossTotal, decimal PayeTotal);
     private sealed record Row(Guid Id, string StaffNo, string Name, DateOnly? ExitDate);
     private sealed record Page(List<Row> Items, int Total);
     private sealed record Employee(DateOnly HireDate, DateOnly? ExitDate, string? KraPinMasked);
@@ -71,10 +70,10 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
         var (client, company) = await Onboarded();
         using var book = new XLWorkbook(new MemoryStream(await client.GetByteArrayAsync($"/api/payroll-history/template?companyId={company.Id}")));
         var headers = book.Worksheet(1).Row(1).CellsUsed().Select(c => c.GetString()).ToList();
-        Assert.Equal(["Employee number", "KRA PIN", "ID or passport number", "Employee name", "Pay month (YYYY-MM)", "Pay date (DD/MM/YYYY)", "Basic pay",
-            "Cash allowances", "Non-cash benefits", "Value of quarters", "Gross pay", "Pension (employee)", "NSSF employee Tier I", "NSSF employee Tier II",
-            "NSSF employee total", "NSSF employer total", "SHIF / NHIF", "Housing Levy (employee)", "Housing Levy (employer)", "Post-retirement medical fund",
-            "Mortgage interest", "Taxable pay", "Personal relief", "Insurance relief", "PAYE", "Other deductions", "Net pay", "NITA", "Notes"], headers);
+        Assert.Equal(["Employee number", "KRA PIN", "ID or passport number", "Employee name", "Pay month (YYYY-MM)", "Pay date (DD/MM/YYYY)", "Basic pay amount",
+            "Cash allowances amount", "Non-cash benefits amount", "Value of quarters amount", "Gross pay amount", "Pension (employee) amount", "NSSF employee Tier I amount", "NSSF employee Tier II amount",
+            "NSSF employee total amount", "NSSF employer total amount", "SHIF / NHIF amount", "Housing Levy (employee) amount", "Housing Levy (employer) amount", "Post-retirement medical fund amount",
+            "Mortgage interest amount", "Taxable pay amount", "Personal relief amount", "Insurance relief amount", "PAYE amount", "Other deductions amount", "Net pay amount", "NITA amount", "Notes"], headers);
     }
 
     [Fact]
@@ -120,10 +119,10 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
             Line("2026-02", ("staffNo", ""), ("kraPin", "a111111111c"), ("name", "Otieno Ouma"), ("gross", "50000"), ("basic", "50000"), ("paye", "5000"), ("net", "37067"))));
         Assert.Equal(4, (await res.Content.ReadFromJsonAsync<Result>())!.Imported);
 
-        var months = (await client.GetFromJsonAsync<List<Month>>($"/api/payroll-history/summary?companyId={company.Id}"))!;
-        Assert.Equal([(new DateOnly(2026, 1, 1), 2, 135000m, 20000m), (new DateOnly(2026, 2, 1), 2, 135000m, 20000m)], months.Select(m => (m.Period, m.People, m.Gross, m.Paye)));
-        var batch = Assert.Single((await client.GetFromJsonAsync<List<Batch>>($"/api/payroll-history/batches?companyId={company.Id}"))!);
-        Assert.Equal(("old-payroll.xlsx", 4, new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1), 40000m), (batch.FileName, batch.RowCount, batch.FirstPeriod, batch.LastPeriod, batch.PayeTotal));
+        var batch = Assert.Single((await client.GetFromJsonAsync<List<Batch>>($"/api/payroll-history/batches?companyIds={company.Id}"))!);
+        Assert.Equal((company.Id, "old-payroll.xlsx", 4, new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1), 270000m, 40000m),
+            (batch.CompanyId, batch.FileName, batch.RowCount, batch.FirstPeriod, batch.LastPeriod, batch.GrossTotal, batch.PayeTotal));
+        Assert.Single((await client.GetFromJsonAsync<List<Batch>>("/api/payroll-history/batches"))!);   // every company's
 
         // Otieno is a former employee: from his first month, left at the end of his last.
         var otieno = (await client.GetFromJsonAsync<Page>("/api/employees?status=former&search=otieno"))!.Items.Single();
@@ -131,7 +130,7 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
         Assert.Equal((new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 28), "•••• 111C"), (detail.HireDate, detail.ExitDate!.Value, detail.KraPinMasked));
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/payroll-history/batches/{batch.Id}")).StatusCode);
-        Assert.Empty((await client.GetFromJsonAsync<List<Month>>($"/api/payroll-history/summary?companyId={company.Id}"))!);
+        Assert.Empty((await client.GetFromJsonAsync<List<Batch>>("/api/payroll-history/batches"))!);
         Assert.Equal("ONB-3552", (await (await client.DeleteAsync($"/api/payroll-history/batches/{batch.Id}")).Content.ReadFromJsonAsync<Error>())!.Code);
     }
 }

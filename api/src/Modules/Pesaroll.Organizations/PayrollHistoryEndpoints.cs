@@ -11,11 +11,8 @@ using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Organizations;
 
-/// <summary>A month of imported history: how many people, and their gross, PAYE and net pay.</summary>
-public sealed record PayrollHistoryMonth(DateOnly Period, int People, decimal Gross, decimal Paye, decimal Net);
-
-/// <summary>An upload of payroll history: its file, rows, months and totals, and when.</summary>
-public sealed record PayrollHistoryBatchResponse(Guid Id, string FileName, int RowCount, DateOnly FirstPeriod, DateOnly LastPeriod, decimal GrossTotal,
+/// <summary>An upload of payroll history: its company, file, rows, months and totals, and when.</summary>
+public sealed record PayrollHistoryBatchResponse(Guid Id, Guid CompanyId, string FileName, int RowCount, DateOnly FirstPeriod, DateOnly LastPeriod, decimal GrossTotal,
     decimal PayeTotal, DateTimeOffset CreatedAt);
 
 /// <summary>
@@ -24,7 +21,7 @@ public sealed record PayrollHistoryBatchResponse(Guid Id, string FileName, int R
 /// (Pesaroll runs payroll from this month). People are found by staff number, then ID number, then
 /// KRA PIN; someone not in Pesaroll is added as a former employee (from their first month to the
 /// end of their last). Errors block; warnings (net pay that doesn't add up, a KRA PIN unlike their
-/// profile) don't. Each upload is a batch: listed with its totals, and deleted with its rows.
+/// profile) don't. Each upload is a batch: listed with its totals (all companies, or those chosen), and deleted with its rows.
 /// </summary>
 public static class PayrollHistoryEndpoints
 {
@@ -37,12 +34,12 @@ public static class PayrollHistoryEndpoints
     [
         new("company", "Company", InTemplate: false), new("staffNo", "Employee number", "@"), new("kraPin", "KRA PIN", "@"),
         new("nationalId", "ID or passport number", "@"), new("name", "Employee name"), new("month", "Pay month (YYYY-MM)", "@"),
-        ImportColumn.Date("payDate", "Pay date"), new("basic", "Basic pay"), new("allowances", "Cash allowances"), new("benefits", "Non-cash benefits"),
-        new("quarters", "Value of quarters"), new("gross", "Gross pay"), new("pension", "Pension (employee)"), new("nssf1", "NSSF employee Tier I"),
-        new("nssf2", "NSSF employee Tier II"), new("nssf", "NSSF employee total"), new("nssfEr", "NSSF employer total"), new("shif", "SHIF / NHIF"),
-        new("ahl", "Housing Levy (employee)"), new("ahlEr", "Housing Levy (employer)"), new("prmf", "Post-retirement medical fund"),
-        new("mortgage", "Mortgage interest"), new("taxable", "Taxable pay"), new("relief", "Personal relief"), new("insurance", "Insurance relief"),
-        new("paye", "PAYE"), new("other", "Other deductions"), new("net", "Net pay"), new("nita", "NITA"), new("notes", "Notes"),
+        ImportColumn.Date("payDate", "Pay date"), new("basic", "Basic pay amount"), new("allowances", "Cash allowances amount"), new("benefits", "Non-cash benefits amount"),
+        new("quarters", "Value of quarters amount"), new("gross", "Gross pay amount"), new("pension", "Pension (employee) amount"), new("nssf1", "NSSF employee Tier I amount"),
+        new("nssf2", "NSSF employee Tier II amount"), new("nssf", "NSSF employee total amount"), new("nssfEr", "NSSF employer total amount"), new("shif", "SHIF / NHIF amount"),
+        new("ahl", "Housing Levy (employee) amount"), new("ahlEr", "Housing Levy (employer) amount"), new("prmf", "Post-retirement medical fund amount"),
+        new("mortgage", "Mortgage interest amount"), new("taxable", "Taxable pay amount"), new("relief", "Personal relief amount"), new("insurance", "Insurance relief amount"),
+        new("paye", "PAYE amount"), new("other", "Other deductions amount"), new("net", "Net pay amount"), new("nita", "NITA amount"), new("notes", "Notes"),
     ];
 
     /// <summary>The amount columns: key, how a message names it, and whether every row needs it.</summary>
@@ -71,21 +68,18 @@ public static class PayrollHistoryEndpoints
             Save = (rows, request, organizationId, db, now, services, ct) => SaveAsync(rows, request, organizationId, db, now, services, ct),
         });
 
-        history.MapGet("/summary", async (Guid companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        // Every company's imports, or the chosen companies', newest first.
+        history.MapGet("/batches", async (Guid[]? companyIds, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            var months = await db.PayrollHistoryLines.AsNoTracking().Where(l => l.CompanyId == companyId)
-                .GroupBy(l => l.Period)
-                .Select(g => new PayrollHistoryMonth(g.Key, g.Count(), g.Sum(l => l.GrossPay), g.Sum(l => l.Paye), g.Sum(l => l.NetPay ?? 0)))
-                .ToListAsync(ct);
-            return Results.Ok(months.OrderBy(m => m.Period).ToList());
-        }).Produces<List<PayrollHistoryMonth>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+            var query = db.PayrollHistoryBatches.AsNoTracking();
+            if (companyIds is { Length: > 0 })
+            {
+                query = query.Where(b => companyIds.Contains(b.CompanyId));
+            }
 
-        history.MapGet("/batches", async (Guid companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
-        {
-            CompaniesEndpoints.RequireOrganization(tenant, http);
-            var batches = await db.PayrollHistoryBatches.AsNoTracking().Where(b => b.CompanyId == companyId).OrderByDescending(b => b.CreatedAt)
-                .Select(b => new PayrollHistoryBatchResponse(b.Id, b.FileName, b.RowCount, b.FirstPeriod, b.LastPeriod, b.GrossTotal, b.PayeTotal, b.CreatedAt))
+            var batches = await query.OrderByDescending(b => b.CreatedAt)
+                .Select(b => new PayrollHistoryBatchResponse(b.Id, b.CompanyId, b.FileName, b.RowCount, b.FirstPeriod, b.LastPeriod, b.GrossTotal, b.PayeTotal, b.CreatedAt))
                 .ToListAsync(ct);
             return Results.Ok(batches);
         }).Produces<List<PayrollHistoryBatchResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
