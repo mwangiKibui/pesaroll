@@ -27,4 +27,5 @@ export const setupPaths: Partial<Record<SetupStep, string>> = {
   payItems: '/setup/earnings-and-deductions',
   leavePlans: '/setup/leave-plans',
   employees: '/setup/employees',
+  history: '/setup/payroll-history',
 }

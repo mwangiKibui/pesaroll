@@ -493,12 +493,11 @@ it('with several companies, the selector filters every tab', async () => {
   expect(within(panel('Earnings')).getByText('Basic pay')).toBeInTheDocument()
 })
 
-it('Proceed goes to the dashboard with six steps done', async () => {
-  withItems()
+it('Proceed goes to Payroll history', async () => {
+  withItems({ 'GET /api/payroll-history/batches': () => json(200, []) })
   renderApp('/setup/earnings-and-deductions')
 
-  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Org Dashboard' }))
+  await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Payroll history' }))
 
-  expect(await screen.findByText('Finish setting up · 6 of 10')).toBeInTheDocument()
-  expect(screen.getAllByText('Next: Leave plans').length).toBeGreaterThan(0)
+  expect(await screen.findByRole('heading', { name: 'Bring in your payroll history' })).toBeInTheDocument()
 })

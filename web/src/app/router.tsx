@@ -14,6 +14,7 @@ const SchedulesPage = lazyRouteComponent(() => import('../pages/SchedulesPage'))
 const EarningsPage = lazyRouteComponent(() => import('../pages/EarningsPage'))
 const LeavePlansPage = lazyRouteComponent(() => import('../pages/LeavePlansPage'))
 const EmployeesPage = lazyRouteComponent(() => import('../pages/EmployeesPage'))
+const PayrollHistoryPage = lazyRouteComponent(() => import('../pages/PayrollHistoryPage'))
 const NoOrganizationPage = lazyRouteComponent(() => import('../pages/NoOrganizationPage'))
 const HomePage = lazyRouteComponent(() => import('../pages/HomePage'))
 
@@ -85,6 +86,7 @@ const schedulesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/se
 const earningsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/earnings-and-deductions', beforeLoad: signedInWithOrganization, component: EarningsPage })
 const leavePlansRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/leave-plans', beforeLoad: signedInWithOrganization, component: LeavePlansPage })
 const employeesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/employees', beforeLoad: signedInWithOrganization, component: EmployeesPage })
+const historyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/payroll-history', beforeLoad: signedInWithOrganization, component: PayrollHistoryPage })
 const noOrganizationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/no-organization', beforeLoad: noOrganization, component: NoOrganizationPage })
 // The old placeholder's address, kept so bookmarks still work.
 const welcomeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/welcome', beforeLoad: () => { throw redirect({ to: '/' }) } })
@@ -94,7 +96,7 @@ const devRoutes = import.meta.env.DEV
   ? [createRoute({ getParentRoute: () => rootRoute, path: '/dev/components', component: lazyRouteComponent(() => import('../dev/ComponentsPage')) })]
   : []
 
-const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, earningsRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
+const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, earningsRoute, historyRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
 
 export function createAppRouter(auth: AuthClient, api: Services['api'], initialPath?: string) {
   return createRouter({

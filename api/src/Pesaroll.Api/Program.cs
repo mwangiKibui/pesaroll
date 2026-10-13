@@ -86,6 +86,7 @@ app.MapEmployeesImportEndpoints();
 app.MapLocationsImportEndpoints();
 app.MapStructureEndpoints();
 app.MapStructureImportEndpoints();
+app.MapPayrollHistoryEndpoints();
 
 app.Run();
 

@@ -105,6 +105,9 @@ internal static class OnboardingErrors
     public static AppException PayeeNameTaken() =>
         new("ONB-3551", "Another payee already has this name.", 409);
 
+    public static AppException HistoryBatchNotFound() =>
+        new("ONB-3552", "We couldn't find that payroll history import. It may have been deleted.", 404);
+
     public static AppException AssignmentInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("ONB-3547", "Some details of who gets it don't look right. Check the fields marked.") { Fields = fields };
     public static AppException LeaveDetailsInvalid(IReadOnlyDictionary<string, string> fields) =>

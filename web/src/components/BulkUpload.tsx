@@ -32,12 +32,16 @@ export interface BulkUploadColumn {
 export interface BulkUploadRow { line: number | string; cells: Record<string, string> }
 
 /** A problem the server found: its row (0 for the whole file), the column key and what to fix. */
-export interface BulkUploadProblem { line: number | string; column?: string | null; message: string }
+/** kind (notes only): unset for what will be created; "warning" for something to check, which doesn't stop the import. */
+export interface BulkUploadProblem { line: number | string; column?: string | null; message: string; kind?: string | null }
 
 /** notes: what rows name that doesn't exist yet and will be created on import (not a problem). */
 export interface BulkUploadRead { rows: BulkUploadRow[]; problems: BulkUploadProblem[]; notes?: BulkUploadProblem[] }
 
 export interface BulkUploadCheck { problems: BulkUploadProblem[]; notes?: BulkUploadProblem[] }
+
+/** What an import that saves what passes left: the rows not saved, by their problems. */
+export interface BulkUploadLeft { problems: BulkUploadProblem[] }
 
 interface BulkUploadProps {
   open: boolean
@@ -52,8 +56,16 @@ interface BulkUploadProps {
   onRead: (file: File) => Promise<BulkUploadRead | ApiError>
   /** Checks the reviewed rows again. */
   onCheck: (rows: BulkUploadRow[]) => Promise<BulkUploadCheck | ApiError>
-  /** Saves the rows, all or nothing; null when it worked. The page shows the toast. */
-  onImport: (rows: BulkUploadRow[]) => Promise<ApiError | null>
+  /**
+   * Saves the rows, all or nothing; null when it worked. With savesWhatPasses, the rows that pass
+   * are saved and the rest come back with their problems. The page shows the toast.
+   */
+  onImport: (rows: BulkUploadRow[]) => Promise<ApiError | null | BulkUploadLeft>
+  /**
+   * Import saves the rows that pass and the drawer keeps the others, with the server's problems in
+   * their rows. Import stays closed while the sheet's own checks find something to fix.
+   */
+  savesWhatPasses?: boolean
   labels: {
     /** "Review 12 locations": the review's title. */
     review: (count: number) => string
@@ -122,6 +134,8 @@ const SHEET_SIZES = [50, 100, 200]
 
 /** How far an arrow key scrolls the rows sideways: about one column. */
 const STEP = 320
+/** How far ↑ and ↓ scroll the rows: about three rows. */
+const ROW_STEP = 120
 
 /** Where the arrow keys belong to what's focused: typing in a cell, a dropdown, a checkbox. */
 const ownsArrows = (target: EventTarget | null) =>
@@ -134,7 +148,7 @@ const ownsArrows = (target: EventTarget | null) =>
  * searchable, scrolling under a fixed header, with problems in their cells. Import checks the
  * edited rows again and saves them all, or shows what is still wrong; nothing is imported blindly.
  */
-export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep, startRows, onCellsChange, locked }: BulkUploadProps) {
+export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep, startRows, onCellsChange, locked, savesWhatPasses }: BulkUploadProps) {
   const { t } = useTranslation()
   const inputId = useId()
   const [file, setFile] = useState<File | null>(null)
@@ -158,18 +172,21 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   // One column's sort, as the rows were when it was clicked: rows don't move while a cell is being fixed. Click again to re-sort.
   const [sort, setSort] = useState<{ key: string; direction: 'ascending' | 'descending'; order: Map<string, number> } | null>(null)
 
-  // While the rows are open, ← and → scroll them sideways (wide sheets have 30 columns), unless a cell is being typed in.
+  // While the rows are open, ← and → scroll them sideways (wide sheets have 30 columns) and ↑ and ↓ up and down, unless a cell is being typed in.
   const showingRows = open && !!rows
   useEffect(() => {
     if (!showingRows) return
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.altKey || e.ctrlKey || e.metaKey || ownsArrows(e.target)) return
+      const by = { ArrowLeft: { left: -STEP, top: 0 }, ArrowRight: { left: STEP, top: 0 }, ArrowUp: { left: 0, top: -ROW_STEP }, ArrowDown: { left: 0, top: ROW_STEP } }[e.key]
+      if (!by || e.altKey || e.ctrlKey || e.metaKey || ownsArrows(e.target)) return
       const region = rowsRef.current
       if (!region) return
       e.preventDefault()
-      const left = e.key === 'ArrowRight' ? STEP : -STEP
-      if (typeof region.scrollBy === 'function') region.scrollBy({ left, behavior: 'smooth' })
-      else region.scrollLeft = Math.max(0, region.scrollLeft + left)
+      if (typeof region.scrollBy === 'function') region.scrollBy({ ...by, behavior: 'smooth' })
+      else {
+        region.scrollLeft = Math.max(0, region.scrollLeft + by.left)
+        region.scrollTop = Math.max(0, region.scrollTop + by.top)
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -204,7 +221,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     const result = await attempt('read', setBanner, () => onRead(picked))
     if (isError(result)) return setBanner(result)
     if (!result) return
-    setProblems(result.problems)
+    // Saving what passes: the sheet's own checks show from the start, as they keep Import closed.
+    const own = savesWhatPasses ? result.rows.flatMap(r => checked([], r.line, r.cells, columns.map(c => c.key))) : []
+    const marked = new Set(result.problems.map(p => keyOf(p.line, p.column)))
+    setProblems([...result.problems, ...own.filter(p => !marked.has(keyOf(p.line, p.column)))])
     setNotes(result.notes ?? [])
     setSearch('')
     setPage(0)
@@ -270,6 +290,20 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
       setProblems(list => [...list.filter(p => !mine.some(m => keyOf(m.line, m.column) === keyOf(p.line, p.column))), ...mine])
       return
     }
+    if (savesWhatPasses) {
+      const result = await attempt('import', setReviewBanner, () => onImport(filled))
+      if (isError(result)) return setReviewBanner(result)
+      if (result === undefined) return
+      if (result === null || result.problems.length === 0) return onClose()
+      // The saved rows go; the others stay, each with its problems.
+      const left = new Set(result.problems.map(p => String(p.line)))
+      setRows(list => list?.filter(r => left.has(String(r.line))) ?? null)
+      setProblems(result.problems)
+      setNotes(list => list.filter(n => left.has(String(n.line))))
+      setView({ kind: 'all', lines: null })
+      setPage(0)
+      return
+    }
     const done = await attempt('import', setReviewBanner, async () => {
       const check = await onCheck(filled)
       if (isError(check)) return check
@@ -313,14 +347,23 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     const key = p.column && shownKeys.has(p.column) ? keyOf(p.line, p.column) : keyOf(p.line)
     problemAt.set(key, problemAt.has(key) && key === keyOf(p.line) ? `${problemAt.get(key)} ${p.message}` : p.message)
   }
-  const noteAt = new Map(notes.map(n => [keyOf(n.line, n.column), n.message]))
+  const noteAt = new Map(notes.map(n => [keyOf(n.line, n.column), n]))
+  const warnings = notes.filter(n => n.kind === 'warning')
+  const linesToCheck = new Set(warnings.map(w => String(w.line))).size
   // Each new name once, however many rows use it (ignoring case).
-  const toCreate = new Set(notes.map(n => {
+  const toCreate = new Set(notes.filter(n => n.kind !== 'warning').map(n => {
     const cell = rows?.find(r => String(r.line) === String(n.line))?.cells[n.column ?? ''] ?? n.message
     return `${n.column}:${cell.trim().toLowerCase()}`
   })).size
   const linesWithProblems = new Set(problems.filter(p => Number(p.line) > 0).map(p => String(p.line)))
   const fileProblems = problems.filter(p => Number(p.line) === 0)
+  // Saving what passes: Import waits while a cell fails the sheet's own check (the server's problems don't stop it).
+  const rowAt = new Map((rows ?? []).map(r => [String(r.line), r]))
+  const sheetBlocks = !!savesWhatPasses && problems.some(p => {
+    const c = columns.find(x => x.key === p.column)
+    const r = rowAt.get(String(p.line))
+    return !!c?.validate && !!r && !c.disabledWhen?.(r.cells) && !!c.validate(r.cells[c.key] ?? '', r.cells)
+  })
   const allLines = (rows ?? []).map(r => String(r.line))
   const counts = { all: allLines.length, fix: linesWithProblems.size, ready: allLines.filter(l => !linesWithProblems.has(l)).length }
   const showRows = (kind: 'all' | 'fix' | 'ready') => {
@@ -355,7 +398,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
               <PlusIcon />{t('bulk.addRow')}
             </Button>
           )}
-          <Button disabled={!rows?.length} busy={busy === 'import'} onClick={() => void importRows()}>{labels.importButton(rows?.length ?? 0)}</Button>
+          <Button disabled={!rows?.length || sheetBlocks} busy={busy === 'import'} onClick={() => void importRows()}>{labels.importButton(rows?.length ?? 0)}</Button>
         </>
 
   // In the title bar: where the rows apply, the search, Show, what needs fixing, the column filters and the count.
@@ -371,6 +414,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         onChange={value => showRows(value as 'all' | 'fix' | 'ready')} />
     </div>
     {linesWithProblems.size > 0 && <Tag tone="warning">{t('bulk.toFix', { count: linesWithProblems.size })}</Tag>}
+    {linesToCheck > 0 && <Tag tone="warning">{t('bulk.toCheck', { count: linesToCheck })}</Tag>}
     {toCreate > 0 && <Tag tone="brand">{t('bulk.toCreate', { count: toCreate })}</Tag>}
     {filtered.map(c => (
       <Tag key={c.key} tone="brand">
@@ -419,7 +463,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                     const label = t('bulk.cell', { column: c.label, line: r.line })
                     const error = problemAt.get(keyOf(r.line, c.key))
                     // A name that will be created reads under the cell, without marking it wrong.
-                    const note = error ? undefined : noteAt.get(keyOf(r.line, c.key))
+                    // What will be created (muted) or what to check (amber) reads under the cell.
+                    const found = error ? undefined : noteAt.get(keyOf(r.line, c.key))
+                    const note = found?.message
+                    const noteTone = found?.kind === 'warning' ? 'warning' as const : undefined
                     const options = c.optionsFor?.(r.cells) ?? c.options
                     const disabled = c.disabledWhen?.(r.cells)
                     return (
@@ -431,10 +478,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                               {error && <p className="m-0 text-hint font-medium text-danger-ink">{error}</p>}
                             </>
                           : options
-                            ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} options={options}
+                            ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} hintTone={noteTone} options={options}
                                 disabled={disabled} value={r.cells[c.key] ?? ''} onChange={value => edit(r.line, c.key, value, true)} />
                             // A date written another way in the file shows as written, to be fixed.
-                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note}
+                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} hintTone={noteTone}
                                 type={c.type === 'date' && (!r.cells[c.key] || /^\d{4}-\d{2}-\d{2}$/.test(r.cells[c.key])) ? 'date' : 'text'}
                                 disabled={disabled} value={r.cells[c.key] ?? ''} onChange={e => edit(r.line, c.key, e.target.value)}
                                 onBlur={() => leave(r.line, c.key)} />}

@@ -322,7 +322,7 @@ it('checks a cell as soon as it is left, offers choices that follow the row, and
   expect(check).not.toHaveBeenCalled()
 })
 
-it('the arrow keys scroll the rows sideways, except while typing in a cell', async () => {
+it('the arrow keys scroll the rows sideways and up and down, except while typing in a cell', async () => {
   render(
     <BulkUpload open startRows={1} title="Add employee" columns={columns} onClose={() => {}} onDownloadTemplate={async () => {}}
       onRead={async () => good} onCheck={async () => clean} onImport={async () => null}
@@ -330,17 +330,23 @@ it('the arrow keys scroll the rows sideways, except while typing in a cell', asy
   )
   const sheet = screen.getByRole('dialog', { name: 'Add 1 people' })
   const rows = within(sheet).getByRole('region', { name: 'Rows to import' })
-  rows.scrollBy = vi.fn(({ left }: ScrollToOptions) => { rows.scrollLeft += left ?? 0 }) as never   // jsdom doesn't scroll
+  rows.scrollBy = vi.fn(({ left, top }: ScrollToOptions) => { rows.scrollLeft += left ?? 0; rows.scrollTop += top ?? 0 }) as never   // jsdom doesn't scroll
 
   await userEvent.click(within(sheet).getByRole('columnheader', { name: 'County' }))   // out of the cells
   await userEvent.keyboard('{ArrowRight}{ArrowRight}')
   expect(rows.scrollLeft).toBe(640)
   await userEvent.keyboard('{ArrowLeft}')
   expect(rows.scrollLeft).toBe(320)
+  await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+  expect(rows.scrollTop).toBe(240)
+  await userEvent.keyboard('{ArrowUp}')
+  expect(rows.scrollTop).toBe(120)
+  expect(rows.scrollLeft).toBe(320)
 
   await userEvent.click(within(sheet).getByRole('textbox', { name: 'Location name, row 1' }))
-  await userEvent.keyboard('{ArrowRight}')
+  await userEvent.keyboard('{ArrowRight}{ArrowDown}')
   expect(rows.scrollLeft).toBe(320)   // the cursor moves in the cell instead
+  expect(rows.scrollTop).toBe(120)
 })
 
 it('each column can be searched and filtered by its values, together, across every page', async () => {
@@ -526,4 +532,59 @@ it('fixing one cell leaves the other cells of its row marked; a server-found pro
   expect(phone).not.toHaveAccessibleDescription(/already has/)
   expect(email).toHaveAccessibleDescription('Enter a valid email address.')
   expect(within(sheet).getAllByRole('row')[1]).toHaveClass('bg-warning-soft')   // email still to fix
+})
+
+it('a warning reads in amber under its cell, is counted as a row to check, and doesn\'t stop the import', async () => {
+  const importRows = vi.fn(async () => null)
+  const read: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Mombasa shop', 'Mombasa')],
+    problems: [],
+    notes: [{ line: 3, column: 'name', message: 'Net pay doesn\'t add up: check it.', kind: 'warning' }],
+  }
+  render(<Page read={async () => read} importRows={importRows} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 2 locations' })
+
+  const name = within(sheet).getByRole('textbox', { name: 'Location name, row 3' })
+  expect(name).toHaveAccessibleDescription('Net pay doesn\'t add up: check it.')
+  expect(within(sheet).getByText('Net pay doesn\'t add up: check it.')).toHaveClass('text-warning-ink')
+  expect(within(sheet).getByText('1 row to check.')).toBeInTheDocument()
+  expect(within(sheet).queryByText(/will be created/)).not.toBeInTheDocument()
+
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Import 2 locations' }))
+  await vi.waitFor(() => expect(importRows).toHaveBeenCalled())
+})
+
+it('an import that saves what passes keeps Import closed while the sheet itself finds problems; the server\'s leave only their rows', async () => {
+  const named = [{ key: 'name', label: 'Location name', validate: (v: string) => (v.trim() ? null : 'Enter a name.') }, columns[1]]
+  const read = async (): Promise<BulkUploadRead> => ({
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, '', 'Nairobi'), row(4, 'Mombasa shop', 'Mombasa'), row(5, 'Kisumu kiosk', 'Kisumu')],
+    problems: [{ line: 3, column: 'name', message: 'Enter a name.' }],
+  })
+  const check = vi.fn(async () => clean)
+  const importRows = vi.fn(async (rows: BulkUploadRow[]) => ({ problems: [{ line: 5, column: 'county', message: 'Kisumu is already imported.' }], imported: rows.length - 1 }))
+  render(
+    <BulkUpload open savesWhatPasses title="Upload locations" columns={named} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={read} onCheck={check} onImport={importRows}
+      labels={{ review: n => `Review ${n} locations`, importButton: n => `Import ${n} locations`, templateHint: '' }} />,
+  )
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  await screen.findByRole('dialog', { name: 'Review 4 locations' })
+
+  // The sheet's own problem: Import waits for it.
+  expect(within(review()).getByRole('button', { name: 'Import 4 locations' })).toBeDisabled()
+  await userEvent.type(cell('Location name', 3), 'Kilimani office')
+  await userEvent.tab()
+  expect(within(review()).getByRole('button', { name: 'Import 4 locations' })).toBeEnabled()
+
+  // The server's: the good rows are saved, the drawer keeps the rest with their problems.
+  await userEvent.click(within(review()).getByRole('button', { name: 'Import 4 locations' }))
+  expect(await screen.findByRole('dialog', { name: 'Review 1 locations' })).toBeInTheDocument()
+  expect(check).not.toHaveBeenCalled()
+  expect(importRows.mock.calls[0][0].map(r => r.line)).toEqual([2, 3, 4, 5])
+  expect(cell('Location name', 5)).toHaveValue('Kisumu kiosk')
+  expect(within(review()).getByText('Kisumu is already imported.')).toBeInTheDocument()
+  expect(within(review()).getByText('1 row needs fixing.')).toBeInTheDocument()
 })
