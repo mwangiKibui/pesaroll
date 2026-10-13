@@ -39,7 +39,8 @@ export function SetupLayout({ current, done, hasOrganization, children }: {
         <aside aria-label={t('setup.stepsLabel')} className="hidden w-72 flex-none border-r border-line bg-card px-5 py-6 lg:block">
           <ol aria-label={t('setup.stepsLabel')} className="sticky top-22 m-0 flex list-none flex-col gap-1 p-0">
             {setupSteps.map((step, i) => {
-              const isDone = done.includes(step.key)
+              // An optional step counts as done once you've gone past it (it can be skipped).
+              const isDone = done.includes(step.key) || (step.optional && i < setupSteps.findIndex(s => s.key === current))
               const isCurrent = step.key === current
               // Steps with a page are links, done or not, so you can go back and change things; the
               // others need the organization first.

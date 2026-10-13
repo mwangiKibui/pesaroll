@@ -54,6 +54,9 @@ it('lists people and invitations with their group, companies and status, paged, 
 
   const steps = screen.getByRole('list', { name: 'Setup steps' })
   expect(within(steps).getByText('Team access').closest('a')).toHaveAttribute('aria-current', 'page')
+  // Payroll history is optional: once you're past it, it's ticked like the steps before.
+  expect(within(steps).getByText('Payroll history').closest('a')).toHaveTextContent(/^✓/)
+  expect(within(steps).getByText('Team access').closest('a')).toHaveTextContent(/^10/)
   await expectNoA11yViolations(container)
 })
 
