@@ -100,7 +100,7 @@ function AcceptForm({ token, invitation }: { token: string; invitation: Invitati
 
   return (
     <AuthLayout title={t('invite.title', { organization: invitation.organization })}
-      intro={t('invite.intro', { inviter: invitation.invitedBy, role: t(`invite.roles.${invitation.group}`), companies })}>
+      intro={t('invite.intro', { inviter: invitation.invitedBy, role: new Intl.ListFormat('en-GB', { type: 'conjunction' }).format(invitation.groups.map(g => t(`invite.roles.${g}`))), companies })}>
       <form noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}

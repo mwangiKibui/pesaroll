@@ -1463,7 +1463,7 @@
     "phonePlaceholder": "Your phone number",
     "contactHint": "The invitation goes to their email, their phone by SMS, or both.",
     "contactNeeded": "Enter their email address or mobile number, so the invitation can reach them.",
-    "groupNeeded": "Choose their group.",
+    "groupNeeded": "Choose at least one group.",
     "inviteTitle": "Invite someone",
     "send": "Send invitation",
     "joined": "Joined",
@@ -1472,6 +1472,9 @@
     "expires": "Link expires",
     "expired": "Link expired",
     "changeTitle": "Change {{name}}'s access",
-    "sentOn": "Sent"
+    "sentOn": "Sent",
+    "groupsLabel": "Groups",
+    "groupsHint": "Choose one or more. They get everything each group allows, for the companies below.",
+    "selfApproval": "They could approve pay runs they prepare. Where you can, let someone else approve them: Pesaroll will stop it unless your settings allow it."
   }
 }

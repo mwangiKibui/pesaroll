@@ -1463,7 +1463,7 @@
     "phonePlaceholder": "Nambari yako ya simu",
     "contactHint": "Mwaliko unaenda kwa barua pepe, simu kwa SMS, au vyote.",
     "contactNeeded": "Weka barua pepe au nambari ya simu, ili mwaliko uwafikie.",
-    "groupNeeded": "Chagua kikundi chao.",
+    "groupNeeded": "Chagua angalau kikundi kimoja.",
     "inviteTitle": "Alika mtu",
     "send": "Tuma mwaliko",
     "joined": "Alijiunga",
@@ -1472,6 +1472,9 @@
     "sentTimes_other": "{{date}} (umetumwa mara {{count}})",
     "expires": "Kiungo kinaisha",
     "expired": "Kiungo kimeisha",
-    "changeTitle": "Badilisha ruhusa za {{name}}"
+    "changeTitle": "Badilisha ruhusa za {{name}}",
+    "groupsLabel": "Vikundi",
+    "groupsHint": "Chagua kimoja au zaidi. Wanapata kila kitu ambacho kila kikundi kinaruhusu, kwa kampuni zilizo hapa chini.",
+    "selfApproval": "Wanaweza kuidhinisha mishahara wanayoiandaa. Ikiwezekana, mtu mwingine aidhinishe: Pesaroll itazuia hili isipokuwa mipangilio yako inaruhusu."
   }
 }

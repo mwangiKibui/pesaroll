@@ -14,13 +14,13 @@ namespace Pesaroll.Organizations;
 
 /// <summary>
 /// Inviting a colleague: first and last name, an email and/or Kenyan phone number (the message goes
-/// to each), the group whose role they get (administrators, hr, payroll, approvers), and all
-/// companies or chosen ones.
+/// to each), the groups whose roles they get (one or more of administrators, hr, payroll, approvers:
+/// HR and Payroll for one person is common), and all companies or chosen ones.
 /// </summary>
-public sealed record InviteRequest(string? FirstName, string? LastName, string? Email, string? Phone, string? Group, bool AllCompanies, List<Guid>? CompanyIds);
+public sealed record InviteRequest(string? FirstName, string? LastName, string? Email, string? Phone, List<string>? Groups, bool AllCompanies, List<Guid>? CompanyIds);
 
 /// <summary>An invitation not yet accepted or cancelled: open, or expired (resend it for a new link).</summary>
-public sealed record InvitationRow(Guid Id, string FirstName, string LastName, string? Email, string? Phone, string Group, bool AllCompanies,
+public sealed record InvitationRow(Guid Id, string FirstName, string LastName, string? Email, string? Phone, IReadOnlyList<string> Groups, bool AllCompanies,
     IReadOnlyList<Guid> CompanyIds, string Status, DateTimeOffset ExpiresAt, DateTimeOffset SentAt, int SendCount);
 
 /// <summary>One of a person's groups: its role as a group key (null for a group with several roles), its name and companies.</summary>
@@ -30,8 +30,8 @@ public sealed record MemberAccess(string? Group, string Name, bool AllCompanies,
 public sealed record TeamMember(Guid MembershipId, Guid UserId, string FirstName, string LastName, string? Email, string? Phone, DateTimeOffset JoinedAt,
     bool IsYou, IReadOnlyList<MemberAccess> Groups);
 
-/// <summary>Someone's new access: the group whose role they get, and all companies or chosen ones.</summary>
-public sealed record AccessRequest(string? Group, bool AllCompanies, List<Guid>? CompanyIds);
+/// <summary>Someone's new access: the groups whose roles they get (one or more), and all companies or chosen ones.</summary>
+public sealed record AccessRequest(List<string>? Groups, bool AllCompanies, List<Guid>? CompanyIds);
 
 /// <summary>
 /// ACC-03, inviting colleagues into the organization "as HR, for these companies", by email or SMS.
@@ -42,6 +42,13 @@ public sealed record AccessRequest(string? Group, bool AllCompanies, List<Guid>?
 public static class TeamEndpoints
 {
     public static readonly string[] Groups = ["administrators", "hr", "payroll", "approvers"];
+
+    /// <summary>The groups asked for, in the usual order, or null when there are none or one isn't known.</summary>
+    private static string[]? GroupsFrom(List<string>? asked)
+    {
+        var groups = (asked ?? []).Distinct().ToList();
+        return groups.Count > 0 && groups.All(Groups.Contains) ? Groups.Where(groups.Contains).ToArray() : null;
+    }
     private static readonly TimeSpan Lasts = TimeSpan.FromDays(7);
     private static readonly Dictionary<string, string> RoleNames = new()
     {
@@ -91,9 +98,10 @@ public static class TeamEndpoints
                 errors["contact"] = "Enter their email address or mobile number, so the invitation can reach them.";
             }
 
-            if (request.Group is null || !Groups.Contains(request.Group))
+            var groups = GroupsFrom(request.Groups);
+            if (groups is null)
             {
-                errors["group"] = "Choose a group: Administrators, HR, Payroll or Approvers.";
+                errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
             }
 
             var companyIds = (request.CompanyIds ?? []).Distinct().ToList();
@@ -142,7 +150,7 @@ public static class TeamEndpoints
             var invitation = new Invitation
             {
                 Id = Guid.CreateVersion7(), OrganizationId = organizationId, FirstName = firstName, LastName = lastName, Email = email, Phone = phone,
-                GroupKey = request.Group!, AllCompanies = request.AllCompanies, InvitedBy = userId, TokenHash = SHA256.HashData(token),
+                GroupKeys = groups!, AllCompanies = request.AllCompanies, InvitedBy = userId, TokenHash = SHA256.HashData(token),
                 ExpiresAt = now + Lasts, SentAt = now, SendCount = 1, CreatedAt = now, UpdatedAt = now,
             };
             if (!request.AllCompanies)
@@ -230,9 +238,10 @@ public static class TeamEndpoints
             CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Team);
             var errors = new Dictionary<string, string>();
-            if (request.Group is null || !Groups.Contains(request.Group))
+            var groups = GroupsFrom(request.Groups);
+            if (groups is null)
             {
-                errors["group"] = "Choose a group: Administrators, HR, Payroll or Approvers.";
+                errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
             }
 
             var companyIds = (request.CompanyIds ?? []).Distinct().ToArray();
@@ -248,7 +257,7 @@ public static class TeamEndpoints
             }
 
             await TeamChangeAsync(() => db.Database.ExecuteSqlAsync(
-                $"select set_member_access({id}, {request.Group}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
+                $"select set_member_access({id}, {groups!}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -285,10 +294,11 @@ public static class TeamEndpoints
         {
             await change();
         }
-        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008")
+        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008" or "ACC-8009")
         {
             throw error.MessageText switch
             {
+                "ACC-8009" => OnboardingErrors.AccessInvalid(new Dictionary<string, string> { ["groups"] = "Choose one or more groups." }),
                 "ACC-8007" => OnboardingErrors.LastAdministrator(),
                 "ACC-8008" => OnboardingErrors.MemberNotFound(),
                 _ => OnboardingErrors.NoPermission(),
@@ -310,7 +320,7 @@ public static class TeamEndpoints
         var inviter = await db.Database.SqlQuery<string>($"""select full_name as "Value" from users where id = {invitation.InvitedBy}""").SingleAsync(ct);
         var data = new Dictionary<string, string>
         {
-            ["firstName"] = invitation.FirstName, ["inviter"] = inviter, ["organization"] = organization, ["role"] = RoleNames[invitation.GroupKey],
+            ["firstName"] = invitation.FirstName, ["inviter"] = inviter, ["organization"] = organization, ["role"] = RoleList(invitation.GroupKeys),
             ["link"] = $"{(configuration["App:Url"] ?? "https://app.pesaroll.co.ke").TrimEnd('/')}/invite/{Base64Url.EncodeToString(token)}",
         };
         if (invitation.Email is not null)
@@ -324,7 +334,14 @@ public static class TeamEndpoints
         }
     }
 
+    /// <summary>"HR and Payroll", "an administrator": the roles as the message reads them.</summary>
+    private static string RoleList(IReadOnlyList<string> keys)
+    {
+        var names = keys.Select(k => RoleNames[k]).ToList();
+        return names.Count == 1 ? names[0] : $"{string.Join(", ", names[..^1])} and {names[^1]}";
+    }
+
     private static InvitationRow ToRow(Invitation i, DateTimeOffset now) =>
-        new(i.Id, i.FirstName, i.LastName, i.Email, i.Phone, i.GroupKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(),
+        new(i.Id, i.FirstName, i.LastName, i.Email, i.Phone, i.GroupKeys, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(),
             i.ExpiresAt > now ? "open" : "expired", i.ExpiresAt, i.SentAt, i.SendCount);
 }

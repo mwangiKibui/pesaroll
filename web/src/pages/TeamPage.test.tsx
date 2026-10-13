@@ -18,7 +18,7 @@ const mary = {
   isYou: false, groups: [{ group: 'hr', name: 'HR · Westlands Ltd', allCompanies: false, companyIds: [westlands.id] }],
 }
 const otieno = {
-  id: 'inv-otieno', firstName: 'Otieno', lastName: 'Ouma', email: null, phone: '+254712345678', group: 'payroll', allCompanies: false,
+  id: 'inv-otieno', firstName: 'Otieno', lastName: 'Ouma', email: null, phone: '+254712345678', groups: ['payroll'], allCompanies: false,
   companyIds: [mombasa.id], status: 'open', expiresAt: '2026-10-20T09:00:00Z', sentAt: '2026-10-13T09:00:00Z', sendCount: 1,
 }
 
@@ -70,9 +70,14 @@ it('invites someone as HR for chosen companies, from a drawer', async () => {
   await userEvent.type(within(drawer).getByRole('textbox', { name: 'First name' }), 'Njeri')
   await userEvent.type(within(drawer).getByRole('textbox', { name: 'Last name' }), 'Kamau')
   await userEvent.type(within(drawer).getByRole('textbox', { name: 'Email' }), 'njeri@example.com')
-  await userEvent.click(within(drawer).getByRole('combobox', { name: 'Group' }))
-  await userEvent.click(screen.getByRole('option', { name: 'HR' }))
+  // One or more groups: HR and Payroll together. Payroll with Approver warns about approving your own pay runs.
   expect(within(drawer).getByText(/Employees, structure, locations and leave/)).toBeInTheDocument()
+  await userEvent.click(within(drawer).getByRole('checkbox', { name: /^HR/ }))
+  await userEvent.click(within(drawer).getByRole('checkbox', { name: /^Payroll/ }))
+  await userEvent.click(within(drawer).getByRole('checkbox', { name: /^Approver/ }))
+  expect(within(drawer).getByText(/could approve pay runs they prepare/)).toBeInTheDocument()
+  await userEvent.click(within(drawer).getByRole('checkbox', { name: /^Approver/ }))
+  expect(within(drawer).queryByText(/could approve pay runs they prepare/)).not.toBeInTheDocument()
   // Every company starts ticked; untick Mombasa.
   await userEvent.click(within(drawer).getByRole('button', { name: /Companies/ }))
   await userEvent.click(screen.getByRole('option', { name: /Mombasa Ltd/ }))
@@ -80,7 +85,7 @@ it('invites someone as HR for chosen companies, from a drawer', async () => {
   await userEvent.click(within(drawer).getByRole('button', { name: 'Send invitation' }))
 
   await vi.waitFor(() => expect(calls.find(c => c.method === 'POST' && c.path === '/api/team/invitations')?.body).toEqual({
-    firstName: 'Njeri', lastName: 'Kamau', email: 'njeri@example.com', phone: null, group: 'hr', allCompanies: false, companyIds: [westlands.id],
+    firstName: 'Njeri', lastName: 'Kamau', email: 'njeri@example.com', phone: null, groups: ['hr', 'payroll'], allCompanies: false, companyIds: [westlands.id],
   }))
   expect(await screen.findByText('Invitation sent to Njeri Kamau')).toBeInTheDocument()
 })
@@ -94,8 +99,7 @@ it('an invitation needs an email or phone, and the server\'s problems show under
   const drawer = screen.getByRole('dialog', { name: 'Invite someone' })
   await userEvent.type(within(drawer).getByRole('textbox', { name: 'First name' }), 'Njeri')
   await userEvent.type(within(drawer).getByRole('textbox', { name: 'Last name' }), 'Kamau')
-  await userEvent.click(within(drawer).getByRole('combobox', { name: 'Group' }))
-  await userEvent.click(screen.getByRole('option', { name: 'Payroll' }))
+  await userEvent.click(within(drawer).getByRole('checkbox', { name: /^Payroll/ }))
   await userEvent.click(within(drawer).getByRole('button', { name: 'Send invitation' }))
   expect(await within(drawer).findAllByText('Enter their email address or mobile number, so the invitation can reach them.')).not.toHaveLength(0)
   expect(calls.some(c => c.method === 'POST' && c.path === '/api/team/invitations')).toBe(false)
@@ -130,11 +134,10 @@ it('resends and revokes invitations, changes someone\'s access in a modal, and r
   expect(within(view).getByText('HR · Westlands Ltd')).toBeInTheDocument()
   await userEvent.click(within(view).getByRole('button', { name: 'Change access' }))
   const modal = screen.getByRole('dialog', { name: "Change Mary Wanjiku's access" })
-  expect(within(modal).getByRole('combobox', { name: 'Group' })).toHaveValue('HR')
-  await userEvent.click(within(modal).getByRole('combobox', { name: 'Group' }))
-  await userEvent.click(screen.getByRole('option', { name: 'Payroll' }))
+  expect(within(modal).getByRole('checkbox', { name: /^HR/ })).toBeChecked()
+  await userEvent.click(within(modal).getByRole('checkbox', { name: /^Payroll/ }))   // HR and Payroll
   await userEvent.click(within(modal).getByRole('button', { name: 'Save' }))
-  await vi.waitFor(() => expect(calls.find(c => c.method === 'PUT')?.body).toEqual({ group: 'payroll', allCompanies: false, companyIds: [westlands.id] }))
+  await vi.waitFor(() => expect(calls.find(c => c.method === 'PUT')?.body).toEqual({ groups: ['hr', 'payroll'], allCompanies: false, companyIds: [westlands.id] }))
   expect(await screen.findByText("Mary Wanjiku's access is updated")).toBeInTheDocument()
   await userEvent.keyboard('{Escape}')
 

@@ -52,7 +52,7 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
     {
         var email = $"colleague-{Guid.NewGuid():N}@example.com";
         Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/team/invitations",
-            new { firstName = "Mary", lastName = "Wanjiku", email, group, allCompanies = companies.Length == 0, companyIds = companies })).StatusCode);
+            new { firstName = "Mary", lastName = "Wanjiku", email, groups = new[] { group }, allCompanies = companies.Length == 0, companyIds = companies })).StatusCode);
         await using var connection = new NpgsqlConnection(Db);
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(
@@ -92,18 +92,24 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         var id = (await owner.GetFromJsonAsync<List<Member>>("/api/team/members"))!.Single(m => m.FirstName == "Mary").MembershipId;
 
         Assert.Equal(HttpStatusCode.NoContent, (await owner.PutAsJsonAsync($"/api/team/members/{id}/access",
-            new { group = "payroll", allCompanies = false, companyIds = new[] { mombasa.Id } })).StatusCode);
+            new { groups = new[] { "payroll" }, allCompanies = false, companyIds = new[] { mombasa.Id } })).StatusCode);
         var grants = (await mary.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions;
         Assert.Contains(grants, g => g.Permission == "pay_items.manage");
         Assert.DoesNotContain(grants, g => g.Permission == "structure.manage");
         Assert.Equal([mombasa.Id], (await mary.GetFromJsonAsync<List<Company>>("/api/companies"))!.Select(c => c.Id));
         Assert.Equal(["Payroll · Mombasa Ltd"], (await owner.GetFromJsonAsync<List<Member>>("/api/team/members"))!.Single(m => m.MembershipId == id).Groups.Select(g => g.Name));
 
-        var bad = await owner.PutAsJsonAsync($"/api/team/members/{id}/access", new { group = "owners", allCompanies = false, companyIds = Array.Empty<Guid>() });
+        // HR and Payroll for Mombasa: both groups, listed on the team.
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.PutAsJsonAsync($"/api/team/members/{id}/access",
+            new { groups = new[] { "hr", "payroll" }, allCompanies = false, companyIds = new[] { mombasa.Id } })).StatusCode);
+        Assert.Contains((await mary.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions, g => g.Permission == "structure.manage");
+        Assert.Equal(["HR · Mombasa Ltd", "Payroll · Mombasa Ltd"], (await owner.GetFromJsonAsync<List<Member>>("/api/team/members"))!.Single(m => m.MembershipId == id).Groups.Select(g => g.Name).Order());
+
+        var bad = await owner.PutAsJsonAsync($"/api/team/members/{id}/access", new { groups = new[] { "owners" }, allCompanies = false, companyIds = Array.Empty<Guid>() });
         var error = (await bad.Content.ReadFromJsonAsync<Error>())!;
         Assert.Equal("ACC-8009", error.Code);
-        Assert.Equal(["companyIds", "group"], error.Fields!.Keys.Order());
-        Assert.Equal("ACC-8008", await Code(await owner.PutAsJsonAsync($"/api/team/members/{Guid.NewGuid()}/access", new { group = "hr", allCompanies = true })));
+        Assert.Equal(["companyIds", "groups"], error.Fields!.Keys.Order());
+        Assert.Equal("ACC-8008", await Code(await owner.PutAsJsonAsync($"/api/team/members/{Guid.NewGuid()}/access", new { groups = new[] { "hr" }, allCompanies = true })));
     }
 
     [Fact]
@@ -120,7 +126,7 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         Assert.Equal("ACC-8001", await Code(await mary.DeleteAsync($"/api/team/members/{aminaId}")));
 
         // Amina is the only administrator.
-        Assert.Equal("ACC-8007", await Code(await owner.PutAsJsonAsync($"/api/team/members/{aminaId}/access", new { group = "hr", allCompanies = true })));
+        Assert.Equal("ACC-8007", await Code(await owner.PutAsJsonAsync($"/api/team/members/{aminaId}/access", new { groups = new[] { "hr" }, allCompanies = true })));
         Assert.Equal("ACC-8007", await Code(await owner.DeleteAsync($"/api/team/members/{aminaId}")));
 
         Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/team/members/{maryId}")).StatusCode);

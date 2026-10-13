@@ -6841,7 +6841,7 @@ export interface components {
             companyIds: string[];
         };
         AccessRequest: {
-            group: null | string;
+            groups: null | string[];
             allCompanies: boolean;
             companyIds: null | string[];
         };
@@ -7200,7 +7200,7 @@ export interface components {
             lastName: string;
             email: null | string;
             phone: null | string;
-            group: string;
+            groups: string[];
             allCompanies: boolean;
             companies: string[];
             /** Format: date-time */
@@ -7214,7 +7214,7 @@ export interface components {
             lastName: string;
             email: null | string;
             phone: null | string;
-            group: string;
+            groups: string[];
             allCompanies: boolean;
             companyIds: string[];
             status: string;
@@ -7230,7 +7230,7 @@ export interface components {
             lastName: null | string;
             email: null | string;
             phone: null | string;
-            group: null | string;
+            groups: null | string[];
             allCompanies: boolean;
             companyIds: null | string[];
         };
