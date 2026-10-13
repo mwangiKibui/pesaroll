@@ -17,8 +17,10 @@ namespace Pesaroll.Organizations;
 /// </summary>
 public sealed record ImportRow(int Line, Dictionary<string, string> Cells);
 
-/// <summary>A problem: the row (0 for the whole file), the column key it is in (when it is about one) and what to fix.</summary>
-/// <summary>A problem (blocks the import) or, in notes, something to know: Kind null for what will be created, "warning" for what to check (doesn't block).</summary>
+/// <summary>
+/// A problem: the row (0 for the whole file), the column key it is in (when it is about one) and what to fix. In notes,
+/// something to know: Kind null for what will be created, "warning" for what to check (it doesn't block the import).
+/// </summary>
 public sealed record ImportProblem(int Line, string? Column, string Message, string? Kind = null);
 
 /// <summary>
@@ -31,7 +33,8 @@ public sealed record ImportRowsRequest(List<ImportRow>? Rows);
 
 public sealed record ImportCheck(IReadOnlyList<ImportProblem> Problems, IReadOnlyList<ImportProblem> Notes);
 
-public sealed record ImportRequest(List<ImportRow>? Rows, bool AllCompanies, List<Guid>? CompanyIds);
+/// <summary>The checked rows to save, for which companies, and the uploaded file's name (kept by imports that record their batches).</summary>
+public sealed record ImportRequest(List<ImportRow>? Rows, bool AllCompanies, List<Guid>? CompanyIds, string? FileName = null);
 
 public sealed record ImportResult(int Imported);
 

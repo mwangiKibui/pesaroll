@@ -32,6 +32,8 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<PayItemCompany> PayItemCompanies => Set<PayItemCompany>();
     public DbSet<EmployeePayItem> EmployeePayItems => Set<EmployeePayItem>();
     public DbSet<Payee> Payees => Set<Payee>();
+    public DbSet<PayrollHistoryBatch> PayrollHistoryBatches => Set<PayrollHistoryBatch>();
+    public DbSet<PayrollHistoryLine> PayrollHistoryLines => Set<PayrollHistoryLine>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Employment> Employments => Set<Employment>();
     public DbSet<Compensation> Compensations => Set<Compensation>();
@@ -103,6 +105,8 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<PayItemCompany>().HasKey(c => new { c.PayItemId, c.CompanyId });
         model.Entity<EmployeePayItem>().Property(x => x.Id).ValueGeneratedNever();
         model.Entity<Payee>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<PayrollHistoryBatch>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<PayrollHistoryLine>().Property(x => x.Id).ValueGeneratedNever();
         model.Entity<Payee>().Property(x => x.CountryCode).HasColumnType("char(2)");
         model.Entity<PayItemCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
         // Employees: the app makes every id, so rows added to an employee are new, not updates.

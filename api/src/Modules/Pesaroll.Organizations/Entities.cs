@@ -694,3 +694,56 @@ public sealed class UnitCompany : IStructureLink
     public Guid CompanyId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+/// <summary>One upload of payroll history from the previous system (ONB-10): deleting it takes its lines.</summary>
+public sealed class PayrollHistoryBatch
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public required string FileName { get; set; }
+    public int RowCount { get; set; }
+    public DateOnly FirstPeriod { get; set; }
+    public DateOnly LastPeriod { get; set; }
+    public decimal GrossTotal { get; set; }
+    public decimal PayeTotal { get; set; }
+    public Guid ImportedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>A person's month in the previous system: the figures a P9A tax card and year-to-date totals need.</summary>
+public sealed class PayrollHistoryLine
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid BatchId { get; set; }
+    public Guid EmployeeId { get; set; }
+    /// <summary>The first of the month.</summary>
+    public DateOnly Period { get; set; }
+    public DateOnly? PayDate { get; set; }
+    public decimal BasicPay { get; set; }
+    public decimal? CashAllowances { get; set; }
+    public decimal? NonCashBenefits { get; set; }
+    public decimal? ValueOfQuarters { get; set; }
+    public decimal GrossPay { get; set; }
+    public decimal? Pension { get; set; }
+    public decimal? NssfTier1 { get; set; }
+    public decimal? NssfTier2 { get; set; }
+    public decimal NssfEmployee { get; set; }
+    public decimal? NssfEmployer { get; set; }
+    public decimal Shif { get; set; }
+    public decimal? HousingLevyEmployee { get; set; }
+    public decimal? HousingLevyEmployer { get; set; }
+    public decimal? PostRetirementMedical { get; set; }
+    public decimal? MortgageInterest { get; set; }
+    public decimal? TaxablePay { get; set; }
+    public decimal? PersonalRelief { get; set; }
+    public decimal? InsuranceRelief { get; set; }
+    public decimal Paye { get; set; }
+    public decimal? OtherDeductions { get; set; }
+    public decimal? NetPay { get; set; }
+    public decimal? Nita { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
