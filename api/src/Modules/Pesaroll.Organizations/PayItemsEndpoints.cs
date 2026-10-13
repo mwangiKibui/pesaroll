@@ -433,10 +433,10 @@ public static class PayItemsEndpoints
         return made;
     }
 
-    private sealed record ValidItem(string? Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod,
+    internal sealed record ValidItem(string? Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod,
         decimal? DefaultAmount, decimal? Rate, bool AllCompanies, List<Guid> CompanyIds, Guid? PayeeId);
 
-    private static async Task<ValidItem> ValidateAsync(PayItemRequest request, OrganizationsDbContext db, CancellationToken ct)
+    internal static async Task<ValidItem> ValidateAsync(PayItemRequest request, OrganizationsDbContext db, CancellationToken ct)
     {
         var errors = new Dictionary<string, string>();
         var name = request.Name?.Trim() ?? "";
@@ -508,7 +508,7 @@ public static class PayItemsEndpoints
             amount, rate, request.AllCompanies, request.AllCompanies ? [] : chosen, kind == "earning" ? null : request.PayeeId);
     }
 
-    private static void Apply(PayItem item, ValidItem valid, DateTimeOffset now)
+    internal static void Apply(PayItem item, ValidItem valid, DateTimeOffset now)
     {
         item.Taxable = valid.Taxable;
         item.BeforeTax = valid.BeforeTax;
