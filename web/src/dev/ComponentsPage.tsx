@@ -7,6 +7,7 @@ import { Drawer } from '../components/Drawer'
 import { Modal } from '../components/Modal'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
 import { Checkbox, RadioGroup, SelectField, Switch, TextField } from '../components/fields'
+import { NewPasswordField } from '../components/NewPasswordField'
 import { PasswordField } from '../components/PasswordField'
 import { Money } from '../components/Money'
 import { AppShell, PhoneShell } from '../components/shells'
@@ -49,6 +50,7 @@ export default function ComponentsPage() {
   const [several, setSeveral] = useState<CompanySelection>({ all: false, ids: ['ke'] })
   const [one, setOne] = useState<CompanySelection>({ all: false, ids: ['ug'] })
   const [items, setItems] = useState(['overtime', 'leavers'])
+  const [newPassword, setNewPassword] = useState('Mombasa-7')
   const [town, setTown] = useState('nbo')
   const [payFrom, setPayFrom] = useState('bank')
   const [isDefault, setIsDefault] = useState(true)
@@ -89,7 +91,8 @@ export default function ComponentsPage() {
             <TextField label="Email" placeholder="Your email" defaultValue="wanjiru@" error="Enter a valid email address or Kenyan phone number." />
             <SelectField label="Town" placeholder="Your town" hint="Searchable: type to filter. Sets the minimum-wage zone and public holidays." options={[{ value: 'nbo', label: 'Nairobi' }, { value: 'msa', label: 'Mombasa' }, { value: 'ksm', label: 'Kisumu' }, { value: 'nak', label: 'Nakuru' }, { value: 'eld', label: 'Eldoret' }, { value: 'mra', label: "Murang'a" }]} value={town} onChange={setTown} />
             <TextField label="Phone (phone layout)" placeholder="Your phone" size="lg" defaultValue="0723 456 789" />
-            <PasswordField label="Password" placeholder="Your password" isNew />
+            <PasswordField label="Password" placeholder="Your password" />
+            <NewPasswordField label="New password (sign-up, invitations)" placeholder="Your password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
             <div className="flex flex-col"><Checkbox label="Main location for Mama Oliech Restaurants · KE" defaultChecked /><Checkbox label="Main location for Oliech Catering · UG" /></div>
             <RadioGroup label="Pay from" name="dev-pay-from" value={payFrom} onChange={setPayFrom}
               options={[{ value: 'bank', label: 'Bank account', hint: 'A bulk payment file for your bank.' }, { value: 'mpesa', label: 'M-Pesa', hint: 'A B2C shortcode that sends pay to phones.' }]} />

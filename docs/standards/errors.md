@@ -45,7 +45,18 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | AUTH-1008 | Enter your first and last name and choose your role. | Customer | Sign-up form incomplete. |
 | AUTH-1009 | You chose Other: type your role (up to 80 characters). | Customer | Sign-up role "Other" needs the person's own role. |
 | AUTH-1010 | Your session has ended. Sign in again. | Customer | Access token expired, changed or for an ended session, or a refresh failed. Sessions end after 12 hours idle, 7 days total, at sign-out, or when an old refresh token is reused (possible theft: suggest a password change). |
+| AUTH-1011 | This invitation link isn't valid. Check you opened the whole link, or ask for a new invitation. | Customer | No invitation has this link's token (mistyped or cut-off link, or an old link replaced by a resend). |
+| AUTH-1012 | This invitation has expired. Ask the person who invited you to send it again. | Customer | Invitation links last 7 days. An administrator resends it from Team access. |
+| AUTH-1013 | This invitation has already been accepted. Sign in instead. | Customer | Links work once. |
+| AUTH-1014 | This invitation was cancelled. Ask the person who invited you if you still need access. | Customer | An administrator revoked it in Team access. |
+| AUTH-1015 | This invitation is for a different email or phone number. | Customer | Only the account with the invitation's email or phone can accept it. |
+| AUTH-1016 | Enter your first and last name. | Customer | Accepting an invitation for a new account needs a first and last name (up to 60 characters each). |
 | ACC-8001 | You don't have permission to do this. Ask an administrator in your organization. | Customer | Check the person's role and company scope in the back office. |
+| ACC-8002 | {name} is already in your organization. | Customer | The email or phone belongs to an active member; change their group in Team access instead. |
+| ACC-8003 | {contact} already has an invitation waiting. Resend it instead. | Customer | One open invitation per email and per phone in an organization. |
+| ACC-8004 | Some invitation details don't look right. Check the fields marked. | Customer | Name, an email or Kenyan phone number, a group, and all companies or at least one. |
+| ACC-8005 | We couldn't find that invitation. It may have been deleted. | Customer | The invitation doesn't exist in this organization. |
+| ACC-8006 | This invitation was already accepted or cancelled. | Customer | Only open or expired invitations can be resent or cancelled. |
 | IMP-3001 | Row {row}: {column} is required. | Customer | Point them to the template's required columns. |
 | IMP-3002 | Row {row}: "{value}" isn't one of your {column} options. | Customer | Check the option exists in setup, or fix the spelling. |
 | ONB-3501 | Enter your organization's name (2 to 120 characters). | Customer | Organization step: the name is the one their team knows them by; legal company names come next. |

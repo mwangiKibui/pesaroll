@@ -105,6 +105,31 @@ public static class IdentityModule
             .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
             .RequireRateLimiting(SignInRateLimit);
 
+        // Invitations (AUTH-08), by the link's token, for people not signed in: the accept page reads
+        // one, then accepting signs them in to the organization.
+        var invitations = app.MapGroup("/api/invitations").WithTags("Invitations");
+        invitations.MapGet("/{token}", async (string token, AuthService service, CancellationToken ct) =>
+                Results.Ok(await service.InvitationAsync(token, ct)))
+            .Produces<InvitationResponse>()
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<ErrorResponse>(StatusCodes.Status410Gone)
+            .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
+            .RequireRateLimiting(SignInRateLimit);
+
+        invitations.MapPost("/{token}/accept", async (string token, AcceptInvitationRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
+                Results.Ok(await service.AcceptInvitationAsync(token, request, http, ct)))
+            .Produces<TokenResponse>()
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<ErrorResponse>(StatusCodes.Status410Gone)
+            .Produces<ErrorResponse>(StatusCodes.Status423Locked)
+            .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
+            .RequireRateLimiting(SignInRateLimit);
+
         // A new access token from the refresh cookie. The web app calls this when a token is
         // about to expire or a request fails with AUTH-1010, one call at a time.
         auth.MapPost("/refresh", async (SessionService sessions, HttpContext http, CancellationToken ct) =>

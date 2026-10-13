@@ -1,7 +1,10 @@
+using System.Buffers.Text;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Identity;
@@ -10,6 +13,17 @@ public sealed record SignUpRequest(
     string? FirstName, string? MiddleName, string? LastName, string? Email, string? Phone, string? Password, Guid? RoleId, string? RoleOther);
 
 public sealed record SignInRequest(string? Identifier, string? Password);
+
+/// <summary>
+/// An invitation as the accept page shows it: the organization, who invited them, their name and
+/// email or phone as invited, the group (administrators, hr, payroll, approvers) and companies,
+/// and whether they sign in to accept (an account with that email or phone exists).
+/// </summary>
+public sealed record InvitationResponse(string Organization, string InvitedBy, string FirstName, string LastName, string? Email, string? Phone,
+    string Group, bool AllCompanies, IReadOnlyList<string> Companies, DateTimeOffset ExpiresAt, bool HasAccount);
+
+/// <summary>Accepting: their name and a new password, or, with an account already, its password.</summary>
+public sealed record AcceptInvitationRequest(string? FirstName, string? LastName, string? Password);
 
 /// <param name="CanOnboardOrganization">
 /// True for someone who signed up themselves and hasn't onboarded an organization yet: the app takes
@@ -98,8 +112,147 @@ public sealed class AuthService(
     public async Task<TokenResponse> SignInAsync(SignInRequest request, HttpContext http, CancellationToken ct)
     {
         var identifier = Identifiers.NormalizeEither(request.Identifier) ?? throw AuthErrors.InvalidIdentifier();
-        var password = request.Password ?? "";
+        var userId = await VerifyAsync(identifier, request.Password ?? "", ct);
 
+        tenant.SetUser(userId);
+        var organizationId = await db.Memberships
+            .Where(m => m.UserId == userId && m.Status == "active")
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => (Guid?)m.OrganizationId)
+            .FirstOrDefaultAsync(ct);
+
+        return await sessions.StartAsync(userId, organizationId, http, ct);
+    }
+
+    /// <summary>
+    /// An invitation, by its link (AUTH-08), for the accept page: who invited them, to what, and
+    /// whether they already have an account. Links that no longer work say why.
+    /// </summary>
+    public async Task<InvitationResponse> InvitationAsync(string token, CancellationToken ct)
+    {
+        var invitation = await FindInvitationAsync(token, ct);
+        return new InvitationResponse(invitation.Organization, invitation.InvitedBy, invitation.FirstName, invitation.LastName, invitation.Email,
+            invitation.Phone, invitation.GroupKey, invitation.AllCompanies, invitation.Companies, invitation.ExpiresAt, invitation.HasAccount);
+    }
+
+    /// <summary>
+    /// Accepts an invitation: a new account with the invitation's email or phone (the link proves
+    /// it), or the existing account's password; then they join the organization in the invitation's
+    /// group and are signed in to it.
+    /// </summary>
+    public async Task<TokenResponse> AcceptInvitationAsync(string token, AcceptInvitationRequest request, HttpContext http, CancellationToken ct)
+    {
+        var invitation = await FindInvitationAsync(token, ct);
+        Guid userId;
+        User? user = null;
+        if (invitation.HasAccount)
+        {
+            userId = await VerifyAsync(invitation.Email ?? invitation.Phone!, request.Password ?? "", ct);
+        }
+        else
+        {
+            var firstName = request.FirstName?.Trim();
+            var lastName = request.LastName?.Trim();
+            if (!IsNamePart(firstName) || !IsNamePart(lastName))
+            {
+                throw AuthErrors.MissingName();
+            }
+
+            if (request.Password is null || request.Password.Length < Passwords.MinimumLength)
+            {
+                throw AuthErrors.PasswordTooShort();
+            }
+
+            var now = clock.GetUtcNow();
+            user = new User
+            {
+                Id = Guid.CreateVersion7(), FirstName = firstName!, LastName = lastName!, Email = invitation.Email, Phone = invitation.Phone,
+                SignedUpVia = "invitation",
+                // The link reached them there.
+                EmailVerifiedAt = invitation.Email is null ? null : now, PhoneVerifiedAt = invitation.Phone is null ? null : now,
+            };
+            user.PasswordHash = hasher.HashPassword(user, request.Password);
+            userId = user.Id;
+        }
+
+        // The connection takes the person when it opens, so they are set before the transaction starts.
+        tenant.SetUser(userId);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        if (user is not null)
+        {
+            db.Users.Add(user);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+            {
+                tenant.Clear();
+                throw AuthErrors.AlreadyExists();
+            }
+        }
+
+        Guid organizationId;
+        try
+        {
+            organizationId = (await db.QueryAsync("select accept_invitation(@hash)", r => r.GetGuid(0),
+                new Dictionary<string, object?> { ["hash"] = invitation.Hash }, ct)).Single();
+        }
+        catch (PostgresException error) when (InvitationError(error.MessageText) is { } known)
+        {
+            throw known;
+        }
+
+        await transaction.CommitAsync(ct);
+        return await sessions.StartAsync(userId, organizationId, http, ct);
+    }
+
+    private sealed record FoundInvitation(byte[] Hash, string Organization, string InvitedBy, string FirstName, string LastName, string? Email, string? Phone,
+        string GroupKey, bool AllCompanies, string[] Companies, DateTimeOffset ExpiresAt, bool HasAccount);
+
+    private async Task<FoundInvitation> FindInvitationAsync(string token, CancellationToken ct)
+    {
+        byte[] raw;
+        try
+        {
+            raw = Base64Url.DecodeFromChars(token);
+        }
+        catch (FormatException)
+        {
+            throw AuthErrors.InvitationNotFound();
+        }
+
+        var hash = SHA256.HashData(raw);
+        var found = (await db.QueryAsync(
+            "select organization_name, invited_by_name, first_name, last_name, email, phone, group_key, all_companies, company_names, status, expires_at, has_account " +
+            "from invitation_by_token(@hash)",
+            r => (Invitation: new FoundInvitation(hash, r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4),
+                r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6), r.GetBoolean(7), r.GetFieldValue<string[]>(8), r.GetFieldValue<DateTimeOffset>(10), r.GetBoolean(11)),
+                Status: r.GetString(9)),
+            new Dictionary<string, object?> { ["hash"] = hash }, ct)).FirstOrDefault();
+        return found.Status switch
+        {
+            null => throw AuthErrors.InvitationNotFound(),
+            "expired" => throw AuthErrors.InvitationExpired(),
+            "accepted" => throw AuthErrors.InvitationUsed(),
+            "revoked" => throw AuthErrors.InvitationRevoked(),
+            _ => found.Invitation,
+        };
+    }
+
+    private static AppException? InvitationError(string code) => code switch
+    {
+        "AUTH-1011" => AuthErrors.InvitationNotFound(),
+        "AUTH-1012" => AuthErrors.InvitationExpired(),
+        "AUTH-1013" => AuthErrors.InvitationUsed(),
+        "AUTH-1014" => AuthErrors.InvitationRevoked(),
+        "AUTH-1015" => AuthErrors.InvitationForSomeoneElse(),
+        _ => null,
+    };
+
+    /// <summary>The account's id if the password is right; wrong ones count towards the lockout.</summary>
+    private async Task<Guid> VerifyAsync(string identifier, string password, CancellationToken ct)
+    {
         var account = (await db.QueryAsync(
             "select id, password_hash, status, locked_until from find_account_for_signin(@identifier)",
             r => (Id: r.GetGuid(0), Hash: r.IsDBNull(1) ? null : r.GetString(1), Status: r.GetString(2),
@@ -126,15 +279,7 @@ public sealed class AuthService(
         }
 
         await RecordSignInAsync(account.Id, success: true, ct);
-
-        tenant.SetUser(account.Id);
-        var organizationId = await db.Memberships
-            .Where(m => m.UserId == account.Id && m.Status == "active")
-            .OrderBy(m => m.CreatedAt)
-            .Select(m => (Guid?)m.OrganizationId)
-            .FirstOrDefaultAsync(ct);
-
-        return await sessions.StartAsync(account.Id, organizationId, http, ct);
+        return account.Id;
     }
 
     private async Task<DateTimeOffset?> RecordSignInAsync(Guid userId, bool success, CancellationToken ct) =>

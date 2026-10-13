@@ -1383,5 +1383,25 @@
     "show": "Show",
     "view": "View {{name}}",
     "rowsOf": "Rows of {{name}}"
+  },
+  "invite": {
+    "loading": "Your invitation",
+    "title": "Join {{organization}}",
+    "intro": "{{inviter}} invited you to join as {{role}}, for {{companies}}.",
+    "roles": {
+      "administrators": "an administrator",
+      "hr": "HR",
+      "payroll": "Payroll",
+      "approvers": "an approver"
+    },
+    "everyCompany": "every company",
+    "companies": "{{names}}",
+    "yourAccount": "Your account",
+    "existing": "You already have a Pesaroll account with {{contact}}. Enter its password to join.",
+    "accept": "Accept and join",
+    "signInAndJoin": "Sign in and join",
+    "cantUse": "This invitation can't be used",
+    "cantUseIntro": "Ask the person who invited you to send a new one.",
+    "haveAccount": "Already joined?"
   }
 }

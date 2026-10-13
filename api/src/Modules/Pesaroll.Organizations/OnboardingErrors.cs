@@ -15,6 +15,21 @@ internal static class OnboardingErrors
         new("ONB-3504", "Your account was set up by your organization, so you can't create a new one. Ask an administrator in your organization.", 403);
 
     /// <summary>ACC-8001. For now only the person who onboarded the organization renames it; ACC-04 turns this into a permission.</summary>
+    public static AppException AlreadyMember(string name) =>
+        new("ACC-8002", $"{name} is already in your organization.", 409);
+
+    public static AppException AlreadyInvited(string contact) =>
+        new("ACC-8003", $"{contact} already has an invitation waiting. Resend it instead.", 409);
+
+    public static AppException InvitationInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ACC-8004", "Some invitation details don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException InvitationNotFound() =>
+        new("ACC-8005", "We couldn't find that invitation. It may have been deleted.", 404);
+
+    public static AppException InvitationClosed() =>
+        new("ACC-8006", "This invitation was already accepted or cancelled.", 409);
+
     public static AppException NoPermission() =>
         new("ACC-8001", "You don't have permission to do this. Ask an administrator in your organization.", 403);
 

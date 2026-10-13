@@ -32,6 +32,7 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<PayItemCompany> PayItemCompanies => Set<PayItemCompany>();
     public DbSet<EmployeePayItem> EmployeePayItems => Set<EmployeePayItem>();
     public DbSet<Payee> Payees => Set<Payee>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<PayrollHistoryBatch> PayrollHistoryBatches => Set<PayrollHistoryBatch>();
     public DbSet<PayrollHistoryLine> PayrollHistoryLines => Set<PayrollHistoryLine>();
     public DbSet<Employee> Employees => Set<Employee>();
@@ -106,6 +107,9 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<EmployeePayItem>().Property(x => x.Id).ValueGeneratedNever();
         model.Entity<Payee>().Property(x => x.Id).ValueGeneratedNever();
         model.Entity<PayrollHistoryBatch>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<Invitation>().Property(x => x.Id).ValueGeneratedNever();
+        model.Entity<Invitation>().HasMany(i => i.Companies).WithOne().HasForeignKey(c => c.InvitationId);
+        model.Entity<InvitationCompany>().ToTable("invitation_companies").HasKey(c => new { c.InvitationId, c.CompanyId });
         model.Entity<PayrollHistoryLine>().Property(x => x.Id).ValueGeneratedNever();
         model.Entity<Payee>().Property(x => x.CountryCode).HasColumnType("char(2)");
         model.Entity<PayItemCompany>().HasOne<Company>().WithMany().HasForeignKey(c => c.CompanyId);
