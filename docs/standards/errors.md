@@ -57,6 +57,9 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ACC-8004 | Some invitation details don't look right. Check the fields marked. | Customer | Name, an email or Kenyan phone number, a group, and all companies or at least one. |
 | ACC-8005 | We couldn't find that invitation. It may have been deleted. | Customer | The invitation doesn't exist in this organization. |
 | ACC-8006 | This invitation was already accepted or cancelled. | Customer | Only open or expired invitations can be resent or cancelled. |
+| ACC-8007 | Someone must stay an administrator. Make another person an administrator first. | Customer | The organization needs at least one active member who can manage the team for every company. |
+| ACC-8008 | We couldn't find that person in your organization. They may have been removed. | Customer | The membership doesn't exist in this organization or isn't active. |
+| ACC-8009 | Choose their group and companies. | Customer | A group (Administrators, HR, Payroll, Approvers) and all companies or at least one. |
 | IMP-3001 | Row {row}: {column} is required. | Customer | Point them to the template's required columns. |
 | IMP-3002 | Row {row}: "{value}" isn't one of your {column} options. | Customer | Check the option exists in setup, or fix the spelling. |
 | ONB-3501 | Enter your organization's name (2 to 120 characters). | Customer | Organization step: the name is the one their team knows them by; legal company names come next. |

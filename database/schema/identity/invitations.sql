@@ -72,11 +72,56 @@ as $$
     where i.token_hash = p_token_hash
 $$;
 
+-- The group for a role and companies, found or made: the starting group for all companies, else a
+-- group with only that role for exactly those companies ("HR · Westlands Ltd"). Used by accepting an
+-- invitation and by changing someone's access (Team access).
+create or replace function access_group(p_organization_id uuid, p_group_key text, p_all_companies boolean, p_company_ids uuid[])
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+    v_group uuid;
+    v_role uuid;
+    v_companies uuid[];
+    v_name text;
+begin
+    perform create_default_groups(p_organization_id, null);
+    select r.id into v_role from roles r where r.organization_id is null
+      and r.key = case p_group_key when 'administrators' then 'admin' when 'approvers' then 'approver' else p_group_key end;
+
+    if p_all_companies then
+        select g.id into v_group from security_groups g where g.organization_id = p_organization_id and g.default_key = p_group_key;
+        return v_group;
+    end if;
+
+    select array_agg(c.id order by c.id) into v_companies
+    from companies c where c.organization_id = p_organization_id and c.id = any (p_company_ids);
+    select g.id into v_group
+    from security_groups g
+    where g.organization_id = p_organization_id and not g.all_companies
+      and (select array_agg(gr.role_id) from security_group_roles gr where gr.security_group_id = g.id) = array[v_role]
+      and (select array_agg(gc.company_id order by gc.company_id) from security_group_companies gc where gc.security_group_id = g.id) = v_companies
+    limit 1;
+    if v_group is null then
+        select left((select name from security_groups where organization_id = p_organization_id and default_key = p_group_key)
+                    || ' · ' || string_agg(c.legal_name, ', ' order by c.legal_name), 110)
+        into v_name from companies c where c.id = any (v_companies);
+        if exists (select 1 from security_groups where organization_id = p_organization_id and lower(name) = lower(v_name)) then
+            v_name := left(v_name, 100) || ' (' || left(md5(random()::text), 6) || ')';
+        end if;
+        v_group := uuidv7();
+        insert into security_groups (id, organization_id, name, all_companies) values (v_group, p_organization_id, v_name, false);
+        insert into security_group_companies (organization_id, security_group_id, company_id)
+        select p_organization_id, v_group, unnest(v_companies);
+        insert into security_group_roles (organization_id, security_group_id, role_id) values (p_organization_id, v_group, v_role);
+    end if;
+    return v_group;
+end
+$$;
+
 -- Accepts an open invitation for the signed-in person (app.user_id), whose email or phone must be
 -- the invitation's: they join the organization (a membership, made active again if they had left)
--- and the group for the invitation's role and companies, found or made: the starting group for all
--- companies, else a group with only that role for exactly those companies ("HR · Westlands Ltd").
--- Returns the organization. Errors are raised as their catalogue codes.
+-- and the group for the invitation's role and companies (access_group). Returns the organization. Errors are raised as their catalogue codes.
 create or replace function accept_invitation(p_token_hash bytea)
 returns uuid
 language plpgsql security definer set search_path = public
@@ -86,9 +131,6 @@ declare
     inv invitations;
     v_membership uuid;
     v_group uuid;
-    v_role uuid;
-    v_companies uuid[];
-    v_name text;
 begin
     if v_user is null then
         raise exception 'AUTH-1007';
@@ -112,34 +154,8 @@ begin
     on conflict (organization_id, user_id) do update set status = 'active', updated_at = now()
     returning id into v_membership;
 
-    perform create_default_groups(inv.organization_id, null);
-    select r.id into v_role from roles r where r.organization_id is null
-      and r.key = case inv.group_key when 'administrators' then 'admin' when 'approvers' then 'approver' else inv.group_key end;
-
-    if inv.all_companies then
-        select g.id into v_group from security_groups g where g.organization_id = inv.organization_id and g.default_key = inv.group_key;
-    else
-        select array_agg(ic.company_id order by ic.company_id) into v_companies from invitation_companies ic where ic.invitation_id = inv.id;
-        select g.id into v_group
-        from security_groups g
-        where g.organization_id = inv.organization_id and not g.all_companies
-          and (select array_agg(gr.role_id) from security_group_roles gr where gr.security_group_id = g.id) = array[v_role]
-          and (select array_agg(gc.company_id order by gc.company_id) from security_group_companies gc where gc.security_group_id = g.id) = v_companies
-        limit 1;
-        if v_group is null then
-            select left((select name from security_groups where organization_id = inv.organization_id and default_key = inv.group_key)
-                        || ' · ' || string_agg(c.legal_name, ', ' order by c.legal_name), 110)
-            into v_name from companies c where c.id = any (v_companies);
-            if exists (select 1 from security_groups where organization_id = inv.organization_id and lower(name) = lower(v_name)) then
-                v_name := left(v_name, 100) || ' (' || left(md5(random()::text), 6) || ')';
-            end if;
-            v_group := uuidv7();
-            insert into security_groups (id, organization_id, name, all_companies) values (v_group, inv.organization_id, v_name, false);
-            insert into security_group_companies (organization_id, security_group_id, company_id)
-            select inv.organization_id, v_group, unnest(v_companies);
-            insert into security_group_roles (organization_id, security_group_id, role_id) values (inv.organization_id, v_group, v_role);
-        end if;
-    end if;
+    v_group := access_group(inv.organization_id, inv.group_key, inv.all_companies,
+        (select array_agg(ic.company_id) from invitation_companies ic where ic.invitation_id = inv.id));
 
     insert into security_group_members (id, organization_id, security_group_id, membership_id, added_by)
     select uuidv7(), inv.organization_id, v_group, v_membership, inv.invited_by
@@ -152,5 +168,6 @@ $$;
 
 revoke all on function invitation_by_token(bytea) from public;
 revoke all on function accept_invitation(bytea) from public;
+revoke all on function access_group(uuid, text, boolean, uuid[]) from public;
 grant execute on function invitation_by_token(bytea) to pesaroll_app;
 grant execute on function accept_invitation(bytea) to pesaroll_app;

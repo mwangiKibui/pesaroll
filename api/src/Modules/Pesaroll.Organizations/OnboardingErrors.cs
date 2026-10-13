@@ -30,6 +30,15 @@ internal static class OnboardingErrors
     public static AppException InvitationClosed() =>
         new("ACC-8006", "This invitation was already accepted or cancelled.", 409);
 
+    public static AppException LastAdministrator() =>
+        new("ACC-8007", "Someone must stay an administrator. Make another person an administrator first.", 409);
+
+    public static AppException MemberNotFound() =>
+        new("ACC-8008", "We couldn't find that person in your organization. They may have been removed.", 404);
+
+    public static AppException AccessInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("ACC-8009", "Choose their group and companies.") { Fields = fields };
+
     public static AppException NoPermission() =>
         new("ACC-8001", "You don't have permission to do this. Ask an administrator in your organization.", 403);
 
