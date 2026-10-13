@@ -23,6 +23,16 @@ public sealed record InviteRequest(string? FirstName, string? LastName, string? 
 public sealed record InvitationRow(Guid Id, string FirstName, string LastName, string? Email, string? Phone, string Group, bool AllCompanies,
     IReadOnlyList<Guid> CompanyIds, string Status, DateTimeOffset ExpiresAt, DateTimeOffset SentAt, int SendCount);
 
+/// <summary>One of a person's groups: its role as a group key (null for a group with several roles), its name and companies.</summary>
+public sealed record MemberAccess(string? Group, string Name, bool AllCompanies, IReadOnlyList<Guid> CompanyIds);
+
+/// <summary>Someone in the organization: who, since when, whether it's the person asking, and their groups.</summary>
+public sealed record TeamMember(Guid MembershipId, Guid UserId, string FirstName, string LastName, string? Email, string? Phone, DateTimeOffset JoinedAt,
+    bool IsYou, IReadOnlyList<MemberAccess> Groups);
+
+/// <summary>Someone's new access: the group whose role they get, and all companies or chosen ones.</summary>
+public sealed record AccessRequest(string? Group, bool AllCompanies, List<Guid>? CompanyIds);
+
 /// <summary>
 /// ACC-03, inviting colleagues into the organization "as HR, for these companies", by email or SMS.
 /// Colleagues never sign themselves up. The link (7 days, once) carries a random token whose
@@ -183,7 +193,107 @@ public static class TeamEndpoints
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
 
+        // ONB-11, the people already in: their groups and companies; change them, or remove someone.
+        var members = app.MapGroup("/api/team/members").WithTags("Team");
+        members.MapGet("/", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            var rows = await db.Database.SqlQuery<MemberRow>($"""
+                select m.id as membership_id, u.id as user_id, u.first_name, u.last_name, u.email, u.phone, m.created_at as joined_at,
+                       g.id as group_id, g.name as group_name, g.all_companies as group_all_companies,
+                       (select case when count(*) = 1 then min(r.key) end from security_group_roles gr join roles r on r.id = gr.role_id
+                        where gr.security_group_id = g.id) as role_key,
+                       array(select gc.company_id from security_group_companies gc where gc.security_group_id = g.id) as group_company_ids
+                from memberships m
+                join users u on u.id = m.user_id
+                left join security_group_members gm on gm.membership_id = m.id and gm.removed_at is null
+                left join security_groups g on g.id = gm.security_group_id
+                where m.organization_id = {organizationId} and m.status = 'active'
+                order by m.created_at, g.name
+                """).ToListAsync(ct);
+            var team = rows.GroupBy(r => r.MembershipId).Select(p =>
+            {
+                var first = p.First();
+                var groups = p.Where(r => r.GroupId is not null).Select(r => new MemberAccess(GroupKey(r.RoleKey), r.GroupName!, r.GroupAllCompanies == true,
+                    r.GroupCompanyIds ?? [])).ToList();
+                return new TeamMember(first.MembershipId, first.UserId, first.FirstName, first.LastName, first.Email, first.Phone, first.JoinedAt,
+                    first.UserId == userId, groups);
+            }).ToList();
+            return Results.Ok(team);
+        }).Produces<List<TeamMember>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+
+        // Into the group for this role and companies, out of the others. Never the last administrator.
+        members.MapPut("/{id:guid}/access", async (Guid id, AccessRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
+            CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            var errors = new Dictionary<string, string>();
+            if (request.Group is null || !Groups.Contains(request.Group))
+            {
+                errors["group"] = "Choose a group: Administrators, HR, Payroll or Approvers.";
+            }
+
+            var companyIds = (request.CompanyIds ?? []).Distinct().ToArray();
+            if (!request.AllCompanies
+                && (companyIds.Length == 0 || await db.Companies.CountAsync(c => companyIds.Contains(c.Id) && c.Status == "active", ct) != companyIds.Length))
+            {
+                errors["companyIds"] = "Choose at least one company, or all companies.";
+            }
+
+            if (errors.Count > 0)
+            {
+                throw OnboardingErrors.AccessInvalid(errors);
+            }
+
+            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync(
+                $"select set_member_access({id}, {request.Group}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
+            return Results.NoContent();
+        }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+
+        // Out of the organization and every group. Never the last administrator.
+        members.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select remove_member({id})", ct));
+            return Results.NoContent();
+        }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+
         return app;
+    }
+
+    /// <summary>A row of the team query: a person and one of their groups (none: nulls).</summary>
+    private sealed record MemberRow(Guid MembershipId, Guid UserId, string FirstName, string LastName, string? Email, string? Phone, DateTimeOffset JoinedAt,
+        Guid? GroupId, string? GroupName, bool? GroupAllCompanies, string? RoleKey, Guid[]? GroupCompanyIds);
+
+    /// <summary>A system role's key as the group key the app uses (admin → administrators).</summary>
+    private static string? GroupKey(string? roleKey) => roleKey switch
+    {
+        "admin" => "administrators", "approver" => "approvers", null => null, _ => roleKey,
+    };
+
+    /// <summary>The database's refusals (team.sql) as their errors.</summary>
+    private static async Task TeamChangeAsync(Func<Task<int>> change)
+    {
+        try
+        {
+            await change();
+        }
+        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008")
+        {
+            throw error.MessageText switch
+            {
+                "ACC-8007" => OnboardingErrors.LastAdministrator(),
+                "ACC-8008" => OnboardingErrors.MemberNotFound(),
+                _ => OnboardingErrors.NoPermission(),
+            };
+        }
     }
 
     private static async Task<Invitation> OpenAsync(OrganizationsDbContext db, Guid id, CancellationToken ct)

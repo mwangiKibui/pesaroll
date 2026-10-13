@@ -156,8 +156,7 @@ export default function PayrollHistoryPage() {
             </table>
           )}
         </TableCard>
-        {/* Team access (ONB-11) is next; until it has a page, the dashboard. */}
-        <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
+        <Proceed label={t('setup.proceed', { step: t('setup.steps.team') })} onProceed={() => void navigate({ to: '/setup/team' })} />
         {viewing && <BatchView batch={viewing} onClose={() => setViewing(null)} />}
         {uploading && <UploadHistory companies={companies.data} onClose={() => setUploading(false)}
           defaultCompany={companies.data.length === 1 ? companies.data[0].id : !shown.all && shown.ids.length === 1 ? shown.ids[0] : ''} />}
