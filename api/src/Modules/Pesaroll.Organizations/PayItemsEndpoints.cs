@@ -88,7 +88,7 @@ public static class PayItemsEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PayItems);
             var valid = await ValidateAsync(request, db, ct);
 
             var now = clock.GetUtcNow();
@@ -109,7 +109,7 @@ public static class PayItemsEndpoints
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PayItems);
             var item = await db.PayItems.Include(i => i.Companies).SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
                 ?? throw OnboardingErrors.PayItemNotFound();
             if (item.LockedKey is not null)
@@ -154,7 +154,7 @@ public static class PayItemsEndpoints
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var item = await db.PayItems.SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
                 ?? throw OnboardingErrors.PayItemNotFound();
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PayItems);
             if (item.LockedKey is not null)
             {
                 throw OnboardingErrors.PayItemLocked();
@@ -180,7 +180,7 @@ public static class PayItemsEndpoints
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PayItems);
             var item = await db.PayItems.AsNoTracking().Include(i => i.Companies).SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
                 ?? throw OnboardingErrors.PayItemNotFound();
             if (item.LockedKey is not null)

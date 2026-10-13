@@ -56,7 +56,7 @@ public static class LocationsEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Locations);
             var valid = await ValidateAsync(request, db, ct);
 
             var now = clock.GetUtcNow();
@@ -82,7 +82,7 @@ public static class LocationsEndpoints
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Locations);
             var location = await db.Locations.Include(l => l.Companies).SingleOrDefaultAsync(l => l.Id == id && l.Status == "active", ct)
                 ?? throw OnboardingErrors.LocationNotFound();
             var valid = await ValidateAsync(request, db, ct);
@@ -120,7 +120,7 @@ public static class LocationsEndpoints
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var location = await db.Locations.SingleOrDefaultAsync(l => l.Id == id && l.Status == "active", ct)
                 ?? throw OnboardingErrors.LocationNotFound();
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Locations);
             await EmployeesEndpoints.RequireUnusedAsync(db, location.Name, e => e.LocationId == id, ct);
             var mainOf = await db.Companies.Where(c => c.MainLocationId == id).Select(c => c.LegalName).ToListAsync(ct);
             if (mainOf.Count > 0)

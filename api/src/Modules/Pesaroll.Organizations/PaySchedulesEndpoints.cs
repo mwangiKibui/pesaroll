@@ -86,7 +86,7 @@ public static class PaySchedulesEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Schedules);
             var valid = await ValidateAsync(request, db, ct);
 
             var now = clock.GetUtcNow();
@@ -105,7 +105,7 @@ public static class PaySchedulesEndpoints
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Schedules);
             var schedule = await db.PaySchedules.Include(s => s.Companies).Include(s => s.Reminders).SingleOrDefaultAsync(s => s.Id == id && s.Status == "active", ct)
                 ?? throw OnboardingErrors.ScheduleNotFound();
             var valid = await ValidateAsync(request, db, ct);
@@ -143,7 +143,7 @@ public static class PaySchedulesEndpoints
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var schedule = await db.PaySchedules.SingleOrDefaultAsync(s => s.Id == id && s.Status == "active", ct)
                 ?? throw OnboardingErrors.ScheduleNotFound();
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Schedules);
             await EmployeesEndpoints.RequireUnusedAsync(db, schedule.Name, e => e.PayScheduleId == id, ct);
             var defaultOf = await db.Companies.Where(c => c.DefaultPayScheduleId == id).Select(c => c.LegalName).ToListAsync(ct);
             if (defaultOf.Count > 0)

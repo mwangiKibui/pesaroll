@@ -143,7 +143,12 @@ public sealed class SessionService(
                 r => r.GetFieldValue<Guid[]>(0),
                 new Dictionary<string, object?> { ["user_id"] = claims.UserId, ["organization_id"] = organizationId },
                 ct)).Single();
-            tenant.Set(organizationId, companyIds);
+            var grants = await db.QueryAsync(
+                "select permission_key, all_companies, company_ids from member_grants(@user_id, @organization_id)",
+                r => new AccessGrant(r.GetString(0), r.GetBoolean(1), r.GetFieldValue<Guid[]>(2)),
+                new Dictionary<string, object?> { ["user_id"] = claims.UserId, ["organization_id"] = organizationId },
+                ct);
+            tenant.Set(organizationId, companyIds, grants);
         }
 
         http.Items[SessionIdKey] = claims.SessionId;

@@ -85,7 +85,7 @@ public static class CompaniesEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = RequireOrganization(tenant, http);
-            await RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Companies);
             var valid = await Validate(request, db, ct);
 
             var company = new Company
@@ -143,7 +143,7 @@ public static class CompaniesEndpoints
             var (userId, organizationId) = RequireOrganization(tenant, http);
             var company = await db.Companies.Include(c => c.Identifiers).SingleOrDefaultAsync(c => c.Id == id && c.Status == "active", ct)
                 ?? throw OnboardingErrors.CompanyNotFound();
-            await RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Companies, company.Id);
             var valid = await Validate(request, db, ct);
 
             company.LegalName = valid.LegalName;
@@ -187,7 +187,7 @@ public static class CompaniesEndpoints
             var (userId, organizationId) = RequireOrganization(tenant, http);
             var company = await db.Companies.SingleOrDefaultAsync(c => c.Id == id && c.Status == "active", ct)
                 ?? throw OnboardingErrors.CompanyNotFound();
-            await RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Companies, company.Id);
             // Locations, schedules, leave plans and pay items only this company used go with it; shared ones stay for the others.
             var onlyItsOwn = await db.Locations
                 .Where(l => !l.AllCompanies && l.Companies.Any(c => c.CompanyId == id) && l.Companies.All(c => c.CompanyId == id))
@@ -391,14 +391,6 @@ public static class CompaniesEndpoints
     }
 
     // For now only the person who onboarded the organization sets up its companies; ACC-04 makes this a permission.
-    internal static async Task RequireOnboarder(OrganizationsDbContext db, Guid userId, Guid organizationId, CancellationToken ct)
-    {
-        if (!await db.Organizations.AnyAsync(o => o.Id == organizationId && o.OnboardedBy == userId, ct))
-        {
-            throw OnboardingErrors.NoPermission();
-        }
-    }
-
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string? Limit(string? value, int max)

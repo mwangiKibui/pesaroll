@@ -66,7 +66,7 @@ public static class PaymentAccountsEndpoints
             HttpContext http, FieldEncryptor encryptor, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PaymentAccounts, companyId);
             var company = await FindCompany(db, companyId, ct);
             var (account, number) = await Validate(request, company, db, ct);
 
@@ -100,7 +100,7 @@ public static class PaymentAccountsEndpoints
             TenantContext tenant, HttpContext http, FieldEncryptor encryptor, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PaymentAccounts, companyId);
             var company = await FindCompany(db, companyId, ct);
             var old = await db.CompanyPaymentAccounts.SingleOrDefaultAsync(a => a.Id == accountId && a.CompanyId == company.Id && a.ClosedAt == null, ct)
                 ?? throw OnboardingErrors.PaymentAccountNotFound();
@@ -146,7 +146,7 @@ public static class PaymentAccountsEndpoints
             HttpContext http, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PaymentAccounts, companyId);
             var company = await FindCompany(db, companyId, ct);
             var open = await db.CompanyPaymentAccounts.Where(a => a.CompanyId == company.Id && a.ClosedAt == null).ToListAsync(ct);
             var chosen = open.SingleOrDefault(a => a.Id == accountId) ?? throw OnboardingErrors.PaymentAccountNotFound();
@@ -159,7 +159,7 @@ public static class PaymentAccountsEndpoints
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PaymentAccounts, companyId);
             var company = await FindCompany(db, companyId, ct);
             var open = await db.CompanyPaymentAccounts.Where(a => a.CompanyId == company.Id && a.ClosedAt == null)
                 .OrderBy(a => a.CreatedAt).ToListAsync(ct);

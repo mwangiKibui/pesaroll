@@ -32,6 +32,7 @@
 \i tenancy/payroll_history.sql
 \i tenancy/notification_deliveries.sql
 \i identity/memberships.sql
+\i identity/access.sql
 \i identity/users_policies.sql
 \i identity/sessions.sql
 \i identity/signin_functions.sql

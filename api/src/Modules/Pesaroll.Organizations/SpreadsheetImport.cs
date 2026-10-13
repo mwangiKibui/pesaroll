@@ -61,6 +61,13 @@ public sealed class ImportSpec<TValid>
 {
     /// <summary>"locations": used in the file name and messages.</summary>
     public required string Things { get; init; }
+    /// <summary>The permission uploading these needs (Permissions.Locations…).</summary>
+    public required string Permission { get; init; }
+    /// <summary>
+    /// Rows belong to one company each (employees, payroll history): the permission is needed for
+    /// each company the rows name. Otherwise it is needed for every company (shared setup).
+    /// </summary>
+    public bool PerCompany { get; init; }
     public required IReadOnlyList<ImportColumn> Columns { get; init; }
     /// <summary>Headers a file must have to be recognised (the first column at least).</summary>
     public required IReadOnlyList<string> RequiredKeys { get; init; }
@@ -104,8 +111,16 @@ public static class SpreadsheetImport
 
         group.MapPost($"{prefix}/import/read", async (IFormFile file, Guid? companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
-            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            if (spec.PerCompany && companyId is Guid chosen)
+            {
+                Access.Require(tenant, spec.Permission, chosen);
+            }
+            else
+            {
+                RequireAny(spec, tenant);
+            }
+
             if (file.Length > spec.MaxMegabytes * 1024L * 1024L)
             {
                 throw TooBig(spec);
@@ -131,9 +146,10 @@ public static class SpreadsheetImport
         group.MapPost($"{prefix}/import/check", async (ImportRowsRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, CancellationToken ct) =>
         {
-            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (_, problems, notes) = await CheckAsync(spec, Clean(request.Rows, spec), db, http.RequestServices, ct);
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            var rows = Clean(request.Rows, spec);
+            await RequireForRowsAsync(spec, rows, db, tenant, ct);
+            var (_, problems, notes) = await CheckAsync(spec, rows, db, http.RequestServices, ct);
             return Results.Ok(new ImportCheck(problems, notes));
         }).Produces<ImportCheck>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
@@ -141,9 +157,10 @@ public static class SpreadsheetImport
         group.MapPost($"{prefix}/import", async (ImportRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
         {
-            var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
-            var (valid, problems, _) = await CheckAsync(spec, Clean(request.Rows, spec), db, http.RequestServices, ct);
+            var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            var rows = Clean(request.Rows, spec);
+            await RequireForRowsAsync(spec, rows, db, tenant, ct);
+            var (valid, problems, _) = await CheckAsync(spec, rows, db, http.RequestServices, ct);
             if (spec.SavesWhatPasses)
             {
                 var saved = valid.Count > 0 ? await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct) : 0;
@@ -158,6 +175,42 @@ public static class SpreadsheetImport
             return Results.Ok(new ImportResult(await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct)));
         }).Produces<ImportResult>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+    }
+
+    /// <summary>Shared setup: the permission for every company. A company's rows: the permission for some company, at least.</summary>
+    private static void RequireAny<TValid>(ImportSpec<TValid> spec, TenantContext tenant)
+    {
+        if (!spec.PerCompany)
+        {
+            Access.Require(tenant, spec.Permission);
+        }
+        else if (!tenant.Grants.Any(g => g.Permission == spec.Permission))
+        {
+            throw OnboardingErrors.NoPermission();
+        }
+    }
+
+    /// <summary>The permission for the rows: for every company, or (rows per company) for each company they name.</summary>
+    private static async Task RequireForRowsAsync<TValid>(ImportSpec<TValid> spec, List<ImportRow> rows, OrganizationsDbContext db, TenantContext tenant,
+        CancellationToken ct)
+    {
+        RequireAny(spec, tenant);
+        if (!spec.PerCompany)
+        {
+            return;
+        }
+
+        // Rows name their company (the one chosen before the upload); an empty one means the only company.
+        var companies = await db.Companies.AsNoTracking().Where(c => c.Status == "active").Select(c => new { c.Id, c.LegalName, c.TradingName }).ToListAsync(ct);
+        foreach (var name in rows.Select(r => r.Cells.GetValueOrDefault("company") ?? "").Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var company = name.Length == 0 && companies.Count == 1 ? companies[0]
+                : companies.FirstOrDefault(c => string.Equals(c.LegalName, name, StringComparison.OrdinalIgnoreCase) || string.Equals(c.TradingName, name, StringComparison.OrdinalIgnoreCase));
+            if (company is not null)
+            {
+                Access.Require(tenant, spec.Permission, company.Id);
+            }
+        }
     }
 
     private static async Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)> CheckAsync<TValid>(

@@ -66,6 +66,8 @@ public static class PayrollHistoryEndpoints
         SpreadsheetImport.MapImport(history, "", new ImportSpec<ValidLine>
         {
             Things = "payroll history",
+            Permission = Permissions.PayrollHistory,
+            PerCompany = true,
             Columns = Columns,
             RequiredKeys = ["kraPin", "month"],
             MaxRows = MaxRows,
@@ -118,8 +120,8 @@ public static class PayrollHistoryEndpoints
         history.MapDelete("/batches/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
             var batch = await db.PayrollHistoryBatches.SingleOrDefaultAsync(b => b.Id == id, ct) ?? throw OnboardingErrors.HistoryBatchNotFound();
+            Access.Require(tenant, Permissions.PayrollHistory, batch.CompanyId);
             db.PayrollHistoryBatches.Remove(batch);
             await db.SaveChangesAsync(ct);
             return Results.NoContent();

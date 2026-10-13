@@ -30,6 +30,8 @@ begin
 
     insert into organizations (id, name, onboarded_by) values (v_org, v_name, v_user);
     insert into memberships (id, organization_id, user_id, status) values (uuidv7(), v_org, v_user, 'active');
+    -- Its starting groups, with the person who onboarded it in Administrators (ACC-06).
+    perform create_default_groups(v_org, v_user);
 
     update sessions s set organization_id = v_org
     where s.id = p_session_id and s.user_id = v_user and s.revoked_at is null;
