@@ -75,7 +75,7 @@ it('uploads for a company chosen first, and imports with the file name', async (
       notes: [{ line: 2, column: 'net', message: 'Net pay is KES 70,000, but gross less deductions is KES 62,067.', kind: 'warning' }],
     }),
     'POST /api/payroll-history/import/check': () => json(200, { problems: [], notes: [] }),
-    'POST /api/payroll-history/import': () => json(200, { imported: 1 }),
+    'POST /api/payroll-history/import': () => json(200, { imported: 1, problems: [] }),
   })
   renderApp('/setup/payroll-history')
   await userEvent.click(await screen.findByRole('button', { name: 'Upload payroll history' }))
@@ -88,8 +88,54 @@ it('uploads for a company chosen first, and imports with the file name', async (
 
   const review = await screen.findByRole('dialog', { name: /Review 1 row/ })
   expect(within(review).getByText('1 row to check.')).toBeInTheDocument()   // a warning doesn't block
+  expect(calls.some(c => c.path === '/api/payroll-history/import/check')).toBe(false)
   await userEvent.click(within(review).getByRole('button', { name: 'Import 1 row' }))
   await vi.waitFor(() => expect(calls.some(c => c.path === '/api/payroll-history/import')).toBe(true))
   expect(calls.find(c => c.path === '/api/payroll-history/import')!.body).toMatchObject({ fileName: 'old-payroll.xlsx', rows: [{ cells: { company: 'Centrail Ltd' } }] })
   expect(await screen.findByText('1 row of payroll history imported')).toBeInTheDocument()
+})
+
+it('the eye opens an import\'s rows in the large drawer', async () => {
+  const line = {
+    id: 'l1', employeeId: 'e1', staffNo: 'PSR-001', name: 'Wanjiru Kiplagat', period: `${year}-01-01`, payDate: `${year}-01-28`, basicPay: 85000,
+    cashAllowances: null, nonCashBenefits: null, valueOfQuarters: null, grossPay: 85000, pension: null, nssfTier1: 480, nssfTier2: 3840, nssfEmployee: 4320,
+    nssfEmployer: 4320, shif: 2337.5, housingLevyEmployee: 1275, housingLevyEmployer: 1275, postRetirementMedical: null, mortgageInterest: null,
+    taxablePay: 77067.5, personalRelief: 2400, insuranceRelief: null, paye: 15000, otherDeductions: null, netPay: 62067.5, nita: 50, notes: 'January',
+  }
+  withHistory({ [`GET /api/payroll-history/batches/${batch.id}/lines`]: () => json(200, [line]) })
+  renderApp('/setup/payroll-history')
+  await userEvent.click(await screen.findByRole('button', { name: 'View old-payroll.xlsx' }))
+  const drawer = await screen.findByRole('dialog', { name: 'old-payroll.xlsx' })
+  expect(drawer).toHaveClass('max-w-[97vw]')
+  const rows = await within(drawer).findByRole('region', { name: 'Rows of old-payroll.xlsx' })
+  const headers = within(rows).getAllByRole('columnheader').map(h => h.textContent)
+  expect(headers.slice(0, 5)).toEqual(['Employee number', 'Employee name', 'Pay month', 'Pay date', 'Basic pay amount'])
+  expect(headers).toContain('Net pay amount')
+  const cells = within(rows).getAllByRole('cell').map(c => c.textContent)
+  expect(cells.slice(0, 5)).toEqual(['PSR-001', 'Wanjiru Kiplagat', `January ${year}`, `28 Jan ${year}`, '85,000'])
+  expect(cells).toContain('62,067.50')
+  expect(cells).toContain('January')
+  expect(within(drawer).getByRole('navigation', { name: 'Pages of Rows of old-payroll.xlsx' })).toBeInTheDocument()
+})
+
+it('what the page can check itself shows at once and keeps Import closed: a KRA PIN, this month', async () => {
+  const thisMonth = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  withHistory({
+    'POST /api/payroll-history/import/read': () => json(200, {
+      rows: [{ line: 2, cells: { kraPin: 'A12345', name: 'Wanjiru Kamau', month: thisMonth, basic: '85000', gross: '85000', nssf: '4320', shif: '2338', ahl: '1275', paye: '15000', net: '62067' } }],
+      problems: [], notes: [],
+    }),
+  })
+  renderApp('/setup/payroll-history')
+  await userEvent.click(await screen.findByRole('button', { name: 'Upload payroll history' }))
+  const upload = await screen.findByRole('dialog', { name: 'Upload payroll history' })
+  await userEvent.click(within(upload).getByRole('combobox', { name: 'Company' }))
+  await userEvent.click(screen.getAllByRole('option', { name: 'Centrail Ltd' })[0])
+  await userEvent.upload(within(upload).getByLabelText(/Choose a file/), new File(['x'], 'old-payroll.xlsx'))
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+
+  const review = await screen.findByRole('dialog', { name: /Review 1 row/ })
+  expect(within(review).getByRole('textbox', { name: 'KRA PIN, row 2' })).toHaveAccessibleDescription('Enter a KRA PIN like A012345678Z: A, 9 digits and a letter.')
+  expect(within(review).getByRole('textbox', { name: 'Pay month, row 2' })).toHaveAccessibleDescription(/^Payroll history goes up to/)
+  expect(within(review).getByRole('button', { name: 'Import 1 row' })).toBeDisabled()
 })

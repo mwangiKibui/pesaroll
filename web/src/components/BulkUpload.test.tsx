@@ -555,3 +555,36 @@ it('a warning reads in amber under its cell, is counted as a row to check, and d
   await userEvent.click(within(sheet).getByRole('button', { name: 'Import 2 locations' }))
   await vi.waitFor(() => expect(importRows).toHaveBeenCalled())
 })
+
+it('an import that saves what passes keeps Import closed while the sheet itself finds problems; the server\'s leave only their rows', async () => {
+  const named = [{ key: 'name', label: 'Location name', validate: (v: string) => (v.trim() ? null : 'Enter a name.') }, columns[1]]
+  const read = async (): Promise<BulkUploadRead> => ({
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, '', 'Nairobi'), row(4, 'Mombasa shop', 'Mombasa'), row(5, 'Kisumu kiosk', 'Kisumu')],
+    problems: [{ line: 3, column: 'name', message: 'Enter a name.' }],
+  })
+  const check = vi.fn(async () => clean)
+  const importRows = vi.fn(async (rows: BulkUploadRow[]) => ({ problems: [{ line: 5, column: 'county', message: 'Kisumu is already imported.' }], imported: rows.length - 1 }))
+  render(
+    <BulkUpload open savesWhatPasses title="Upload locations" columns={named} onClose={() => {}} onDownloadTemplate={async () => {}}
+      onRead={read} onCheck={check} onImport={importRows}
+      labels={{ review: n => `Review ${n} locations`, importButton: n => `Import ${n} locations`, templateHint: '' }} />,
+  )
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  await screen.findByRole('dialog', { name: 'Review 4 locations' })
+
+  // The sheet's own problem: Import waits for it.
+  expect(within(review()).getByRole('button', { name: 'Import 4 locations' })).toBeDisabled()
+  await userEvent.type(cell('Location name', 3), 'Kilimani office')
+  await userEvent.tab()
+  expect(within(review()).getByRole('button', { name: 'Import 4 locations' })).toBeEnabled()
+
+  // The server's: the good rows are saved, the drawer keeps the rest with their problems.
+  await userEvent.click(within(review()).getByRole('button', { name: 'Import 4 locations' }))
+  expect(await screen.findByRole('dialog', { name: 'Review 1 locations' })).toBeInTheDocument()
+  expect(check).not.toHaveBeenCalled()
+  expect(importRows.mock.calls[0][0].map(r => r.line)).toEqual([2, 3, 4, 5])
+  expect(cell('Location name', 5)).toHaveValue('Kisumu kiosk')
+  expect(within(review()).getByText('Kisumu is already imported.')).toBeInTheDocument()
+  expect(within(review()).getByText('1 row needs fixing.')).toBeInTheDocument()
+})

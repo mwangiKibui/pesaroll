@@ -12,6 +12,13 @@ using Pesaroll.Shared.Tenancy;
 namespace Pesaroll.Organizations;
 
 /// <summary>An upload of payroll history: its company, file, rows, months and totals, and when.</summary>
+/// <summary>A row of an import: whose month (staff number and name as in Pesaroll) and its figures.</summary>
+public sealed record PayrollHistoryLineResponse(Guid Id, Guid EmployeeId, string StaffNo, string Name, DateOnly Period, DateOnly? PayDate, decimal BasicPay,
+    decimal? CashAllowances, decimal? NonCashBenefits, decimal? ValueOfQuarters, decimal GrossPay, decimal? Pension, decimal? NssfTier1, decimal? NssfTier2,
+    decimal NssfEmployee, decimal? NssfEmployer, decimal Shif, decimal? HousingLevyEmployee, decimal? HousingLevyEmployer, decimal? PostRetirementMedical,
+    decimal? MortgageInterest, decimal? TaxablePay, decimal? PersonalRelief, decimal? InsuranceRelief, decimal Paye, decimal? OtherDeductions, decimal? NetPay,
+    decimal? Nita, string? Notes);
+
 public sealed record PayrollHistoryBatchResponse(Guid Id, Guid CompanyId, string FileName, int RowCount, DateOnly FirstPeriod, DateOnly LastPeriod, decimal GrossTotal,
     decimal PayeTotal, DateTimeOffset CreatedAt);
 
@@ -20,8 +27,8 @@ public sealed record PayrollHistoryBatchResponse(Guid Id, Guid CompanyId, string
 /// employee per month, for one company chosen first, from January two years back to last month
 /// (Pesaroll runs payroll from this month). People are found by staff number, then ID number, then
 /// KRA PIN; someone not in Pesaroll is added as a former employee (from their first month to the
-/// end of their last). Errors block; warnings (net pay that doesn't add up, a KRA PIN unlike their
-/// profile) don't. Each upload is a batch: listed with its totals (all companies, or those chosen), and deleted with its rows.
+/// end of their last). Import saves the rows that pass and returns the others with their problems;
+/// warnings (net pay that doesn't add up, a KRA PIN unlike their profile) don't block. Each upload is a batch: listed with its totals (all companies, or those chosen), and deleted with its rows.
 /// </summary>
 public static class PayrollHistoryEndpoints
 {
@@ -66,6 +73,8 @@ public static class PayrollHistoryEndpoints
             Choices = (_, _, _) => Task.FromResult(new Dictionary<string, List<string>>()),
             Check = (rows, db, services, ct) => CheckAsync(rows, db, services, ct),
             Save = (rows, request, organizationId, db, now, services, ct) => SaveAsync(rows, request, organizationId, db, now, services, ct),
+            // A person's month stands alone: the good rows are saved, the others come back to fix.
+            SavesWhatPasses = true,
         });
 
         // Every company's imports, or the chosen companies', newest first.
@@ -83,6 +92,27 @@ public static class PayrollHistoryEndpoints
                 .ToListAsync(ct);
             return Results.Ok(batches);
         }).Produces<List<PayrollHistoryBatchResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+
+        // An import's rows, by month then person, with whose they are.
+        history.MapGet("/batches/{id:guid}/lines", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            if (!await db.PayrollHistoryBatches.AnyAsync(b => b.Id == id, ct))
+            {
+                throw OnboardingErrors.HistoryBatchNotFound();
+            }
+
+            var lines = await (from l in db.PayrollHistoryLines.AsNoTracking()
+                               join e in db.Employees.AsNoTracking() on l.EmployeeId equals e.Id
+                               where l.BatchId == id
+                               orderby l.Period, e.StaffNo
+                               select new PayrollHistoryLineResponse(l.Id, e.Id, e.StaffNo, e.FirstName + " " + e.LastName, l.Period, l.PayDate, l.BasicPay,
+                                   l.CashAllowances, l.NonCashBenefits, l.ValueOfQuarters, l.GrossPay, l.Pension, l.NssfTier1, l.NssfTier2, l.NssfEmployee,
+                                   l.NssfEmployer, l.Shif, l.HousingLevyEmployee, l.HousingLevyEmployer, l.PostRetirementMedical, l.MortgageInterest,
+                                   l.TaxablePay, l.PersonalRelief, l.InsuranceRelief, l.Paye, l.OtherDeductions, l.NetPay, l.Nita, l.Notes)).ToListAsync(ct);
+            return Results.Ok(lines);
+        }).Produces<List<PayrollHistoryLineResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
         // Takes the batch's months (the people it added stay, as former employees).
         history.MapDelete("/batches/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>

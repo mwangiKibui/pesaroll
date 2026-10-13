@@ -40,6 +40,9 @@ export interface BulkUploadRead { rows: BulkUploadRow[]; problems: BulkUploadPro
 
 export interface BulkUploadCheck { problems: BulkUploadProblem[]; notes?: BulkUploadProblem[] }
 
+/** What an import that saves what passes left: the rows not saved, by their problems. */
+export interface BulkUploadLeft { problems: BulkUploadProblem[] }
+
 interface BulkUploadProps {
   open: boolean
   /** "Upload locations". */
@@ -53,8 +56,16 @@ interface BulkUploadProps {
   onRead: (file: File) => Promise<BulkUploadRead | ApiError>
   /** Checks the reviewed rows again. */
   onCheck: (rows: BulkUploadRow[]) => Promise<BulkUploadCheck | ApiError>
-  /** Saves the rows, all or nothing; null when it worked. The page shows the toast. */
-  onImport: (rows: BulkUploadRow[]) => Promise<ApiError | null>
+  /**
+   * Saves the rows, all or nothing; null when it worked. With savesWhatPasses, the rows that pass
+   * are saved and the rest come back with their problems. The page shows the toast.
+   */
+  onImport: (rows: BulkUploadRow[]) => Promise<ApiError | null | BulkUploadLeft>
+  /**
+   * Import saves the rows that pass and the drawer keeps the others, with the server's problems in
+   * their rows. Import stays closed while the sheet's own checks find something to fix.
+   */
+  savesWhatPasses?: boolean
   labels: {
     /** "Review 12 locations": the review's title. */
     review: (count: number) => string
@@ -137,7 +148,7 @@ const ownsArrows = (target: EventTarget | null) =>
  * searchable, scrolling under a fixed header, with problems in their cells. Import checks the
  * edited rows again and saves them all, or shows what is still wrong; nothing is imported blindly.
  */
-export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep, startRows, onCellsChange, locked }: BulkUploadProps) {
+export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, onRead, onCheck, onImport, labels, children, firstStep, startRows, onCellsChange, locked, savesWhatPasses }: BulkUploadProps) {
   const { t } = useTranslation()
   const inputId = useId()
   const [file, setFile] = useState<File | null>(null)
@@ -210,7 +221,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     const result = await attempt('read', setBanner, () => onRead(picked))
     if (isError(result)) return setBanner(result)
     if (!result) return
-    setProblems(result.problems)
+    // Saving what passes: the sheet's own checks show from the start, as they keep Import closed.
+    const own = savesWhatPasses ? result.rows.flatMap(r => checked([], r.line, r.cells, columns.map(c => c.key))) : []
+    const marked = new Set(result.problems.map(p => keyOf(p.line, p.column)))
+    setProblems([...result.problems, ...own.filter(p => !marked.has(keyOf(p.line, p.column)))])
     setNotes(result.notes ?? [])
     setSearch('')
     setPage(0)
@@ -276,6 +290,20 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
       setProblems(list => [...list.filter(p => !mine.some(m => keyOf(m.line, m.column) === keyOf(p.line, p.column))), ...mine])
       return
     }
+    if (savesWhatPasses) {
+      const result = await attempt('import', setReviewBanner, () => onImport(filled))
+      if (isError(result)) return setReviewBanner(result)
+      if (result === undefined) return
+      if (result === null || result.problems.length === 0) return onClose()
+      // The saved rows go; the others stay, each with its problems.
+      const left = new Set(result.problems.map(p => String(p.line)))
+      setRows(list => list?.filter(r => left.has(String(r.line))) ?? null)
+      setProblems(result.problems)
+      setNotes(list => list.filter(n => left.has(String(n.line))))
+      setView({ kind: 'all', lines: null })
+      setPage(0)
+      return
+    }
     const done = await attempt('import', setReviewBanner, async () => {
       const check = await onCheck(filled)
       if (isError(check)) return check
@@ -329,6 +357,13 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   })).size
   const linesWithProblems = new Set(problems.filter(p => Number(p.line) > 0).map(p => String(p.line)))
   const fileProblems = problems.filter(p => Number(p.line) === 0)
+  // Saving what passes: Import waits while a cell fails the sheet's own check (the server's problems don't stop it).
+  const rowAt = new Map((rows ?? []).map(r => [String(r.line), r]))
+  const sheetBlocks = !!savesWhatPasses && problems.some(p => {
+    const c = columns.find(x => x.key === p.column)
+    const r = rowAt.get(String(p.line))
+    return !!c?.validate && !!r && !c.disabledWhen?.(r.cells) && !!c.validate(r.cells[c.key] ?? '', r.cells)
+  })
   const allLines = (rows ?? []).map(r => String(r.line))
   const counts = { all: allLines.length, fix: linesWithProblems.size, ready: allLines.filter(l => !linesWithProblems.has(l)).length }
   const showRows = (kind: 'all' | 'fix' | 'ready') => {
@@ -363,7 +398,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
               <PlusIcon />{t('bulk.addRow')}
             </Button>
           )}
-          <Button disabled={!rows?.length} busy={busy === 'import'} onClick={() => void importRows()}>{labels.importButton(rows?.length ?? 0)}</Button>
+          <Button disabled={!rows?.length || sheetBlocks} busy={busy === 'import'} onClick={() => void importRows()}>{labels.importButton(rows?.length ?? 0)}</Button>
         </>
 
   // In the title bar: where the rows apply, the search, Show, what needs fixing, the column filters and the count.

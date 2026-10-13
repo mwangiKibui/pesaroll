@@ -1343,7 +1343,11 @@
     "deleted": "Import deleted",
     "rules": {
       "required": "Enter this, or 0 if there was none.",
-      "amount": "Enter an amount of 0 or more, like 85,000."
+      "amount": "Enter an amount of 0 or more, like 85,000.",
+      "needed": "This is needed.",
+      "month": "Enter the month as YYYY-MM, like 2026-01.",
+      "monthTooLate": "Payroll history goes up to {{last}}: Pesaroll runs payroll from {{first}}.",
+      "monthTooEarly": "Payroll history starts from {{first}}. Leave out earlier months."
     },
     "columns": {
       "staffNo": "Employee number",
@@ -1376,6 +1380,8 @@
       "nita": "NITA amount",
       "notes": "Notes"
     },
-    "show": "Show"
+    "show": "Show",
+    "view": "View {{name}}",
+    "rowsOf": "Rows of {{name}}"
   }
 }

@@ -36,7 +36,8 @@ public sealed record ImportCheck(IReadOnlyList<ImportProblem> Problems, IReadOnl
 /// <summary>The checked rows to save, for which companies, and the uploaded file's name (kept by imports that record their batches).</summary>
 public sealed record ImportRequest(List<ImportRow>? Rows, bool AllCompanies, List<Guid>? CompanyIds, string? FileName = null);
 
-public sealed record ImportResult(int Imported);
+/// <summary>How many rows were saved and, for imports that save what passes, the rows left with their problems.</summary>
+public sealed record ImportResult(int Imported, IReadOnlyList<ImportProblem>? Problems = null);
 
 /// <summary>
 /// A template column: its key in a row's cells, its header in the file, and optionally its cells'
@@ -72,6 +73,11 @@ public sealed class ImportSpec<TValid>
     /// what will be created. The request's services are there for what needs them (the field encryptor).
     /// </summary>
     public required Func<List<ImportRow>, OrganizationsDbContext, IServiceProvider, CancellationToken, Task<(List<TValid> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)>> Check { get; init; }
+    /// <summary>
+    /// Import saves the rows that pass and returns the others with their problems, rather than
+    /// saving all rows or none (rows that don't depend on each other, like payroll history).
+    /// </summary>
+    public bool SavesWhatPasses { get; init; }
     /// <summary>Saves the checked rows for the chosen companies; returns how many were saved.</summary>
     public required Func<List<TValid>, ImportRequest, Guid, OrganizationsDbContext, DateTimeOffset, IServiceProvider, CancellationToken, Task<int>> Save { get; init; }
 }
@@ -80,7 +86,8 @@ public sealed class ImportSpec<TValid>
 /// Uploading many records from a spreadsheet, the same for every kind (BulkUpload on the web):
 /// GET template (an Excel file with the columns and dropdowns), POST import/read (an .xlsx or .csv
 /// read back row by row, with problems), POST import/check (edited rows checked again) and POST
-/// import (checked once more, then saved all or none). Only the person who onboarded the
+/// import (checked once more, then saved all or none, or, for a spec that SavesWhatPasses, the rows
+/// that pass, with the rest returned). Only the person who onboarded the
 /// organization may upload, for now.
 /// </summary>
 public static class SpreadsheetImport
@@ -137,6 +144,12 @@ public static class SpreadsheetImport
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
             var (valid, problems, _) = await CheckAsync(spec, Clean(request.Rows, spec), db, http.RequestServices, ct);
+            if (spec.SavesWhatPasses)
+            {
+                var saved = valid.Count > 0 ? await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct) : 0;
+                return Results.Ok(new ImportResult(saved, problems));
+            }
+
             if (problems.Count > 0)
             {
                 throw RowsNeedFixing(problems);

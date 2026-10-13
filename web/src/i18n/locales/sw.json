@@ -1343,7 +1343,11 @@
     "deleted": "Upakiaji umefutwa",
     "rules": {
       "required": "Weka hiki, au 0 kama hakikuwepo.",
-      "amount": "Weka kiasi cha 0 au zaidi, kama 85,000."
+      "amount": "Weka kiasi cha 0 au zaidi, kama 85,000.",
+      "needed": "Hiki kinahitajika.",
+      "month": "Andika mwezi kama YYYY-MM, kwa mfano 2026-01.",
+      "monthTooLate": "Historia ya mishahara inaishia {{last}}: Pesaroll inaendesha mishahara kuanzia {{first}}.",
+      "monthTooEarly": "Historia ya mishahara inaanzia {{first}}. Acha miezi ya awali."
     },
     "columns": {
       "staffNo": "Nambari ya mfanyakazi",
@@ -1376,6 +1380,8 @@
       "nita": "Kiasi cha NITA",
       "notes": "Maelezo"
     },
-    "show": "Onyesha"
+    "show": "Onyesha",
+    "view": "Tazama {{name}}",
+    "rowsOf": "Safu za {{name}}"
   }
 }

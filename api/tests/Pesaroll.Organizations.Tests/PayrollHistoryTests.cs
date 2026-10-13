@@ -22,7 +22,8 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
     private sealed record Item(Guid Id);
     private sealed record Problem(int Line, string? Column, string Message, string? Kind);
     private sealed record Check(List<Problem> Problems, List<Problem> Notes);
-    private sealed record Result(int Imported);
+    private sealed record Result(int Imported, List<Problem>? Problems);
+    private sealed record HistoryLine(string StaffNo, string Name, DateOnly Period, decimal GrossPay, decimal Paye, decimal? NetPay, string? Notes);
     private sealed record Batch(Guid Id, Guid CompanyId, string FileName, int RowCount, DateOnly FirstPeriod, DateOnly LastPeriod, decimal GrossTotal, decimal PayeTotal);
     private sealed record Row(Guid Id, string StaffNo, string Name, DateOnly? ExitDate);
     private sealed record Page(List<Row> Items, int Total);
@@ -136,5 +137,30 @@ public sealed class PayrollHistoryTests(OnboardingTests.Api api) : IClassFixture
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/payroll-history/batches/{batch.Id}")).StatusCode);
         Assert.Empty((await client.GetFromJsonAsync<List<Batch>>("/api/payroll-history/batches"))!);
         Assert.Equal("ONB-3552", (await (await client.DeleteAsync($"/api/payroll-history/batches/{batch.Id}")).Content.ReadFromJsonAsync<Error>())!.Code);
+    }
+
+    [Fact]
+    public async Task An_import_saves_the_good_rows_and_returns_the_rest_with_their_problems()
+    {
+        var (client, company) = await Onboarded();
+        var res = await client.PostAsJsonAsync("/api/payroll-history/import", Body("mixed.xlsx",
+            Line("2026-01", ("notes", "January")), Line("2026-02"), Line("2026-02"), Line("2026-03", ("paye", ""))));
+        var result = (await res.Content.ReadFromJsonAsync<Result>())!;
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        Assert.Equal(2, result.Imported);
+        Assert.Equal([(4, "month"), (5, "paye")], result.Problems!.Select(p => (p.Line, p.Column!)));
+
+        // The batch holds what was saved; its lines can be read.
+        var batch = Assert.Single((await client.GetFromJsonAsync<List<Batch>>($"/api/payroll-history/batches?companyIds={company.Id}"))!);
+        Assert.Equal(2, batch.RowCount);
+        var lines = (await client.GetFromJsonAsync<List<HistoryLine>>($"/api/payroll-history/batches/{batch.Id}/lines"))!;
+        Assert.Equal([("EMP-01", "Wanjiru Kamau", new DateOnly(2026, 1, 1), 85000m, 15000m, (decimal?)62067m, "January"), ("EMP-01", "Wanjiru Kamau", new DateOnly(2026, 2, 1), 85000m, 15000m, 62067m, null)],
+            lines.Select(l => (l.StaffNo, l.Name, l.Period, l.GrossPay, l.Paye, l.NetPay, l.Notes)));
+
+        // Nothing good: nothing saved, no empty batch.
+        var none = (await (await client.PostAsJsonAsync("/api/payroll-history/import", Body("bad.xlsx", Line("2026-03", ("paye", ""))))).Content.ReadFromJsonAsync<Result>())!;
+        Assert.Equal((0, 1), (none.Imported, none.Problems!.Count));
+        Assert.Single((await client.GetFromJsonAsync<List<Batch>>("/api/payroll-history/batches"))!);
+        Assert.Equal("ONB-3552", (await (await client.GetAsync($"/api/payroll-history/batches/{Guid.NewGuid()}/lines")).Content.ReadFromJsonAsync<Error>())!.Code);
     }
 }
