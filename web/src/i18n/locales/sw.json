@@ -396,7 +396,9 @@
       "all": "Safu zote ({{count}})",
       "fix": "Safu za kurekebisha ({{count}})",
       "ready": "Safu zilizo tayari ({{count}})"
-    }
+    },
+    "toCheck_one": "Safu {{count}} ya kukagua.",
+    "toCheck_other": "Safu {{count}} za kukagua."
   },
   "structure": {
     "title": "Shirika lako limepangwa vipi?",

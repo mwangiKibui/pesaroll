@@ -32,7 +32,8 @@ export interface BulkUploadColumn {
 export interface BulkUploadRow { line: number | string; cells: Record<string, string> }
 
 /** A problem the server found: its row (0 for the whole file), the column key and what to fix. */
-export interface BulkUploadProblem { line: number | string; column?: string | null; message: string }
+/** kind (notes only): unset for what will be created; "warning" for something to check, which doesn't stop the import. */
+export interface BulkUploadProblem { line: number | string; column?: string | null; message: string; kind?: string | null }
 
 /** notes: what rows name that doesn't exist yet and will be created on import (not a problem). */
 export interface BulkUploadRead { rows: BulkUploadRow[]; problems: BulkUploadProblem[]; notes?: BulkUploadProblem[] }
@@ -313,9 +314,11 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
     const key = p.column && shownKeys.has(p.column) ? keyOf(p.line, p.column) : keyOf(p.line)
     problemAt.set(key, problemAt.has(key) && key === keyOf(p.line) ? `${problemAt.get(key)} ${p.message}` : p.message)
   }
-  const noteAt = new Map(notes.map(n => [keyOf(n.line, n.column), n.message]))
+  const noteAt = new Map(notes.map(n => [keyOf(n.line, n.column), n]))
+  const warnings = notes.filter(n => n.kind === 'warning')
+  const linesToCheck = new Set(warnings.map(w => String(w.line))).size
   // Each new name once, however many rows use it (ignoring case).
-  const toCreate = new Set(notes.map(n => {
+  const toCreate = new Set(notes.filter(n => n.kind !== 'warning').map(n => {
     const cell = rows?.find(r => String(r.line) === String(n.line))?.cells[n.column ?? ''] ?? n.message
     return `${n.column}:${cell.trim().toLowerCase()}`
   })).size
@@ -371,6 +374,7 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
         onChange={value => showRows(value as 'all' | 'fix' | 'ready')} />
     </div>
     {linesWithProblems.size > 0 && <Tag tone="warning">{t('bulk.toFix', { count: linesWithProblems.size })}</Tag>}
+    {linesToCheck > 0 && <Tag tone="warning">{t('bulk.toCheck', { count: linesToCheck })}</Tag>}
     {toCreate > 0 && <Tag tone="brand">{t('bulk.toCreate', { count: toCreate })}</Tag>}
     {filtered.map(c => (
       <Tag key={c.key} tone="brand">
@@ -419,7 +423,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                     const label = t('bulk.cell', { column: c.label, line: r.line })
                     const error = problemAt.get(keyOf(r.line, c.key))
                     // A name that will be created reads under the cell, without marking it wrong.
-                    const note = error ? undefined : noteAt.get(keyOf(r.line, c.key))
+                    // What will be created (muted) or what to check (amber) reads under the cell.
+                    const found = error ? undefined : noteAt.get(keyOf(r.line, c.key))
+                    const note = found?.message
+                    const noteTone = found?.kind === 'warning' ? 'warning' as const : undefined
                     const options = c.optionsFor?.(r.cells) ?? c.options
                     const disabled = c.disabledWhen?.(r.cells)
                     return (
@@ -431,10 +438,10 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
                               {error && <p className="m-0 text-hint font-medium text-danger-ink">{error}</p>}
                             </>
                           : options
-                            ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} options={options}
+                            ? <SelectField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} hintTone={noteTone} options={options}
                                 disabled={disabled} value={r.cells[c.key] ?? ''} onChange={value => edit(r.line, c.key, value, true)} />
                             // A date written another way in the file shows as written, to be fixed.
-                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note}
+                            : <TextField size="sm" hideLabel label={label} placeholder={c.label} error={error} hint={note} hintTone={noteTone}
                                 type={c.type === 'date' && (!r.cells[c.key] || /^\d{4}-\d{2}-\d{2}$/.test(r.cells[c.key])) ? 'date' : 'text'}
                                 disabled={disabled} value={r.cells[c.key] ?? ''} onChange={e => edit(r.line, c.key, e.target.value)}
                                 onBlur={() => leave(r.line, c.key)} />}

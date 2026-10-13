@@ -396,7 +396,9 @@
       "all": "All rows ({{count}})",
       "fix": "Rows to fix ({{count}})",
       "ready": "Ready rows ({{count}})"
-    }
+    },
+    "toCheck_one": "{{count}} row to check.",
+    "toCheck_other": "{{count}} rows to check."
   },
   "structure": {
     "title": "How is your organization organised?",

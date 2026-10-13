@@ -527,3 +527,25 @@ it('fixing one cell leaves the other cells of its row marked; a server-found pro
   expect(email).toHaveAccessibleDescription('Enter a valid email address.')
   expect(within(sheet).getAllByRole('row')[1]).toHaveClass('bg-warning-soft')   // email still to fix
 })
+
+it('a warning reads in amber under its cell, is counted as a row to check, and doesn\'t stop the import', async () => {
+  const importRows = vi.fn(async () => null)
+  const read: BulkUploadRead = {
+    rows: [row(2, 'Westlands branch', 'Nairobi'), row(3, 'Mombasa shop', 'Mombasa')],
+    problems: [],
+    notes: [{ line: 3, column: 'name', message: 'Net pay doesn\'t add up: check it.', kind: 'warning' }],
+  }
+  render(<Page read={async () => read} importRows={importRows} />)
+  await userEvent.upload(screen.getByLabelText('Choose a file'), file())
+  await userEvent.click(screen.getByRole('button', { name: 'Proceed to preview' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Review 2 locations' })
+
+  const name = within(sheet).getByRole('textbox', { name: 'Location name, row 3' })
+  expect(name).toHaveAccessibleDescription('Net pay doesn\'t add up: check it.')
+  expect(within(sheet).getByText('Net pay doesn\'t add up: check it.')).toHaveClass('text-warning-ink')
+  expect(within(sheet).getByText('1 row to check.')).toBeInTheDocument()
+  expect(within(sheet).queryByText(/will be created/)).not.toBeInTheDocument()
+
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Import 2 locations' }))
+  await vi.waitFor(() => expect(importRows).toHaveBeenCalled())
+})

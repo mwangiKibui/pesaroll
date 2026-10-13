@@ -18,7 +18,8 @@ namespace Pesaroll.Organizations;
 public sealed record ImportRow(int Line, Dictionary<string, string> Cells);
 
 /// <summary>A problem: the row (0 for the whole file), the column key it is in (when it is about one) and what to fix.</summary>
-public sealed record ImportProblem(int Line, string? Column, string Message);
+/// <summary>A problem (blocks the import) or, in notes, something to know: Kind null for what will be created, "warning" for what to check (doesn't block).</summary>
+public sealed record ImportProblem(int Line, string? Column, string Message, string? Kind = null);
 
 /// <summary>
 /// A file read: every row (problems and all, to be fixed in the review), its problems, and notes:

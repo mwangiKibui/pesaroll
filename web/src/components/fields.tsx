@@ -8,6 +8,8 @@ interface FieldProps {
   label: ReactNode
   /** Shown under the field in secondary text. */
   hint?: ReactNode
+  /** warning: the hint is something to check (amber), not just information. */
+  hintTone?: 'muted' | 'warning'
   /** Shown under the field and read out with it; marks the field invalid. */
   error?: ReactNode
   /** Writes "optional" beside the label. Required fields carry no marker. */
@@ -33,7 +35,7 @@ function useFieldIds(hint: unknown, error: unknown) {
   return { id, hintId, errorId, describedBy }
 }
 
-function Field({ id, label, hint, hintId, error, errorId, optional, hideLabel, children }: FieldProps & { id: string; hintId: string; errorId: string; children: ReactNode }) {
+function Field({ id, label, hint, hintTone = 'muted', hintId, error, errorId, optional, hideLabel, children }: FieldProps & { id: string; hintId: string; errorId: string; children: ReactNode }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-1.5">
@@ -42,7 +44,7 @@ function Field({ id, label, hint, hintId, error, errorId, optional, hideLabel, c
         {optional && <> <span className="ml-1 font-normal text-muted">{t('common.optional')}</span></>}
       </label>
       {children}
-      {hint && <p id={hintId} className="m-0 text-hint text-muted">{hint}</p>}
+      {hint && <p id={hintId} className={`m-0 text-hint ${hintTone === 'warning' ? 'font-medium text-warning-ink' : 'text-muted'}`}>{hint}</p>}
       {error && <p id={errorId} className="m-0 text-hint font-medium text-danger-ink">{error}</p>}
     </div>
   )
@@ -55,10 +57,10 @@ type TextFieldProps = FieldProps & Omit<InputHTMLAttributes<HTMLInputElement>, '
   end?: ReactNode
 }
 
-export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, error, optional, size = 'md', hideLabel, end, className = '', ...input }, ref) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField({ label, hint, hintTone, error, optional, size = 'md', hideLabel, end, className = '', ...input }, ref) {
   const ids = useFieldIds(hint, error)
   return (
-    <Field {...ids} label={label} hint={hint} error={error} optional={optional} hideLabel={hideLabel}>
+    <Field {...ids} label={label} hint={hint} hintTone={hintTone} error={error} optional={optional} hideLabel={hideLabel}>
       <div className="relative">
         <input ref={ref} id={ids.id} aria-describedby={ids.describedBy} aria-invalid={error ? true : undefined}
           className={`${control} ${controlSize[size]} ${end ? 'pr-12' : ''} ${className}`} {...input} />
@@ -87,7 +89,7 @@ interface SelectFieldProps extends FieldProps {
  * Typing filters the options (case and accents don't count), arrows move, Enter picks,
  * Escape closes. Emptying an optional one clears it; a required one keeps its choice.
  */
-export function SelectField({ label, hint, error, optional, size = 'md', hideLabel, options, placeholder, value, onChange, onBlur, name, disabled, ref }: SelectFieldProps) {
+export function SelectField({ label, hint, hintTone, error, optional, size = 'md', hideLabel, options, placeholder, value, onChange, onBlur, name, disabled, ref }: SelectFieldProps) {
   const { t } = useTranslation()
   const ids = useFieldIds(hint, error)
   const listId = `${ids.id}-list`
@@ -186,7 +188,7 @@ export function SelectField({ label, hint, error, optional, size = 'md', hideLab
   }
 
   return (
-    <Field {...ids} label={label} hint={hint} error={error} optional={optional} hideLabel={hideLabel}>
+    <Field {...ids} label={label} hint={hint} hintTone={hintTone} error={error} optional={optional} hideLabel={hideLabel}>
       <div ref={box} className="relative">
         <input ref={ref} id={ids.id} name={name} type="text" role="combobox" autoComplete="off" disabled={disabled}
           aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
