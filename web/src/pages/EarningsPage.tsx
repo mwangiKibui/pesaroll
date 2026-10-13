@@ -228,8 +228,7 @@ export default function EarningsPage() {
             )
           })}
         </div>
-        {/* Payroll history (ONB-10) is next; until it has a page, the dashboard. */}
-        <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
+        <Proceed label={t('setup.proceed', { step: t('setup.steps.history') })} onProceed={() => void navigate({ to: '/setup/payroll-history' })} />
 
         {viewing && (
           <PayItemView item={viewing} companies={companies.data} payee={payees.data?.find(p => p.id === viewing.payeeId)}

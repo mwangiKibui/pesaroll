@@ -99,6 +99,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | ONB-3549 | We couldn't find that payee. It may have been deleted. | Customer | The payee doesn't exist in this organization. |
 | ONB-3550 | {name} is the payee of {n} earnings and deductions. Choose another payee for them first. | Customer | A payee in use can't be deleted. |
 | ONB-3551 | Another payee already has this name. | Customer | Payee names are unique in an organization (ignoring case). |
+| ONB-3552 | We couldn't find that payroll history import. It may have been deleted. | Customer | The payroll history batch doesn't exist, or belongs to a company this person can't see. |
 | NTF-0501 | Enter a valid email address, or a Kenyan mobile number like 0712 345 678. | Customer | A message's recipient isn't a Kenyan mobile number (07…, 01…, +254…) or a plain email address. |
 | NTF-0502 | We couldn't deliver an email to {recipient}. | Support | Postmark kept refusing it (5 attempts); notification_deliveries.error has its reason (inactive recipient, bounced, bad address). Check the address with the customer. |
 | NTF-0503 | We couldn't deliver an SMS to {recipient}. | Support | Africa's Talking kept refusing it (5 attempts); notification_deliveries.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance. |

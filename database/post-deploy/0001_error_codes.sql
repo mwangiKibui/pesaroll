@@ -65,6 +65,7 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('ONB-3549',  'ONB',  'warning', 'We couldn''t find that payee. It may have been deleted.', 'customer', 'The payee doesn''t exist in this organization.'),
   ('ONB-3550',  'ONB',  'warning', '{name} is the payee of {n} earnings and deductions. Choose another payee for them first.', 'customer', 'A payee in use can''t be deleted.'),
   ('ONB-3551',  'ONB',  'warning', 'Another payee already has this name.', 'customer', 'Payee names are unique in an organization (ignoring case).'),
+  ('ONB-3552',  'ONB',  'warning', 'We couldn''t find that payroll history import. It may have been deleted.', 'customer', 'The payroll history batch doesn''t exist, or belongs to a company this person can''t see.'),
   ('NTF-0501',  'NTF',  'warning', 'Enter a valid email address, or a Kenyan mobile number like 0712 345 678.', 'customer', 'A message''s recipient isn''t a Kenyan mobile number (07…, 01…, +254…) or a plain email address.'),
   ('NTF-0502',  'NTF',  'error',   'We couldn''t deliver an email to {recipient}.', 'support', 'Postmark kept refusing it (5 attempts); notification_deliveries.error has its reason (inactive recipient, bounced, bad address). Check the address with the customer.'),
   ('NTF-0503',  'NTF',  'error',   'We couldn''t deliver an SMS to {recipient}.', 'support', 'Africa''s Talking kept refusing it (5 attempts); notification_deliveries.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance.'),
