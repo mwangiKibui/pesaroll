@@ -31,16 +31,16 @@ begin
   values (co_a, org, 'Westlands Ltd', 'KE', 'KES'), (co_b, org, 'Mombasa Ltd', 'KE', 'KES');
 
   -- Mary: HR for Westlands, by email. Joy: an administrator, by SMS. An old one that expired.
-  insert into invitations (id, organization_id, first_name, last_name, email, group_key, all_companies, invited_by, token_hash, expires_at)
-  values (inv_hr, org, 'Mary', 'Wanjiku', 'mary.inv@example.com', 'hr', false, amina, '\xa1', now() + interval '7 days'),
-         (inv_old, org, 'Old', 'Invite', 'old.inv@example.com', 'payroll', true, amina, '\xa3', now() - interval '1 day');
+  insert into invitations (id, organization_id, first_name, last_name, email, group_keys, all_companies, invited_by, token_hash, expires_at)
+  values (inv_hr, org, 'Mary', 'Wanjiku', 'mary.inv@example.com', array['hr', 'payroll'], false, amina, '\xa1', now() + interval '7 days'),
+         (inv_old, org, 'Old', 'Invite', 'old.inv@example.com', array['payroll'], true, amina, '\xa3', now() - interval '1 day');
   insert into invitation_companies (organization_id, invitation_id, company_id) values (org, inv_hr, co_a);
-  insert into invitations (id, organization_id, first_name, last_name, phone, group_key, invited_by, token_hash, expires_at)
-  values (inv_admin, org, 'Joy', 'Achieng', '+254711000111', 'administrators', amina, '\xa2', now() + interval '7 days');
+  insert into invitations (id, organization_id, first_name, last_name, phone, group_keys, invited_by, token_hash, expires_at)
+  values (inv_admin, org, 'Joy', 'Achieng', '+254711000111', array['administrators'], amina, '\xa2', now() + interval '7 days');
 
   set local role pesaroll_app;
   select * into info from invitation_by_token('\xa1');
-  if info.organization_name <> 'Invitation Test Group' or info.invited_by_name <> 'Amina Otieno' or info.status <> 'open'
+  if info.group_keys is distinct from array['hr', 'payroll'] or info.organization_name <> 'Invitation Test Group' or info.invited_by_name <> 'Amina Otieno' or info.status <> 'open'
      or info.company_names <> array['Westlands Ltd'] or not info.has_account then
     raise exception 'invitation_by_token does not describe the invitation: %', info;
   end if;
@@ -58,7 +58,7 @@ begin
     if msg <> 'AUTH-1015' then raise exception 'another person''s invitation: expected AUTH-1015, got %', msg; end if;
   end;
 
-  -- Mary accepts: HR, for exactly Westlands, in a group made for it.
+  -- Mary accepts: HR and Payroll, for exactly Westlands, in a group made for each.
   perform set_config('app.user_id', mary::text, true);
   got := accept_invitation('\xa1');
   reset role;
@@ -67,11 +67,11 @@ begin
     raise exception 'Mary does not see exactly Westlands';
   end if;
   if (select array_agg(permission_key order by permission_key) from member_grants(mary, org))
-     is distinct from array['employees.manage', 'leave.manage', 'locations.manage', 'structure.manage'] then
-    raise exception 'Mary is not HR';
+     is distinct from array['employees.manage', 'leave.manage', 'locations.manage', 'pay_items.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.manage'] then
+    raise exception 'Mary is not HR and Payroll: %', (select array_agg(permission_key order by permission_key) from member_grants(mary, org));
   end if;
-  if not exists (select 1 from security_groups where organization_id = org and name = 'HR · Westlands Ltd' and not all_companies) then
-    raise exception 'no group was made for HR at Westlands';
+  if (select count(*) from security_groups where organization_id = org and name in ('HR · Westlands Ltd', 'Payroll · Westlands Ltd') and not all_companies) <> 2 then
+    raise exception 'no group was made for HR and for Payroll at Westlands';
   end if;
 
   -- It works once.

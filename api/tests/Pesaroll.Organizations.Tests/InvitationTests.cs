@@ -18,10 +18,10 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
     private sealed record Created(Org Organization, Token Token);
     private sealed record Error(string Code, string Message, Dictionary<string, string>? Fields);
     private sealed record Company(Guid Id, string LegalName);
-    private sealed record Invite(Guid Id, string FirstName, string LastName, string? Email, string? Phone, string Group, bool AllCompanies,
+    private sealed record Invite(Guid Id, string FirstName, string LastName, string? Email, string? Phone, List<string> Groups, bool AllCompanies,
         List<Guid> CompanyIds, string Status, int SendCount);
     private sealed record Invitation(string Organization, string InvitedBy, string FirstName, string LastName, string? Email, string? Phone,
-        string Group, bool AllCompanies, List<string> Companies, bool HasAccount);
+        List<string> Groups, bool AllCompanies, List<string> Companies, bool HasAccount);
     private sealed record Grant(string Permission, bool AllCompanies, List<Guid> CompanyIds);
     private sealed record Me(Guid? OrganizationId, string SignedUpVia, List<Grant> Permissions);
 
@@ -80,18 +80,20 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
         var email = $"mary-{Guid.NewGuid():N}@example.com";
         var res = await owner.PostAsJsonAsync("/api/team/invitations", new
         {
-            firstName = "Mary", lastName = "Wanjiku", email = email.ToUpperInvariant(), group = "hr", allCompanies = false, companyIds = new[] { westlands.Id },
+            firstName = "Mary", lastName = "Wanjiku", email = email.ToUpperInvariant(), groups = new[] { "hr" }, allCompanies = false, companyIds = new[] { westlands.Id },
         });
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
         var invite = (await res.Content.ReadFromJsonAsync<Invite>())!;
-        Assert.Equal((email, "hr", false, "open", 1), (invite.Email, invite.Group, invite.AllCompanies, invite.Status, invite.SendCount));
+        Assert.Equal((email, false, "open", 1), (invite.Email, invite.AllCompanies, invite.Status, invite.SendCount));
+        Assert.Equal(["hr"], invite.Groups);
         Assert.Single((await owner.GetFromJsonAsync<List<Invite>>("/api/team/invitations"))!, i => i.Id == invite.Id);
 
         var (channel, token) = await Sent(email);
         Assert.Equal("email", channel);
         var guest = Guest();
         var shown = (await guest.GetFromJsonAsync<Invitation>($"/api/invitations/{token}"))!;
-        Assert.Equal((orgName, "Amina Otieno", "Mary", "hr", false, false), (shown.Organization, shown.InvitedBy, shown.FirstName, shown.Group, shown.AllCompanies, shown.HasAccount));
+        Assert.Equal((orgName, "Amina Otieno", "Mary", false, false), (shown.Organization, shown.InvitedBy, shown.FirstName, shown.AllCompanies, shown.HasAccount));
+        Assert.Equal(["hr"], shown.Groups);
         Assert.Equal(["Westlands Ltd"], shown.Companies);
 
         Assert.Equal("AUTH-1016", (await ErrorFrom(await guest.PostAsJsonAsync($"/api/invitations/{token}/accept", new { firstName = "", lastName = "Wanjiku", password = Password }))).Code);
@@ -128,7 +130,7 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
         }
 
         Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/team/invitations",
-            new { firstName = "Joy", lastName = "Achieng", phone, group = "administrators", allCompanies = true, companyIds = Array.Empty<Guid>() })).StatusCode);
+            new { firstName = "Joy", lastName = "Achieng", phone, groups = new[] { "administrators" }, allCompanies = true, companyIds = Array.Empty<Guid>() })).StatusCode);
         var (channel, token) = await Sent("+254" + phone[1..]);
         Assert.Equal("sms", channel);
 
@@ -148,7 +150,7 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
         var (owner, _, _, _, _) = await Organization();
         var email = $"otieno-{Guid.NewGuid():N}@example.com";
         var invite = (await (await owner.PostAsJsonAsync("/api/team/invitations",
-            new { firstName = "Otieno", lastName = "Ouma", email, group = "payroll", allCompanies = true, companyIds = Array.Empty<Guid>() })).Content.ReadFromJsonAsync<Invite>())!;
+            new { firstName = "Otieno", lastName = "Ouma", email, groups = new[] { "payroll" }, allCompanies = true, companyIds = Array.Empty<Guid>() })).Content.ReadFromJsonAsync<Invite>())!;
         var (_, first) = await Sent(email);
 
         var resent = await owner.PostAsync($"/api/team/invitations/{invite.Id}/resend", null);
@@ -166,7 +168,7 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
 
         // Revoked: they can be invited again.
         Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/team/invitations",
-            new { firstName = "Otieno", lastName = "Ouma", email, group = "payroll", allCompanies = true, companyIds = Array.Empty<Guid>() })).StatusCode);
+            new { firstName = "Otieno", lastName = "Ouma", email, groups = new[] { "payroll" }, allCompanies = true, companyIds = Array.Empty<Guid>() })).StatusCode);
     }
 
     [Fact]
@@ -175,7 +177,7 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
         var (owner, _, _, _, _) = await Organization();
         var email = $"late-{Guid.NewGuid():N}@example.com";
         var invite = (await (await owner.PostAsJsonAsync("/api/team/invitations",
-            new { firstName = "Late", lastName = "Comer", email, group = "approvers", allCompanies = true, companyIds = Array.Empty<Guid>() })).Content.ReadFromJsonAsync<Invite>())!;
+            new { firstName = "Late", lastName = "Comer", email, groups = new[] { "approvers" }, allCompanies = true, companyIds = Array.Empty<Guid>() })).Content.ReadFromJsonAsync<Invite>())!;
         var (_, token) = await Sent(email);
         await using (var connection = new NpgsqlConnection(Db))
         {
@@ -195,12 +197,12 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
     {
         var (owner, ownerEmail, _, westlands, _) = await Organization();
         object Body(string? email, string? phone = null, string group = "hr", bool all = true, Guid[]? companies = null) =>
-            new { firstName = "Mary", lastName = "Wanjiku", email, phone, group, allCompanies = all, companyIds = companies ?? [] };
+            new { firstName = "Mary", lastName = "Wanjiku", email, phone, groups = new[] { group }, allCompanies = all, companyIds = companies ?? [] };
 
         Assert.Equal("ACC-8002", (await ErrorFrom(await owner.PostAsJsonAsync("/api/team/invitations", Body(ownerEmail)))).Code);
         var bad = await ErrorFrom(await owner.PostAsJsonAsync("/api/team/invitations", Body(null, null, "owners", false)));
         Assert.Equal("ACC-8004", bad.Code);
-        Assert.Equal(["companyIds", "contact", "group"], bad.Fields!.Keys.Order());
+        Assert.Equal(["companyIds", "contact", "groups"], bad.Fields!.Keys.Order());
         Assert.Equal("ACC-8004", (await ErrorFrom(await owner.PostAsJsonAsync("/api/team/invitations", Body("not-an-email")))).Code);
 
         var email = $"mary-{Guid.NewGuid():N}@example.com";
@@ -214,5 +216,35 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
             .Content.ReadFromJsonAsync<Token>())!);
         Assert.Equal("ACC-8001", (await ErrorFrom(await mary.PostAsJsonAsync("/api/team/invitations", Body($"x-{Guid.NewGuid():N}@example.com")))).Code);
         Assert.Equal("ACC-8001", (await ErrorFrom(await mary.GetAsync("/api/team/invitations"))).Code);
+    }
+
+    [Fact]
+    public async Task One_person_can_be_invited_as_HR_and_Payroll()
+    {
+        var (owner, _, _, westlands, _) = await Organization();
+        var email = $"both-{Guid.NewGuid():N}@example.com";
+        var invite = (await (await owner.PostAsJsonAsync("/api/team/invitations", new
+        {
+            firstName = "Mary", lastName = "Wanjiku", email, groups = new[] { "payroll", "hr", "hr" }, allCompanies = false, companyIds = new[] { westlands.Id },
+        })).Content.ReadFromJsonAsync<Invite>())!;
+        Assert.Equal(["hr", "payroll"], invite.Groups);   // once each, in the usual order
+
+        await using (var connection = new NpgsqlConnection(Db))
+        {
+            await connection.OpenAsync();
+            await using var command = new NpgsqlCommand("select data->>'role' from notification_deliveries where recipient = @r and template = 'team_invitation'", connection);
+            command.Parameters.AddWithValue("r", email);
+            Assert.Equal("HR and Payroll", await command.ExecuteScalarAsync());
+        }
+
+        var (_, token) = await Sent(email);
+        var mary = Guest();
+        Authorize(mary, (await (await mary.PostAsJsonAsync($"/api/invitations/{token}/accept", new { firstName = "Mary", lastName = "Wanjiku", password = Password })).Content.ReadFromJsonAsync<Token>())!);
+        var grants = (await mary.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions;
+        Assert.Equal(["employees.manage", "leave.manage", "locations.manage", "pay_items.manage", "payment_accounts.manage", "payroll_history.manage", "schedules.manage", "structure.manage"],
+            grants.Select(g => g.Permission).Order());
+        Assert.All(grants, g => Assert.Equal([westlands.Id], g.CompanyIds));
+        Assert.Equal("ACC-8004", (await ErrorFrom(await owner.PostAsJsonAsync("/api/team/invitations",
+            new { firstName = "No", lastName = "Group", email = $"x-{Guid.NewGuid():N}@example.com", groups = Array.Empty<string>(), allCompanies = true }))).Code);
     }
 }

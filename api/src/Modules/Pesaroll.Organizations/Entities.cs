@@ -757,8 +757,8 @@ public sealed class Invitation
     public required string LastName { get; set; }
     public string? Email { get; set; }
     public string? Phone { get; set; }
-    /// <summary>administrators, hr, payroll or approvers: the starting group whose role they get.</summary>
-    public required string GroupKey { get; set; }
+    /// <summary>One or more of administrators, hr, payroll, approvers: the starting groups whose roles they get.</summary>
+    public required string[] GroupKeys { get; set; }
     public bool AllCompanies { get; set; }
     public Guid InvitedBy { get; set; }
     /// <summary>SHA-256 of the link's token; the token itself is only in the message.</summary>

@@ -9,7 +9,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 const invitation = {
   organization: 'Mama Oliech Group', invitedBy: 'Amina Otieno', firstName: 'Mary', lastName: 'Wanjiku', email: 'mary@example.com', phone: null,
-  group: 'hr', allCompanies: false, companies: ['Westlands Ltd', 'Mombasa Ltd'], expiresAt: '2026-10-20T09:00:00Z', hasAccount: false,
+  groups: ['hr', 'payroll'], allCompanies: false, companies: ['Westlands Ltd', 'Mombasa Ltd'], expiresAt: '2026-10-20T09:00:00Z', hasAccount: false,
 }
 
 it('a new colleague sees who invited them to what, confirms their name, sets a password and lands in the app', async () => {
@@ -20,7 +20,7 @@ it('a new colleague sees who invited them to what, confirms their name, sets a p
   const { container } = renderApp('/invite/tok-1')
 
   expect(await screen.findByRole('heading', { name: 'Join Mama Oliech Group' })).toBeInTheDocument()
-  expect(screen.getByText('Amina Otieno invited you to join as HR, for Westlands Ltd and Mombasa Ltd.')).toBeInTheDocument()
+  expect(screen.getByText('Amina Otieno invited you to join as HR and Payroll, for Westlands Ltd and Mombasa Ltd.')).toBeInTheDocument()
   expect(screen.getByText('mary@example.com')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'First name' })).toHaveValue('Mary')
   expect(screen.getByRole('textbox', { name: 'Last name' })).toHaveValue('Wanjiku')
@@ -46,7 +46,7 @@ it('a new colleague sees who invited them to what, confirms their name, sets a p
 
 it('someone with an account enters their password to join', async () => {
   const calls = fakeApi({
-    'GET /api/invitations/tok-2': () => json(200, { ...invitation, group: 'administrators', allCompanies: true, companies: [], hasAccount: true }),
+    'GET /api/invitations/tok-2': () => json(200, { ...invitation, groups: ['administrators'], allCompanies: true, companies: [], hasAccount: true }),
     'POST /api/invitations/tok-2/accept': () => apiError(401, 'AUTH-1001', "That email or phone number and password don't match."),
   })
   renderApp('/invite/tok-2')

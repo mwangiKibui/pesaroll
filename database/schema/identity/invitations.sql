@@ -9,7 +9,8 @@ create table invitations (
     last_name        text not null check (length(btrim(last_name)) between 1 and 60),
     email            text,                            -- stored lowercase
     phone            text,                            -- stored as +254...
-    group_key        text not null check (group_key in ('administrators', 'hr', 'payroll', 'approvers')),
+    -- The starting groups whose roles they get: one or more (HR and Payroll for one person is common).
+    group_keys       text[] not null check (cardinality(group_keys) between 1 and 4 and array_position(group_keys, null) is null and group_keys <@ array['administrators', 'hr', 'payroll', 'approvers']),
     all_companies    boolean not null default true,   -- else invitation_companies
     invited_by       uuid not null references users (id),
     token_hash       bytea not null unique,
@@ -53,11 +54,11 @@ grant select, insert on table invitation_companies to pesaroll_app;
 -- security can't apply): who invited them, to what, and whether they already have an account.
 create or replace function invitation_by_token(p_token_hash bytea)
 returns table (
-    id uuid, organization_name text, invited_by_name text, first_name text, last_name text, email text, phone text, group_key text,
+    id uuid, organization_name text, invited_by_name text, first_name text, last_name text, email text, phone text, group_keys text[],
     all_companies boolean, company_names text[], status text, expires_at timestamptz, has_account boolean)
 language sql stable security definer set search_path = public
 as $$
-    select i.id, o.name, u.full_name, i.first_name, i.last_name, i.email, i.phone, i.group_key, i.all_companies,
+    select i.id, o.name, u.full_name, i.first_name, i.last_name, i.email, i.phone, i.group_keys, i.all_companies,
            coalesce((select array_agg(c.legal_name order by c.legal_name)
                      from invitation_companies ic join companies c on c.id = ic.company_id where ic.invitation_id = i.id), '{}'),
            case when i.accepted_at is not null then 'accepted'
@@ -121,7 +122,7 @@ $$;
 
 -- Accepts an open invitation for the signed-in person (app.user_id), whose email or phone must be
 -- the invitation's: they join the organization (a membership, made active again if they had left)
--- and the group for the invitation's role and companies (access_group). Returns the organization. Errors are raised as their catalogue codes.
+-- and the group for each of the invitation's roles, for its companies (access_group). Returns the organization. Errors are raised as their catalogue codes.
 create or replace function accept_invitation(p_token_hash bytea)
 returns uuid
 language plpgsql security definer set search_path = public
@@ -131,6 +132,7 @@ declare
     inv invitations;
     v_membership uuid;
     v_group uuid;
+    v_key text;
 begin
     if v_user is null then
         raise exception 'AUTH-1007';
@@ -154,12 +156,14 @@ begin
     on conflict (organization_id, user_id) do update set status = 'active', updated_at = now()
     returning id into v_membership;
 
-    v_group := access_group(inv.organization_id, inv.group_key, inv.all_companies,
-        (select array_agg(ic.company_id) from invitation_companies ic where ic.invitation_id = inv.id));
-
-    insert into security_group_members (id, organization_id, security_group_id, membership_id, added_by)
-    select uuidv7(), inv.organization_id, v_group, v_membership, inv.invited_by
-    where not exists (select 1 from security_group_members x where x.security_group_id = v_group and x.membership_id = v_membership and x.removed_at is null);
+    -- The group for each of the invitation's roles, for its companies.
+    foreach v_key in array inv.group_keys loop
+        v_group := access_group(inv.organization_id, v_key, inv.all_companies,
+            (select array_agg(ic.company_id) from invitation_companies ic where ic.invitation_id = inv.id));
+        insert into security_group_members (id, organization_id, security_group_id, membership_id, added_by)
+        select uuidv7(), inv.organization_id, v_group, v_membership, inv.invited_by
+        where not exists (select 1 from security_group_members x where x.security_group_id = v_group and x.membership_id = v_membership and x.removed_at is null);
+    end loop;
 
     update invitations set accepted_at = now(), accepted_by = v_user, updated_at = now() where id = inv.id;
     return inv.organization_id;

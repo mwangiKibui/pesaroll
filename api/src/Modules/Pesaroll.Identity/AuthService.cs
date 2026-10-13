@@ -16,11 +16,11 @@ public sealed record SignInRequest(string? Identifier, string? Password);
 
 /// <summary>
 /// An invitation as the accept page shows it: the organization, who invited them, their name and
-/// email or phone as invited, the group (administrators, hr, payroll, approvers) and companies,
+/// email or phone as invited, the groups (one or more of administrators, hr, payroll, approvers) and companies,
 /// and whether they sign in to accept (an account with that email or phone exists).
 /// </summary>
 public sealed record InvitationResponse(string Organization, string InvitedBy, string FirstName, string LastName, string? Email, string? Phone,
-    string Group, bool AllCompanies, IReadOnlyList<string> Companies, DateTimeOffset ExpiresAt, bool HasAccount);
+    IReadOnlyList<string> Groups, bool AllCompanies, IReadOnlyList<string> Companies, DateTimeOffset ExpiresAt, bool HasAccount);
 
 /// <summary>Accepting: their name and a new password, or, with an account already, its password.</summary>
 public sealed record AcceptInvitationRequest(string? FirstName, string? LastName, string? Password);
@@ -132,7 +132,7 @@ public sealed class AuthService(
     {
         var invitation = await FindInvitationAsync(token, ct);
         return new InvitationResponse(invitation.Organization, invitation.InvitedBy, invitation.FirstName, invitation.LastName, invitation.Email,
-            invitation.Phone, invitation.GroupKey, invitation.AllCompanies, invitation.Companies, invitation.ExpiresAt, invitation.HasAccount);
+            invitation.Phone, invitation.GroupKeys, invitation.AllCompanies, invitation.Companies, invitation.ExpiresAt, invitation.HasAccount);
     }
 
     /// <summary>
@@ -208,7 +208,7 @@ public sealed class AuthService(
     }
 
     private sealed record FoundInvitation(byte[] Hash, string Organization, string InvitedBy, string FirstName, string LastName, string? Email, string? Phone,
-        string GroupKey, bool AllCompanies, string[] Companies, DateTimeOffset ExpiresAt, bool HasAccount);
+        string[] GroupKeys, bool AllCompanies, string[] Companies, DateTimeOffset ExpiresAt, bool HasAccount);
 
     private async Task<FoundInvitation> FindInvitationAsync(string token, CancellationToken ct)
     {
@@ -224,10 +224,10 @@ public sealed class AuthService(
 
         var hash = SHA256.HashData(raw);
         var found = (await db.QueryAsync(
-            "select organization_name, invited_by_name, first_name, last_name, email, phone, group_key, all_companies, company_names, status, expires_at, has_account " +
+            "select organization_name, invited_by_name, first_name, last_name, email, phone, group_keys, all_companies, company_names, status, expires_at, has_account " +
             "from invitation_by_token(@hash)",
             r => (Invitation: new FoundInvitation(hash, r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4),
-                r.IsDBNull(5) ? null : r.GetString(5), r.GetString(6), r.GetBoolean(7), r.GetFieldValue<string[]>(8), r.GetFieldValue<DateTimeOffset>(10), r.GetBoolean(11)),
+                r.IsDBNull(5) ? null : r.GetString(5), r.GetFieldValue<string[]>(6), r.GetBoolean(7), r.GetFieldValue<string[]>(8), r.GetFieldValue<DateTimeOffset>(10), r.GetBoolean(11)),
                 Status: r.GetString(9)),
             new Dictionary<string, object?> { ["hash"] = hash }, ct)).FirstOrDefault();
         return found.Status switch

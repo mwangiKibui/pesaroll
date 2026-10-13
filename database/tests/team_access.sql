@@ -28,19 +28,43 @@ begin
 
   -- Mary: Payroll for Mombasa, then HR for every company.
   set local role pesaroll_app;
-  perform set_member_access(mary_m, 'payroll', false, array[co_b]);
+  perform set_member_access(mary_m, array['payroll'], false, array[co_b]);
   reset role;
   if member_company_ids(mary, org) is distinct from array[co_b]
      or not exists (select 1 from member_grants(mary, org) where permission_key = 'pay_items.manage') then
     raise exception 'Mary is not Payroll for Mombasa';
   end if;
   set local role pesaroll_app;
-  perform set_member_access(mary_m, 'hr', true, null);
+  perform set_member_access(mary_m, array['hr'], true, null);
   reset role;
   if member_company_ids(mary, org) is distinct from array[co_a, co_b]
      or exists (select 1 from member_grants(mary, org) where permission_key = 'pay_items.manage')
      or (select count(*) from security_group_members where membership_id = mary_m and removed_at is null) <> 1 then
     raise exception 'Mary did not move to HR for every company, out of Payroll';
+  end if;
+
+  -- HR and Payroll for every company at once; then back to HR only, which takes Payroll away.
+  set local role pesaroll_app;
+  perform set_member_access(mary_m, array['hr', 'payroll'], true, null);
+  reset role;
+  if not exists (select 1 from member_grants(mary, org) where permission_key = 'pay_items.manage')
+     or not exists (select 1 from member_grants(mary, org) where permission_key = 'structure.manage')
+     or (select count(*) from security_group_members where membership_id = mary_m and removed_at is null) <> 2 then
+    raise exception 'Mary is not in HR and Payroll';
+  end if;
+  set local role pesaroll_app;
+  perform set_member_access(mary_m, array['hr'], true, null);
+  begin
+    perform set_member_access(mary_m, array[]::text[], true, null);
+    raise exception 'access with no group was allowed';
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    if msg <> 'ACC-8009' then raise exception 'no group: expected ACC-8009, got %', msg; end if;
+  end;
+  reset role;
+  if exists (select 1 from member_grants(mary, org) where permission_key = 'pay_items.manage')
+     or (select count(*) from security_group_members where membership_id = mary_m and removed_at is null) <> 1 then
+    raise exception 'changing to HR only did not take Payroll away';
   end if;
 
   -- Mary, not an administrator, can't change anyone.
@@ -57,7 +81,7 @@ begin
   -- The last administrator can't be moved or removed.
   perform set_config('app.user_id', amina::text, true);
   begin
-    perform set_member_access(amina_m, 'hr', true, null);
+    perform set_member_access(amina_m, array['hr'], true, null);
     raise exception 'the last administrator was moved';
   exception when others then
     get stacked diagnostics msg = message_text;
@@ -72,8 +96,8 @@ begin
   end;
 
   -- With Mary an administrator too, Amina can step down; then Mary removes nobody unknown.
-  perform set_member_access(mary_m, 'administrators', true, null);
-  perform set_member_access(amina_m, 'payroll', true, null);
+  perform set_member_access(mary_m, array['administrators'], true, null);
+  perform set_member_access(amina_m, array['payroll'], true, null);
   perform set_config('app.user_id', mary::text, true);
   perform remove_member(amina_m);
   reset role;
@@ -92,7 +116,7 @@ begin
   -- Another organization can't touch Mary.
   perform set_config('app.org_id', '00000000-0000-7000-8000-000000000002', true);
   begin
-    perform set_member_access(mary_m, 'hr', true, null);
+    perform set_member_access(mary_m, array['hr'], true, null);
     raise exception 'another organization changed Mary';
   exception when others then
     get stacked diagnostics msg = message_text;

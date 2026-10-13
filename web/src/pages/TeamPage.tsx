@@ -11,7 +11,7 @@ import { CompanySelect, type CompanySelection } from '../components/CompanySelec
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
-import { SelectField, TextField } from '../components/fields'
+import { TextField } from '../components/fields'
 import { PlusIcon } from '../components/icons'
 import { Modal } from '../components/Modal'
 import { Pagination } from '../components/Pagination'
@@ -31,7 +31,7 @@ const groups = ['administrators', 'hr', 'payroll', 'approvers'] as const
 /** A row of the table: someone in, or someone invited. */
 type Row =
   | { kind: 'member'; key: string; name: string; contact: string; group: string | null; groupName: string; allCompanies: boolean; companyIds: string[]; member: Member }
-  | { kind: 'invitation'; key: string; name: string; contact: string; group: string; groupName: string; allCompanies: boolean; companyIds: string[]; invitation: Invitation }
+  | { kind: 'invitation'; key: string; name: string; contact: string; group: string | null; groupName: string; allCompanies: boolean; companyIds: string[]; invitation: Invitation }
 
 const trash = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
 const eye = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -94,8 +94,8 @@ export default function TeamPage() {
       }
     }),
     ...(invitations.data ?? []).map((i): Row => ({
-      kind: 'invitation', key: i.id, name: `${i.firstName} ${i.lastName}`, contact: i.email ?? i.phone ?? '', group: i.group,
-      groupName: groupLabel(i.group, i.group), allCompanies: i.allCompanies, companyIds: i.companyIds, invitation: i,
+      kind: 'invitation', key: i.id, name: `${i.firstName} ${i.lastName}`, contact: i.email ?? i.phone ?? '', group: i.groups[0] ?? null,
+      groupName: i.groups.map(g => groupLabel(g, g)).join(', '), allCompanies: i.allCompanies, companyIds: i.companyIds, invitation: i,
     })),
   ]
   // The company selector: people and invitations covering any company shown.
@@ -249,13 +249,30 @@ function Details({ row, companiesText }: { row: Row; companiesText: (all: boolea
   )
 }
 
-/** Group: a searchable dropdown, with what the chosen group may do under it. */
-function GroupField({ value, onChange, error }: { value: string; onChange: (value: string) => void; error?: string }) {
+/**
+ * Groups: one or more, each with what it allows (HR and Payroll for one person is common in small
+ * businesses). Someone in Payroll and Approvers could approve pay runs they prepared: say so.
+ */
+function GroupsField({ value, onChange, error }: { value: string[]; onChange: (value: string[]) => void; error?: string }) {
   const { t } = useTranslation()
+  const id = useId()
+  const toggle = (g: string, on: boolean) => onChange(groups.filter(x => (x === g ? on : value.includes(x))))
   return (
-    <SelectField label={t('team.group')} placeholder={t('team.groupPlaceholder')} value={value} error={error}
-      hint={value ? t(`team.groupHints.${value}`) : t('team.groupHint')} onChange={v => v && onChange(v)}
-      options={groups.map(g => ({ value: g, label: t(`team.groups.${g}`) }))} />
+    <fieldset aria-describedby={`${id}-hint`} className="m-0 flex flex-col gap-1 border-0 p-0">
+      <legend className="mb-0.5 p-0 text-label font-medium text-ink">{t('team.groupsLabel')}</legend>
+      <p id={`${id}-hint`} className="m-0 mb-1 text-hint text-muted">{t('team.groupsHint')}</p>
+      {groups.map(g => (
+        <label key={g} className="flex cursor-pointer items-start gap-2.5 py-1.5">
+          <input type="checkbox" className="mt-0.5 size-5 flex-none accent-brand" checked={value.includes(g)} onChange={e => toggle(g, e.target.checked)} />
+          <span className="flex flex-col">
+            <span className="text-body text-ink">{t(`team.groups.${g}`)}</span>
+            <span className="text-hint text-muted">{t(`team.groupHints.${g}`)}</span>
+          </span>
+        </label>
+      ))}
+      {error && <p className="m-0 text-hint font-medium text-danger-ink">{error}</p>}
+      {value.includes('payroll') && value.includes('approvers') && <Notice>{t('team.selfApproval')}</Notice>}
+    </fieldset>
   )
 }
 
@@ -264,7 +281,7 @@ interface InviteValues {
   lastName: string
   email: string
   phone: string
-  group: string
+  groups: string[]
   companies: CompanySelection
 }
 
@@ -276,7 +293,7 @@ function InviteDrawer({ companies, onClose, onSent }: { companies: Company[]; on
   const formId = useId()
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const { register, handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<InviteValues>({
-    defaultValues: { firstName: '', lastName: '', email: '', phone: '', group: '', companies: { all: true, ids: [] } },
+    defaultValues: { firstName: '', lastName: '', email: '', phone: '', groups: [], companies: { all: true, ids: [] } },
   })
 
   const onSubmit = async (v: InviteValues) => {
@@ -286,13 +303,13 @@ function InviteDrawer({ companies, onClose, onSent }: { companies: Company[]; on
     need('firstName', !!v.firstName.trim(), t('validation.firstName'))
     need('lastName', !!v.lastName.trim(), t('validation.lastName'))
     need('email', !!(v.email.trim() || v.phone.trim()), t('team.contactNeeded'))
-    need('group', !!v.group, t('team.groupNeeded'))
+    need('groups', v.groups.length > 0, t('team.groupNeeded'))
     if (invalid) return
     const name = `${v.firstName.trim()} ${v.lastName.trim()}`
     try {
       const { data, error } = await api.POST('/api/team/invitations', {
         body: {
-          firstName: v.firstName.trim(), lastName: v.lastName.trim(), email: v.email.trim() || null, phone: v.phone.trim() || null, group: v.group,
+          firstName: v.firstName.trim(), lastName: v.lastName.trim(), email: v.email.trim() || null, phone: v.phone.trim() || null, groups: v.groups,
           allCompanies: v.companies.all, companyIds: v.companies.all ? [] : v.companies.ids,
         },
       })
@@ -303,7 +320,7 @@ function InviteDrawer({ companies, onClose, onSent }: { companies: Company[]; on
         return
       }
       if (!isApiError(error)) return setBanner('network')
-      const fields: Record<string, FieldPath<InviteValues>> = { firstName: 'firstName', lastName: 'lastName', contact: 'email', group: 'group', companyIds: 'companies' }
+      const fields: Record<string, FieldPath<InviteValues>> = { firstName: 'firstName', lastName: 'lastName', contact: 'email', groups: 'groups', companyIds: 'companies' }
       const known = Object.entries(error.fields ?? {}).filter(([k]) => k in fields)
       for (const [k, message] of known) setError(fields[k], { message })
       if (known.length === 0) setBanner(error)
@@ -327,7 +344,7 @@ function InviteDrawer({ companies, onClose, onSent }: { companies: Company[]; on
         </div>
         <TextField type="email" label={t('team.email')} placeholder={t('team.emailPlaceholder')} hint={t('team.contactHint')} error={errors.email?.message} {...register('email')} />
         <TextField type="tel" label={t('team.phone')} placeholder={t('team.phonePlaceholder')} optional inputMode="tel" error={errors.phone?.message} {...register('phone')} />
-        <Controller control={control} name="group" render={({ field }) => <GroupField value={field.value} onChange={field.onChange} error={errors.group?.message} />} />
+        <Controller control={control} name="groups" render={({ field }) => <GroupsField value={field.value} onChange={field.onChange} error={errors.groups?.message} />} />
         {companies.length > 1 && (
           <Controller control={control} name="companies" render={({ field }) => (
             <div className="flex flex-col gap-1.5">
@@ -350,22 +367,22 @@ function AccessModal({ member, companies, onClose, onSaved }: { member: Member; 
   const formId = useId()
   const current = member.groups[0]
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
-  const { handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<{ group: string; companies: CompanySelection }>({
+  const { handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<{ groups: string[]; companies: CompanySelection }>({
     defaultValues: {
-      group: current?.group ?? '',
+      groups: member.groups.map(g => g.group).filter((g): g is string => !!g),
       companies: !current || current.allCompanies ? { all: true, ids: [] } : { all: false, ids: current.companyIds },
     },
   })
-  useWatch({ control, name: 'group' })
+  useWatch({ control, name: 'groups' })
   const name = `${member.firstName} ${member.lastName}`
 
-  const onSubmit = async (v: { group: string; companies: CompanySelection }) => {
+  const onSubmit = async (v: { groups: string[]; companies: CompanySelection }) => {
     setBanner(null)
-    if (!v.group) return setError('group', { message: t('team.groupNeeded') })
+    if (!v.groups.length) return setError('groups', { message: t('team.groupNeeded') })
     try {
       const { error, response } = await api.PUT('/api/team/members/{id}/access', {
         params: { path: { id: member.membershipId } },
-        body: { group: v.group, allCompanies: v.companies.all, companyIds: v.companies.all ? [] : v.companies.ids },
+        body: { groups: v.groups, allCompanies: v.companies.all, companyIds: v.companies.all ? [] : v.companies.ids },
       })
       if (response.ok) {
         toast.show(t('team.updated', { name }))
@@ -387,7 +404,7 @@ function AccessModal({ member, companies, onClose, onSaved }: { member: Member; 
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
-        <Controller control={control} name="group" render={({ field }) => <GroupField value={field.value} onChange={field.onChange} error={errors.group?.message} />} />
+        <Controller control={control} name="groups" render={({ field }) => <GroupsField value={field.value} onChange={field.onChange} error={errors.groups?.message} />} />
         {companies.length > 1 && (
           <Controller control={control} name="companies" render={({ field }) => (
             <CompanySelect label={t('team.companies')} value={field.value} onChange={field.onChange}
