@@ -81,21 +81,27 @@ as $$
     where token_hash = p_token_hash and revoked_at is null
 $$;
 
--- Every request: the companies a member may see. PLACEHOLDER: for now an active member
--- sees all of the organization's companies. ACC-02 replaces this body with the combined
--- company scope of the person's security groups; callers don't change.
+-- Every request: the companies a member may see, the combined company scope of their current
+-- security groups (ACC-02). Someone in no group sees none.
 create or replace function member_company_ids(p_user_id uuid, p_organization_id uuid)
 returns uuid[]
 language sql stable security definer set search_path = public
 as $$
+    -- The companies a person's current groups cover (ACC-02): all of them for a group for all companies.
     select coalesce(array_agg(c.id order by c.id), '{}')
     from companies c
     where c.organization_id = p_organization_id
       and exists (
-          select 1 from memberships m
+          select 1
+          from security_group_members gm
+          join memberships m on m.id = gm.membership_id
+          join security_groups g on g.id = gm.security_group_id
           where m.organization_id = p_organization_id
             and m.user_id = p_user_id
-            and m.status = 'active')
+            and m.status = 'active'
+            and gm.removed_at is null
+            and (g.all_companies
+                 or exists (select 1 from security_group_companies gc where gc.security_group_id = g.id and gc.company_id = c.id)))
 $$;
 
 revoke all on function find_account_for_signin(text) from public;

@@ -6180,6 +6180,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccessGrant: {
+            permission: string;
+            allCompanies: boolean;
+            companyIds: string[];
+        };
         AccountRequest: {
             method: null | string;
             bankCode: null | string;
@@ -6697,6 +6702,7 @@ export interface components {
             organizationId: null | string;
             signedUpVia: string;
             canOnboardOrganization: boolean;
+            permissions: components["schemas"]["AccessGrant"][];
         };
         MissingItem: {
             kind: string;

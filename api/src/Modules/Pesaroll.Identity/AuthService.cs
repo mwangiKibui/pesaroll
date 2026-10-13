@@ -15,14 +15,16 @@ public sealed record SignInRequest(string? Identifier, string? Password);
 /// True for someone who signed up themselves and hasn't onboarded an organization yet: the app takes
 /// them to the organization step. Anyone else without an organization sees "not part of an organization".
 /// </param>
+/// <param name="Permissions">What they may do in their organization, each for all companies or some (ACC-02).</param>
 public sealed record MeResponse(
     Guid Id, string FirstName, string? MiddleName, string LastName, string FullName, string? Email, string? Phone,
-    Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId, string SignedUpVia, bool CanOnboardOrganization)
+    Guid? SignupRoleId, string? SignupRoleOther, Guid? OrganizationId, string SignedUpVia, bool CanOnboardOrganization,
+    IReadOnlyList<AccessGrant> Permissions)
 {
-    public static MeResponse From(User user, Guid? organizationId, bool hasOnboardedOrganization) =>
+    public static MeResponse From(User user, Guid? organizationId, bool hasOnboardedOrganization, IReadOnlyList<AccessGrant> permissions) =>
         new(user.Id, user.FirstName, user.MiddleName, user.LastName, user.FullName, user.Email, user.Phone,
             user.SignupRoleId, user.SignupRoleOther, organizationId, user.SignedUpVia,
-            user.SignedUpVia == "self" && !hasOnboardedOrganization);
+            user.SignedUpVia == "self" && !hasOnboardedOrganization, permissions);
 }
 
 /// <summary>Sign-up and sign-in (AUTH-01, AUTH-02).</summary>

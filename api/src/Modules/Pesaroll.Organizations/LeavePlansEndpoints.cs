@@ -66,7 +66,7 @@ public static class LeavePlansEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Leave);
             var valid = ValidateType(request);
             var now = clock.GetUtcNow();
             var type = new LeaveType
@@ -86,7 +86,7 @@ public static class LeavePlansEndpoints
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Leave);
             var type = await db.LeaveTypes.SingleOrDefaultAsync(t => t.Id == id && t.Status == "active", ct) ?? throw OnboardingErrors.LeaveNotFound();
             var valid = ValidateType(request);
             if (type.LockedKey is not null)
@@ -111,7 +111,7 @@ public static class LeavePlansEndpoints
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var type = await db.LeaveTypes.SingleOrDefaultAsync(t => t.Id == id && t.Status == "active", ct) ?? throw OnboardingErrors.LeaveNotFound();
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Leave);
             if (type.LockedKey is not null)
             {
                 throw OnboardingErrors.LeaveTypeLocked();
@@ -150,7 +150,7 @@ public static class LeavePlansEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Leave);
             var valid = await ValidatePlanAsync(request, db, ct);
             var now = clock.GetUtcNow();
             var plan = new LeavePlan { Id = Guid.CreateVersion7(), OrganizationId = organizationId, Name = valid.Name, CreatedAt = now };
@@ -167,7 +167,7 @@ public static class LeavePlansEndpoints
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Leave);
             var plan = await db.LeavePlans.Include(p => p.Companies).Include(p => p.Rules).SingleOrDefaultAsync(p => p.Id == id && p.Status == "active", ct)
                 ?? throw OnboardingErrors.LeaveNotFound();
             var valid = await ValidatePlanAsync(request, db, ct);
@@ -201,7 +201,7 @@ public static class LeavePlansEndpoints
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var plan = await db.LeavePlans.SingleOrDefaultAsync(p => p.Id == id && p.Status == "active", ct) ?? throw OnboardingErrors.LeaveNotFound();
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Leave);
             await EmployeesEndpoints.RequireUnusedAsync(db, plan.Name, e => e.LeavePlanId == id, ct);
             var defaultOf = await db.Companies.Where(c => c.DefaultLeavePlanId == id).Select(c => c.LegalName).ToListAsync(ct);
             if (defaultOf.Count > 0)

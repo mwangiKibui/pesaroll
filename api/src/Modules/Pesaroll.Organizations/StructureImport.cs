@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Organizations;
 
@@ -84,6 +85,7 @@ public static class StructureImport
         bool departmentRequired = false) => new()
     {
         Things = things,
+        Permission = Permissions.Structure,
         Columns = columns,
         RequiredKeys = [Name],
         MaxRows = MaxRows,

@@ -13,7 +13,11 @@ Status: draft for review.
 
 - REST over JSON, with an OpenAPI document generated from the code. The web app's TypeScript client is generated from it.
 - Routes are plural nouns: `/api/companies/{companyId}/employees`. Company-scoped routes carry the company in the path.
-- Every endpoint declares the permission it needs; the check runs on the server before any work.
+- Every endpoint declares the permission it needs; the check runs on the server before any work. Permission keys live in `Pesaroll.Shared.Tenancy.Permissions` and the permissions table (`post-deploy/0014_access_roles.sql`); roles bundle them, and code checks keys, never role names.
+  - A person's permissions come from their security groups, each for all companies or chosen ones, and are read once per request (`TenantContext.Grants`).
+  - Changes to a company's own records (its employees, paying accounts, payroll history, the company itself) need the permission for that company: `Access.Require(tenant, Permissions.Employees, companyId)`.
+  - Organization-wide setup (structure, locations, schedules, leave, earnings and deductions, new companies) needs it for every company: `Access.Require(tenant, Permissions.Structure)`.
+  - Uploads declare theirs on the `ImportSpec` (`Permission`, and `PerCompany` when rows belong to a company).
 - Lists are paged (`?page=&pageSize=`, maximum 200) and filterable by company with the company selector's values.
 - Errors use one shape (see `errors.md`):
 

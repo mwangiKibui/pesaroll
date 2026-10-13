@@ -171,7 +171,7 @@ public static class StructureEndpoints
         group.MapPost(path, async (TRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Structure);
             var (common, companies) = await ValidateAsync(level, request, null, db, ct);
 
             var item = New<TItem, TLink>(organizationId, common.Name!.Trim(),
@@ -189,7 +189,7 @@ public static class StructureEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Structure);
             var item = await level.Items(db).Include(i => i.Companies).SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
                 ?? throw OnboardingErrors.StructureNotFound();
             var (common, companies) = await ValidateAsync(level, request, item, db, ct);
@@ -224,7 +224,7 @@ public static class StructureEndpoints
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var item = await level.Items(db).SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct)
                 ?? throw OnboardingErrors.StructureNotFound();
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Structure);
             // Employees' jobs first (ids are unique across the levels, so one check covers them all).
             await EmployeesEndpoints.RequireUnusedAsync(db, item.Name, e => e.PositionId == id || e.DepartmentId == id || e.UnitId == id, ct);
             if (level.InUse is not null && await level.InUse(db, item, ct) is { } uses)

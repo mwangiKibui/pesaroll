@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
+using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Organizations;
 
@@ -28,6 +29,7 @@ public static class LocationsImport
         SpreadsheetImport.MapImport(app.MapGroup("/api/locations").WithTags("Locations"), "", new ImportSpec<ValidRow>
         {
             Things = "locations",
+            Permission = Permissions.Locations,
             Columns =
             [
                 new(NameColumn, "Location name"), new(TypeColumn, "Type"), new(CodeColumn, "Code"), new(CountyColumn, "County"),

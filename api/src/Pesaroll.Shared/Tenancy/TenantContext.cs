@@ -13,18 +13,29 @@ public sealed class TenantContext
 
     public IReadOnlyList<Guid> CompanyIds { get; private set; } = [];
 
+    /// <summary>What they may do, from their security groups (ACC-02), each for all companies or some.</summary>
+    public IReadOnlyList<AccessGrant> Grants { get; private set; } = [];
+
     public void SetUser(Guid userId) => UserId = userId;
 
-    public void Set(Guid organizationId, IEnumerable<Guid> companyIds)
+    public void Set(Guid organizationId, IEnumerable<Guid> companyIds, IEnumerable<AccessGrant>? grants = null)
     {
         OrganizationId = organizationId;
         CompanyIds = companyIds.Distinct().ToArray();
+        Grants = grants?.ToArray() ?? [];
     }
+
+    /// <summary>Whether they may do this for every company (organization-wide setup: shared structure, all-company items).</summary>
+    public bool Can(string permission) => Grants.Any(g => g.Permission == permission && g.AllCompanies);
+
+    /// <summary>Whether they may do this for this company.</summary>
+    public bool Can(string permission, Guid companyId) => Grants.Any(g => g.Permission == permission && g.Covers(companyId));
 
     public void Clear()
     {
         UserId = null;
         OrganizationId = null;
         CompanyIds = [];
+        Grants = [];
     }
 }

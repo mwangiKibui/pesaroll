@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pesaroll.Notifications;
 using Pesaroll.Shared.Security;
+using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Organizations;
 
@@ -44,6 +45,8 @@ public static class EmployeesImport
         SpreadsheetImport.MapImport(app.MapGroup("/api/employees").WithTags("Employees"), "", new ImportSpec<ValidRow>
         {
             Things = "employees",
+            Permission = Permissions.Employees,
+            PerCompany = true,
             Columns = Columns,
             RequiredKeys = ["firstName", "lastName"],
             MaxRows = MaxRows,

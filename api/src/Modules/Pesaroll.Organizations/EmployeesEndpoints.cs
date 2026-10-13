@@ -229,7 +229,7 @@ public static class EmployeesEndpoints
             FieldEncryptor encryptor, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Employees, request.CompanyId);
             var valid = await ValidateAsync(request, null, db, ct);
             var now = clock.GetUtcNow();
             var employee = new Employee
@@ -253,8 +253,8 @@ public static class EmployeesEndpoints
             FieldEncryptor encryptor, TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
             var employee = await LoadAsync(db, id, ct, tracked: true);
+            Access.Require(tenant, Permissions.Employees, employee.CompanyId);
             var valid = await ValidateAsync(request with { CompanyId = employee.CompanyId }, employee, db, ct);
             employee.FirstName = valid.FirstName;
             employee.LastName = valid.LastName;
@@ -277,7 +277,7 @@ public static class EmployeesEndpoints
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == id, ct) ?? throw OnboardingErrors.EmployeeNotFound();
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.Employees, employee.CompanyId);
             // People who reported to them lose their line manager (on delete set null); their job, pay
             // and accounts go with them. Once payroll has run for someone (PAY-03), they're ended, not deleted.
             db.Employees.Remove(employee);

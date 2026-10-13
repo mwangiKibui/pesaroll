@@ -61,7 +61,7 @@ public static class PayeesEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PayItems);
             var now = clock.GetUtcNow();
             var payee = new Payee { Id = Guid.CreateVersion7(), OrganizationId = organizationId, Name = "", Method = "", CreatedAt = now };
             await ApplyAsync(payee, request, db, now, ct);
@@ -76,7 +76,7 @@ public static class PayeesEndpoints
             TimeProvider clock, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PayItems);
             var payee = await db.Payees.SingleOrDefaultAsync(p => p.Id == id, ct) ?? throw OnboardingErrors.PayeeNotFound();
             await ApplyAsync(payee, request, db, clock.GetUtcNow(), ct);
             await SaveAsync(db, ct);
@@ -88,7 +88,7 @@ public static class PayeesEndpoints
         payees.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            await CompaniesEndpoints.RequireOnboarder(db, userId, organizationId, ct);
+            Access.Require(tenant, Permissions.PayItems);
             var payee = await db.Payees.SingleOrDefaultAsync(p => p.Id == id, ct) ?? throw OnboardingErrors.PayeeNotFound();
             var used = await db.PayItems.CountAsync(i => i.PayeeId == id, ct);
             if (used > 0)
