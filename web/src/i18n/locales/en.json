@@ -928,6 +928,31 @@
       "phone": "phone number",
       "bank_account": "bank account",
       "mpesa_number": "M-Pesa number"
+    },
+    "upload": "Upload",
+    "uploadTitle": "Upload earnings and deductions",
+    "review_one": "Review {{count}} earning or deduction",
+    "review_other": "Review {{count}} earnings and deductions",
+    "importButton_one": "Import {{count}} earning or deduction",
+    "importButton_other": "Import {{count}} earnings and deductions",
+    "imported_one": "{{count}} earning or deduction imported",
+    "imported_other": "{{count}} earnings and deductions imported",
+    "templateHint": "One row per earning, deduction or employer cost: name, type, how it's worked out and its amount or rate. Taxed is for earnings (Yes unless you say No); Before tax is for deductions. Paid to is one of your payees: add new payees first. Basic pay and the items set by law are already there.",
+    "columns": {
+      "name": "Name",
+      "code": "Code",
+      "kind": "Type",
+      "calcMethod": "How it's worked out",
+      "defaultAmount": "Default amount",
+      "rate": "Rate (%)",
+      "taxable": "Taxed",
+      "beforeTax": "Before tax",
+      "payee": "Paid to"
+    },
+    "columnMethods": {
+      "fixed": "Fixed amount",
+      "percent_of_basic": "Percentage of basic pay",
+      "each_run": "Entered each payroll"
     }
   },
   "employees": {

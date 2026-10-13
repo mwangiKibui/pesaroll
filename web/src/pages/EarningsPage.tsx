@@ -12,7 +12,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice } from '../components/feedback'
 import { RadioGroup, SelectField, Switch, TextField } from '../components/fields'
-import { PlusIcon } from '../components/icons'
+import { PlusIcon, UploadIcon } from '../components/icons'
 import { Money } from '../components/Money'
 import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
@@ -21,6 +21,7 @@ import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { useCompanies, usePayees, usePayItems, useSetupDone } from '../setup/hooks'
 import { PayeeModal } from './PayeeModal'
+import { PayItemsUpload } from './PayItemsUpload'
 import { PayItemView } from './PayItemView'
 import { draftsFrom, requestFor, type CompanyDraft } from './whoDrafts'
 import { WhoGetsIt } from './WhoGetsIt'
@@ -94,6 +95,7 @@ export default function EarningsPage() {
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [editing, setEditing] = useState<PayItem | 'new' | null>(null)
   const [viewing, setViewing] = useState<PayItem | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState<PayItem | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -163,6 +165,7 @@ export default function EarningsPage() {
               tabs={kinds.map(k => ({ key: k, label: t(`payItems.tabs.${k}`) }))} />
             <div className="ml-auto flex gap-2">
               <Button onClick={() => setEditing('new')}><PlusIcon />{t('payItems.add')}</Button>
+              <Button variant="secondary" onClick={() => setUploading(true)}><UploadIcon />{t('payItems.upload')}</Button>
             </div>
           </div>
           {kinds.map(k => {
@@ -231,6 +234,7 @@ export default function EarningsPage() {
         {/* Payroll history (ONB-10) is next; until it has a page, the dashboard. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
 
+        {uploading && <PayItemsUpload companies={companies.data} onClose={() => setUploading(false)} />}
         {viewing && (
           <PayItemView item={viewing} companies={companies.data} payee={payees.data?.find(p => p.id === viewing.payeeId)}
             authority={viewing.lockedKey ? authorities[viewing.lockedKey] : undefined} method={method(viewing)} tax={tax(viewing)}

@@ -928,6 +928,31 @@
       "phone": "nambari ya simu",
       "bank_account": "akaunti ya benki",
       "mpesa_number": "nambari ya M-Pesa"
+    },
+    "upload": "Pakia",
+    "uploadTitle": "Pakia mapato na makato",
+    "review_one": "Kagua kipengele {{count}}",
+    "review_other": "Kagua vipengele {{count}}",
+    "importButton_one": "Ingiza kipengele {{count}}",
+    "importButton_other": "Ingiza vipengele {{count}}",
+    "imported_one": "Kipengele {{count}} kimeingizwa",
+    "imported_other": "Vipengele {{count}} vimeingizwa",
+    "templateHint": "Safu moja kwa kila mapato, makato au gharama ya mwajiri: jina, aina, jinsi inavyohesabiwa na kiasi au kiwango. Hutozwa kodi ni kwa mapato (Ndiyo isipokuwa useme Hapana); Kabla ya kodi ni kwa makato. Hulipwa kwa ni mmoja wa wapokeaji wako: ongeza wapokeaji wapya kwanza. Mshahara wa msingi na vipengele vya kisheria vipo tayari.",
+    "columns": {
+      "name": "Jina",
+      "code": "Msimbo",
+      "kind": "Aina",
+      "calcMethod": "Jinsi inavyohesabiwa",
+      "defaultAmount": "Kiasi cha kawaida",
+      "rate": "Kiwango (%)",
+      "taxable": "Hutozwa kodi",
+      "beforeTax": "Kabla ya kodi",
+      "payee": "Hulipwa kwa"
+    },
+    "columnMethods": {
+      "fixed": "Kiasi kisichobadilika",
+      "percent_of_basic": "Asilimia ya mshahara wa msingi",
+      "each_run": "Huwekwa kila malipo"
     }
   },
   "employees": {

@@ -480,6 +480,49 @@ it('after adding, the table says who gets the new item (once who gets it is save
   expect(row).toHaveTextContent('1 person at Mama Oliech Restaurant Ltd')
 })
 
+it('earnings and deductions upload beside Add: template, review, then they import for the chosen companies', async () => {
+  URL.createObjectURL = vi.fn(() => 'blob:template')
+  URL.revokeObjectURL = vi.fn()
+  const calls = withItems({
+    'GET /api/companies': () => json(200, [restaurant, catering]),
+    'GET /api/payees': () => json(200, [{ id: 'payee-1', name: 'Stima SACCO', method: 'mpesa_paybill', referenceSource: 'typed', usedBy: 0 }]),
+    'GET /api/pay-items/template': () => new Response(new Blob(['x'])),
+    'POST /api/pay-items/import/read': () => json(200, { rows: [
+      { line: 2, cells: { name: 'Commuter allowance', code: '', kind: 'Earning', calcMethod: 'Fixed amount', defaultAmount: '5000', rate: '', taxable: 'Yes', beforeTax: '', payee: '' } },
+      { line: 3, cells: { name: 'SACCO shares', code: '', kind: 'Deduction', calcMethod: 'Fixed amount', defaultAmount: '1500', rate: '', taxable: '', beforeTax: '', payee: 'Kenya Union' } },
+    ], problems: [{ line: 3, column: 'payee', message: 'No payee is called Kenya Union. Add it as a payee first, then upload again.' }], notes: [] }),
+    'POST /api/pay-items/import/check': () => json(200, { problems: [], notes: [] }),
+    'POST /api/pay-items/import': () => json(200, { imported: 2 }),
+  })
+  renderApp('/setup/earnings-and-deductions')
+  const add = await screen.findByRole('button', { name: 'Add' })
+  const upload = screen.getByRole('button', { name: 'Upload' })
+  expect(add.compareDocumentPosition(upload) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()   // Add first
+  await userEvent.click(upload)
+
+  const drawer_ = screen.getByRole('dialog', { name: 'Upload earnings and deductions' })
+  await userEvent.click(within(drawer_).getByRole('button', { name: 'Download template' }))
+  await vi.waitFor(() => expect(calls.some(c => c.path === '/api/pay-items/template')).toBe(true))
+  await userEvent.upload(within(drawer_).getByLabelText('Choose a file'), new File(['x'], 'items.xlsx'))
+  await userEvent.click(within(drawer_).getByRole('button', { name: 'Proceed to preview' }))
+
+  const review = await screen.findByRole('dialog', { name: 'Review 2 earnings and deductions' })
+  const payee = within(review).getByRole('combobox', { name: 'Paid to, row 3' })
+  expect(payee).toHaveAccessibleDescription('No payee is called Kenya Union. Add it as a payee first, then upload again.')
+  await userEvent.clear(payee)
+  await userEvent.type(payee, 'stima')
+  await userEvent.click(screen.getByRole('option', { name: 'Stima SACCO' }))
+  await userEvent.click(within(review).getByRole('button', { name: /Apply to/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Oliech Catering Ltd/ }))   // only the restaurant
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(within(review).getByRole('button', { name: 'Import 2 earnings and deductions' }))
+
+  expect(await screen.findByText('2 earnings and deductions imported')).toBeInTheDocument()
+  expect(calls.find(c => c.method === 'POST' && c.path === '/api/pay-items/import')?.body).toMatchObject({
+    allCompanies: false, companyIds: [restaurant.id], rows: [{ line: 2 }, { line: 3, cells: { payee: 'Stima SACCO' } }],
+  })
+})
+
 it('with several companies, the selector filters every tab', async () => {
   withItems({ 'GET /api/companies': () => json(200, [restaurant, catering]), 'GET /api/pay-items': () => json(200, [...lockedPayItems(), house]) })
   renderApp('/setup/earnings-and-deductions')
