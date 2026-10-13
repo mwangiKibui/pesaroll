@@ -123,6 +123,8 @@ const SHEET_SIZES = [50, 100, 200]
 
 /** How far an arrow key scrolls the rows sideways: about one column. */
 const STEP = 320
+/** How far ↑ and ↓ scroll the rows: about three rows. */
+const ROW_STEP = 120
 
 /** Where the arrow keys belong to what's focused: typing in a cell, a dropdown, a checkbox. */
 const ownsArrows = (target: EventTarget | null) =>
@@ -159,18 +161,21 @@ export function BulkUpload({ open, title, columns, onClose, onDownloadTemplate, 
   // One column's sort, as the rows were when it was clicked: rows don't move while a cell is being fixed. Click again to re-sort.
   const [sort, setSort] = useState<{ key: string; direction: 'ascending' | 'descending'; order: Map<string, number> } | null>(null)
 
-  // While the rows are open, ← and → scroll them sideways (wide sheets have 30 columns), unless a cell is being typed in.
+  // While the rows are open, ← and → scroll them sideways (wide sheets have 30 columns) and ↑ and ↓ up and down, unless a cell is being typed in.
   const showingRows = open && !!rows
   useEffect(() => {
     if (!showingRows) return
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.altKey || e.ctrlKey || e.metaKey || ownsArrows(e.target)) return
+      const by = { ArrowLeft: { left: -STEP, top: 0 }, ArrowRight: { left: STEP, top: 0 }, ArrowUp: { left: 0, top: -ROW_STEP }, ArrowDown: { left: 0, top: ROW_STEP } }[e.key]
+      if (!by || e.altKey || e.ctrlKey || e.metaKey || ownsArrows(e.target)) return
       const region = rowsRef.current
       if (!region) return
       e.preventDefault()
-      const left = e.key === 'ArrowRight' ? STEP : -STEP
-      if (typeof region.scrollBy === 'function') region.scrollBy({ left, behavior: 'smooth' })
-      else region.scrollLeft = Math.max(0, region.scrollLeft + left)
+      if (typeof region.scrollBy === 'function') region.scrollBy({ ...by, behavior: 'smooth' })
+      else {
+        region.scrollLeft = Math.max(0, region.scrollLeft + by.left)
+        region.scrollTop = Math.max(0, region.scrollTop + by.top)
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
