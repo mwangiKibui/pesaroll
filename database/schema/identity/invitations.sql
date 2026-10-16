@@ -10,7 +10,7 @@ create table invitations (
     email            text,                            -- stored lowercase
     phone            text,                            -- stored as +254...
     -- The starting groups whose roles they get: one or more (HR and Payroll for one person is common).
-    group_keys       text[] not null check (cardinality(group_keys) between 1 and 4 and array_position(group_keys, null) is null and group_keys <@ array['administrators', 'hr', 'payroll', 'approvers']),
+    group_keys       text[] not null check (cardinality(group_keys) between 1 and 20 and array_position(group_keys, null) is null),   -- standard keys or the organization's own (ACC-08), checked by access_group
     all_companies    boolean not null default true,   -- else invitation_companies
     invited_by       uuid not null references users (id),
     token_hash       bytea not null unique,
@@ -74,9 +74,10 @@ as $$
     where i.token_hash = p_token_hash
 $$;
 
--- The group for a role and companies, found or made: the starting group for all companies, else a
--- group with only that role for exactly those companies ("HR · Westlands Ltd"). Used by accepting an
--- invitation and by changing someone's access (Team access).
+-- The group for a role and companies, found or made: the group for all companies with only that role
+-- (a starting group, or one the organization added, ACC-08), else a group with only that role for
+-- exactly those companies ("HR · Westlands Ltd"). Used by accepting an invitation and by changing
+-- someone's access (Team access). A key that is neither standard nor the organization's own: ACC-8009.
 create or replace function access_group(p_organization_id uuid, p_group_key text, p_all_companies boolean, p_company_ids uuid[])
 returns uuid
 language plpgsql security definer set search_path = public
@@ -86,14 +87,25 @@ declare
     v_role uuid;
     v_companies uuid[];
     v_name text;
+    v_base uuid;
+    v_base_name text;
 begin
     perform create_default_groups(p_organization_id, null);
-    select r.id into v_role from roles r where r.organization_id is null
-      and r.key = case p_group_key when 'administrators' then 'admin' when 'approvers' then 'approver' else p_group_key end;
+    select r.id into v_role from roles r
+    where (r.organization_id is null and p_group_key in ('administrators', 'hr', 'payroll', 'approvers')
+           and r.key = case p_group_key when 'administrators' then 'admin' when 'approvers' then 'approver' else p_group_key end)
+       or (r.organization_id = p_organization_id and r.key = p_group_key and r.deleted_at is null);
+    if v_role is null then
+        raise exception 'ACC-8009';
+    end if;
+    select g.id, g.name into v_base, v_base_name from security_groups g
+    where g.organization_id = p_organization_id and g.all_companies
+      and (select array_agg(gr.role_id) from security_group_roles gr where gr.security_group_id = g.id) = array[v_role]
+    order by g.default_key is null, g.created_at
+    limit 1;
 
     if p_all_companies then
-        select g.id into v_group from security_groups g where g.organization_id = p_organization_id and g.default_key = p_group_key;
-        return v_group;
+        return v_base;
     end if;
 
     select array_agg(c.id order by c.id) into v_companies
@@ -105,8 +117,7 @@ begin
       and (select array_agg(gc.company_id order by gc.company_id) from security_group_companies gc where gc.security_group_id = g.id) = v_companies
     limit 1;
     if v_group is null then
-        select left((select name from security_groups where organization_id = p_organization_id and default_key = p_group_key)
-                    || ' · ' || string_agg(c.legal_name, ', ' order by c.legal_name), 110)
+        select left(v_base_name || ' · ' || string_agg(c.legal_name, ', ' order by c.legal_name), 110)
         into v_name from companies c where c.id = any (v_companies);
         if exists (select 1 from security_groups where organization_id = p_organization_id and lower(name) = lower(v_name)) then
             v_name := left(v_name, 100) || ' (' || left(md5(random()::text), 6) || ')';

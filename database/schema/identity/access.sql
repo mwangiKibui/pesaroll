@@ -25,13 +25,16 @@ create table permissions (
 
 create table roles (
     id               uuid primary key,                -- fixed ids for system roles, the same in every environment
-    organization_id  uuid references organizations (id) on delete cascade,   -- null: a system role (an organization's own come with ACC-08)
+    organization_id  uuid references organizations (id) on delete cascade,   -- null: a system role; else a group the organization added (ACC-08)
     key              text not null check (key ~ '^[a-z_]+$'),
     name_en          text not null,
-    name_sw          text not null
+    name_sw          text not null,
+    deleted_at       timestamptz,                     -- an organization's own group, deleted: kept so who was in it stays known
+    check (organization_id is not null or deleted_at is null)
 );
 
 create unique index roles_one_system_key on roles (key) where organization_id is null;
+create unique index roles_one_key_per_organization on roles (organization_id, key) where organization_id is not null;
 
 create table role_permissions (
     role_id         uuid not null references roles (id) on delete cascade,
@@ -112,6 +115,7 @@ alter table security_groups enable row level security;
 alter table security_group_companies enable row level security;
 alter table security_group_roles enable row level security;
 alter table security_group_members enable row level security;
+alter table roles enable row level security;
 alter table role_customizations enable row level security;
 alter table role_customization_permissions enable row level security;
 
@@ -119,6 +123,8 @@ create policy security_groups_tenant on security_groups using (organization_id =
 create policy security_group_companies_tenant on security_group_companies using (organization_id = app_org_id());
 create policy security_group_roles_tenant on security_group_roles using (organization_id = app_org_id());
 create policy security_group_members_tenant on security_group_members using (organization_id = app_org_id());
+-- System roles for everyone; an organization's own groups only for it.
+create policy roles_visible on roles using (organization_id is null or organization_id = app_org_id());
 create policy role_customizations_tenant on role_customizations using (organization_id = app_org_id());
 create policy role_customization_permissions_tenant on role_customization_permissions using (organization_id = app_org_id());
 
