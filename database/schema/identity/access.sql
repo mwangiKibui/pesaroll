@@ -6,9 +6,21 @@
 -- each for the group's companies. Permissions and system roles are loaded by
 -- post-deploy/0014_access_roles.sql.
 
+-- ACC-04: permissions come in areas (Employees, Locations, ...), each with View and Manage; Manage
+-- brings View (member_grants). Organizations choose a level per area for each group.
+create table permission_areas (
+    key         text primary key check (key ~ '^[a-z_]+$'),
+    name_en     text not null,
+    name_sw     text not null,
+    sort_order  integer not null
+);
+
 create table permissions (
     key          text primary key check (key ~ '^[a-z_]+\.[a-z_]+$'),
-    description  text not null
+    description  text not null,
+    area         text not null references permission_areas (key) on delete cascade,
+    level        text not null check (level in ('view', 'manage')),
+    check (key = area || '.' || level)
 );
 
 create table roles (
@@ -87,6 +99,7 @@ create policy security_group_companies_tenant on security_group_companies using 
 create policy security_group_roles_tenant on security_group_roles using (organization_id = app_org_id());
 create policy security_group_members_tenant on security_group_members using (organization_id = app_org_id());
 
+grant select on table permission_areas to pesaroll_app;
 grant select on table permissions to pesaroll_app;
 grant select on table roles to pesaroll_app;
 grant select on table role_permissions to pesaroll_app;
@@ -137,6 +150,7 @@ $$;
 
 -- What a person may do in an organization, per permission: for all companies, or for which. Read at
 -- the start of every request (SessionService); only an active member's current groups count.
+-- Manage on an area brings View on it, for the same companies.
 create or replace function member_grants(p_user_id uuid, p_organization_id uuid)
 returns table (permission_key text, all_companies boolean, company_ids uuid[])
 language sql stable security definer set search_path = public
@@ -149,14 +163,26 @@ as $$
         where m.user_id = p_user_id and m.organization_id = p_organization_id and m.status = 'active'
           and gm.removed_at is null and g.organization_id = p_organization_id
     )
-    select rp.permission_key,
-           bool_or(g.all_companies),
+    , held as (
+        select rp.permission_key, g.id as group_id, g.all_companies
+        from groups g
+        join security_group_roles gr on gr.security_group_id = g.id
+        join role_permissions rp on rp.role_id = gr.role_id
+    )
+    , expanded as (
+        select permission_key, group_id, all_companies from held
+        union
+        select v.key, h.group_id, h.all_companies
+        from held h
+        join permissions m on m.key = h.permission_key and m.level = 'manage'
+        join permissions v on v.area = m.area and v.level = 'view'
+    )
+    select e.permission_key,
+           bool_or(e.all_companies),
            coalesce(array_agg(distinct gc.company_id) filter (where gc.company_id is not null), '{}')
-    from groups g
-    join security_group_roles gr on gr.security_group_id = g.id
-    join role_permissions rp on rp.role_id = gr.role_id
-    left join security_group_companies gc on gc.security_group_id = g.id and not g.all_companies
-    group by rp.permission_key
+    from expanded e
+    left join security_group_companies gc on gc.security_group_id = e.group_id and not e.all_companies
+    group by e.permission_key
 $$;
 
 revoke all on function create_default_groups(uuid, uuid) from public;

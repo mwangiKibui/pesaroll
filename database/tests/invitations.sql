@@ -66,7 +66,7 @@ begin
   if member_company_ids(mary, org) is distinct from array[co_a] then
     raise exception 'Mary does not see exactly Westlands';
   end if;
-  if (select array_agg(permission_key order by permission_key) from member_grants(mary, org))
+  if (select array_agg(permission_key order by permission_key) from member_grants(mary, org) where permission_key like '%.manage')
      is distinct from array['employees.manage', 'leave.manage', 'locations.manage', 'pay_items.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.manage'] then
     raise exception 'Mary is not HR and Payroll: %', (select array_agg(permission_key order by permission_key) from member_grants(mary, org));
   end if;
