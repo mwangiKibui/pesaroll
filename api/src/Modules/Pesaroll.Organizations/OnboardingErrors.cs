@@ -37,6 +37,9 @@ internal static class OnboardingErrors
     public static AppException MemberNotFound() =>
         new("ACC-8008", "We couldn't find that person in your organization. They may have been removed.", 404);
 
+    public static AppException AreaLevelInvalid() =>
+        new("ACC-8010", "Choose No access, View or Manage for each area.");
+
     public static AppException AccessInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("ACC-8009", "Choose their group and companies.") { Fields = fields };
 

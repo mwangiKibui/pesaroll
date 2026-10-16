@@ -82,9 +82,80 @@ begin
 end
 $$;
 
+-- ACC-04: what a standard group (administrators, hr, payroll, approvers) may do in the signed-in
+-- person's organization: exactly these permissions, for every group with that role. Only someone who
+-- manages the team for every company may, and someone must still manage it afterwards (ACC-8007).
+create or replace function role_for_group_key(p_group_key text)
+returns uuid
+language sql stable security definer set search_path = public
+as $$
+    select id from roles where organization_id is null
+      and key = case p_group_key when 'administrators' then 'admin' when 'approvers' then 'approver' else p_group_key end
+$$;
+
+create or replace function require_team_manager()
+returns void
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+    if app_user_id() is null or app_org_id() is null then
+        raise exception 'AUTH-1007';
+    end if;
+    if not exists (select 1 from member_grants(app_user_id(), app_org_id()) g where g.permission_key = 'team.manage' and g.all_companies) then
+        raise exception 'ACC-8001';
+    end if;
+end
+$$;
+
+create or replace function set_role_access(p_group_key text, p_permission_keys text[])
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+    v_role uuid := role_for_group_key(p_group_key);
+begin
+    perform require_team_manager();
+    if v_role is null or exists (select 1 from unnest(coalesce(p_permission_keys, '{}')) k where k not in (select key from permissions)) then
+        raise exception 'ACC-8010';
+    end if;
+    insert into role_customizations (organization_id, role_id, updated_by) values (app_org_id(), v_role, app_user_id())
+    on conflict (organization_id, role_id) do update set updated_by = excluded.updated_by, updated_at = now();
+    delete from role_customization_permissions where organization_id = app_org_id() and role_id = v_role;
+    insert into role_customization_permissions (organization_id, role_id, permission_key)
+    select distinct app_org_id(), v_role, k from unnest(coalesce(p_permission_keys, '{}')) k;
+    if not organization_has_administrator(app_org_id()) then
+        raise exception 'ACC-8007';
+    end if;
+end
+$$;
+
+create or replace function reset_role_access(p_group_key text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+    v_role uuid := role_for_group_key(p_group_key);
+begin
+    perform require_team_manager();
+    if v_role is null then
+        raise exception 'ACC-8010';
+    end if;
+    delete from role_customizations where organization_id = app_org_id() and role_id = v_role;
+    if not organization_has_administrator(app_org_id()) then
+        raise exception 'ACC-8007';
+    end if;
+end
+$$;
+
 revoke all on function organization_has_administrator(uuid) from public;
 revoke all on function team_membership_to_change(uuid) from public;
 revoke all on function set_member_access(uuid, text[], boolean, uuid[]) from public;
 revoke all on function remove_member(uuid) from public;
 grant execute on function set_member_access(uuid, text[], boolean, uuid[]) to pesaroll_app;
 grant execute on function remove_member(uuid) to pesaroll_app;
+revoke all on function role_for_group_key(text) from public;
+revoke all on function require_team_manager() from public;
+revoke all on function set_role_access(text, text[]) from public;
+revoke all on function reset_role_access(text) from public;
+grant execute on function set_role_access(text, text[]) to pesaroll_app;
+grant execute on function reset_role_access(text) to pesaroll_app;

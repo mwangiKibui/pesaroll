@@ -69,6 +69,29 @@ public sealed class TenancyTests : IAsyncLifetime
         return tenant;
     }
 
+    // ACC-04: one organization's version of a standard group stays its own.
+    [Fact]
+    public async Task Organization_sees_only_its_own_group_changes()
+    {
+        await using (var connection = new NpgsqlConnection(ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                insert into role_customizations (organization_id, role_id) select '{Org2}', id from roles where key = 'hr' and organization_id is null;
+                insert into role_customization_permissions (organization_id, role_id, permission_key)
+                select '{Org2}', id, 'employees.view' from roles where key = 'hr' and organization_id is null;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await using var mine = ContextFor(Tenant(Org1, Org1Kenya, Org1Uganda));
+        Assert.Equal(0, await mine.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from role_customizations").SingleAsync());
+        Assert.Equal(0, await mine.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from role_customization_permissions").SingleAsync());
+        await using var theirs = ContextFor(Tenant(Org2, Org2Kenya));
+        Assert.Equal(1, await theirs.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from role_customization_permissions").SingleAsync());
+    }
+
     [Fact]
     public async Task Organization_sees_only_its_own_companies()
     {

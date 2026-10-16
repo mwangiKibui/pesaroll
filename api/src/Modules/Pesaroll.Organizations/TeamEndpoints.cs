@@ -30,14 +30,33 @@ public sealed record MemberAccess(string? Group, string Name, bool AllCompanies,
 public sealed record TeamMember(Guid MembershipId, Guid UserId, string FirstName, string LastName, string? Email, string? Phone, DateTimeOffset JoinedAt,
     bool IsYou, IReadOnlyList<MemberAccess> Groups);
 
+/// <summary>An access area (ACC-04): Employees, Locations, ...; each has View and Manage.</summary>
+public sealed record AccessArea(string Key, AreaName Name);
+
+public sealed record AreaName(string En, string Sw);
+
+/// <summary>What a group may do in one area: none, view or manage.</summary>
+public sealed record AreaLevel(string Area, string Level);
+
+/// <summary>
+/// One of the organization's groups (administrators, hr, payroll, approvers), as the organization has it:
+/// whether it is still the standard, how many people are in it (any companies), and its level per area.
+/// </summary>
+public sealed record TeamGroup(string Key, string Name, bool Standard, int People, IReadOnlyList<AreaLevel> Areas);
+
+public sealed record TeamGroups(IReadOnlyList<AccessArea> Areas, IReadOnlyList<TeamGroup> Items);
+
+/// <summary>A group's new access: a level (none, view or manage) per area; areas left out are none.</summary>
+public sealed record GroupAccessRequest(Dictionary<string, string>? Areas);
+
 /// <summary>Someone's new access: the groups whose roles they get (one or more), and all companies or chosen ones.</summary>
 public sealed record AccessRequest(List<string>? Groups, bool AllCompanies, List<Guid>? CompanyIds);
 
 /// <summary>
 /// ACC-03, inviting colleagues into the organization "as HR, for these companies", by email or SMS.
 /// Colleagues never sign themselves up. The link (7 days, once) carries a random token whose
-/// SHA-256 alone is kept; resending replaces it; revoking ends it. Administrators only
-/// (team.manage for every company). Accepting is AUTH-08 (/api/invitations in Identity).
+/// SHA-256 alone is kept; resending replaces it; revoking ends it. Changes need team.manage for every
+/// company; seeing the team, its invitations and groups needs team.view (ACC-04). Accepting is AUTH-08 (/api/invitations in Identity).
 /// </summary>
 public static class TeamEndpoints
 {
@@ -62,7 +81,7 @@ public static class TeamEndpoints
         invitations.MapGet("/", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            Access.Require(tenant, Permissions.Team);
+            Access.Require(tenant, Permissions.TeamView);
             var open = await db.Invitations.AsNoTracking().Include(i => i.Companies)
                 .Where(i => i.AcceptedAt == null && i.RevokedAt == null).OrderByDescending(i => i.CreatedAt).ToListAsync(ct);
             return Results.Ok(open.Select(i => ToRow(i, clock.GetUtcNow())).ToList());
@@ -225,12 +244,54 @@ public static class TeamEndpoints
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
+        // ACC-04: what each group can do, per area; changing it applies to everyone in the group, in this organization only.
+        var groups = app.MapGroup("/api/team/groups").WithTags("Team");
+        groups.MapGet("/", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            return Results.Ok(await GroupsAsync(db, ct));
+        }).Produces<TeamGroups>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+          .RequirePermission(Permissions.TeamView);
+
+        groups.MapPut("/{key}/access", async (string key, GroupAccessRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
+            CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            var areas = await db.Database.SqlQuery<string>($"select key as \"Value\" from permission_areas").ToListAsync(ct);
+            var asked = request.Areas ?? [];
+            if (!Groups.Contains(key) || asked.Any(a => !areas.Contains(a.Key) || a.Value is not ("none" or "view" or "manage")))
+            {
+                throw OnboardingErrors.AreaLevelInvalid();
+            }
+
+            var keys = asked.Where(a => a.Value != "none").Select(a => $"{a.Key}.{a.Value}").ToArray();
+            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select set_role_access({key}, {keys})", ct));
+            return Results.Ok((await GroupsAsync(db, ct)).Items.Single(g => g.Key == key));
+        }).Produces<TeamGroup>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
+
+        // Back to standard: the group does what the standard role does again.
+        groups.MapDelete("/{key}/access", async (string key, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            if (!Groups.Contains(key))
+            {
+                throw OnboardingErrors.AreaLevelInvalid();
+            }
+
+            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select reset_role_access({key})", ct));
+            return Results.Ok((await GroupsAsync(db, ct)).Items.Single(g => g.Key == key));
+        }).Produces<TeamGroup>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
+
         // ONB-11, the people already in: their groups and companies; change them, or remove someone.
         var members = app.MapGroup("/api/team/members").WithTags("Team");
         members.MapGet("/", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
-            Access.Require(tenant, Permissions.Team);
+            Access.Require(tenant, Permissions.TeamView);
             var rows = await db.Database.SqlQuery<MemberRow>($"""
                 select m.id as membership_id, u.id as user_id, u.first_name, u.last_name, u.email, u.phone, m.created_at as joined_at,
                        g.id as group_id, g.name as group_name, g.all_companies as group_all_companies,
@@ -293,6 +354,47 @@ public static class TeamEndpoints
         "admin" => "administrators", "approver" => "approvers", null => null, _ => roleKey,
     };
 
+    private sealed record AreaRow(string Key, string NameEn, string NameSw);
+    private sealed record GroupPermissionRow(string GroupKey, string? PermissionKey, bool Standard);
+    private sealed record GroupRow(string GroupKey, string Name, int People);
+
+    /// <summary>The areas, and each group's level per area as this organization has it (row-level security keeps it to this organization).</summary>
+    private static async Task<TeamGroups> GroupsAsync(OrganizationsDbContext db, CancellationToken ct)
+    {
+        var areas = await db.Database.SqlQuery<AreaRow>($"select key, name_en, name_sw from permission_areas order by sort_order").ToListAsync(ct);
+        var permissions = await db.Database.SqlQuery<GroupPermissionRow>($"""
+            select x.group_key, k.permission_key, rc.role_id is null as standard
+            from (values ('administrators', 'admin'), ('hr', 'hr'), ('payroll', 'payroll'), ('approvers', 'approver')) x (group_key, role_key)
+            join roles r on r.key = x.role_key and r.organization_id is null
+            left join role_customizations rc on rc.role_id = r.id
+            left join lateral (
+                select rp.permission_key from role_permissions rp where rp.role_id = r.id and rc.role_id is null
+                union all
+                select cp.permission_key from role_customization_permissions cp where cp.role_id = r.id and rc.role_id is not null) k on true
+            """).ToListAsync(ct);
+        var rows = await db.Database.SqlQuery<GroupRow>($"""
+            select x.group_key, coalesce(d.name, x.group_key) as name,
+                   (select count(distinct gm.membership_id)::int from security_group_roles gr
+                    join security_group_members gm on gm.security_group_id = gr.security_group_id and gm.removed_at is null
+                    join memberships m on m.id = gm.membership_id and m.status = 'active'
+                    where gr.role_id = r.id) as people
+            from (values ('administrators', 'admin'), ('hr', 'hr'), ('payroll', 'payroll'), ('approvers', 'approver')) x (group_key, role_key)
+            join roles r on r.key = x.role_key and r.organization_id is null
+            left join security_groups d on d.default_key = x.group_key
+            """).ToListAsync(ct);
+        string Level(string group, string area)
+        {
+            var held = permissions.Where(p => p.GroupKey == group).Select(p => p.PermissionKey).ToHashSet();
+            return held.Contains($"{area}.manage") ? "manage" : held.Contains($"{area}.view") ? "view" : "none";
+        }
+
+        return new TeamGroups(
+            areas.Select(a => new AccessArea(a.Key, new AreaName(a.NameEn, a.NameSw))).ToList(),
+            Groups.Select(g => rows.Single(r => r.GroupKey == g)).Select(r => new TeamGroup(r.GroupKey, r.Name,
+                permissions.Where(p => p.GroupKey == r.GroupKey).All(p => p.Standard), r.People,
+                areas.Select(a => new AreaLevel(a.Key, Level(r.GroupKey, a.Key))).ToList())).ToList());
+    }
+
     /// <summary>The database's refusals (team.sql) as their errors.</summary>
     private static async Task TeamChangeAsync(Func<Task<int>> change)
     {
@@ -300,10 +402,11 @@ public static class TeamEndpoints
         {
             await change();
         }
-        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008" or "ACC-8009")
+        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008" or "ACC-8009" or "ACC-8010")
         {
             throw error.MessageText switch
             {
+                "ACC-8010" => OnboardingErrors.AreaLevelInvalid(),
                 "ACC-8009" => OnboardingErrors.AccessInvalid(new Dictionary<string, string> { ["groups"] = "Choose one or more groups." }),
                 "ACC-8007" => OnboardingErrors.LastAdministrator(),
                 "ACC-8008" => OnboardingErrors.MemberNotFound(),
