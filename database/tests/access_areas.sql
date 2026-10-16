@@ -30,15 +30,16 @@ begin
   -- The standard roles: Manage on their areas.
   if (select array_agg(rp.permission_key order by rp.permission_key) from role_permissions rp join roles r on r.id = rp.role_id
       where r.key = 'hr' and r.organization_id is null)
-     is distinct from array['employees.manage', 'leave.manage', 'locations.manage', 'structure.manage'] then
-    raise exception 'HR does not manage exactly employees, leave, locations and structure';
+     is distinct from array['employees.manage', 'leave.manage', 'locations.manage', 'schedules.view', 'structure.manage'] then
+    raise exception 'HR is not: manage employees, leave, locations and structure; view schedules';
   end if;
   if (select array_agg(rp.permission_key order by rp.permission_key) from role_permissions rp join roles r on r.id = rp.role_id
       where r.key = 'payroll' and r.organization_id is null)
-     is distinct from array['employees.manage', 'pay_items.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage'] then
-    raise exception 'Payroll does not manage exactly employees, pay items, paying accounts, payroll history and schedules';
+     is distinct from array['employees.manage', 'leave.view', 'locations.view', 'pay_items.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.view'] then
+    raise exception 'Payroll is not: manage employees, pay items, paying accounts, payroll history and schedules; view leave, locations and structure';
   end if;
-  if (select count(*) from role_permissions rp join roles r on r.id = rp.role_id where r.key = 'admin' and r.organization_id is null)
+  if (select count(*) from role_permissions rp join roles r on r.id = rp.role_id join permissions p on p.key = rp.permission_key
+      where r.key = 'admin' and r.organization_id is null and p.level = 'manage')
      <> (select count(*) from permissions where level = 'manage') then
     raise exception 'an administrator does not manage every area';
   end if;

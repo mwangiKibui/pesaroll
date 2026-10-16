@@ -85,7 +85,7 @@ public static class IdentityModule
                         .ToList()))
                 .Where(g => g.Roles.Count > 0)
                 .ToList());
-        }).Produces<List<SignupRoleGroupOption>>();
+        }).Produces<List<SignupRoleGroupOption>>().Public();
 
         // Sign-up and sign-in return an access token and set the refresh cookie; GET /me has the details.
         auth.MapPost("/signup", async (SignUpRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
@@ -94,7 +94,7 @@ public static class IdentityModule
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
             .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
-            .RequireRateLimiting(SignInRateLimit);
+            .RequireRateLimiting(SignInRateLimit).Public();
 
         auth.MapPost("/signin", async (SignInRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
                 Results.Ok(await service.SignInAsync(request, http, ct)))
@@ -103,7 +103,7 @@ public static class IdentityModule
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
             .Produces<ErrorResponse>(StatusCodes.Status423Locked)
             .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
-            .RequireRateLimiting(SignInRateLimit);
+            .RequireRateLimiting(SignInRateLimit).Public();
 
         // Invitations (AUTH-08), by the link's token, for people not signed in: the accept page reads
         // one, then accepting signs them in to the organization.
@@ -115,7 +115,7 @@ public static class IdentityModule
             .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
             .Produces<ErrorResponse>(StatusCodes.Status410Gone)
             .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
-            .RequireRateLimiting(SignInRateLimit);
+            .RequireRateLimiting(SignInRateLimit).Public();
 
         invitations.MapPost("/{token}/accept", async (string token, AcceptInvitationRequest request, AuthService service, HttpContext http, CancellationToken ct) =>
                 Results.Ok(await service.AcceptInvitationAsync(token, request, http, ct)))
@@ -128,7 +128,7 @@ public static class IdentityModule
             .Produces<ErrorResponse>(StatusCodes.Status410Gone)
             .Produces<ErrorResponse>(StatusCodes.Status423Locked)
             .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
-            .RequireRateLimiting(SignInRateLimit);
+            .RequireRateLimiting(SignInRateLimit).Public();
 
         // A new access token from the refresh cookie. The web app calls this when a token is
         // about to expire or a request fails with AUTH-1010, one call at a time.
@@ -137,13 +137,13 @@ public static class IdentityModule
             .Produces<TokenResponse>()
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
             .Produces<ErrorResponse>(StatusCodes.Status429TooManyRequests)
-            .RequireRateLimiting(SignInRateLimit);
+            .RequireRateLimiting(SignInRateLimit).Public();
 
         auth.MapPost("/signout", async (SessionService sessions, HttpContext http, CancellationToken ct) =>
         {
             await sessions.EndAsync(http, ct);
             return Results.NoContent();
-        });
+        }).Public();
 
         auth.MapGet("/me", async (IdentityDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -156,7 +156,7 @@ public static class IdentityModule
             var hasOnboarded = (await db.QueryAsync("select has_onboarded_organization()", r => r.GetBoolean(0),
                 new Dictionary<string, object?>(), ct)).Single();
             return Results.Ok(MeResponse.From(user, tenant.OrganizationId, hasOnboarded, tenant.Grants));
-        }).Produces<MeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<MeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
 
         return app;
     }

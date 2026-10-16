@@ -1,4 +1,5 @@
 using Pesaroll.Shared.Errors;
+using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Organizations;
 
@@ -39,8 +40,7 @@ internal static class OnboardingErrors
     public static AppException AccessInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("ACC-8009", "Choose their group and companies.") { Fields = fields };
 
-    public static AppException NoPermission() =>
-        new("ACC-8001", "You don't have permission to do this. Ask an administrator in your organization.", 403);
+    public static AppException NoPermission() => AccessErrors.NoPermission();
 
     public static AppException CompanyNameInvalid() =>
         new("ONB-3505", "Enter the company's legal name (2 to 160 characters).");

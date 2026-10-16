@@ -50,17 +50,18 @@ public static class PaymentAccountsEndpoints
             var branches = await db.BankBranches.Where(b => b.CountryCode == code && b.Active).OrderBy(b => b.SortOrder).ThenBy(b => b.Name).ToListAsync(ct);
             return Results.Ok(banks.Select(b => new BankResponse(b.Code, b.Name,
                 branches.Where(r => r.BankCode == b.Code).Select(r => new BranchResponse(r.Code, r.Name)).ToList(), b.AccountDigitsMin, b.AccountDigitsMax)).ToList());
-        }).WithTags("Companies").Produces<List<BankResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).WithTags("Companies").Produces<List<BankResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
 
         var accounts = app.MapGroup("/api/companies/{companyId:guid}/payment-accounts").WithTags("Companies");
 
         accounts.MapGet("/", async (Guid companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.PaymentAccountsView, companyId);
             var company = await FindCompany(db, companyId, ct);
             return Results.Ok(await ListAsync(db, company, ct));
         }).Produces<List<PaymentAccountResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PaymentAccountsView);
 
         accounts.MapPost("/", async (Guid companyId, PaymentAccountRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, FieldEncryptor encryptor, CancellationToken ct) =>
@@ -94,7 +95,7 @@ public static class PaymentAccountsEndpoints
             return Results.Created($"/api/companies/{company.Id}/payment-accounts/{account.Id}", saved);
         }).Produces<PaymentAccountResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PaymentAccounts);
 
         accounts.MapPut("/{accountId:guid}", async (Guid companyId, Guid accountId, PaymentAccountRequest request, OrganizationsDbContext db,
             TenantContext tenant, HttpContext http, FieldEncryptor encryptor, TimeProvider clock, CancellationToken ct) =>
@@ -140,7 +141,7 @@ public static class PaymentAccountsEndpoints
             return Results.Ok((await ListAsync(db, company, ct)).Single(a => a.Id == account.Id));
         }).Produces<PaymentAccountResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PaymentAccounts);
 
         accounts.MapPost("/{accountId:guid}/default", async (Guid companyId, Guid accountId, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, CancellationToken ct) =>
@@ -153,7 +154,7 @@ public static class PaymentAccountsEndpoints
             await MakeDefaultAsync(db, open, chosen, ct);
             return Results.Ok(await ListAsync(db, company, ct));
         }).Produces<List<PaymentAccountResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PaymentAccounts);
 
         accounts.MapDelete("/{accountId:guid}", async (Guid companyId, Guid accountId, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -178,7 +179,7 @@ public static class PaymentAccountsEndpoints
 
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PaymentAccounts);
 
         return app;
     }

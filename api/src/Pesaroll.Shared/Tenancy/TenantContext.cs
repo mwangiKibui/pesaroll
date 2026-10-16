@@ -31,6 +31,10 @@ public sealed class TenantContext
     /// <summary>Whether they may do this for this company.</summary>
     public bool Can(string permission, Guid companyId) => Grants.Any(g => g.Permission == permission && g.Covers(companyId));
 
+    /// <summary>The companies they may do this for (ACC-04): reads narrow to these, not to every company they belong to.</summary>
+    public IReadOnlyList<Guid> CompaniesFor(string permission) =>
+        CompanyIds.Where(id => Can(permission, id)).ToArray();
+
     public void Clear()
     {
         UserId = null;

@@ -60,14 +60,14 @@ public static class CompaniesEndpoints
                 regions.Where(r => r.CountryCode == c.Code).Select(r => new RegionResponse(r.Code, r.Name)).ToList(),
                 areas.Where(a => a.CountryCode == c.Code).Select(a => new WageAreaResponse(a.Code, new LocalizedText(a.NameEn, a.NameSw),
                     new LocalizedText(a.DescriptionEn, a.DescriptionSw), a.Towns)).ToList())).ToList());
-        }).WithTags("Companies").Produces<List<CountryResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).WithTags("Companies").Produces<List<CountryResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
 
         app.MapGet("/api/industries", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             RequireSignedIn(tenant, http);
             return Results.Ok(await db.Industries.Where(i => i.Active).OrderBy(i => i.SortOrder)
                 .Select(i => new IndustryResponse(i.Code, new LocalizedText(i.NameEn, i.NameSw))).ToListAsync(ct));
-        }).WithTags("Companies").Produces<List<IndustryResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).WithTags("Companies").Produces<List<IndustryResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
 
         var companies = app.MapGroup("/api/companies").WithTags("Companies");
 
@@ -79,7 +79,7 @@ public static class CompaniesEndpoints
             var fields = await FieldsFor(db, list.Select(c => c.CountryCode).Distinct().ToList(), ct);
             var paying = await WithPayingAccount(db, ct);
             return Results.Ok(list.Select(c => ToResponse(c, fields, paying.Contains(c.Id))).ToList());
-        }).Produces<List<CompanyResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        }).Produces<List<CompanyResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound).SignedIn();
 
         companies.MapPost("/", async (CompanyRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -135,7 +135,7 @@ public static class CompaniesEndpoints
             return Results.Created($"/api/companies/{company.Id}", ToResponse(company, fields, hasPayingAccount: false));
         }).Produces<CompanyResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Companies);
 
         companies.MapPatch("/{id:guid}", async (Guid id, CompanyRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -180,7 +180,7 @@ public static class CompaniesEndpoints
             return Results.Ok(ToResponse(saved, await FieldsFor(db, [saved.CountryCode], ct), paying.Contains(saved.Id)));
         }).Produces<CompanyResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Companies);
 
         companies.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -225,7 +225,7 @@ public static class CompaniesEndpoints
             await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.Companies);
 
         return app;
     }

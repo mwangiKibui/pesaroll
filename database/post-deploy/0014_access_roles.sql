@@ -60,8 +60,10 @@ insert into wanted values
   ('admin', 'leave.manage'), ('admin', 'schedules.manage'), ('admin', 'pay_items.manage'), ('admin', 'employees.manage'),
   ('admin', 'payroll_history.manage'), ('admin', 'team.manage'),
   ('hr', 'locations.manage'), ('hr', 'structure.manage'), ('hr', 'leave.manage'), ('hr', 'employees.manage'),
+  -- The employee form picks a payroll schedule (HR), and a department, position, location and leave plan (Payroll).
+  ('hr', 'schedules.view'),
   ('payroll', 'payment_accounts.manage'), ('payroll', 'schedules.manage'), ('payroll', 'pay_items.manage'), ('payroll', 'employees.manage'),
-  ('payroll', 'payroll_history.manage');
+  ('payroll', 'payroll_history.manage'), ('payroll', 'locations.view'), ('payroll', 'structure.view'), ('payroll', 'leave.view');
 -- Approver: nothing to change yet; it approves pay runs when they come (PAY).
 
 insert into role_permissions (role_id, permission_key)

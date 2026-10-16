@@ -82,7 +82,7 @@ public static class PayItemsEndpoints
                 .ThenBy(i => i.LockedKey is null ? 0 : order.GetValueOrDefault((i.CountryCode ?? "", i.LockedKey)))
                 .ThenBy(i => Array.IndexOf(Kinds, i.Kind)).ThenBy(i => i.CreatedAt).ThenBy(i => i.Code)
                 .Select(i => ToResponse(i, who)).ToList());
-        }).Produces<List<PayItemResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<PayItemResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.PayItemsView);
 
         items.MapPost("/", async (PayItemRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -103,7 +103,7 @@ public static class PayItemsEndpoints
             return Results.Created($"/api/pay-items/{item.Id}", ToResponse(item, []));
         }).Produces<PayItemResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         items.MapPatch("/{id:guid}", async (Guid id, PayItemRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -147,7 +147,7 @@ public static class PayItemsEndpoints
                 await SummariesAsync(db, [id], ct)));
         }).Produces<PayItemResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         items.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -165,7 +165,7 @@ public static class PayItemsEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         items.MapGet("/{id:guid}/assignments", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
             CancellationToken ct) =>
@@ -174,7 +174,7 @@ public static class PayItemsEndpoints
             _ = await db.PayItems.AsNoTracking().SingleOrDefaultAsync(i => i.Id == id && i.Status == "active", ct) ?? throw OnboardingErrors.PayItemNotFound();
             return Results.Ok(await AssignmentsAsync(db, id, PayDates.TodayInKenya(clock.GetUtcNow()), ct));
         }).Produces<List<CompanyAssignmentResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PayItemsView);
 
         items.MapPut("/{id:guid}/assignments", async (Guid id, AssignmentRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -303,7 +303,7 @@ public static class PayItemsEndpoints
             return Results.Ok(await AssignmentsAsync(db, item.Id, today, ct));
         }).Produces<List<CompanyAssignmentResponse>>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         // What one person gets: their own rows and their company's "everyone" rows.
         app.MapGet("/api/employees/{id:guid}/pay-items", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
@@ -311,6 +311,7 @@ public static class PayItemsEndpoints
             CompaniesEndpoints.RequireOrganization(tenant, http);
             var employee = await db.Employees.AsNoTracking().Include(e => e.Accounts.Where(a => a.ValidTo == null))
                 .SingleOrDefaultAsync(e => e.Id == id, ct) ?? throw OnboardingErrors.EmployeeNotFound();
+            Access.Require(tenant, Permissions.PayItemsView, employee.CompanyId);
             var rows = await (
                 from x in db.EmployeePayItems.AsNoTracking()
                 join i in db.PayItems.AsNoTracking() on x.PayItemId equals i.Id
@@ -328,7 +329,7 @@ public static class PayItemsEndpoints
                     r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference ?? FromProfile(employee, r.Source), r.Payee))
                 .ToList());
         }).WithTags("Earnings and deductions").Produces<List<EmployeePayItemResponse>>()
-          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PayItemsView);
 
         return app;
     }

@@ -48,14 +48,14 @@ public static class PayeesEndpoints
             var branches = await db.SaccoBranches.AsNoTracking().Where(b => b.CountryCode == code && b.Active).OrderBy(b => b.SortOrder).ThenBy(b => b.Name).ToListAsync(ct);
             return Results.Ok(saccos.Select(s => new SaccoResponse(s.Code, s.Name,
                 branches.Where(b => b.SaccoCode == s.Code).Select(b => new BranchResponse(b.Code, b.Name)).ToList())).ToList());
-        }).WithTags("Earnings and deductions").Produces<List<SaccoResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).WithTags("Earnings and deductions").Produces<List<SaccoResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
 
         payees.MapGet("/", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             var list = await db.Payees.AsNoTracking().OrderBy(p => p.Name).ToListAsync(ct);
             return Results.Ok(await ResponsesAsync(db, list, ct));
-        }).Produces<List<PayeeResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<PayeeResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.PayItemsView);
 
         payees.MapPost("/", async (PayeeRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -70,7 +70,7 @@ public static class PayeesEndpoints
             return Results.Created($"/api/payees/{payee.Id}", (await ResponsesAsync(db, [payee], ct))[0]);
         }).Produces<PayeeResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         payees.MapPatch("/{id:guid}", async (Guid id, PayeeRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -83,7 +83,7 @@ public static class PayeesEndpoints
             return Results.Ok((await ResponsesAsync(db, [payee], ct))[0]);
         }).Produces<PayeeResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         payees.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -101,7 +101,7 @@ public static class PayeesEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         return app;
     }

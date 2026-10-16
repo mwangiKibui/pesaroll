@@ -83,7 +83,13 @@ public static class PayrollHistoryEndpoints
         history.MapGet("/batches", async (Guid[]? companyIds, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            var query = db.PayrollHistoryBatches.AsNoTracking();
+            var allowed = tenant.CompaniesFor(Permissions.PayrollHistoryView);
+            if ((companyIds ?? []).Any(c => !allowed.Contains(c)))
+            {
+                throw AccessErrors.NoPermission();
+            }
+
+            var query = db.PayrollHistoryBatches.AsNoTracking().Where(b => allowed.Contains(b.CompanyId));
             if (companyIds is { Length: > 0 })
             {
                 query = query.Where(b => companyIds.Contains(b.CompanyId));
@@ -93,16 +99,15 @@ public static class PayrollHistoryEndpoints
                 .Select(b => new PayrollHistoryBatchResponse(b.Id, b.CompanyId, b.FileName, b.RowCount, b.FirstPeriod, b.LastPeriod, b.GrossTotal, b.PayeTotal, b.CreatedAt))
                 .ToListAsync(ct);
             return Results.Ok(batches);
-        }).Produces<List<PayrollHistoryBatchResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<PayrollHistoryBatchResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.PayrollHistoryView);
 
         // An import's rows, by month then person, with whose they are.
         history.MapGet("/batches/{id:guid}/lines", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            if (!await db.PayrollHistoryBatches.AnyAsync(b => b.Id == id, ct))
-            {
-                throw OnboardingErrors.HistoryBatchNotFound();
-            }
+            var companyId = await db.PayrollHistoryBatches.Where(b => b.Id == id).Select(b => (Guid?)b.CompanyId).SingleOrDefaultAsync(ct)
+                ?? throw OnboardingErrors.HistoryBatchNotFound();
+            Access.Require(tenant, Permissions.PayrollHistoryView, companyId);
 
             var lines = await (from l in db.PayrollHistoryLines.AsNoTracking()
                                join e in db.Employees.AsNoTracking() on l.EmployeeId equals e.Id
@@ -114,7 +119,7 @@ public static class PayrollHistoryEndpoints
                                    l.TaxablePay, l.PersonalRelief, l.InsuranceRelief, l.Paye, l.OtherDeductions, l.NetPay, l.Nita, l.Notes)).ToListAsync(ct);
             return Results.Ok(lines);
         }).Produces<List<PayrollHistoryLineResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PayrollHistoryView);
 
         // Takes the batch's months (the people it added stay, as former employees).
         history.MapDelete("/batches/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
@@ -126,7 +131,7 @@ public static class PayrollHistoryEndpoints
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PayrollHistory);
 
         return app;
     }
