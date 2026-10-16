@@ -71,6 +71,25 @@ create table security_group_roles (
     foreign key (organization_id, security_group_id) references security_groups (organization_id, id) on delete cascade
 );
 
+-- ACC-04: an organization's own version of a standard role (what its HR, Payroll... may do), used by
+-- every group with that role in the organization; the system role itself never changes. Back to
+-- standard deletes it. Written only through set_role_access and reset_role_access (team.sql).
+create table role_customizations (
+    organization_id  uuid not null references organizations (id) on delete cascade,
+    role_id          uuid not null references roles (id) on delete cascade,
+    updated_by       uuid references users (id),
+    updated_at       timestamptz not null default now(),
+    primary key (organization_id, role_id)
+);
+
+create table role_customization_permissions (
+    organization_id  uuid not null,
+    role_id          uuid not null,
+    permission_key   text not null references permissions (key) on delete cascade,
+    primary key (organization_id, role_id, permission_key),
+    foreign key (organization_id, role_id) references role_customizations (organization_id, role_id) on delete cascade
+);
+
 -- Who is in a group, over time: one current row per person and group (removed_at empty); leaving
 -- closes it, so who had access when stays known.
 create table security_group_members (
@@ -93,11 +112,15 @@ alter table security_groups enable row level security;
 alter table security_group_companies enable row level security;
 alter table security_group_roles enable row level security;
 alter table security_group_members enable row level security;
+alter table role_customizations enable row level security;
+alter table role_customization_permissions enable row level security;
 
 create policy security_groups_tenant on security_groups using (organization_id = app_org_id());
 create policy security_group_companies_tenant on security_group_companies using (organization_id = app_org_id());
 create policy security_group_roles_tenant on security_group_roles using (organization_id = app_org_id());
 create policy security_group_members_tenant on security_group_members using (organization_id = app_org_id());
+create policy role_customizations_tenant on role_customizations using (organization_id = app_org_id());
+create policy role_customization_permissions_tenant on role_customization_permissions using (organization_id = app_org_id());
 
 grant select on table permission_areas to pesaroll_app;
 grant select on table permissions to pesaroll_app;
@@ -108,6 +131,8 @@ grant select on table security_groups to pesaroll_app;
 grant select on table security_group_companies to pesaroll_app;
 grant select on table security_group_roles to pesaroll_app;
 grant select on table security_group_members to pesaroll_app;
+grant select on table role_customizations to pesaroll_app;
+grant select on table role_customization_permissions to pesaroll_app;
 
 -- ACC-06: the groups every organization starts with, all for all companies: Administrators
 -- (everything), HR, Payroll and Approvers, each carrying the system role of the same name. The
@@ -150,7 +175,8 @@ $$;
 
 -- What a person may do in an organization, per permission: for all companies, or for which. Read at
 -- the start of every request (SessionService); only an active member's current groups count.
--- Manage on an area brings View on it, for the same companies.
+-- Manage on an area brings View on it, for the same companies. A role the organization changed
+-- (role_customizations) gives the organization's permissions instead of the standard ones.
 create or replace function member_grants(p_user_id uuid, p_organization_id uuid)
 returns table (permission_key text, all_companies boolean, company_ids uuid[])
 language sql stable security definer set search_path = public
@@ -168,6 +194,12 @@ as $$
         from groups g
         join security_group_roles gr on gr.security_group_id = g.id
         join role_permissions rp on rp.role_id = gr.role_id
+        where not exists (select 1 from role_customizations rc where rc.organization_id = p_organization_id and rc.role_id = gr.role_id)
+        union all
+        select cp.permission_key, g.id, g.all_companies
+        from groups g
+        join security_group_roles gr on gr.security_group_id = g.id
+        join role_customization_permissions cp on cp.organization_id = p_organization_id and cp.role_id = gr.role_id
     )
     , expanded as (
         select permission_key, group_id, all_companies from held

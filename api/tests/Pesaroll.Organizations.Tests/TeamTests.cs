@@ -23,6 +23,12 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
     private sealed record Grant(string Permission, bool AllCompanies, List<Guid> CompanyIds);
     private sealed record Me(Guid? OrganizationId, List<Grant> Permissions);
 
+    private sealed record AreaName(string En, string Sw);
+    private sealed record Area(string Key, AreaName Name);
+    private sealed record AreaLevel(string Area, string Level);
+    private sealed record Group(string Key, string Name, bool Standard, int People, List<AreaLevel> Areas);
+    private sealed record Groups(List<Area> Areas, List<Group> Items);
+
     private const string Password = "Mombasa-raha-7";
     private static readonly string Db = Environment.GetEnvironmentVariable("PESAROLL_TEST_DB")!;
 
@@ -134,5 +140,86 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         Assert.Empty((await mary.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions);
         Assert.DoesNotContain((await owner.GetFromJsonAsync<List<Member>>("/api/team/members"))!, m => m.MembershipId == maryId);
         Assert.Equal("ACC-8008", await Code(await owner.DeleteAsync($"/api/team/members/{maryId}")));
+    }
+
+    // ACC-04: what each group can do, per area, and changing it for everyone in the group.
+    [Fact]
+    public async Task Groups_show_what_each_can_do_per_area()
+    {
+        var (owner, _, _) = await Organization();
+        var groups = (await owner.GetFromJsonAsync<Groups>("/api/team/groups"))!;
+
+        Assert.Equal(["companies", "employees", "locations", "structure", "leave", "schedules", "pay_items", "payment_accounts", "payroll_history", "team"],
+            groups.Areas.Select(a => a.Key));
+        Assert.Equal("Employees", groups.Areas[1].Name.En);
+        Assert.Equal(["administrators", "hr", "payroll", "approvers"], groups.Items.Select(g => g.Key));
+        var hr = groups.Items.Single(g => g.Key == "hr");
+        Assert.True(hr.Standard);
+        Assert.Equal(["companies:none", "employees:manage", "locations:manage", "structure:manage", "leave:manage", "schedules:view", "pay_items:none",
+            "payment_accounts:none", "payroll_history:none", "team:none"], hr.Areas.Select(a => $"{a.Area}:{a.Level}"));
+        Assert.All(groups.Items.Single(g => g.Key == "administrators").Areas, a => Assert.Equal("manage", a.Level));
+        Assert.Equal(1, groups.Items.Single(g => g.Key == "administrators").People);
+    }
+
+    [Fact]
+    public async Task Changing_a_group_applies_to_everyone_in_it_only_in_this_organization()
+    {
+        var (owner, westlands, _) = await Organization();
+        var otieno = await Joined(owner, "payroll", westlands.Id);
+        var (elsewhere, _, _) = await Organization();
+        var theirs = await Joined(elsewhere, "payroll");
+
+        var changed = await owner.PutAsJsonAsync("/api/team/groups/payroll/access", new
+        {
+            areas = new Dictionary<string, string> { ["employees"] = "manage", ["locations"] = "view", ["structure"] = "view", ["schedules"] = "manage", ["pay_items"] = "none" },
+        });
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var payroll = (await changed.Content.ReadFromJsonAsync<Group>())!;
+        Assert.False(payroll.Standard);
+        Assert.Equal(1, payroll.People);
+        Assert.Equal("view", payroll.Areas.Single(a => a.Area == "locations").Level);
+
+        Assert.Equal(HttpStatusCode.OK, (await otieno.GetAsync("/api/locations")).StatusCode);
+        Assert.Equal("ACC-8001", await Code(await otieno.GetAsync("/api/pay-items")));
+        Assert.Equal(HttpStatusCode.OK, (await theirs.GetAsync("/api/pay-items")).StatusCode);   // another organization's Payroll is unchanged
+
+        var back = await owner.DeleteAsync("/api/team/groups/payroll/access");
+        Assert.Equal(HttpStatusCode.OK, back.StatusCode);
+        Assert.True((await back.Content.ReadFromJsonAsync<Group>())!.Standard);
+        Assert.Equal(HttpStatusCode.OK, (await otieno.GetAsync("/api/pay-items")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Changing_a_group_is_refused_when_it_is_wrong_or_would_lock_the_organization_out()
+    {
+        var (owner, _, _) = await Organization();
+        var mary = await Joined(owner, "hr");
+
+        Assert.Equal("ACC-8010", await Code(await owner.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["employees"] = "edit" } })));
+        Assert.Equal("ACC-8010", await Code(await owner.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["kitchen"] = "view" } })));
+        Assert.Equal("ACC-8010", await Code(await owner.PutAsJsonAsync("/api/team/groups/cooks/access", new { areas = new Dictionary<string, string>() })));
+        var lockedOut = await owner.PutAsJsonAsync("/api/team/groups/administrators/access", new { areas = new Dictionary<string, string> { ["employees"] = "manage" } });
+        Assert.Equal((HttpStatusCode.Conflict, "ACC-8007"), (lockedOut.StatusCode, await Code(lockedOut)));
+
+        Assert.Equal("ACC-8001", await Code(await mary.GetAsync("/api/team/groups")));
+        Assert.Equal("ACC-8001", await Code(await mary.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["team"] = "manage" } })));
+    }
+
+    [Fact]
+    public async Task View_on_team_access_lists_people_invitations_and_groups_but_changes_nothing()
+    {
+        var (owner, westlands, _) = await Organization();
+        var mary = await Joined(owner, "hr");
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/team/groups/hr/access", new
+        {
+            areas = new Dictionary<string, string> { ["employees"] = "manage", ["team"] = "view" },
+        })).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await mary.GetAsync("/api/team/members")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await mary.GetAsync("/api/team/invitations")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await mary.GetAsync("/api/team/groups")).StatusCode);
+        Assert.Equal("ACC-8001", await Code(await mary.PostAsJsonAsync("/api/team/invitations",
+            new { firstName = "Otieno", lastName = "Ouma", email = $"o-{Guid.NewGuid():N}@example.com", groups = new[] { "payroll" }, allCompanies = false, companyIds = new[] { westlands.Id } })));
+        Assert.Equal("ACC-8001", await Code(await mary.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["team"] = "manage" } })));
     }
 }
