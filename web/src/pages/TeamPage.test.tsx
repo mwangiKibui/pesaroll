@@ -26,7 +26,8 @@ const areaKeys = ['companies', 'employees', 'locations', 'structure', 'leave', '
 const areaNames: Record<string, string> = { companies: 'Companies', employees: 'Employees', locations: 'Locations', structure: 'Org structure', leave: 'Leave types and plans',
   schedules: 'Payroll schedules', pay_items: 'Earnings, deductions and payees', payment_accounts: 'Paying accounts', payroll_history: 'Payroll history', team: 'Team access' }
 const levels = (set: Record<string, string>) => areaKeys.map(area => ({ area, level: set[area] ?? 'none' }))
-const group = (key: string, name: string, people: number, set: Record<string, string>, standard = true) => ({ key, name, standard, people, areas: levels(set) })
+const group = (key: string, name: string, people: number, set: Record<string, string>, standard = true) => ({ key, name, description: null as string | null, standard, custom: false, allCompanies: true, companyIds: [] as string[], people, areas: levels(set) })
+const branchManagers = { ...group('branch_managers', 'Branch managers', 1, { employees: 'manage', leave: 'view' }, false), custom: true, description: 'Run a branch' }
 const teamGroups = (hr = group('hr', 'HR', 1, { employees: 'manage', locations: 'manage', structure: 'manage', leave: 'manage', schedules: 'view' })) => ({
   areas: areaKeys.map(key => ({ key, name: { en: areaNames[key], sw: areaNames[key] } })),
   items: [group('administrators', 'Administrators', 1, Object.fromEntries(areaKeys.map(k => [k, 'manage']))), hr,
@@ -270,6 +271,120 @@ it('the groups to choose from in Invite say what each can do in this organizatio
   await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
   const invite = screen.getByRole('dialog')
   expect(within(invite).getByRole('checkbox', { name: /^HR/ }).closest('label')).toHaveTextContent('Manage: employees · View: team access')
+})
+
+// ACC-08: the organization's own groups.
+it('Add group asks for a name and what the group can do, and adds it', async () => {
+  const calls = withTeam({ 'POST /api/team/groups': () => json(201, branchManagers) })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Add group' }))
+
+  const drawer = screen.getByRole('dialog', { name: 'Add group' })
+  expect(within(drawer).getByRole('textbox', { name: 'Name' })).toHaveAttribute('placeholder', 'Your group name')
+  await userEvent.type(within(drawer).getByRole('textbox', { name: 'Name' }), 'Branch managers')
+  await userEvent.type(within(drawer).getByRole('textbox', { name: /Description/ }), 'Run a branch')
+  await userEvent.click(within(drawer).getByRole('combobox', { name: 'Employees' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Manage' }))
+  await userEvent.click(within(drawer).getByRole('combobox', { name: 'Leave types and plans' }))
+  await userEvent.click(screen.getByRole('option', { name: 'View' }))
+  await userEvent.click(within(drawer).getByRole('button', { name: 'Add group' }))
+  await vi.waitFor(() => expect(calls.find(c => c.method === 'POST' && c.path === '/api/team/groups')?.body).toEqual({
+    name: 'Branch managers', description: 'Run a branch', allCompanies: true, companyIds: [],
+    areas: { companies: 'none', employees: 'manage', locations: 'none', structure: 'none', leave: 'view', schedules: 'none', pay_items: 'none',
+      payment_accounts: 'none', payroll_history: 'none', team: 'none' },
+  }))
+  expect(await screen.findByText('Branch managers is added')).toBeInTheDocument()
+})
+
+it('your own group can be renamed, changed and deleted; deleting one in use shows its code', async () => {
+  const calls = withTeam({
+    'GET /api/team/groups': () => json(200, { ...teamGroups(), items: [...teamGroups().items, branchManagers] }),
+    'PATCH /api/team/groups/branch_managers': () => json(200, { ...branchManagers, name: 'Branch leads' }),
+    'PUT /api/team/groups/branch_managers/access': () => json(200, { ...branchManagers, name: 'Branch leads' }),
+    'DELETE /api/team/groups/branch_managers': () => apiError(409, 'ACC-8012', 'Move everyone out of this group before you delete it.'),
+  })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  const groupsTable = await screen.findByRole('region', { name: 'Groups' })
+  const row = within(groupsTable).getByText('Branch managers').closest('tr')!
+  expect(row).toHaveTextContent('Run a branch')
+  expect(row).toHaveTextContent('Manage: employees · View: leave types and plans')
+
+  await userEvent.click(within(row).getByRole('button', { name: 'Change what Branch managers can do' }))
+  const drawer = screen.getByRole('dialog', { name: 'What Branch managers can do' })
+  expect(within(drawer).queryByRole('button', { name: 'Back to standard' })).not.toBeInTheDocument()
+  await userEvent.clear(within(drawer).getByRole('textbox', { name: 'Name' }))
+  await userEvent.type(within(drawer).getByRole('textbox', { name: 'Name' }), 'Branch leads')
+  await userEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+  await vi.waitFor(() => expect(calls.find(c => c.method === 'PATCH')?.body).toEqual({ name: 'Branch leads', description: 'Run a branch', allCompanies: true, companyIds: [] }))
+  await vi.waitFor(() => expect(calls.some(c => c.method === 'PUT' && c.path === '/api/team/groups/branch_managers/access')).toBe(true))
+  expect(await screen.findByText("Branch leads's access is updated")).toBeInTheDocument()
+
+  await userEvent.click(within(row).getByRole('button', { name: 'Delete Branch managers' }))
+  const confirm = screen.getByRole('alertdialog', { name: 'Delete Branch managers?' })
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Delete group' }))
+  expect(await screen.findByText(/Move everyone out of this group before you delete it/)).toBeInTheDocument()
+})
+
+it('the Groups tab follows the company selector: the groups for those companies, and their people there', async () => {
+  const coast = { ...branchManagers, key: 'coast_leads', name: 'Coast leads', description: null, allCompanies: false, companyIds: [mombasa.id], people: 0 }
+  withTeam({ 'GET /api/team/groups': () => json(200, { ...teamGroups(), items: [...teamGroups().items, coast] }) })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  const groupsTable = await screen.findByRole('region', { name: 'Groups' })
+  expect(within(groupsTable).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Group', 'What it can do', 'Companies', 'People', 'Actions'])
+  expect(within(groupsTable).getByText('Coast leads').closest('tr')).toHaveTextContent('Mombasa Ltd')
+  expect(within(within(groupsTable).getByText('HR').closest('tr')!).getAllByRole('cell')[3]).toHaveTextContent('1')   // Mary, HR for Westlands
+
+  // Only Westlands: Coast leads isn't for it; only Mombasa: nobody in HR there.
+  await userEvent.click(screen.getByRole('button', { name: /Show/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Mombasa Ltd/ }))
+  await userEvent.keyboard('{Escape}')
+  expect(within(groupsTable).queryByText('Coast leads')).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /Show/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Mombasa Ltd/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Westlands Ltd/ }))
+  await userEvent.keyboard('{Escape}')
+  expect(within(groupsTable).getByText('Coast leads')).toBeInTheDocument()
+  expect(within(within(groupsTable).getByText('HR').closest('tr')!).getAllByRole('cell')[3]).toHaveTextContent('0')
+})
+
+it('Add group can limit the group to some companies', async () => {
+  const calls = withTeam({ 'POST /api/team/groups': () => json(201, { ...branchManagers, allCompanies: false, companyIds: [mombasa.id] }) })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Add group' }))
+  const drawer = screen.getByRole('dialog', { name: 'Add group' })
+  await userEvent.type(within(drawer).getByRole('textbox', { name: 'Name' }), 'Coast leads')
+  await userEvent.click(within(drawer).getByRole('button', { name: /Companies/ }))
+  await userEvent.click(screen.getByRole('option', { name: /Westlands Ltd/ }))   // untick: only Mombasa stays
+  await userEvent.keyboard('{Escape}')
+  await userEvent.click(within(drawer).getByRole('button', { name: 'Add group' }))
+  await vi.waitFor(() => expect(calls.find(c => c.method === 'POST' && c.path === '/api/team/groups')?.body).toMatchObject({ allCompanies: false, companyIds: [mombasa.id] }))
+})
+
+it('Invite lists your own groups with what they can do', async () => {
+  const calls = withTeam({
+    'GET /api/team/groups': () => json(200, { ...teamGroups(), items: [...teamGroups().items, branchManagers] }),
+    'POST /api/team/invitations': () => json(201, { ...otieno, id: 'inv-new', groups: ['branch_managers'] }),
+  })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
+  const invite = screen.getByRole('dialog', { name: 'Invite someone' })
+  const own = within(invite).getByRole('checkbox', { name: /^Branch managers/ })
+  expect(own.closest('label')).toHaveTextContent('Manage: employees · View: leave types and plans')
+  await userEvent.type(within(invite).getByRole('textbox', { name: 'First name' }), 'Kennedy')
+  await userEvent.type(within(invite).getByRole('textbox', { name: 'Last name' }), 'Kibui')
+  await userEvent.type(within(invite).getByRole('textbox', { name: 'Email' }), 'ken@example.com')
+  await userEvent.click(own)
+  await userEvent.click(within(invite).getByRole('button', { name: 'Send invitation' }))
+  await vi.waitFor(() => expect((calls.find(c => c.method === 'POST' && c.path === '/api/team/invitations')?.body as { groups: string[] })?.groups).toEqual(['branch_managers']))
 })
 
 it('the company selector shows who covers the chosen companies', async () => {

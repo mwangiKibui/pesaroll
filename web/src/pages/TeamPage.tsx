@@ -95,7 +95,8 @@ export default function TeamPage() {
   const [confirming, setConfirming] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
   const [tab, setTab] = useState<'people' | 'groups'>('people')
-  const [editingGroup, setEditingGroup] = useState<TeamGroup | null>(null)
+  const [editingGroup, setEditingGroup] = useState<TeamGroup | 'new' | null>(null)
+  const [deletingGroup, setDeletingGroup] = useState<TeamGroup | null>(null)
   const tabsId = useId()
   // View on team access shows everything here; only Manage changes it. The server checks every change.
   const canManage = usePermissions().can(permissions.team.manage)
@@ -123,7 +124,9 @@ export default function TeamPage() {
 
   const teamGroups = useTeamGroups(!!members.data && !isApiError(members.data))
 
-  const groupLabel = (group: string | null | undefined, name: string) => (group ? t(`team.groups.${group}`) : name)
+  // Standard groups by their translated name; the organization's own (ACC-08) by the name it gave them.
+  const groupLabel = (group: string | null | undefined, name: string) =>
+    !group ? name : (groups as readonly string[]).includes(group) ? t(`team.groups.${group}`) : teamGroups.data?.items.find(g => g.key === group)?.name ?? name
   const companyName = (id: string) => companies.data?.find(c => c.id === id)?.legalName ?? ''
   const companiesText = (all: boolean, ids: string[]) => (all ? t('team.allCompanies') : ids.map(companyName).join(', '))
 
@@ -141,6 +144,11 @@ export default function TeamPage() {
       groupName: i.groups.map(g => groupLabel(g, g)).join(', '), allCompanies: i.allCompanies, companyIds: i.companyIds, invitation: i,
     })),
   ]
+  // The company selector on Groups (ACC-08): the groups for the companies shown, and their people there.
+  const covers = (all: boolean, ids: string[]) => shown.all || all || ids.some(id => shown.ids.includes(id))
+  const shownGroups = (teamGroups.data?.items ?? []).filter(g => covers(g.allCompanies, g.companyIds))
+  const peopleIn = (key: string) => (Array.isArray(members.data) ? members.data : [])
+    .filter(m => m.groups.some(a => a.group === key && covers(a.allCompanies, a.companyIds))).length
   // The company selector: people and invitations covering any company shown.
   const visible = rows.filter(r => shown.all || r.allCompanies || r.companyIds.some(id => shown.ids.includes(id)))
   const paged = usePaged(visible, 20)
@@ -198,15 +206,15 @@ export default function TeamPage() {
         <p className="m-0 text-muted">{t('team.intro')}</p>
       </div>
       {!ready ? <Loading rows={4} /> : forbidden || !teamGroups.data ? <Notice>{t('team.onlyAdministrators')}</Notice> : <>
-        <Tabs id={tabsId} label={t('team.tabsLabel')} current={tab} onChange={key => setTab(key as 'people' | 'groups')}
-          tabs={[{ key: 'people', label: t('team.tabs.people') }, { key: 'groups', label: t('team.tabs.groups') }]} />
-        <TabPanel id={tabsId} tab="people" current={tab}>
         {companies.data.length > 1 && (
           <div className="w-full max-w-sm">
             <CompanySelect label={t('team.show')} value={shown} onChange={setShown}
               companies={companies.data.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
           </div>
         )}
+        <Tabs id={tabsId} label={t('team.tabsLabel')} current={tab} onChange={key => setTab(key as 'people' | 'groups')}
+          tabs={[{ key: 'people', label: t('team.tabs.people') }, { key: 'groups', label: t('team.tabs.groups') }]} />
+        <TabPanel id={tabsId} tab="people" current={tab}>
         <TableCard title={t('team.tableTitle')} count={visible.length}
           actions={canManage && <Button onClick={() => setInviting(true)}><PlusIcon />{t('team.invite')}</Button>}
           footer={<Pagination label={t('pagination.of', { what: t('team.tableTitle') })} {...paged.pagination} />}>
@@ -240,27 +248,33 @@ export default function TeamPage() {
         </TableCard>
         </TabPanel>
         <TabPanel id={tabsId} tab="groups" current={tab}>
-          <TableCard title={t('team.groupsTitle')} count={teamGroups.data.items.length}>
+          <TableCard title={t('team.groupsTitle')} count={shownGroups.length}
+            actions={canManage && <Button onClick={() => setEditingGroup('new')}><PlusIcon />{t('team.addGroup')}</Button>}>
             <table>
               <thead>
                 <tr>
                   <th scope="col">{t('team.group')}</th>
                   <th scope="col">{t('team.canDo')}</th>
+                  <th scope="col">{t('team.companies')}</th>
                   <th scope="col">{t('team.people')}</th>
                   {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
                 </tr>
               </thead>
               <tbody>
-                {teamGroups.data.items.map(g => (
+                {shownGroups.map(g => (
                   <tr key={g.key}>
                     <td>
                       <span className="block font-medium text-ink">{g.name}</span>
-                      {!g.standard && <span className="block text-hint text-muted">{t('team.changedHere')}</span>}
+                      {g.custom
+                        ? g.description && <span className="block text-hint text-muted">{g.description}</span>
+                        : !g.standard && <span className="block text-hint text-muted">{t('team.changedHere')}</span>}
                     </td>
                     <td>{describe(teamGroups.data, g)}</td>
-                    <td className="tabular-nums">{g.people}</td>
+                    <td>{companiesText(g.allCompanies, g.companyIds)}</td>
+                    <td className="tabular-nums">{peopleIn(g.key)}</td>
                     {canManage && <td className="whitespace-nowrap text-right">
                       <IconButton label={t('team.changeGroup', { name: g.name })} onClick={() => setEditingGroup(g)}>{pencil}</IconButton>
+                      {g.custom && <IconButton tone="danger" label={t('team.deleteGroup', { name: g.name })} onClick={() => setDeletingGroup(g)}>{trash}</IconButton>}
                     </td>}
                   </tr>
                 ))}
@@ -289,7 +303,16 @@ export default function TeamPage() {
             <Details row={viewing} companiesText={companiesText} />
           </Drawer>
         )}
-        {editingGroup && <GroupAccessDrawer groups={teamGroups.data} group={editingGroup} onClose={() => setEditingGroup(null)} />}
+        {editingGroup && <GroupAccessDrawer groups={teamGroups.data} group={editingGroup === 'new' ? null : editingGroup} companies={companies.data} onClose={() => setEditingGroup(null)} />}
+        <ConfirmDialog open={!!deletingGroup} busy={busy} title={t('team.deleteGroupTitle', { name: deletingGroup?.name })} confirmLabel={t('team.deleteGroupButton')}
+          onCancel={() => setDeletingGroup(null)}
+          onConfirm={() => void (async () => {
+            if (!deletingGroup) return
+            await act(() => api.DELETE('/api/team/groups/{key}', { params: { path: { key: deletingGroup.key } } }), t('team.groupDeleted', { name: deletingGroup.name }))
+            setDeletingGroup(null)
+          })()}>
+          {t('team.deleteGroupText')}
+        </ConfirmDialog>
         {changing && <AccessModal target={changing} companies={companies.data} onClose={() => setChanging(null)}
           onSaved={() => { setChanging(null); setViewing(null); void refresh() }} />}
       </>}
@@ -343,16 +366,19 @@ function GroupsField({ value, onChange, error }: { value: string[]; onChange: (v
     const found = teamGroups.data?.items.find(x => x.key === g)
     return found && teamGroups.data ? describe(teamGroups.data, found) : t(`team.groupHints.${g}`)
   }
-  const toggle = (g: string, on: boolean) => onChange(groups.filter(x => (x === g ? on : value.includes(x))))
+  // The standard groups, then the organization's own (ACC-08).
+  const keys = teamGroups.data?.items.map(x => x.key) ?? [...groups]
+  const label = (g: string) => ((groups as readonly string[]).includes(g) ? t(`team.groups.${g}`) : teamGroups.data?.items.find(x => x.key === g)?.name ?? g)
+  const toggle = (g: string, on: boolean) => onChange(keys.filter(x => (x === g ? on : value.includes(x))))
   return (
     <fieldset aria-describedby={`${id}-hint`} className="m-0 flex flex-col gap-1 border-0 p-0">
       <legend className="mb-0.5 p-0 text-label font-medium text-ink">{t('team.groupsLabel')}</legend>
       <p id={`${id}-hint`} className="m-0 mb-1 text-hint text-muted">{t('team.groupsHint')}</p>
-      {groups.map(g => (
+      {keys.map(g => (
         <label key={g} className="flex cursor-pointer items-start gap-2.5 py-1.5">
           <input type="checkbox" className="mt-0.5 size-5 flex-none accent-brand" checked={value.includes(g)} onChange={e => toggle(g, e.target.checked)} />
           <span className="flex flex-col">
-            <span className="text-body text-ink">{t(`team.groups.${g}`)}</span>
+            <span className="text-body text-ink">{label(g)}</span>
             <span className="text-hint text-muted">{hint(g)}</span>
           </span>
         </label>
@@ -512,11 +538,19 @@ function AccessModal({ target, companies, onClose, onSaved }: { target: Changing
  * What a group can do (ACC-04): a level per area (No access, View, Manage; Manage includes View),
  * for everyone in the group in this organization. Back to standard when it was changed.
  */
-function GroupAccessDrawer({ groups, group, onClose }: { groups: TeamGroups; group: TeamGroup; onClose: () => void }) {
+function GroupAccessDrawer({ groups, group, companies, onClose }: { groups: TeamGroups; group: TeamGroup | null; companies: Company[]; onClose: () => void }) {
   const { t, i18n } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
-  const [levels, setLevels] = useState<Record<string, string>>(() => Object.fromEntries(group.areas.map(a => [a.area, a.level])))
+  const [levels, setLevels] = useState<Record<string, string>>(() =>
+    Object.fromEntries(groups.areas.map(a => [a.key, group?.areas.find(x => x.area === a.key)?.level ?? 'none'])))
+  // A new group, or one of the organization's own, has a name and description too (ACC-08).
+  const named = !group || group.custom
+  const [name, setName] = useState(group?.name ?? '')
+  const [description, setDescription] = useState(group?.description ?? '')
+  const [scope, setScope] = useState<CompanySelection>(group && !group.allCompanies ? { all: false, ids: group.companyIds } : { all: true, ids: [] })
+  const where = { allCompanies: scope.all, companyIds: scope.all ? [] : scope.ids }
+  const scopeChanged = !!group && (scope.all !== group.allCompanies || (!scope.all && scope.ids.join() !== group.companyIds.join()))
   const [busy, setBusy] = useState(false)
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
   const options = (['none', 'view', 'manage'] as const).map(value => ({ value, label: t(`team.levels.${value}`) }))
@@ -540,22 +574,41 @@ function GroupAccessDrawer({ groups, group, onClose }: { groups: TeamGroups; gro
       setBusy(false)
     }
   }
-  const save = () => send(() => api.PUT('/api/team/groups/{key}/access', { params: { path: { key: group.key } }, body: { areas: levels } }),
-    t('team.groupUpdated', { name: group.name }))
-  const reset = () => send(() => api.DELETE('/api/team/groups/{key}/access', { params: { path: { key: group.key } } }),
+  const save = () => {
+    if (!group) {
+      return send(() => api.POST('/api/team/groups', { body: { name, description: description || null, areas: levels, ...where } }), t('team.groupAdded', { name }))
+    }
+    return send(async () => {
+      if (group.custom && (name !== group.name || description !== (group.description ?? '') || scopeChanged)) {
+        const renamed = await api.PATCH('/api/team/groups/{key}', { params: { path: { key: group.key } }, body: { name, description: description || null, ...where } })
+        if (!renamed.response.ok) return renamed
+      }
+      return api.PUT('/api/team/groups/{key}/access', { params: { path: { key: group.key } }, body: { areas: levels } })
+    }, t('team.groupUpdated', { name: group.custom ? name : group.name }))
+  }
+  const reset = () => group && send(() => api.DELETE('/api/team/groups/{key}/access', { params: { path: { key: group.key } } }),
     t('team.groupReset', { name: group.name }))
 
   return (
-    <Drawer open title={t('team.groupTitle', { name: group.name })} onClose={onClose}
+    <Drawer open title={group ? t('team.groupTitle', { name: group.name }) : t('team.addGroup')} onClose={onClose}
       footer={<>
-        {!group.standard && <Button variant="ghost" className="mr-auto" busy={busy} onClick={() => void reset()}>{t('team.backToStandard')}</Button>}
-        <Button variant="secondary" className={group.standard ? 'mr-auto' : undefined} onClick={onClose}>{t('common.cancel')}</Button>
-        <Button busy={busy} onClick={() => void save()}>{t('common.save')}</Button>
+        {group && !group.custom && !group.standard && <Button variant="ghost" className="mr-auto" busy={busy} onClick={() => void reset()}>{t('team.backToStandard')}</Button>}
+        <Button variant="secondary" className={!group || group.custom || group.standard ? 'mr-auto' : undefined} onClick={onClose}>{t('common.cancel')}</Button>
+        <Button busy={busy} onClick={() => void save()}>{group ? t('common.save') : t('team.addGroup')}</Button>
       </>}>
       <div className="flex flex-col gap-4">
         <p className="m-0 text-muted">{t('team.groupIntro')}</p>
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
+        {named && <>
+          <TextField label={t('team.groupName')} placeholder={t('team.groupNamePlaceholder')} maxLength={60} value={name} onChange={e => setName(e.target.value)} />
+          <TextField label={t('team.groupDescription')} optional placeholder={t('team.groupDescriptionPlaceholder')} maxLength={200}
+            value={description} onChange={e => setDescription(e.target.value)} />
+          {companies.length > 1 && (
+            <CompanySelect label={t('team.companies')} value={scope} onChange={setScope}
+              companies={companies.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
+          )}
+        </>}
         <div className="grid gap-4 sm:grid-cols-2">
           {groups.areas.map(a => (
             <SelectField key={a.key} label={i18n.language === 'sw' ? a.name.sw : a.name.en} placeholder={t('team.levelPlaceholder')} options={options}
