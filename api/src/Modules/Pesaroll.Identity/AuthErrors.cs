@@ -23,6 +23,10 @@ internal static class AuthErrors
     public static AppException NotSignedIn() =>
         new("AUTH-1007", "Sign in to continue.", 401);
 
+    /// <summary>AUTH-05: not one of your active sessions (ended already, or someone else's).</summary>
+    public static AppException SessionNotFound() =>
+        new("AUTH-1017", "We couldn't find that sign-in. It may have ended already.", 404);
+
     /// <summary>The access token or refresh cookie no longer works. The app refreshes once, then asks the person to sign in.</summary>
     public static AppException SessionEnded(bool invalidToken = false) =>
         new("AUTH-1010", "Your session has ended. Sign in again.", 401)

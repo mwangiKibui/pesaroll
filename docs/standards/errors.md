@@ -51,6 +51,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | AUTH-1014 | This invitation was cancelled. Ask the person who invited you if you still need access. | Customer | An administrator revoked it in Team access. |
 | AUTH-1015 | This invitation is for a different email or phone number. | Customer | Only the account with the invitation's email or phone can accept it. |
 | AUTH-1016 | Enter your first and last name. | Customer | Accepting an invitation for a new account needs a first and last name (up to 60 characters each). |
+| AUTH-1017 | We couldn't find that sign-in. It may have ended already. | Customer | Ending a session that isn't one of the person's active ones: ended already, or someone else's. |
 | ACC-8001 | You don't have permission to do this. Ask an administrator in your organization. | Customer | Check the person's role and company scope in the back office. |
 | ACC-8002 | {name} is already in your organization. | Customer | The email or phone belongs to an active member; change their group in Team access instead. |
 | ACC-8003 | {contact} already has an invitation waiting. Resend it instead. | Customer | One open invitation per email and per phone in an organization. |

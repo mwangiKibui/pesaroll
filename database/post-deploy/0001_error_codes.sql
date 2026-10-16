@@ -16,6 +16,7 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('AUTH-1014',  'AUTH',  'warning', 'This invitation was cancelled. Ask the person who invited you if you still need access.', 'customer', 'An administrator revoked it in Team access.'),
   ('AUTH-1015',  'AUTH',  'warning', 'This invitation is for a different email or phone number.', 'customer', 'Only the account with the invitation''s email or phone can accept it.'),
   ('AUTH-1016',  'AUTH',  'warning', 'Enter your first and last name.', 'customer', 'Accepting an invitation for a new account needs a first and last name (up to 60 characters each).'),
+  ('AUTH-1017',  'AUTH',  'info',    'We couldn''t find that sign-in. It may have ended already.', 'customer', 'Ending a session that isn''t one of the person''s active ones: ended already, or someone else''s.'),
   ('PLAT-9002', 'PLAT', 'warning', 'This request came from another website and was blocked.', 'engineering', 'Check App:AllowedOrigins includes the app''s address; otherwise a cross-site request was stopped.'),
   ('ACC-8001',  'ACC',  'warning', 'You don''t have permission to do this. Ask an administrator in your organization.', 'customer', 'Check the person''s role and company scope in the back office.'),
   ('ACC-8002',  'ACC',  'warning', '{name} is already in your organization.', 'customer', 'The email or phone belongs to an active member; change their group in Team access instead.'),

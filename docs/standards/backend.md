@@ -21,6 +21,7 @@ Status: draft for review.
   - Changes to a company's own records (its employees, paying accounts, payroll history, the company itself) need the permission for that company: `Access.Require(tenant, Permissions.Employees, companyId)`.
   - Organization-wide setup (structure, locations, schedules, leave, earnings and deductions, new companies) needs it for every company: `Access.Require(tenant, Permissions.Structure)`.
   - Uploads declare theirs on the `ImportSpec` (`Permission`, and `PerCompany` when rows belong to a company).
+- Sessions (AUTH-01, AUTH-05): a 15-minute access token naming a session, and a refresh cookie whose hash alone is stored; every request checks the session, so ending one works at once. People list their own active sessions (`GET /api/auth/sessions`, the one asking marked, the device named from the user agent by `Devices.Describe`) and end one (`POST /api/auth/sessions/{id}/end`) or every other (`POST /api/auth/sessions/end-others`); row-level security keeps sessions to their owner, and someone else's answers AUTH-1017.
 - Lists are paged (`?page=&pageSize=`, maximum 200) and filterable by company with the company selector's values.
 - Errors use one shape (see `errors.md`):
 
