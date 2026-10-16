@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { apiError, company, fakeApi, json, orgToken } from '../test/fakeApi'
+import { apiError, company, fakeApi, json, me, orgToken } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -22,12 +22,25 @@ const otieno = {
   companyIds: [mombasa.id], status: 'open', expiresAt: '2026-10-20T09:00:00Z', sentAt: '2026-10-13T09:00:00Z', sendCount: 1,
 }
 
+const areaKeys = ['companies', 'employees', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team']
+const areaNames: Record<string, string> = { companies: 'Companies', employees: 'Employees', locations: 'Locations', structure: 'Org structure', leave: 'Leave types and plans',
+  schedules: 'Payroll schedules', pay_items: 'Earnings, deductions and payees', payment_accounts: 'Paying accounts', payroll_history: 'Payroll history', team: 'Team access' }
+const levels = (set: Record<string, string>) => areaKeys.map(area => ({ area, level: set[area] ?? 'none' }))
+const group = (key: string, name: string, people: number, set: Record<string, string>, standard = true) => ({ key, name, standard, people, areas: levels(set) })
+const teamGroups = (hr = group('hr', 'HR', 1, { employees: 'manage', locations: 'manage', structure: 'manage', leave: 'manage', schedules: 'view' })) => ({
+  areas: areaKeys.map(key => ({ key, name: { en: areaNames[key], sw: areaNames[key] } })),
+  items: [group('administrators', 'Administrators', 1, Object.fromEntries(areaKeys.map(k => [k, 'manage']))), hr,
+    group('payroll', 'Payroll', 0, { employees: 'manage', schedules: 'manage', pay_items: 'manage', payment_accounts: 'manage', payroll_history: 'manage', locations: 'view', structure: 'view', leave: 'view' }),
+    group('approvers', 'Approvers', 0, {})],
+})
+
 function withTeam(routes: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     'POST /api/auth/refresh': () => orgToken(),
     'GET /api/companies': () => json(200, [westlands, mombasa]),
     'GET /api/team/members': () => json(200, [amina, mary]),
     'GET /api/team/invitations': () => json(200, [otieno]),
+    'GET /api/team/groups': () => json(200, teamGroups()),
     ...routes,
   })
 }
@@ -71,7 +84,8 @@ it('invites someone as HR for chosen companies, from a drawer', async () => {
   await userEvent.type(within(drawer).getByRole('textbox', { name: 'Last name' }), 'Kamau')
   await userEvent.type(within(drawer).getByRole('textbox', { name: 'Email' }), 'njeri@example.com')
   // One or more groups: HR and Payroll together. Payroll with Approver warns about approving your own pay runs.
-  expect(within(drawer).getByText(/Employees, structure, locations and leave/)).toBeInTheDocument()
+  // Each group says what it can do in this organization (ACC-04).
+  expect(within(drawer).getByText('Manage: employees, locations, org structure, leave types and plans · View: payroll schedules')).toBeInTheDocument()
   await userEvent.click(within(drawer).getByRole('checkbox', { name: /^HR/ }))
   await userEvent.click(within(drawer).getByRole('checkbox', { name: /^Payroll/ }))
   await userEvent.click(within(drawer).getByRole('checkbox', { name: /^Approver/ }))
@@ -177,6 +191,87 @@ it('the pencil on a row changes a member\'s access, or an open invitation\'s gro
   expect(await screen.findByText("Otieno Ouma's invitation is updated")).toBeInTheDocument()
 })
 
+// ACC-04: what each group can do, per area, changed for the organization.
+it('the Groups tab shows what each group can do; a group\'s drawer changes it, or puts it back to standard', async () => {
+  const hrChanged = group('hr', 'HR', 1, { employees: 'manage', locations: 'manage', structure: 'manage', leave: 'manage', schedules: 'view', payroll_history: 'view' }, false)
+  const calls = withTeam({
+    'PUT /api/team/groups/hr/access': () => json(200, hrChanged),
+    'DELETE /api/team/groups/hr/access': () => json(200, teamGroups().items[1]),
+    'PUT /api/team/groups/administrators/access': () => apiError(409, 'ACC-8007', 'Someone must stay an administrator. Make another person an administrator first.'),
+  })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  const groupsTable = await screen.findByRole('region', { name: 'Groups' })
+  const hrRow = within(groupsTable).getByText('HR').closest('tr')!
+  expect(hrRow).toHaveTextContent('Manage: employees, locations, org structure, leave types and plans · View: payroll schedules')
+  expect(within(groupsTable).getByText('Administrators').closest('tr')).toHaveTextContent('Everything, including team access')
+
+  await userEvent.click(within(hrRow).getByRole('button', { name: 'Change what HR can do' }))
+  const drawer = screen.getByRole('dialog', { name: 'What HR can do' })
+  expect(within(drawer).queryByRole('button', { name: 'Back to standard' })).not.toBeInTheDocument()
+  await userEvent.click(within(drawer).getByRole('combobox', { name: 'Payroll history' }))
+  await userEvent.click(screen.getByRole('option', { name: 'View' }))
+  await userEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+  await vi.waitFor(() => expect(calls.find(c => c.method === 'PUT' && c.path === '/api/team/groups/hr/access')?.body).toEqual({
+    areas: { companies: 'none', employees: 'manage', locations: 'manage', structure: 'manage', leave: 'manage', schedules: 'view', pay_items: 'none',
+      payment_accounts: 'none', payroll_history: 'view', team: 'none' },
+  }))
+  expect(await screen.findByText("HR's access is updated")).toBeInTheDocument()
+})
+
+it('Back to standard puts a changed group back, and a change that would lock everyone out shows its code', async () => {
+  const hrChanged = group('hr', 'HR', 1, { employees: 'view' }, false)
+  const calls = withTeam({
+    'GET /api/team/groups': () => json(200, teamGroups(hrChanged)),
+    'DELETE /api/team/groups/hr/access': () => json(200, teamGroups().items[1]),
+    'PUT /api/team/groups/administrators/access': () => apiError(409, 'ACC-8007', 'Someone must stay an administrator. Make another person an administrator first.'),
+  })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  const groupsTable = await screen.findByRole('region', { name: 'Groups' })
+  expect(within(groupsTable).getByText('HR').closest('tr')).toHaveTextContent('Changed for your organization')
+
+  await userEvent.click(within(groupsTable).getByRole('button', { name: 'Change what HR can do' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'What HR can do' })).getByRole('button', { name: 'Back to standard' }))
+  await vi.waitFor(() => expect(calls.some(c => c.method === 'DELETE' && c.path === '/api/team/groups/hr/access')).toBe(true))
+  expect(await screen.findByText('HR is back to standard')).toBeInTheDocument()
+
+  await userEvent.click(within(groupsTable).getByRole('button', { name: 'Change what Administrators can do' }))
+  const admins = screen.getByRole('dialog', { name: 'What Administrators can do' })
+  await userEvent.click(within(admins).getByRole('combobox', { name: 'Team access' }))
+  await userEvent.click(screen.getByRole('option', { name: 'View' }))
+  await userEvent.click(within(admins).getByRole('button', { name: 'Save' }))
+  expect(await within(admins).findByText(/ACC-8007/)).toBeInTheDocument()
+})
+
+it('with View on team access only, shows people, invitations and groups with nothing that changes them', async () => {
+  withTeam({ 'GET /api/auth/me': () => json(200, { ...me, permissions: [{ permission: 'team.view', allCompanies: true, companyIds: [] }] }) })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Otieno Ouma')
+
+  expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
+  expect(within(table()).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['View Amina Otieno', 'View Mary Wanjiku', 'View Otieno Ouma'])
+  await userEvent.click(within(rowOf('Mary Wanjiku')).getByRole('button', { name: 'View Mary Wanjiku' }))
+  expect(within(screen.getByRole('dialog', { name: 'Mary Wanjiku' })).queryByRole('button', { name: /Change|Remove/ })).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  const groupsTable = await screen.findByRole('region', { name: 'Groups' })
+  expect(within(groupsTable).queryByRole('button')).not.toBeInTheDocument()
+})
+
+it('the groups to choose from in Invite say what each can do in this organization', async () => {
+  withTeam({ 'GET /api/team/groups': () => json(200, teamGroups(group('hr', 'HR', 1, { employees: 'manage', team: 'view' }, false))) })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
+  const invite = screen.getByRole('dialog')
+  expect(within(invite).getByRole('checkbox', { name: /^HR/ }).closest('label')).toHaveTextContent('Manage: employees · View: team access')
+})
+
 it('the company selector shows who covers the chosen companies', async () => {
   withTeam()
   renderApp('/setup/team')
@@ -190,8 +285,8 @@ it('the company selector shows who covers the chosen companies', async () => {
   expect(within(table()).getByText('Otieno Ouma')).toBeInTheDocument()
 })
 
-it('someone who isn\'t an administrator is told who can manage the team', async () => {
+it('someone without View on team access is told who can manage the team', async () => {
   withTeam({ 'GET /api/team/members': () => apiError(403, 'ACC-8001', "You don't have permission to do this. Ask an administrator in your organization.") })
   renderApp('/setup/team')
-  expect(await screen.findByText('Only administrators can see and change who uses Pesaroll. Ask one of them to add or change people.')).toBeInTheDocument()
+  expect(await screen.findByText("You can't see who uses Pesaroll. Ask someone who manages team access.")).toBeInTheDocument()
 })

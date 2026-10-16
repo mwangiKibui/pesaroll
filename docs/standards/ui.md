@@ -56,6 +56,7 @@ Colour tokens (light / dark):
   - current page highlighted, counts as badges
   - a "Finish setting up · 8 of 10" card while setup is incomplete
   - on phones the sidebar opens from a Menu button
+- **What a person can do (ACC-04):** `usePermissions().can(permissions.<area>.manage)` (from `web/src/app/permissions.ts`, over `/api/auth/me`) hides Add, Edit, Delete and Upload from people who can only view, and pages they can't view aren't linked. Check permission keys, never group names. Hiding is never the protection: the server checks every request.
 - **Setup and list pages:**
   1. A title phrased as a question ("Where do your people work?"), one sentence of help, and a skip link.
   2. The company selector as a filter.

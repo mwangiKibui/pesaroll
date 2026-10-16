@@ -5,17 +5,19 @@ import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Drawer } from '../components/Drawer'
 import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
-import { TextField } from '../components/fields'
+import { SelectField, TextField } from '../components/fields'
 import { PlusIcon } from '../components/icons'
 import { Modal } from '../components/Modal'
 import { Pagination } from '../components/Pagination'
 import { TableCard } from '../components/TableCard'
+import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
 import { usePaged } from '../components/usePaged'
 import { useCompanies, useSetupDone } from '../setup/hooks'
@@ -23,6 +25,8 @@ import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
 
 type Company = components['schemas']['CompanyResponse']
+type TeamGroups = components['schemas']['TeamGroups']
+type TeamGroup = components['schemas']['TeamGroup']
 type Member = components['schemas']['TeamMember']
 type Invitation = components['schemas']['InvitationRow']
 
@@ -47,6 +51,36 @@ const shortDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'nume
  * invitations, change someone's access (a small form on top of their drawer) or remove them. The
  * organization always keeps an administrator (the server refuses otherwise).
  */
+/** The organization's groups and what each can do, per area (ACC-04). */
+function useTeamGroups(enabled = true) {
+  const { api } = useServices()
+  return useQuery({
+    queryKey: ['team', 'groups'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/team/groups')
+      if (error || !data) throw new Error('groups')
+      return data
+    },
+  })
+}
+
+/** "Manage: employees, locations · View: payroll schedules", from a group's levels per area. */
+function useDescribe() {
+  const { t, i18n } = useTranslation()
+  return (groups: TeamGroups, group: TeamGroup) => {
+    const name = (area: string) => {
+      const found = groups.areas.find(a => a.key === area)?.name
+      return (found ? (i18n.language === 'sw' ? found.sw : found.en) : area).toLowerCase()
+    }
+    const at = (level: string) => group.areas.filter(a => a.level === level).map(a => name(a.area))
+    const manage = at('manage'), view = at('view')
+    if (manage.length === group.areas.length) return t('team.access.everything')
+    const parts = [manage.length ? t('team.access.manage', { areas: manage.join(', ') }) : null, view.length ? t('team.access.view', { areas: view.join(', ') }) : null]
+    return parts.filter(Boolean).join(' · ') || t('team.access.nothing')
+  }
+}
+
 export default function TeamPage() {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
@@ -60,6 +94,12 @@ export default function TeamPage() {
   const [changing, setChanging] = useState<Changing | null>(null)
   const [confirming, setConfirming] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
+  const [tab, setTab] = useState<'people' | 'groups'>('people')
+  const [editingGroup, setEditingGroup] = useState<TeamGroup | null>(null)
+  const tabsId = useId()
+  // View on team access shows everything here; only Manage changes it. The server checks every change.
+  const canManage = usePermissions().can(permissions.team.manage)
+  const describe = useDescribe()
 
   const members = useQuery({
     queryKey: ['team', 'members'],
@@ -80,6 +120,8 @@ export default function TeamPage() {
       return data
     },
   })
+
+  const teamGroups = useTeamGroups(!!members.data && !isApiError(members.data))
 
   const groupLabel = (group: string | null | undefined, name: string) => (group ? t(`team.groups.${group}`) : name)
   const companyName = (id: string) => companies.data?.find(c => c.id === id)?.legalName ?? ''
@@ -137,25 +179,28 @@ export default function TeamPage() {
   const actions = (r: Row) => (
     <div className="flex justify-end">
       <IconButton label={t('team.view', { name: r.name })} onClick={() => setViewing(r)}>{eye}</IconButton>
-      <IconButton label={t(r.kind === 'member' ? 'team.changeTitle' : 'team.changeInvitationTitle', { name: r.name })}
-        onClick={() => setChanging(r.kind === 'member' ? { kind: 'member', member: r.member } : { kind: 'invitation', invitation: r.invitation })}>{pencil}</IconButton>
-      {r.kind === 'invitation' && <>
+      {canManage && <IconButton label={t(r.kind === 'member' ? 'team.changeTitle' : 'team.changeInvitationTitle', { name: r.name })}
+        onClick={() => setChanging(r.kind === 'member' ? { kind: 'member', member: r.member } : { kind: 'invitation', invitation: r.invitation })}>{pencil}</IconButton>}
+      {canManage && r.kind === 'invitation' && <>
         <IconButton label={t('team.resend', { name: r.name })} onClick={() => void resendTo(r.invitation, r.name)}>{resend}</IconButton>
         <IconButton tone="danger" label={t('team.cancel', { name: r.name })} onClick={() => setConfirming(r)}>{trash}</IconButton>
       </>}
-      {r.kind === 'member' && !r.member.isYou && <IconButton tone="danger" label={t('team.remove', { name: r.name })} onClick={() => setConfirming(r)}>{trash}</IconButton>}
+      {canManage && r.kind === 'member' && !r.member.isYou && <IconButton tone="danger" label={t('team.remove', { name: r.name })} onClick={() => setConfirming(r)}>{trash}</IconButton>}
     </div>
   )
 
   const forbidden = members.data && isApiError(members.data)
-  const ready = companies.data && members.data && (forbidden || invitations.data)
+  const ready = companies.data && members.data && (forbidden || (invitations.data && teamGroups.data))
   return (
     <SetupLayout current="team" done={done} hasOrganization>
       <div className="flex flex-col gap-1.5">
         <h1 className="m-0 font-display text-title text-ink">{t('team.title')}</h1>
         <p className="m-0 text-muted">{t('team.intro')}</p>
       </div>
-      {!ready ? <Loading rows={4} /> : forbidden ? <Notice>{t('team.onlyAdministrators')}</Notice> : <>
+      {!ready ? <Loading rows={4} /> : forbidden || !teamGroups.data ? <Notice>{t('team.onlyAdministrators')}</Notice> : <>
+        <Tabs id={tabsId} label={t('team.tabsLabel')} current={tab} onChange={key => setTab(key as 'people' | 'groups')}
+          tabs={[{ key: 'people', label: t('team.tabs.people') }, { key: 'groups', label: t('team.tabs.groups') }]} />
+        <TabPanel id={tabsId} tab="people" current={tab}>
         {companies.data.length > 1 && (
           <div className="w-full max-w-sm">
             <CompanySelect label={t('team.show')} value={shown} onChange={setShown}
@@ -163,7 +208,7 @@ export default function TeamPage() {
           </div>
         )}
         <TableCard title={t('team.tableTitle')} count={visible.length}
-          actions={<Button onClick={() => setInviting(true)}><PlusIcon />{t('team.invite')}</Button>}
+          actions={canManage && <Button onClick={() => setInviting(true)}><PlusIcon />{t('team.invite')}</Button>}
           footer={<Pagination label={t('pagination.of', { what: t('team.tableTitle') })} {...paged.pagination} />}>
           {visible.length === 0 ? <EmptyState title={t('team.emptyTitle')}>{t('team.emptyText')}</EmptyState> : (
             <table>
@@ -193,6 +238,36 @@ export default function TeamPage() {
             </table>
           )}
         </TableCard>
+        </TabPanel>
+        <TabPanel id={tabsId} tab="groups" current={tab}>
+          <TableCard title={t('team.groupsTitle')} count={teamGroups.data.items.length}>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">{t('team.group')}</th>
+                  <th scope="col">{t('team.canDo')}</th>
+                  <th scope="col">{t('team.people')}</th>
+                  {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {teamGroups.data.items.map(g => (
+                  <tr key={g.key}>
+                    <td>
+                      <span className="block font-medium text-ink">{g.name}</span>
+                      {!g.standard && <span className="block text-hint text-muted">{t('team.changedHere')}</span>}
+                    </td>
+                    <td>{describe(teamGroups.data, g)}</td>
+                    <td className="tabular-nums">{g.people}</td>
+                    {canManage && <td className="whitespace-nowrap text-right">
+                      <IconButton label={t('team.changeGroup', { name: g.name })} onClick={() => setEditingGroup(g)}>{pencil}</IconButton>
+                    </td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableCard>
+        </TabPanel>
         {/* The last setup step: on to the dashboard. */}
         <Proceed label={t('organization.proceed')} onProceed={() => void navigate({ to: '/' })} />
 
@@ -201,12 +276,12 @@ export default function TeamPage() {
           <Drawer open title={viewing.name} onClose={() => setViewing(null)}
             footer={<>
               <Button variant="secondary" className="mr-auto" onClick={() => setViewing(null)}>{t('common.close')}</Button>
-              {viewing.kind === 'invitation' && <>
+              {canManage && viewing.kind === 'invitation' && <>
                 <Button variant="secondary" onClick={() => setConfirming(viewing)}>{t('team.cancelInvitation')}</Button>
                 <Button variant="secondary" onClick={() => setChanging({ kind: 'invitation', invitation: viewing.invitation })}>{t('team.changeInvitation')}</Button>
                 <Button busy={busy} onClick={() => void resendTo(viewing.invitation, viewing.name)}>{t('team.resendInvitation')}</Button>
               </>}
-              {viewing.kind === 'member' && <>
+              {canManage && viewing.kind === 'member' && <>
                 {!viewing.member.isYou && <Button variant="secondary" onClick={() => setConfirming(viewing)}>{t('team.removeButton')}</Button>}
                 <Button onClick={() => setChanging({ kind: 'member', member: viewing.member })}>{t('team.changeAccess')}</Button>
               </>}
@@ -214,6 +289,7 @@ export default function TeamPage() {
             <Details row={viewing} companiesText={companiesText} />
           </Drawer>
         )}
+        {editingGroup && <GroupAccessDrawer groups={teamGroups.data} group={editingGroup} onClose={() => setEditingGroup(null)} />}
         {changing && <AccessModal target={changing} companies={companies.data} onClose={() => setChanging(null)}
           onSaved={() => { setChanging(null); setViewing(null); void refresh() }} />}
       </>}
@@ -260,6 +336,13 @@ function Details({ row, companiesText }: { row: Row; companiesText: (all: boolea
 function GroupsField({ value, onChange, error }: { value: string[]; onChange: (value: string[]) => void; error?: string }) {
   const { t } = useTranslation()
   const id = useId()
+  // What each group can do in this organization (ACC-04); the standard wording until it has loaded.
+  const teamGroups = useTeamGroups()
+  const describe = useDescribe()
+  const hint = (g: string) => {
+    const found = teamGroups.data?.items.find(x => x.key === g)
+    return found && teamGroups.data ? describe(teamGroups.data, found) : t(`team.groupHints.${g}`)
+  }
   const toggle = (g: string, on: boolean) => onChange(groups.filter(x => (x === g ? on : value.includes(x))))
   return (
     <fieldset aria-describedby={`${id}-hint`} className="m-0 flex flex-col gap-1 border-0 p-0">
@@ -270,7 +353,7 @@ function GroupsField({ value, onChange, error }: { value: string[]; onChange: (v
           <input type="checkbox" className="mt-0.5 size-5 flex-none accent-brand" checked={value.includes(g)} onChange={e => toggle(g, e.target.checked)} />
           <span className="flex flex-col">
             <span className="text-body text-ink">{t(`team.groups.${g}`)}</span>
-            <span className="text-hint text-muted">{t(`team.groupHints.${g}`)}</span>
+            <span className="text-hint text-muted">{hint(g)}</span>
           </span>
         </label>
       ))}
@@ -422,5 +505,64 @@ function AccessModal({ target, companies, onClose, onSaved }: { target: Changing
         )}
       </form>
     </Modal>
+  )
+}
+
+/**
+ * What a group can do (ACC-04): a level per area (No access, View, Manage; Manage includes View),
+ * for everyone in the group in this organization. Back to standard when it was changed.
+ */
+function GroupAccessDrawer({ groups, group, onClose }: { groups: TeamGroups; group: TeamGroup; onClose: () => void }) {
+  const { t, i18n } = useTranslation()
+  const { api, queryClient } = useServices()
+  const toast = useToast()
+  const [levels, setLevels] = useState<Record<string, string>>(() => Object.fromEntries(group.areas.map(a => [a.area, a.level])))
+  const [busy, setBusy] = useState(false)
+  const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
+  const options = (['none', 'view', 'manage'] as const).map(value => ({ value, label: t(`team.levels.${value}`) }))
+
+  const send = async (work: () => Promise<{ error?: unknown; response: Response }>, done: string) => {
+    setBusy(true)
+    setBanner(null)
+    try {
+      const { error, response } = await work()
+      if (response.ok) {
+        void queryClient.invalidateQueries({ queryKey: ['team'] })
+        void queryClient.invalidateQueries({ queryKey: ['me'] })
+        toast.show(done)
+        onClose()
+        return
+      }
+      setBanner(isApiError(error) ? error : 'network')
+    } catch {
+      setBanner('network')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const save = () => send(() => api.PUT('/api/team/groups/{key}/access', { params: { path: { key: group.key } }, body: { areas: levels } }),
+    t('team.groupUpdated', { name: group.name }))
+  const reset = () => send(() => api.DELETE('/api/team/groups/{key}/access', { params: { path: { key: group.key } } }),
+    t('team.groupReset', { name: group.name }))
+
+  return (
+    <Drawer open title={t('team.groupTitle', { name: group.name })} onClose={onClose}
+      footer={<>
+        {!group.standard && <Button variant="ghost" className="mr-auto" busy={busy} onClick={() => void reset()}>{t('team.backToStandard')}</Button>}
+        <Button variant="secondary" className={group.standard ? 'mr-auto' : undefined} onClick={onClose}>{t('common.cancel')}</Button>
+        <Button busy={busy} onClick={() => void save()}>{t('common.save')}</Button>
+      </>}>
+      <div className="flex flex-col gap-4">
+        <p className="m-0 text-muted">{t('team.groupIntro')}</p>
+        {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
+        {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {groups.areas.map(a => (
+            <SelectField key={a.key} label={i18n.language === 'sw' ? a.name.sw : a.name.en} placeholder={t('team.levelPlaceholder')} options={options}
+              value={levels[a.key] ?? 'none'} onChange={v => setLevels(l => ({ ...l, [a.key]: v }))} />
+          ))}
+        </div>
+      </div>
+    </Drawer>
   )
 }
