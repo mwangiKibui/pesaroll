@@ -42,7 +42,13 @@ public sealed record AreaLevel(string Area, string Level);
 /// One of the organization's groups (administrators, hr, payroll, approvers), as the organization has it:
 /// whether it is still the standard, how many people are in it (any companies), and its level per area.
 /// </summary>
-public sealed record TeamGroup(string Key, string Name, bool Standard, int People, IReadOnlyList<AreaLevel> Areas);
+public sealed record TeamGroup(string Key, string Name, string? Description, bool Standard, bool Custom, int People, IReadOnlyList<AreaLevel> Areas);
+
+/// <summary>A group the organization adds (ACC-08): a name, an optional description, and a level per area.</summary>
+public sealed record NewGroupRequest(string? Name, string? Description, Dictionary<string, string>? Areas);
+
+/// <summary>A new name and description for one of the organization's own groups.</summary>
+public sealed record RenameGroupRequest(string? Name, string? Description);
 
 public sealed record TeamGroups(IReadOnlyList<AccessArea> Areas, IReadOnlyList<TeamGroup> Items);
 
@@ -62,11 +68,17 @@ public static class TeamEndpoints
 {
     public static readonly string[] Groups = ["administrators", "hr", "payroll", "approvers"];
 
-    /// <summary>The groups asked for, in the usual order, or null when there are none or one isn't known.</summary>
-    private static string[]? GroupsFrom(List<string>? asked)
+    /// <summary>The organization's group keys: the standard ones, then its own (ACC-08) by name. Row-level security keeps them to this organization.</summary>
+    private static async Task<List<string>> GroupKeysAsync(OrganizationsDbContext db, CancellationToken ct) =>
+        [.. Groups, .. await db.Database.SqlQuery<string>(
+            $"select key as \"Value\" from roles where organization_id is not null and deleted_at is null order by name_en").ToListAsync(ct)];
+
+    /// <summary>The groups asked for, in the usual order, or null when there are none or one isn't the organization's.</summary>
+    private static async Task<string[]?> GroupsFromAsync(List<string>? asked, OrganizationsDbContext db, CancellationToken ct)
     {
         var groups = (asked ?? []).Distinct().ToList();
-        return groups.Count > 0 && groups.All(Groups.Contains) ? Groups.Where(groups.Contains).ToArray() : null;
+        var known = await GroupKeysAsync(db, ct);
+        return groups.Count > 0 && groups.All(known.Contains) ? known.Where(groups.Contains).ToArray() : null;
     }
     private static readonly TimeSpan Lasts = TimeSpan.FromDays(7);
     private static readonly Dictionary<string, string> RoleNames = new()
@@ -117,10 +129,10 @@ public static class TeamEndpoints
                 errors["contact"] = "Enter their email address or mobile number, so the invitation can reach them.";
             }
 
-            var groups = GroupsFrom(request.Groups);
+            var groups = await GroupsFromAsync(request.Groups, db, ct);
             if (groups is null)
             {
-                errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
+                errors["groups"] = "Choose one or more of your groups.";
             }
 
             var companyIds = (request.CompanyIds ?? []).Distinct().ToList();
@@ -258,17 +270,47 @@ public static class TeamEndpoints
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Team);
-            var areas = await db.Database.SqlQuery<string>($"select key as \"Value\" from permission_areas").ToListAsync(ct);
-            var asked = request.Areas ?? [];
-            if (!Groups.Contains(key) || asked.Any(a => !areas.Contains(a.Key) || a.Value is not ("none" or "view" or "manage")))
+            if (!(await GroupKeysAsync(db, ct)).Contains(key))
             {
                 throw OnboardingErrors.AreaLevelInvalid();
             }
 
-            var keys = asked.Where(a => a.Value != "none").Select(a => $"{a.Key}.{a.Value}").ToArray();
+            var keys = await PermissionKeysAsync(request.Areas, db, ct);
             await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select set_role_access({key}, {keys})", ct));
             return Results.Ok((await GroupsAsync(db, ct)).Items.Single(g => g.Key == key));
         }).Produces<TeamGroup>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
+
+        // ACC-08: groups the organization adds, with their own name and level per area.
+        groups.MapPost("/", async (NewGroupRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            var keys = await PermissionKeysAsync(request.Areas, db, ct);
+            string? key = null;
+            await TeamChangeAsync(async () => { key = await db.Database.SqlQuery<string>(
+                $"select add_group({request.Name ?? ""}, {request.Description}, {keys}) as \"Value\"").SingleAsync(ct); return 1; });
+            return Results.Created($"/api/team/groups/{key}", (await GroupsAsync(db, ct)).Items.Single(g => g.Key == key));
+        }).Produces<TeamGroup>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(Permissions.Team);
+
+        groups.MapPatch("/{key}", async (string key, RenameGroupRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select rename_group({key}, {request.Name ?? ""}, {request.Description})", ct));
+            return Results.Ok((await GroupsAsync(db, ct)).Items.Single(g => g.Key == key));
+        }).Produces<TeamGroup>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(Permissions.Team);
+
+        // Only once nobody is in it and no open invitation names it (ACC-8012).
+        groups.MapDelete("/{key}", async (string key, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select delete_group({key})", ct));
+            return Results.NoContent();
+        }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
         // Back to standard: the group does what the standard role does again.
@@ -356,31 +398,52 @@ public static class TeamEndpoints
 
     private sealed record AreaRow(string Key, string NameEn, string NameSw);
     private sealed record GroupPermissionRow(string GroupKey, string? PermissionKey, bool Standard);
-    private sealed record GroupRow(string GroupKey, string Name, int People);
+    private sealed record GroupRow(string GroupKey, string Name, string? Description, bool Custom, int People);
+
+    /// <summary>A level per area as permission keys (none: nothing; view or manage: that key), or ACC-8010.</summary>
+    private static async Task<string[]> PermissionKeysAsync(Dictionary<string, string>? levels, OrganizationsDbContext db, CancellationToken ct)
+    {
+        var areas = await db.Database.SqlQuery<string>($"select key as \"Value\" from permission_areas").ToListAsync(ct);
+        var asked = levels ?? [];
+        return asked.Any(a => !areas.Contains(a.Key) || a.Value is not ("none" or "view" or "manage"))
+            ? throw OnboardingErrors.AreaLevelInvalid()
+            : asked.Where(a => a.Value != "none").Select(a => $"{a.Key}.{a.Value}").ToArray();
+    }
+
+    /// <summary>The organization's groups: the standard four, then its own by name, each with its role.</summary>
+    private const string GroupsCte = """
+        with x as (
+            select v.group_key, r.id as role_id, false as custom, v.sort, coalesce(d.name, v.group_key) as name, d.description
+            from (values ('administrators', 'admin', 1), ('hr', 'hr', 2), ('payroll', 'payroll', 3), ('approvers', 'approver', 4)) v (group_key, role_key, sort)
+            join roles r on r.key = v.role_key and r.organization_id is null
+            left join security_groups d on d.default_key = v.group_key
+            union all
+            select r.key, r.id, true, 5, r.name_en,
+                   (select g.description from security_groups g join security_group_roles gr on gr.security_group_id = g.id and gr.role_id = r.id
+                    where g.all_companies order by g.created_at limit 1)
+            from roles r where r.organization_id is not null and r.deleted_at is null)
+        """;
 
     /// <summary>The areas, and each group's level per area as this organization has it (row-level security keeps it to this organization).</summary>
     private static async Task<TeamGroups> GroupsAsync(OrganizationsDbContext db, CancellationToken ct)
     {
         var areas = await db.Database.SqlQuery<AreaRow>($"select key, name_en, name_sw from permission_areas order by sort_order").ToListAsync(ct);
-        var permissions = await db.Database.SqlQuery<GroupPermissionRow>($"""
+        var permissions = await db.Database.SqlQueryRaw<GroupPermissionRow>(GroupsCte + """
             select x.group_key, k.permission_key, rc.role_id is null as standard
-            from (values ('administrators', 'admin'), ('hr', 'hr'), ('payroll', 'payroll'), ('approvers', 'approver')) x (group_key, role_key)
-            join roles r on r.key = x.role_key and r.organization_id is null
-            left join role_customizations rc on rc.role_id = r.id
+            from x
+            left join role_customizations rc on rc.role_id = x.role_id
             left join lateral (
-                select rp.permission_key from role_permissions rp where rp.role_id = r.id and rc.role_id is null
+                select rp.permission_key from role_permissions rp where rp.role_id = x.role_id and rc.role_id is null
                 union all
-                select cp.permission_key from role_customization_permissions cp where cp.role_id = r.id and rc.role_id is not null) k on true
+                select cp.permission_key from role_customization_permissions cp where cp.role_id = x.role_id and rc.role_id is not null) k on true
             """).ToListAsync(ct);
-        var rows = await db.Database.SqlQuery<GroupRow>($"""
-            select x.group_key, coalesce(d.name, x.group_key) as name,
+        var rows = await db.Database.SqlQueryRaw<GroupRow>(GroupsCte + """
+            select x.group_key, x.name, x.description, x.custom,
                    (select count(distinct gm.membership_id)::int from security_group_roles gr
                     join security_group_members gm on gm.security_group_id = gr.security_group_id and gm.removed_at is null
                     join memberships m on m.id = gm.membership_id and m.status = 'active'
-                    where gr.role_id = r.id) as people
-            from (values ('administrators', 'admin'), ('hr', 'hr'), ('payroll', 'payroll'), ('approvers', 'approver')) x (group_key, role_key)
-            join roles r on r.key = x.role_key and r.organization_id is null
-            left join security_groups d on d.default_key = x.group_key
+                    where gr.role_id = x.role_id) as people
+            from x order by x.sort, x.name
             """).ToListAsync(ct);
         string Level(string group, string area)
         {
@@ -390,8 +453,8 @@ public static class TeamEndpoints
 
         return new TeamGroups(
             areas.Select(a => new AccessArea(a.Key, new AreaName(a.NameEn, a.NameSw))).ToList(),
-            Groups.Select(g => rows.Single(r => r.GroupKey == g)).Select(r => new TeamGroup(r.GroupKey, r.Name,
-                permissions.Where(p => p.GroupKey == r.GroupKey).All(p => p.Standard), r.People,
+            rows.Select(r => new TeamGroup(r.GroupKey, r.Name, r.Description,
+                !r.Custom && permissions.Where(p => p.GroupKey == r.GroupKey).All(p => p.Standard), r.Custom, r.People,
                 areas.Select(a => new AreaLevel(a.Key, Level(r.GroupKey, a.Key))).ToList())).ToList());
     }
 
@@ -402,10 +465,12 @@ public static class TeamEndpoints
         {
             await change();
         }
-        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008" or "ACC-8009" or "ACC-8010")
+        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008" or "ACC-8009" or "ACC-8010" or "ACC-8011" or "ACC-8012")
         {
             throw error.MessageText switch
             {
+                "ACC-8011" => OnboardingErrors.GroupNameInvalid(),
+                "ACC-8012" => OnboardingErrors.GroupInUse(),
                 "ACC-8010" => OnboardingErrors.AreaLevelInvalid(),
                 "ACC-8009" => OnboardingErrors.AccessInvalid(new Dictionary<string, string> { ["groups"] = "Choose one or more groups." }),
                 "ACC-8007" => OnboardingErrors.LastAdministrator(),
@@ -419,10 +484,10 @@ public static class TeamEndpoints
     private static async Task<(string[] Groups, Guid[] CompanyIds)> ValidAccessAsync(AccessRequest request, OrganizationsDbContext db, CancellationToken ct)
     {
         var errors = new Dictionary<string, string>();
-        var groups = GroupsFrom(request.Groups);
+        var groups = await GroupsFromAsync(request.Groups, db, ct);
         if (groups is null)
         {
-            errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
+            errors["groups"] = "Choose one or more of your groups.";
         }
 
         var companyIds = (request.CompanyIds ?? []).Distinct().ToArray();
@@ -449,7 +514,7 @@ public static class TeamEndpoints
         var inviter = await db.Database.SqlQuery<string>($"""select full_name as "Value" from users where id = {invitation.InvitedBy}""").SingleAsync(ct);
         var data = new Dictionary<string, string>
         {
-            ["firstName"] = invitation.FirstName, ["inviter"] = inviter, ["organization"] = organization, ["role"] = RoleList(invitation.GroupKeys),
+            ["firstName"] = invitation.FirstName, ["inviter"] = inviter, ["organization"] = organization, ["role"] = await RoleListAsync(invitation.GroupKeys, db, ct),
             ["link"] = $"{(configuration["App:Url"] ?? "https://app.pesaroll.co.ke").TrimEnd('/')}/invite/{Base64Url.EncodeToString(token)}",
         };
         if (invitation.Email is not null)
@@ -464,11 +529,14 @@ public static class TeamEndpoints
     }
 
     /// <summary>"HR and Payroll", "an administrator": the roles as the message reads them.</summary>
-    private static string RoleList(IReadOnlyList<string> keys)
+    private static async Task<string> RoleListAsync(IReadOnlyList<string> keys, OrganizationsDbContext db, CancellationToken ct)
     {
-        var names = keys.Select(k => RoleNames[k]).ToList();
+        var own = await db.Database.SqlQuery<GroupNameRow>($"select key, name_en as name from roles where organization_id is not null").ToListAsync(ct);
+        var names = keys.Select(k => RoleNames.TryGetValue(k, out var name) ? name : own.FirstOrDefault(o => o.Key == k)?.Name ?? k).ToList();
         return names.Count == 1 ? names[0] : $"{string.Join(", ", names[..^1])} and {names[^1]}";
     }
+
+    private sealed record GroupNameRow(string Key, string Name);
 
     private static InvitationRow ToRow(Invitation i, DateTimeOffset now) =>
         new(i.Id, i.FirstName, i.LastName, i.Email, i.Phone, i.GroupKeys, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(),

@@ -27,6 +27,8 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('ACC-8008',  'ACC',  'warning', 'We couldn''t find that person in your organization. They may have been removed.', 'customer', 'The membership doesn''t exist in this organization or isn''t active.'),
   ('ACC-8009',  'ACC',  'warning', 'Choose their group and companies.', 'customer', 'A group (Administrators, HR, Payroll, Approvers) and all companies or at least one.'),
   ('ACC-8010',  'ACC',  'warning', 'Choose No access, View or Manage for each area.', 'customer', 'Changing what a group can do: a known group (administrators, hr, payroll, approvers), known areas, and a level of none, view or manage.'),
+  ('ACC-8011',  'ACC',  'warning', 'Give the group a name nobody else uses (2 to 60 characters).', 'customer', 'Adding or renaming an organization''s own group: 2 to 60 characters, not a standard group''s name, not used by another group.'),
+  ('ACC-8012',  'ACC',  'warning', 'Move everyone out of this group before you delete it.', 'customer', 'Someone is still in the group or an open invitation names it; change their access or cancel the invitation first.'),
   ('IMP-3001',  'IMP',  'error',   'Row {row}: {column} is required.', 'customer', 'Point them to the template''s required columns.'),
   ('IMP-3002',  'IMP',  'error',   'Row {row}: "{value}" isn''t one of your {column} options.', 'customer', 'Check the option exists in setup, or fix the spelling.'),
   ('ONB-3501',  'ONB',  'warning', 'Enter your organization''s name (2 to 120 characters).', 'customer', 'Organization step: the name is the one their team knows them by; legal company names come next.'),

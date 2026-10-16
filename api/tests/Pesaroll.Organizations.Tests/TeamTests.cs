@@ -26,7 +26,7 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
     private sealed record AreaName(string En, string Sw);
     private sealed record Area(string Key, AreaName Name);
     private sealed record AreaLevel(string Area, string Level);
-    private sealed record Group(string Key, string Name, bool Standard, int People, List<AreaLevel> Areas);
+    private sealed record Group(string Key, string Name, string? Description, bool Standard, bool Custom, int People, List<AreaLevel> Areas);
     private sealed record Groups(List<Area> Areas, List<Group> Items);
 
     private const string Password = "Mombasa-raha-7";
@@ -221,5 +221,58 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         Assert.Equal("ACC-8001", await Code(await mary.PostAsJsonAsync("/api/team/invitations",
             new { firstName = "Otieno", lastName = "Ouma", email = $"o-{Guid.NewGuid():N}@example.com", groups = new[] { "payroll" }, allCompanies = false, companyIds = new[] { westlands.Id } })));
         Assert.Equal("ACC-8001", await Code(await mary.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["team"] = "manage" } })));
+    }
+
+    // ACC-08: an organization's own groups.
+    [Fact]
+    public async Task Own_groups_are_added_given_to_people_renamed_and_deleted_once_empty()
+    {
+        var (owner, westlands, _) = await Organization();
+        var added = await owner.PostAsJsonAsync("/api/team/groups", new
+        {
+            name = "Branch managers", description = "Run a branch", areas = new Dictionary<string, string> { ["employees"] = "manage", ["leave"] = "view" },
+        });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var group = (await added.Content.ReadFromJsonAsync<Group>())!;
+        Assert.Equal(("branch_managers", "Branch managers", "Run a branch", true, 0), (group.Key, group.Name, group.Description, group.Custom, group.People));
+
+        var ken = await Joined(owner, "branch_managers", westlands.Id);
+        Assert.Equal(HttpStatusCode.OK, (await ken.GetAsync("/api/employees")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await ken.GetAsync("/api/leave-plans")).StatusCode);
+        Assert.Equal("ACC-8001", await Code(await ken.GetAsync("/api/payroll-history/batches")));
+        var listed = (await owner.GetFromJsonAsync<Groups>("/api/team/groups"))!.Items;
+        Assert.Equal(["administrators", "hr", "payroll", "approvers", "branch_managers"], listed.Select(g => g.Key));
+        Assert.Equal(1, listed.Single(g => g.Key == "branch_managers").People);
+
+        Assert.Equal(HttpStatusCode.OK, (await owner.PatchAsJsonAsync("/api/team/groups/branch_managers", new { name = "Branch leads", description = "Lead a branch" })).StatusCode);
+        Assert.Equal("Branch leads", (await owner.GetFromJsonAsync<Groups>("/api/team/groups"))!.Items.Single(g => g.Key == "branch_managers").Name);
+
+        var inUse = await owner.DeleteAsync("/api/team/groups/branch_managers");
+        Assert.Equal((HttpStatusCode.Conflict, "ACC-8012"), (inUse.StatusCode, await Code(inUse)));
+        var kennedy = (await owner.GetFromJsonAsync<List<Member>>("/api/team/members"))!.Single(m => !m.IsYou);
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.PutAsJsonAsync($"/api/team/members/{kennedy.MembershipId}/access", new { groups = new[] { "hr" }, allCompanies = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync("/api/team/groups/branch_managers")).StatusCode);
+        Assert.DoesNotContain("branch_managers", (await owner.GetFromJsonAsync<Groups>("/api/team/groups"))!.Items.Select(g => g.Key));
+    }
+
+    [Fact]
+    public async Task Own_groups_need_a_new_name_stay_in_their_organization_and_need_team_management()
+    {
+        var (owner, _, _) = await Organization();
+        var mary = await Joined(owner, "hr");
+        Assert.Equal("ACC-8011", await Code(await owner.PostAsJsonAsync("/api/team/groups", new { name = "HR", areas = new Dictionary<string, string>() })));
+        Assert.Equal("ACC-8011", await Code(await owner.PostAsJsonAsync("/api/team/groups", new { name = "x", areas = new Dictionary<string, string>() })));
+        Assert.Equal("ACC-8010", await Code(await owner.PostAsJsonAsync("/api/team/groups", new { name = "Finance", areas = new Dictionary<string, string> { ["employees"] = "edit" } })));
+        Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/team/groups", new { name = "Finance", areas = new Dictionary<string, string> { ["payroll_history"] = "view" } })).StatusCode);
+        Assert.Equal("ACC-8011", await Code(await owner.PostAsJsonAsync("/api/team/groups", new { name = "finance", areas = new Dictionary<string, string>() })));
+        Assert.Equal("ACC-8001", await Code(await mary.PostAsJsonAsync("/api/team/groups", new { name = "Kitchen leads", areas = new Dictionary<string, string>() })));
+        Assert.Equal("ACC-8010", await Code(await owner.DeleteAsync("/api/team/groups/finance/access")));   // only standard groups have a standard
+
+        var (elsewhere, westlands, _) = await Organization();
+        Assert.DoesNotContain("finance", (await elsewhere.GetFromJsonAsync<Groups>("/api/team/groups"))!.Items.Select(g => g.Key));
+        Assert.Equal("ACC-8004", await Code(await elsewhere.PostAsJsonAsync("/api/team/invitations", new
+        {
+            firstName = "Otieno", lastName = "Ouma", email = $"o-{Guid.NewGuid():N}@example.com", groups = new[] { "finance" }, allCompanies = false, companyIds = new[] { westlands.Id },
+        })));
     }
 }

@@ -37,6 +37,12 @@ internal static class OnboardingErrors
     public static AppException MemberNotFound() =>
         new("ACC-8008", "We couldn't find that person in your organization. They may have been removed.", 404);
 
+    public static AppException GroupNameInvalid() =>
+        new("ACC-8011", "Give the group a name nobody else uses (2 to 60 characters).") { Fields = new Dictionary<string, string> { ["name"] = "Give the group a name nobody else uses (2 to 60 characters)." } };
+
+    public static AppException GroupInUse() =>
+        new("ACC-8012", "Move everyone out of this group before you delete it.", 409);
+
     public static AppException AreaLevelInvalid() =>
         new("ACC-8010", "Choose No access, View or Manage for each area.");
 

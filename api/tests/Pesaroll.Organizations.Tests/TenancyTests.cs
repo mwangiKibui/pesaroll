@@ -92,6 +92,25 @@ public sealed class TenancyTests : IAsyncLifetime
         Assert.Equal(1, await theirs.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from role_customization_permissions").SingleAsync());
     }
 
+    // ACC-08: a group an organization adds (a role it owns) stays its own; system roles are for everyone.
+    [Fact]
+    public async Task Organization_sees_only_its_own_groups_and_the_system_roles()
+    {
+        await using (var connection = new NpgsqlConnection(ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"insert into roles (id, organization_id, key, name_en, name_sw) values (uuidv7(), '{Org2}', 'branch_managers', 'Branch managers', 'Branch managers')";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await using var mine = ContextFor(Tenant(Org1, Org1Kenya, Org1Uganda));
+        Assert.Equal(0, await mine.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from roles where organization_id is not null").SingleAsync());
+        Assert.Equal(4, await mine.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from roles where organization_id is null").SingleAsync());
+        await using var theirs = ContextFor(Tenant(Org2, Org2Kenya));
+        Assert.Equal(1, await theirs.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from roles where organization_id is not null").SingleAsync());
+    }
+
     [Fact]
     public async Task Organization_sees_only_its_own_companies()
     {
