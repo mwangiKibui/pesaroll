@@ -12,6 +12,7 @@ const area = <A extends string>(key: A) => ({ view: `${key}.view`, manage: `${ke
 export const permissions = {
   companies: area('companies'),
   employees: area('employees'),
+  pay: area('pay'),
   locations: area('locations'),
   structure: area('structure'),
   leave: area('leave'),

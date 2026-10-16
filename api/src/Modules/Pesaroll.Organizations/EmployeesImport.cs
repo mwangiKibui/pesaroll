@@ -40,6 +40,9 @@ public static class EmployeesImport
 
     private static readonly string[] Types = ["Permanent", "Contract", "Casual", "Intern"];
 
+    /// <summary>The columns only someone with Manage on pay may fill in (ACC-05).</summary>
+    private static readonly string[] PayColumns = ["basicPay", "paidInto", "bank", "branch", "accountNumber", "mpesa"];
+
     public static IEndpointRouteBuilder MapEmployeesImportEndpoints(this IEndpointRouteBuilder app)
     {
         SpreadsheetImport.MapImport(app.MapGroup("/api/employees").WithTags("Employees"), "", new ImportSpec<ValidRow>
@@ -52,7 +55,7 @@ public static class EmployeesImport
             MaxRows = MaxRows,
             MaxMegabytes = MaxMegabytes,
             Choices = ChoicesAsync,
-            Check = (rows, db, services, ct) => CheckAsync(rows, db, services.GetRequiredService<FieldEncryptor>(), ct),
+            Check = (rows, db, services, ct) => CheckAsync(rows, db, services.GetRequiredService<FieldEncryptor>(), services.GetRequiredService<TenantContext>(), ct),
             Save = (rows, _, organizationId, db, now, services, ct) => SaveAsync(rows, organizationId, db, now, services.GetRequiredService<FieldEncryptor>(), ct),
         });
         return app;
@@ -131,7 +134,7 @@ public static class EmployeesImport
     }
 
     private static async Task<(List<ValidRow> Rows, List<ImportProblem> Problems, List<ImportProblem> Notes)> CheckAsync(
-        List<ImportRow> raw, OrganizationsDbContext db, FieldEncryptor encryptor, CancellationToken ct)
+        List<ImportRow> raw, OrganizationsDbContext db, FieldEncryptor encryptor, TenantContext tenant, CancellationToken ct)
     {
         // Everything rows can refer to, once for the whole file.
         var companies = await db.Companies.AsNoTracking().Where(c => c.Status == "active").ToListAsync(ct);
@@ -200,7 +203,9 @@ public static class EmployeesImport
         {
             var line = row.Line;
             var before = problems.Count;
-            string Cell(string key) => row.Cells.GetValueOrDefault(key)?.Trim() ?? "";
+            // ACC-05: pay and bank details only from someone with Manage on pay for the row's company.
+            var payAllowed = true;
+            string Cell(string key) => !payAllowed && PayColumns.Contains(key) ? "" : row.Cells.GetValueOrDefault(key)?.Trim() ?? "";
             void Problem(string column, string message) => problems.Add(new ImportProblem(line, column, message));
 
             var companyText = Cell("company");
@@ -211,6 +216,12 @@ public static class EmployeesImport
             {
                 Problem("company", $"Choose one of your companies: {string.Join(", ", companies.Select(c => c.LegalName))}.");
                 continue;
+            }
+
+            payAllowed = tenant.Can(Permissions.Pay, company.Id);
+            foreach (var column in payAllowed ? [] : PayColumns.Where(c => (row.Cells.GetValueOrDefault(c)?.Trim() ?? "").Length > 0))
+            {
+                Problem(column, "Payroll adds pay and bank details. Leave this empty.");
             }
 
             string Name(string key, string label, bool required)
@@ -516,7 +527,7 @@ public static class EmployeesImport
             {
                 Problem(paidInto == "bank" ? "bank" : "mpesa", paidInto == "bank" ? "Paid into a bank: add their bank details." : "Paid into M-Pesa: add their M-Pesa number.");
             }
-            else if (exit is null && methods.Count > 0 && (account is null || !methods.Contains(account.Method)))
+            else if (payAllowed && exit is null && methods.Count > 0 && (account is null || !methods.Contains(account.Method)))
             {
                 var column = account is not null ? (account.Method == "bank" ? "bank" : "mpesa") : methods.Count > 1 ? "paidInto" : methods[0] == "bank" ? "bank" : "mpesa";
                 Problem(column, EmployeesEndpoints.PaysByMessage(company.LegalName, methods));

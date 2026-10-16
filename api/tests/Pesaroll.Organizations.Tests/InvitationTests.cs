@@ -241,7 +241,7 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
         var mary = Guest();
         Authorize(mary, (await (await mary.PostAsJsonAsync($"/api/invitations/{token}/accept", new { firstName = "Mary", lastName = "Wanjiku", password = Password })).Content.ReadFromJsonAsync<Token>())!);
         var grants = (await mary.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions;
-        Assert.Equal(["employees.manage", "leave.manage", "locations.manage", "pay_items.manage", "payment_accounts.manage", "payroll_history.manage", "schedules.manage", "structure.manage"],
+        Assert.Equal(["employees.manage", "leave.manage", "locations.manage", "pay_items.manage", "pay.manage", "payment_accounts.manage", "payroll_history.manage", "schedules.manage", "structure.manage"],
             grants.Select(g => g.Permission).Where(p => p.EndsWith(".manage")).Order());
         Assert.All(grants, g => Assert.Equal([westlands.Id], g.CompanyIds));
         Assert.Equal("ACC-8004", (await ErrorFrom(await owner.PostAsJsonAsync("/api/team/invitations",

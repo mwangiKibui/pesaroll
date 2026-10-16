@@ -23,7 +23,7 @@ begin
     raise exception 'an area does not have exactly View and Manage';
   end if;
   if (select array_agg(key order by sort_order) from permission_areas)
-     is distinct from array['companies', 'employees', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team'] then
+     is distinct from array['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team'] then
     raise exception 'the areas are not the ones planned, in order';
   end if;
 
@@ -35,8 +35,8 @@ begin
   end if;
   if (select array_agg(rp.permission_key order by rp.permission_key) from role_permissions rp join roles r on r.id = rp.role_id
       where r.key = 'payroll' and r.organization_id is null)
-     is distinct from array['employees.manage', 'leave.view', 'locations.view', 'pay_items.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.view'] then
-    raise exception 'Payroll is not: manage employees, pay items, paying accounts, payroll history and schedules; view leave, locations and structure';
+     is distinct from array['employees.manage', 'leave.view', 'locations.view', 'pay_items.manage', 'pay.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.view'] then
+    raise exception 'Payroll is not: manage employees, pay, pay items, paying accounts, payroll history and schedules; view leave, locations and structure';
   end if;
   if (select count(*) from role_permissions rp join roles r on r.id = rp.role_id join permissions p on p.key = rp.permission_key
       where r.key = 'admin' and r.organization_id is null and p.level = 'manage')

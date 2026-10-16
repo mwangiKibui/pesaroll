@@ -54,11 +54,13 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         (await (await client.PostAsJsonAsync("/api/companies", new { legalName = name, countryCode = "KE", town = "Nairobi", regionCode = "047" }))
             .Content.ReadFromJsonAsync<Company>())!;
 
+    /// <summary>Adds someone, then reads them back with their pay (ACC-05: pay is sent only when asked for).</summary>
     private static async Task<Employee> Add(HttpClient client, object body)
     {
         var res = await client.PostAsJsonAsync("/api/employees", body);
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
-        return (await res.Content.ReadFromJsonAsync<Employee>())!;
+        var added = (await res.Content.ReadFromJsonAsync<Employee>())!;
+        return (await client.GetFromJsonAsync<Employee>($"/api/employees/{added.Id}?includePay=true"))!;
     }
 
     private static async Task<Error> ErrorFrom(HttpResponseMessage res) => (await res.Content.ReadFromJsonAsync<Error>())!;
@@ -448,7 +450,7 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         });
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var edited = (await res.Content.ReadFromJsonAsync<Employee>())!;
+        var edited = (await client.GetFromJsonAsync<Employee>($"/api/employees/{wanjiru.Id}?includePay=true"))!;
         Assert.Equal((95000m, "contract", "•••• 678Z"), (edited.Pay!.BasicAmount, edited.Job.EmploymentType, edited.KraPinMasked));   // numbers left out are kept
         await using var connection = new NpgsqlConnection(Db);
         await connection.OpenAsync();

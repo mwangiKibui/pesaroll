@@ -31,6 +31,7 @@
 \i tenancy/employee_pay_items.sql
 \i tenancy/payroll_history.sql
 \i tenancy/notification_deliveries.sql
+\i tenancy/sensitive_views.sql
 \i identity/memberships.sql
 \i identity/access.sql
 \i identity/invitations.sql

@@ -71,10 +71,10 @@ public sealed class PayItemAssignmentsTests(OnboardingTests.Api api) : IClassFix
 
         foreach (var person in new[] { wanjiru, later })
         {
-            var mine = Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{person}/pay-items"))!);
+            var mine = Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{person}/pay-items?includePay=true"))!);
             Assert.Equal(("House allowance", 10m, true, DateOnly.Parse("2026-11-01")), (mine.Name, mine.Rate, mine.Everyone, mine.StartsOn));   // the item's rate
         }
-        var summary = (await client.GetFromJsonAsync<List<PayItem>>("/api/pay-items"))!.Single(i => i.Id == house).Assignments;
+        var summary = (await client.GetFromJsonAsync<List<PayItem>>("/api/pay-items?includePay=true"))!.Single(i => i.Id == house).Assignments;
         Assert.Equal([new Summary(a.Id, true, 0)], summary);
     }
 
@@ -104,21 +104,21 @@ public sealed class PayItemAssignmentsTests(OnboardingTests.Api api) : IClassFix
         Assert.Equal([("Otieno Ouma", (decimal?)null, (DateOnly?)DateOnly.Parse("2027-03-31")), ("Wanjiru Kamau", 2000m, null)],
             atA.People.Select(p => (p.Name, p.Amount, p.EndsOn)));
         Assert.Equal((true, 1000m), (all.Single(x => x.CompanyId == b.Id).Everyone, all.Single(x => x.CompanyId == b.Id).Amount));
-        Assert.Equal(1500m, Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{otieno}/pay-items"))!).Amount);   // the default
-        Assert.Equal(1000m, Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{okello}/pay-items"))!).Amount);
+        Assert.Equal(1500m, Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{otieno}/pay-items?includePay=true"))!).Amount);   // the default
+        Assert.Equal(1000m, Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{okello}/pay-items?includePay=true"))!).Amount);
 
         // The list is replaced: now only Otieno at A; then nobody at B.
         await Assign(client, sacco, new { companyId = a.Id, everyone = false, people = new object[] { new { employeeId = otieno, amount = 500m, startsOn = "2026-11-01" } } });
         await Assign(client, sacco, new { companyId = b.Id, everyone = false, people = Array.Empty<object>() });
-        Assert.Empty((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items"))!);
-        Assert.Equal([new Summary(a.Id, false, 1)], (await client.GetFromJsonAsync<List<PayItem>>("/api/pay-items"))!.Single(i => i.Id == sacco).Assignments);
+        Assert.Empty((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items?includePay=true"))!);
+        Assert.Equal([new Summary(a.Id, false, 1)], (await client.GetFromJsonAsync<List<PayItem>>("/api/pay-items?includePay=true"))!.Single(i => i.Id == sacco).Assignments);
     }
 
     [Fact]
     public async Task What_cant_be_given_out_is_refused_with_the_reason()
     {
         var (client, a, b) = await Onboarded();
-        var shif = (await client.GetFromJsonAsync<List<PayItem>>("/api/pay-items"))!.Single(i => i.Code == "SHIF").Id;
+        var shif = (await client.GetFromJsonAsync<List<PayItem>>("/api/pay-items?includePay=true"))!.Single(i => i.Code == "SHIF").Id;
         var lunch = await Make(client, "/api/pay-items", new { name = "Lunch", kind = "earning", taxable = true, calcMethod = "fixed", defaultAmount = 3000m, allCompanies = false, companyIds = new[] { a.Id } });
         var overtime = await Make(client, "/api/pay-items", new { name = "Overtime", kind = "earning", taxable = true, calcMethod = "each_run", allCompanies = true });
         var wanjiru = await Hire(client, a, "Wanjiru", "Kamau");
@@ -166,7 +166,7 @@ public sealed class PayItemAssignmentsTests(OnboardingTests.Api api) : IClassFix
         Assert.Equal((a.Id, (decimal?)null, (decimal?)null), (only.CompanyId, only.People.Single().Amount, only.People.Single().Rate));
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/pay-items/{welfare}")).StatusCode);
-        Assert.Empty((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items"))!);
+        Assert.Empty((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items?includePay=true"))!);
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class PayItemAssignmentsTests(OnboardingTests.Api api) : IClassFix
         await Assign(client, helb, new { companyId = a.Id, everyone = true });
         var everyone = Assert.Single((await client.GetFromJsonAsync<List<Assignment>>($"/api/pay-items/{helb}/assignments"))!);
         Assert.Equal(["Otieno Ouma"], everyone.Missing!.Select(m => m.Name));
-        Assert.Equal("•••• 5678", Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items"))!).Reference);   // masked
+        Assert.Equal("•••• 5678", Assert.Single((await client.GetFromJsonAsync<List<Mine>>($"/api/employees/{wanjiru}/pay-items?includePay=true"))!).Reference);   // masked
 
         // A profile fix flows through: Otieno's ID is added, and he's no longer missing.
         var fix = await client.PatchAsJsonAsync($"/api/employees/{otieno}", new { companyId = a.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-15",

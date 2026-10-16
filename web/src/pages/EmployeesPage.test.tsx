@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { company, employeeDetail, employeeRow, equityAccount, fakeApi, json, leavePlan, location, orgToken, schedule } from '../test/fakeApi'
+import { company, employeeDetail, employeeRow, equityAccount, fakeApi, json, leavePlan, location, me, orgToken, schedule } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -488,4 +488,85 @@ it('Proceed goes on to Earnings and deductions, the next step', async () => {
   await userEvent.click(await within(await screen.findByRole('main')).findByRole('button', { name: 'Proceed to Earnings and deductions' }))
 
   expect(await screen.findByRole('heading', { name: 'What do you pay, and what comes off pay?' })).toBeInTheDocument()
+})
+
+// ACC-05: pay is sent only when asked for, to people who may see it.
+const hiddenWanjiru = employeeRow({ basicAmount: null, payBasis: null, currency: null, payHidden: true })
+const hrOnly = { 'GET /api/auth/me': () => json(200, { ...me, permissions: ['employees.view', 'employees.manage'].map(permission => ({ permission, allCompanies: true, companyIds: [] })) }) }
+
+it('with View on pay, pay shows as dots until Show amounts asks for it', async () => {
+  const calls = withPeople({
+    'GET /api/employees': req => json(200, { items: [new URL(req.url).searchParams.get('includePay') === 'true' ? wanjiru : hiddenWanjiru], total: 1, page: 1, pageSize: 20 }),
+  })
+  renderApp('/setup/employees')
+  const row = (await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')).closest('tr')!
+  expect(row).toHaveTextContent('KES ••••••')
+  expect(calls.some(c => c.path === '/api/employees' && c.url.includes('includePay'))).toBe(false)
+
+  await userEvent.click(screen.getByRole('button', { name: 'Show amounts' }))
+  expect(await within(table()).findByText(/85,000/)).toBeInTheDocument()
+  expect(calls.some(c => c.path === '/api/employees' && c.url.includes('includePay=true'))).toBe(true)
+  await userEvent.click(screen.getByRole('button', { name: 'Hide amounts' }))
+  expect(await within(table()).findByText('KES ••••••')).toBeInTheDocument()
+})
+
+it('without View on pay, pay is Hidden: no Show amounts, no sorting or filtering by pay', async () => {
+  withPeople({ ...hrOnly, 'GET /api/employees': () => json(200, { items: [hiddenWanjiru], total: 1, page: 1, pageSize: 20 }) })
+  renderApp('/setup/employees')
+  const row = (await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')).closest('tr')!
+  expect(row).toHaveTextContent('Hidden')
+  expect(screen.queryByRole('button', { name: 'Show amounts' })).not.toBeInTheDocument()
+  expect(within(table()).getByRole('columnheader', { name: 'Basic pay' })).toBeInTheDocument()
+  expect(within(within(table()).getByRole('columnheader', { name: 'Basic pay' })).queryByRole('button')).not.toBeInTheDocument()
+})
+
+it('without Manage on pay, the form leaves pay and bank details to Payroll and never sends them', async () => {
+  const calls = withPeople({
+    ...hrOnly,
+    'GET /api/employees': () => json(200, { items: [hiddenWanjiru], total: 1, page: 1, pageSize: 20 }),
+    [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail({ pay: null, account: null, payHidden: true })),
+    [`PATCH /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail({ pay: null, account: null, payHidden: true })),
+  })
+  renderApp('/setup/employees')
+  await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
+  await userEvent.click(within(table()).getByRole('button', { name: 'Edit Wanjiru Kamau' }))
+  const form = await screen.findByRole('dialog', { name: 'Edit employee' })
+  expect(await within(form).findByText('Payroll adds pay and bank details.')).toBeInTheDocument()
+  expect(within(form).queryByRole('tab', { name: 'Pay' })).not.toBeInTheDocument()
+  expect(within(form).queryByRole('tab', { name: 'Paid into' })).not.toBeInTheDocument()
+  await userEvent.click(within(form).getByRole('button', { name: 'Save changes' }))
+  await vi.waitFor(() => expect(calls.find(c => c.method === 'PATCH')?.body).toMatchObject({ pay: null, account: null }))
+})
+
+it('the profile shows pay as dots until Show amounts, and HR doesn\'t get the pay tabs', async () => {
+  const calls = withPeople({
+    'GET /api/employees': () => json(200, { items: [hiddenWanjiru], total: 1, page: 1, pageSize: 20 }),
+    [`GET /api/employees/${wanjiru.id}`]: req => json(200, new URL(req.url).searchParams.get('includePay') === 'true' ? employeeDetail() : employeeDetail({ pay: null, account: null, payHidden: true })),
+    [`GET /api/employees/${wanjiru.id}/pay-items`]: () => json(200, []),
+  })
+  renderApp('/setup/employees')
+  await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
+  await userEvent.click(within(table()).getByRole('button', { name: 'View Wanjiru Kamau' }))
+  const view = await screen.findByRole('dialog', { name: 'Wanjiru Kamau' })
+  await userEvent.click(within(view).getByRole('tab', { name: 'Pay' }))
+  expect(await within(view).findByText('KES ••••••')).toBeInTheDocument()
+  await userEvent.click(within(view).getByRole('button', { name: 'Show amounts' }))
+  expect(await within(view).findByText('KES 85,000 a month')).toBeInTheDocument()
+  expect(calls.some(c => c.path === `/api/employees/${wanjiru.id}` && c.url.includes('includePay=true'))).toBe(true)
+})
+
+it('HR opening a profile sees no Pay or Paid into tabs and no Show amounts', async () => {
+  withPeople({
+    ...hrOnly,
+    'GET /api/employees': () => json(200, { items: [hiddenWanjiru], total: 1, page: 1, pageSize: 20 }),
+    [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail({ pay: null, account: null, payHidden: true })),
+  })
+  renderApp('/setup/employees')
+  await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
+  await userEvent.click(within(table()).getByRole('button', { name: 'View Wanjiru Kamau' }))
+  const view = await screen.findByRole('dialog', { name: 'Wanjiru Kamau' })
+  expect(within(view).getByRole('tab', { name: 'Job' })).toBeInTheDocument()
+  expect(within(view).queryByRole('tab', { name: 'Pay' })).not.toBeInTheDocument()
+  expect(within(view).queryByRole('tab', { name: 'Paid into' })).not.toBeInTheDocument()
+  expect(within(view).queryByRole('button', { name: 'Show amounts' })).not.toBeInTheDocument()
 })
