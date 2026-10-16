@@ -148,6 +148,35 @@ it('resends and revokes invitations, changes someone\'s access in a modal, and r
   expect(await screen.findByText('Mary Wanjiku is removed')).toBeInTheDocument()
 })
 
+// ACC-04: a pencil on every row changes access straight away: a member's, or an invitation's before it is accepted.
+it('the pencil on a row changes a member\'s access, or an open invitation\'s groups and companies', async () => {
+  const calls = withTeam({
+    [`PUT /api/team/members/${mary.membershipId}/access`]: () => new Response(null, { status: 204 }),
+    [`PUT /api/team/invitations/${otieno.id}/access`]: () => json(200, { ...otieno, groups: ['hr'], allCompanies: true, companyIds: [] }),
+  })
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Otieno Ouma')
+
+  await userEvent.click(within(rowOf('Mary Wanjiku')).getByRole('button', { name: "Change Mary Wanjiku's access" }))
+  const access = screen.getByRole('dialog', { name: "Change Mary Wanjiku's access" })
+  await userEvent.click(within(access).getByRole('checkbox', { name: /^Payroll/ }))
+  await userEvent.click(within(access).getByRole('button', { name: 'Save' }))
+  await vi.waitFor(() => expect(calls.find(c => c.path === `/api/team/members/${mary.membershipId}/access`)?.body)
+    .toEqual({ groups: ['hr', 'payroll'], allCompanies: false, companyIds: [westlands.id] }))
+  expect(await screen.findByText("Mary Wanjiku's access is updated")).toBeInTheDocument()
+
+  await userEvent.click(within(rowOf('Otieno Ouma')).getByRole('button', { name: "Change Otieno Ouma's invitation" }))
+  const invitation = screen.getByRole('dialog', { name: "Change Otieno Ouma's invitation" })
+  expect(within(invitation).getByText(/Their invitation link stays the same/)).toBeInTheDocument()
+  expect(within(invitation).getByRole('checkbox', { name: /^Payroll/ })).toBeChecked()
+  await userEvent.click(within(invitation).getByRole('checkbox', { name: /^Payroll/ }))
+  await userEvent.click(within(invitation).getByRole('checkbox', { name: /^HR/ }))
+  await userEvent.click(within(invitation).getByRole('button', { name: 'Save' }))
+  await vi.waitFor(() => expect(calls.find(c => c.path === `/api/team/invitations/${otieno.id}/access`)?.body)
+    .toEqual({ groups: ['hr'], allCompanies: false, companyIds: [mombasa.id] }))
+  expect(await screen.findByText("Otieno Ouma's invitation is updated")).toBeInTheDocument()
+})
+
 it('the company selector shows who covers the chosen companies', async () => {
   withTeam()
   renderApp('/setup/team')

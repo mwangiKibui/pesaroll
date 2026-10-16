@@ -65,7 +65,7 @@ public static class PaySchedulesEndpoints
             var defaults = await DefaultsAsync(db, ct);
             var today = PayDates.TodayInKenya(clock.GetUtcNow());
             return Results.Ok(list.Select(s => ToResponse(s, defaults, today)).ToList());
-        }).Produces<List<PayScheduleResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<PayScheduleResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.SchedulesView);
 
         // The next pay dates for a pay day, shown while someone fills in a schedule.
         schedules.MapGet("/pay-dates", (string? frequency, string? payDayRule, int? payDay, int? payWeekday, DateOnly? firstPayDate,
@@ -80,7 +80,7 @@ public static class PaySchedulesEndpoints
             }
 
             return Results.Ok(NextPayDates(timing, PayDates.TodayInKenya(clock.GetUtcNow())));
-        }).Produces<List<DateOnly>>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<DateOnly>>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.SchedulesView);
 
         schedules.MapPost("/", async (PayScheduleRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -99,7 +99,7 @@ public static class PaySchedulesEndpoints
                 ToResponse(schedule, await DefaultsAsync(db, ct), PayDates.TodayInKenya(now)));
         }).Produces<PayScheduleResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Schedules);
 
         schedules.MapPatch("/{id:guid}", async (Guid id, PayScheduleRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -136,7 +136,7 @@ public static class PaySchedulesEndpoints
             return Results.Ok(ToResponse(saved, await DefaultsAsync(db, ct), PayDates.TodayInKenya(now)));
         }).Produces<PayScheduleResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Schedules);
 
         schedules.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -156,7 +156,7 @@ public static class PaySchedulesEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Schedules);
 
         return app;
     }

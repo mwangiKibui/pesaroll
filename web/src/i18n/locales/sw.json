@@ -1473,6 +1473,10 @@
     "expires": "Kiungo kinaisha",
     "expired": "Kiungo kimeisha",
     "changeTitle": "Badilisha ruhusa za {{name}}",
+    "changeInvitationTitle": "Badilisha mwaliko wa {{name}}",
+    "changeInvitation": "Badilisha mwaliko",
+    "invitationUpdated": "Mwaliko wa {{name}} umesasishwa",
+    "linkStays": "Kiungo cha mwaliko wao kinabaki kile kile. Watapata vikundi na kampuni hizi watakapokubali.",
     "groupsLabel": "Vikundi",
     "groupsHint": "Chagua kimoja au zaidi. Wanapata kila kitu ambacho kila kikundi kinaruhusu, kwa kampuni zilizo hapa chini.",
     "selfApproval": "Wanaweza kuidhinisha mishahara wanayoiandaa. Ikiwezekana, mtu mwingine aidhinishe: Pesaroll itazuia hili isipokuwa mipangilio yako inaruhusu."

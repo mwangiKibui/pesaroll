@@ -166,7 +166,7 @@ public static class StructureEndpoints
             }
 
             return Results.Ok(items.Select(level.ToResponse).ToList());
-        }).Produces<List<TResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<TResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.StructureView);
 
         group.MapPost(path, async (TRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
@@ -183,7 +183,7 @@ public static class StructureEndpoints
             return Results.Created($"/api/structure/{level.Path}/{item.Id}", level.ToResponse(item));
         }).Produces<TResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Structure);
 
         group.MapPatch($"{path}/{{id:guid}}", async (Guid id, TRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -217,7 +217,7 @@ public static class StructureEndpoints
             return Results.Ok(level.ToResponse(saved));
         }).Produces<TResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Structure);
 
         group.MapDelete($"{path}/{{id:guid}}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -246,7 +246,7 @@ public static class StructureEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Structure);
     }
 
     private static async Task<(Common Common, List<Company> Companies)> ValidateAsync<TItem, TLink, TRequest, TResponse>(

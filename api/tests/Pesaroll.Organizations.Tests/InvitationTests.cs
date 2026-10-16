@@ -103,7 +103,7 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
 
         var me = (await guest.GetFromJsonAsync<Me>("/api/auth/me"))!;
         Assert.Equal("invitation", me.SignedUpVia);
-        Assert.Equal(["employees.manage", "leave.manage", "locations.manage", "structure.manage"], me.Permissions.Select(p => p.Permission).Order());
+        Assert.Equal(["employees.manage", "leave.manage", "locations.manage", "structure.manage"], me.Permissions.Select(p => p.Permission).Where(p => p.EndsWith(".manage")).Order());
         Assert.All(me.Permissions, p => Assert.Equal([westlands.Id], p.CompanyIds));
         Assert.Equal([westlands.Id], (await guest.GetFromJsonAsync<List<Company>>("/api/companies"))!.Select(c => c.Id));
 
@@ -242,9 +242,60 @@ public sealed class InvitationTests(OnboardingTests.Api api) : IClassFixture<Onb
         Authorize(mary, (await (await mary.PostAsJsonAsync($"/api/invitations/{token}/accept", new { firstName = "Mary", lastName = "Wanjiku", password = Password })).Content.ReadFromJsonAsync<Token>())!);
         var grants = (await mary.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions;
         Assert.Equal(["employees.manage", "leave.manage", "locations.manage", "pay_items.manage", "payment_accounts.manage", "payroll_history.manage", "schedules.manage", "structure.manage"],
-            grants.Select(g => g.Permission).Order());
+            grants.Select(g => g.Permission).Where(p => p.EndsWith(".manage")).Order());
         Assert.All(grants, g => Assert.Equal([westlands.Id], g.CompanyIds));
         Assert.Equal("ACC-8004", (await ErrorFrom(await owner.PostAsJsonAsync("/api/team/invitations",
             new { firstName = "No", lastName = "Group", email = $"x-{Guid.NewGuid():N}@example.com", groups = Array.Empty<string>(), allCompanies = true }))).Code);
+    }
+
+    // ACC-04: an invitation's groups and companies can be changed before it is accepted; the link stays the same.
+    [Fact]
+    public async Task Changing_an_invitation_changes_what_they_join_with_and_keeps_the_link()
+    {
+        var (owner, _, _, westlands, mombasa) = await Organization();
+        var email = $"kennedy-{Guid.NewGuid():N}@example.com";
+        var invite = (await (await owner.PostAsJsonAsync("/api/team/invitations", new
+        {
+            firstName = "Kennedy", lastName = "Kibui", email, groups = new[] { "hr", "payroll" }, allCompanies = false, companyIds = new[] { westlands.Id },
+        })).Content.ReadFromJsonAsync<Invite>())!;
+        var (_, token) = await Sent(email);
+
+        var changed = await owner.PutAsJsonAsync($"/api/team/invitations/{invite.Id}/access", new { groups = new[] { "hr" }, allCompanies = false, companyIds = new[] { mombasa.Id } });
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var row = (await changed.Content.ReadFromJsonAsync<Invite>())!;
+        Assert.Equal(["hr"], row.Groups);
+        Assert.False(row.AllCompanies);
+        Assert.Equal([mombasa.Id], row.CompanyIds);
+        Assert.Equal(1, row.SendCount);   // not sent again: the same link
+
+        var guest = Guest();
+        var accepted = await guest.PostAsJsonAsync($"/api/invitations/{token}/accept", new { firstName = "Kennedy", lastName = "Kibui", password = Password });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        Authorize(guest, (await accepted.Content.ReadFromJsonAsync<Token>())!);
+        var grants = (await guest.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions.Where(g => g.Permission.EndsWith(".manage")).ToList();
+        Assert.Equal(["employees.manage", "leave.manage", "locations.manage", "structure.manage"], grants.Select(g => g.Permission).Order());
+        Assert.All(grants, g => Assert.Equal([mombasa.Id], g.CompanyIds));
+    }
+
+    [Fact]
+    public async Task Changing_an_invitation_needs_groups_and_companies_and_an_open_invitation()
+    {
+        var (owner, _, _, westlands, _) = await Organization();
+        var invite = (await (await owner.PostAsJsonAsync("/api/team/invitations", new
+        {
+            firstName = "Kennedy", lastName = "Kibui", email = $"k-{Guid.NewGuid():N}@example.com", groups = new[] { "hr" }, allCompanies = true,
+        })).Content.ReadFromJsonAsync<Invite>())!;
+        var path = $"/api/team/invitations/{invite.Id}/access";
+
+        var none = await ErrorFrom(await owner.PutAsJsonAsync(path, new { groups = Array.Empty<string>(), allCompanies = false, companyIds = Array.Empty<Guid>() }));
+        Assert.Equal("ACC-8009", none.Code);
+        Assert.True(none.Fields!.ContainsKey("groups") && none.Fields.ContainsKey("companyIds"));
+
+        var (stranger, _, _, _, _) = await Organization();
+        Assert.Equal("ACC-8005", (await ErrorFrom(await stranger.PutAsJsonAsync(path, new { groups = new[] { "payroll" }, allCompanies = true }))).Code);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/team/invitations/{invite.Id}")).StatusCode);
+        var closed = await owner.PutAsJsonAsync(path, new { groups = new[] { "payroll" }, allCompanies = false, companyIds = new[] { westlands.Id } });
+        Assert.Equal((HttpStatusCode.Conflict, "ACC-8006"), (closed.StatusCode, (await ErrorFrom(closed)).Code));
     }
 }

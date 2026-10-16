@@ -50,7 +50,7 @@ public static class LocationsEndpoints
             var list = await query.OrderBy(l => l.CreatedAt).ThenBy(l => l.Code).ToListAsync(ct);
             var mains = await MainsAsync(db, ct);
             return Results.Ok(list.Select(l => ToResponse(l, mains)).ToList());
-        }).Produces<List<LocationResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<LocationResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.LocationsView);
 
         locations.MapPost("/", async (LocationRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -76,7 +76,7 @@ public static class LocationsEndpoints
             return Results.Created($"/api/locations/{location.Id}", ToResponse(location, await MainsAsync(db, ct)));
         }).Produces<LocationResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Locations);
 
         locations.MapPatch("/{id:guid}", async (Guid id, LocationRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -113,7 +113,7 @@ public static class LocationsEndpoints
             return Results.Ok(ToResponse(saved, await MainsAsync(db, ct)));
         }).Produces<LocationResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Locations);
 
         locations.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -133,7 +133,7 @@ public static class LocationsEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Locations);
 
         return app;
     }

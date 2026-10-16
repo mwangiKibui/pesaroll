@@ -1,11 +1,12 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { usePermissions } from '../app/permissions'
 import { Button } from '../components/Button'
 import { buttonClasses } from '../components/buttonStyles'
 import { Navbar } from '../components/Navbar'
 import { useMe, useSignOut } from './hooks'
-import { setupPaths, setupSteps, type SetupStep } from './steps'
+import { setupPaths, setupSteps, stepPermission, type SetupStep } from './steps'
 
 /**
  * The setup steps (ONB), full width: the navbar (who is signed in, Sign out, and once the
@@ -21,6 +22,7 @@ export function SetupLayout({ current, done, hasOrganization, children }: {
   const { t } = useTranslation()
   const me = useMe()
   const signOut = useSignOut()
+  const { can } = usePermissions()
   return (
     <div className="flex min-h-dvh flex-col bg-page">
       <Navbar>
@@ -43,9 +45,10 @@ export function SetupLayout({ current, done, hasOrganization, children }: {
               const isDone = done.includes(step.key) || (step.optional && i < setupSteps.findIndex(s => s.key === current))
               const isCurrent = step.key === current
               // Steps with a page are links, done or not, so you can go back and change things; the
-              // others need the organization first.
+              // others need the organization first, and each needs the View permission of its area.
               const path = setupPaths[step.key]
-              const linked = path && (hasOrganization || step.key === 'organization')
+              const needs = stepPermission[step.key]
+              const linked = path && (hasOrganization || step.key === 'organization') && (!needs || can(needs))
               const content = <>
                 <span aria-hidden="true" className={`flex size-6 flex-none items-center justify-center rounded-full text-tag font-semibold ${isDone ? 'bg-brand text-on-brand' : isCurrent ? 'border-2 border-brand text-brand' : 'border border-field-border text-muted'}`}>
                   {isDone ? '✓' : i + 1}

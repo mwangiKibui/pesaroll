@@ -4,6 +4,7 @@ import { Controller, useForm, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { BulkUpload, type BulkUploadRow } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
@@ -53,6 +54,7 @@ export default function StructurePage() {
     units: useStructure('units'),
   }
   const done = useSetupDone(true)
+  const canManage = usePermissions().can(permissions.structure.manage)
   const [tab, setTab] = useState<LevelKey>('departments')
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [adding, setAdding] = useState(false)
@@ -81,10 +83,10 @@ export default function StructurePage() {
           <div className="flex flex-wrap items-center gap-3">
             <Tabs id={tabsId} label={t('structure.levels')} current={tab} onChange={key => setTab(key as LevelKey)}
               tabs={levels.map(l => ({ key: l, label: t(`structure.${l}.tab`) }))} />
-            <div className="ml-auto flex gap-2">
+            {canManage && <div className="ml-auto flex gap-2">
               <Button onClick={() => setAdding(true)}><PlusIcon />{t('structure.add')}</Button>
               <Button variant="secondary" onClick={() => setUploading(true)}><UploadIcon />{t('structure.upload')}</Button>
-            </div>
+            </div>}
           </div>
           {levels.map(l => (
             <TabPanel key={l} id={tabsId} tab={l} current={tab}>
@@ -115,6 +117,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
   const { api, queryClient } = useServices()
   const toast = useToast()
   const [editing, setEditing] = useState<StructureItem | null>(null)
+  const canManage = usePermissions().can(permissions.structure.manage)
   const [deleting, setDeleting] = useState<StructureItem | null>(null)
   const [busy, setBusy] = useState(false)
   const paged = usePaged(items)
@@ -168,7 +171,7 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
                 <th scope="col">{t(`structure.${level}.column`)}</th>
                 {extra.map(c => <th key={c.header} scope="col">{c.header}</th>)}
                 <th scope="col">{t('locations.appliesTo')}</th>
-                <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -180,14 +183,14 @@ function LevelTable({ level, items, all, companies, defaultApplies }: {
                   </td>
                   {extra.map(c => <td key={c.header}>{c.cell(i)}</td>)}
                   <td>{applies(i) ?? none}</td>
-                  <td className="whitespace-nowrap text-right">
+                  {canManage && <td className="whitespace-nowrap text-right">
                     <IconButton label={t('locations.edit', { name: label(i) })} onClick={() => setEditing(i)}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                     </IconButton>
                     <IconButton tone="danger" label={t('locations.delete', { name: label(i) })} onClick={() => setDeleting(i)}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                     </IconButton>
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>

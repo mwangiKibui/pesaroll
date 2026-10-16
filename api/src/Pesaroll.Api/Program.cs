@@ -6,6 +6,7 @@ using Pesaroll.Organizations;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Jobs;
 using Pesaroll.Shared.Security;
+using Pesaroll.Shared.Tenancy;
 using Pesaroll.Shared.Web;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -70,7 +71,7 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/api/health", async (OrganizationsDbContext db, CancellationToken ct) =>
     await db.Database.CanConnectAsync(ct)
         ? Results.Ok(new { status = "ok" })
-        : Results.Json(new { status = "database unreachable" }, statusCode: 503));
+        : Results.Json(new { status = "database unreachable" }, statusCode: 503)).Public();
 
 app.MapIdentityEndpoints();
 app.MapOrganizationsEndpoints();

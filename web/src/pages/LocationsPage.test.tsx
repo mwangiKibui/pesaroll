@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { apiError, company, fakeApi, json, location, orgToken } from '../test/fakeApi'
+import { apiError, company, fakeApi, json, location, me, orgToken } from '../test/fakeApi'
 import { renderApp } from '../test/renderApp'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -211,4 +211,20 @@ it('with one company, the review has no company choice', async () => {
 
   expect(await screen.findByText('1 location imported')).toBeInTheDocument()
   expect(calls.find(c => c.path === '/api/locations/import')?.body).toMatchObject({ allCompanies: false, companyIds: [restaurant.id] })
+})
+
+// ACC-04: someone who may only view locations sees them, with nothing that changes them.
+it('with View on locations only, shows the list without Add, Upload, Edit or Delete', async () => {
+  oneCompany({ 'GET /api/auth/me': () => json(200, { ...me, permissions: [{ permission: 'locations.view', allCompanies: true, companyIds: [] }] }) })
+  renderApp('/setup/locations')
+
+  expect(await within(await screen.findByRole('region', { name: 'Locations' })).findByText('HQ-01')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Add location/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Upload/ })).not.toBeInTheDocument()
+  expect(within(table()).queryByRole('button', { name: /Edit|Delete/ })).not.toBeInTheDocument()
+  expect(within(table()).queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument()
+  // Steps they can't view aren't links.
+  const steps = screen.getByRole('list', { name: 'Setup steps' })
+  expect(within(steps).getByText('Locations').closest('a')).not.toBeNull()
+  expect(within(steps).getByText('Employees').closest('a')).toBeNull()
 })

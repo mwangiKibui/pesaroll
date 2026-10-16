@@ -73,7 +73,7 @@ public static class OnboardingEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-        .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        .Produces<ErrorResponse>(StatusCodes.Status409Conflict).SignedIn();
 
         organizations.MapGet("/current", async (OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -91,14 +91,13 @@ public static class OnboardingEndpoints
         })
         .Produces<OrganizationResponse>()
         .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-        .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound).SignedIn();
 
-        // Fix the name, e.g. a typo right after the organization step. For now only the person who
-        // onboarded it; ACC-04 turns this into a permission for Administrators.
+        // Fix the name, e.g. a typo right after the organization step: whoever may manage every company.
         organizations.MapPatch("/current", async (RenameOrganizationRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
-            if (tenant.UserId is not Guid userId)
+            if (tenant.UserId is null)
             {
                 throw SessionService.RequireSignedIn(http);
             }
@@ -111,10 +110,7 @@ public static class OnboardingEndpoints
                 throw OnboardingErrors.NoOrganizationYet();
             }
 
-            if (organization.OnboardedBy != userId)
-            {
-                throw OnboardingErrors.NoPermission();
-            }
+            Access.Require(tenant, Permissions.Companies);
 
             var name = request.Name?.Trim() ?? "";
             if (name.Length is < 2 or > 120)
@@ -131,7 +127,7 @@ public static class OnboardingEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
         .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-        .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        .Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.Companies);
 
         return app;
     }

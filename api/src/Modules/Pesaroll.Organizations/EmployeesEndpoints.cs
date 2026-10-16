@@ -78,7 +78,14 @@ public static class EmployeesEndpoints
         {
             var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var today = PayDates.TodayInKenya(clock.GetUtcNow());
-            var query = db.Employees.AsNoTracking();
+            // Only companies where they may view employees (ACC-04); asking for another is refused.
+            var allowed = tenant.CompaniesFor(Permissions.EmployeesView);
+            if ((companyId is Guid one && !allowed.Contains(one)) || (companyIds ?? []).Any(c => !allowed.Contains(c)))
+            {
+                throw AccessErrors.NoPermission();
+            }
+
+            var query = db.Employees.AsNoTracking().Where(e => allowed.Contains(e.CompanyId));
             if (companyId is Guid id)
             {
                 query = query.Where(e => e.CompanyId == id);
@@ -204,12 +211,13 @@ public static class EmployeesEndpoints
                     job?.PositionId is Guid p ? positions.GetValueOrDefault(p) : null, job?.DepartmentId is Guid d ? departments.GetValueOrDefault(d) : null,
                     job?.PayScheduleId, pay?.BasicAmount, pay?.PayBasis, pay?.Currency, e.ExitDate, Readiness(e), e.HireDate);
             }).ToList(), total, number, size));
-        }).Produces<EmployeePage>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<EmployeePage>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.EmployeesView);
 
         // Everyone current in a company, briefly, for picking a line manager (however many there are).
         employees.MapGet("/choices", async (Guid companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.EmployeesView, companyId);
             var today = PayDates.TodayInKenya(clock.GetUtcNow());
             return Results.Ok(await db.Employees.AsNoTracking()
                 .Where(e => e.CompanyId == companyId && (e.ExitDate == null || e.ExitDate >= today))
@@ -217,13 +225,15 @@ public static class EmployeesEndpoints
                 .Select(e => new EmployeeChoice(e.Id, e.FirstName + " " + e.LastName, e.StaffNo,
                     e.Employments.Where(x => x.ValidTo == null).Select(x => x.DepartmentId).FirstOrDefault()))
                 .ToListAsync(ct));
-        }).Produces<List<EmployeeChoice>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<EmployeeChoice>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.EmployeesView);
 
         employees.MapGet("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
-            return Results.Ok(ToResponse(await LoadAsync(db, id, ct, tracked: false)));
-        }).Produces<EmployeeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            var employee = await LoadAsync(db, id, ct, tracked: false);
+            Access.Require(tenant, Permissions.EmployeesView, employee.CompanyId);
+            return Results.Ok(ToResponse(employee));
+        }).Produces<EmployeeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.EmployeesView);
 
         employees.MapPost("/", async (EmployeeRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             FieldEncryptor encryptor, TimeProvider clock, CancellationToken ct) =>
@@ -247,7 +257,7 @@ public static class EmployeesEndpoints
             return Results.Created($"/api/employees/{employee.Id}", ToResponse(employee));
         }).Produces<EmployeeResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Employees);
 
         employees.MapPatch("/{id:guid}", async (Guid id, EmployeeRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             FieldEncryptor encryptor, TimeProvider clock, CancellationToken ct) =>
@@ -271,7 +281,7 @@ public static class EmployeesEndpoints
             return Results.Ok(ToResponse(await LoadAsync(db, id, ct, tracked: false)));
         }).Produces<EmployeeResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Employees);
 
         employees.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -284,7 +294,7 @@ public static class EmployeesEndpoints
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
-          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.Employees);
 
         return app;
     }

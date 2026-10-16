@@ -60,7 +60,7 @@ public static class LeavePlansEndpoints
                 .ThenBy(t => t.LockedKey is null ? 0 : law.GetValueOrDefault((t.CountryCode!, t.LockedKey))?.SortOrder ?? 0)
                 .ThenBy(t => t.CreatedAt).ThenBy(t => t.Code)
                 .Select(t => ToResponse(t, law)).ToList());
-        }).Produces<List<LeaveTypeResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<LeaveTypeResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.LeaveView);
 
         types.MapPost("/", async (LeaveTypeRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -80,7 +80,7 @@ public static class LeavePlansEndpoints
             return Results.Created($"/api/leave-types/{type.Id}", ToResponse(type, await LawAsync(db, ct)));
         }).Produces<LeaveTypeResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Leave);
 
         types.MapPatch("/{id:guid}", async (Guid id, LeaveTypeRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -105,7 +105,7 @@ public static class LeavePlansEndpoints
             return Results.Ok(ToResponse(type, await LawAsync(db, ct)));
         }).Produces<LeaveTypeResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Leave);
 
         types.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -128,7 +128,7 @@ public static class LeavePlansEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Leave);
 
         var plans = app.MapGroup("/api/leave-plans").WithTags("Leave plans");
 
@@ -144,7 +144,7 @@ public static class LeavePlansEndpoints
             var list = await query.OrderBy(p => p.CreatedAt).ThenBy(p => p.Name).ToListAsync(ct);
             var defaults = await DefaultsAsync(db, ct);
             return Results.Ok(list.Select(p => ToResponse(p, defaults)).ToList());
-        }).Produces<List<LeavePlanResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces<List<LeavePlanResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.LeaveView);
 
         plans.MapPost("/", async (LeavePlanRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -161,7 +161,7 @@ public static class LeavePlansEndpoints
             return Results.Created($"/api/leave-plans/{plan.Id}", ToResponse(plan, await DefaultsAsync(db, ct)));
         }).Produces<LeavePlanResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Leave);
 
         plans.MapPatch("/{id:guid}", async (Guid id, LeavePlanRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -195,7 +195,7 @@ public static class LeavePlansEndpoints
             return Results.Ok(ToResponse(saved, await DefaultsAsync(db, ct)));
         }).Produces<LeavePlanResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Leave);
 
         plans.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -220,7 +220,7 @@ public static class LeavePlansEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Leave);
 
         return app;
     }

@@ -34,6 +34,7 @@ type Row =
   | { kind: 'invitation'; key: string; name: string; contact: string; group: string | null; groupName: string; allCompanies: boolean; companyIds: string[]; invitation: Invitation }
 
 const trash = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+const pencil = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
 const eye = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
 const resend = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" /></svg>
 
@@ -56,7 +57,7 @@ export default function TeamPage() {
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [inviting, setInviting] = useState(false)
   const [viewing, setViewing] = useState<Row | null>(null)
-  const [changing, setChanging] = useState<Member | null>(null)
+  const [changing, setChanging] = useState<Changing | null>(null)
   const [confirming, setConfirming] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -136,6 +137,8 @@ export default function TeamPage() {
   const actions = (r: Row) => (
     <div className="flex justify-end">
       <IconButton label={t('team.view', { name: r.name })} onClick={() => setViewing(r)}>{eye}</IconButton>
+      <IconButton label={t(r.kind === 'member' ? 'team.changeTitle' : 'team.changeInvitationTitle', { name: r.name })}
+        onClick={() => setChanging(r.kind === 'member' ? { kind: 'member', member: r.member } : { kind: 'invitation', invitation: r.invitation })}>{pencil}</IconButton>
       {r.kind === 'invitation' && <>
         <IconButton label={t('team.resend', { name: r.name })} onClick={() => void resendTo(r.invitation, r.name)}>{resend}</IconButton>
         <IconButton tone="danger" label={t('team.cancel', { name: r.name })} onClick={() => setConfirming(r)}>{trash}</IconButton>
@@ -200,17 +203,18 @@ export default function TeamPage() {
               <Button variant="secondary" className="mr-auto" onClick={() => setViewing(null)}>{t('common.close')}</Button>
               {viewing.kind === 'invitation' && <>
                 <Button variant="secondary" onClick={() => setConfirming(viewing)}>{t('team.cancelInvitation')}</Button>
+                <Button variant="secondary" onClick={() => setChanging({ kind: 'invitation', invitation: viewing.invitation })}>{t('team.changeInvitation')}</Button>
                 <Button busy={busy} onClick={() => void resendTo(viewing.invitation, viewing.name)}>{t('team.resendInvitation')}</Button>
               </>}
               {viewing.kind === 'member' && <>
                 {!viewing.member.isYou && <Button variant="secondary" onClick={() => setConfirming(viewing)}>{t('team.removeButton')}</Button>}
-                <Button onClick={() => setChanging(viewing.member)}>{t('team.changeAccess')}</Button>
+                <Button onClick={() => setChanging({ kind: 'member', member: viewing.member })}>{t('team.changeAccess')}</Button>
               </>}
             </>}>
             <Details row={viewing} companiesText={companiesText} />
           </Drawer>
         )}
-        {changing && <AccessModal member={changing} companies={companies.data} onClose={() => setChanging(null)}
+        {changing && <AccessModal target={changing} companies={companies.data} onClose={() => setChanging(null)}
           onSaved={() => { setChanging(null); setViewing(null); void refresh() }} />}
       </>}
       <ConfirmDialog open={!!confirming} busy={busy} onConfirm={() => void confirm()} onCancel={() => setConfirming(null)}
@@ -360,32 +364,36 @@ function InviteDrawer({ companies, onClose, onSent }: { companies: Company[]; on
 }
 
 /** Changing someone's group and companies: a small form on top of their drawer. */
-function AccessModal({ member, companies, onClose, onSaved }: { member: Member; companies: Company[]; onClose: () => void; onSaved: () => void }) {
+/** What Change access works on: a member's groups and companies, or an open invitation's (ACC-04), which they get when they accept. */
+type Changing = { kind: 'member'; member: Member } | { kind: 'invitation'; invitation: Invitation }
+
+function AccessModal({ target, companies, onClose, onSaved }: { target: Changing; companies: Company[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation()
   const { api } = useServices()
   const toast = useToast()
   const formId = useId()
-  const current = member.groups[0]
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
+  const current = target.kind === 'member' ? target.member.groups[0] : target.invitation
   const { handleSubmit, control, setError, formState: { errors, isSubmitting } } = useForm<{ groups: string[]; companies: CompanySelection }>({
     defaultValues: {
-      groups: member.groups.map(g => g.group).filter((g): g is string => !!g),
+      groups: target.kind === 'member' ? target.member.groups.map(g => g.group).filter((g): g is string => !!g) : [...target.invitation.groups],
       companies: !current || current.allCompanies ? { all: true, ids: [] } : { all: false, ids: current.companyIds },
     },
   })
   useWatch({ control, name: 'groups' })
-  const name = `${member.firstName} ${member.lastName}`
+  const person = target.kind === 'member' ? target.member : target.invitation
+  const name = `${person.firstName} ${person.lastName}`
 
   const onSubmit = async (v: { groups: string[]; companies: CompanySelection }) => {
     setBanner(null)
     if (!v.groups.length) return setError('groups', { message: t('team.groupNeeded') })
     try {
-      const { error, response } = await api.PUT('/api/team/members/{id}/access', {
-        params: { path: { id: member.membershipId } },
-        body: { groups: v.groups, allCompanies: v.companies.all, companyIds: v.companies.all ? [] : v.companies.ids },
-      })
+      const body = { groups: v.groups, allCompanies: v.companies.all, companyIds: v.companies.all ? [] : v.companies.ids }
+      const { error, response } = target.kind === 'member'
+        ? await api.PUT('/api/team/members/{id}/access', { params: { path: { id: target.member.membershipId } }, body })
+        : await api.PUT('/api/team/invitations/{id}/access', { params: { path: { id: target.invitation.id } }, body })
       if (response.ok) {
-        toast.show(t('team.updated', { name }))
+        toast.show(t(target.kind === 'member' ? 'team.updated' : 'team.invitationUpdated', { name }))
         onSaved()
         return
       }
@@ -396,7 +404,7 @@ function AccessModal({ member, companies, onClose, onSaved }: { member: Member; 
   }
 
   return (
-    <Modal open title={t('team.changeTitle', { name })} onClose={onClose}
+    <Modal open title={t(target.kind === 'member' ? 'team.changeTitle' : 'team.changeInvitationTitle', { name })} onClose={onClose}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{t('common.save')}</Button>
@@ -404,6 +412,7 @@ function AccessModal({ member, companies, onClose, onSaved }: { member: Member; 
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
+        {target.kind === 'invitation' && <Notice>{t('team.linkStays')}</Notice>}
         <Controller control={control} name="groups" render={({ field }) => <GroupsField value={field.value} onChange={field.onChange} error={errors.groups?.message} />} />
         {companies.length > 1 && (
           <Controller control={control} name="companies" render={({ field }) => (

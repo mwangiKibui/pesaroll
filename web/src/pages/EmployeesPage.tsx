@@ -5,6 +5,7 @@ import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { BulkUpload, type BulkUploadColumn, type BulkUploadRow } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
@@ -90,6 +91,7 @@ export default function EmployeesPage() {
   const companies = useCompanies()
   const schedules = useSchedules()
   const done = useSetupDone(true)
+  const canManage = usePermissions().can(permissions.employees.manage)
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('current')
@@ -161,8 +163,10 @@ export default function EmployeesPage() {
       <TextField type="search" size="sm" label={t('employees.search')} hideLabel placeholder={t('employees.searchPlaceholder')} value={search}
         onChange={e => { setSearch(e.target.value); setPage(1) }} />
     </div>
-    <Button onClick={() => setBulk('add')}><PlusIcon />{t('employees.add')}</Button>
-    <Button variant="secondary" onClick={() => setBulk('upload')}><UploadIcon />{t('employees.upload')}</Button>
+    {canManage && <>
+      <Button onClick={() => setBulk('add')}><PlusIcon />{t('employees.add')}</Button>
+      <Button variant="secondary" onClick={() => setBulk('upload')}><UploadIcon />{t('employees.upload')}</Button>
+    </>}
   </>
 
   // What the company selector shows: the structure and schedules those companies use.
@@ -276,12 +280,14 @@ export default function EmployeesPage() {
                       <IconButton label={t('employees.view', { name: r.name })} onClick={() => setViewing(r.id)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
                       </IconButton>
+                      {canManage && <>
                       <IconButton label={t('employees.edit', { name: r.name })} onClick={() => setEditing(r.id)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                       </IconButton>
                       <IconButton tone="danger" label={t('employees.delete', { name: r.name })} onClick={() => setDeleting(r)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                       </IconButton>
+                      </>}
                     </td>
                   </tr>
                 ))}
@@ -296,7 +302,7 @@ export default function EmployeesPage() {
 
         {viewing && (
           <EmployeeView id={viewing} companies={companies.data} onClose={() => setViewing(null)}
-            onEdit={() => { setEditing(viewing); setViewing(null) }} />
+            onEdit={canManage ? () => { setEditing(viewing); setViewing(null) } : undefined} />
         )}
         {editing && (
           <EmployeeDrawer id={editing === 'new' ? null : editing} companies={companies.data}
@@ -317,7 +323,7 @@ export default function EmployeesPage() {
  * An employee to read: the same tabs as editing, each detail as saved (ID number, KRA PIN and the
  * account masked), what payroll still needs on top, and Edit to change them.
  */
-function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companies: Company[]; onClose: () => void; onEdit: () => void }) {
+function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companies: Company[]; onClose: () => void; onEdit?: () => void }) {
   const { t } = useTranslation()
   const { api } = useServices()
   const tabsId = useId()
@@ -405,7 +411,7 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
         tabs={tabs.map(k => ({ key: k, label: t(`employees.tabs.${k}`) }))} />}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.close')}</Button>
-        <Button onClick={onEdit}>{t('employees.editButton')}</Button>
+        {onEdit && <Button onClick={onEdit}>{t('employees.editButton')}</Button>}
       </>}>
       {!e.readiness.ready && (
         <Notice>{t('employees.needs', { items: e.readiness.missing.map(m => m.label.en).join(', ') })}</Notice>

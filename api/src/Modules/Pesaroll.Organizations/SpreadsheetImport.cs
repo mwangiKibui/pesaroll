@@ -107,7 +107,7 @@ public static class SpreadsheetImport
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             return Results.File(Template(spec, await spec.Choices(db, companyId, ct)), Xlsx, $"pesaroll-{spec.Things}-template.xlsx");
-        }).Produces(StatusCodes.Status200OK, contentType: Xlsx).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        }).Produces(StatusCodes.Status200OK, contentType: Xlsx).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(spec.Permission);
 
         group.MapPost($"{prefix}/import/read", async (IFormFile file, Guid? companyId, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -141,7 +141,7 @@ public static class SpreadsheetImport
             return Results.Ok(new ImportRead(rows, problems, notes));
         }).DisableAntiforgery()   // the origin check (OriginCheckMiddleware) protects it, as for JSON requests
           .Produces<ImportRead>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(spec.Permission);
 
         group.MapPost($"{prefix}/import/check", async (ImportRowsRequest request, OrganizationsDbContext db, TenantContext tenant,
             HttpContext http, CancellationToken ct) =>
@@ -152,7 +152,7 @@ public static class SpreadsheetImport
             var (_, problems, notes) = await CheckAsync(spec, rows, db, http.RequestServices, ct);
             return Results.Ok(new ImportCheck(problems, notes));
         }).Produces<ImportCheck>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(spec.Permission);
 
         group.MapPost($"{prefix}/import", async (ImportRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
             TimeProvider clock, CancellationToken ct) =>
@@ -174,7 +174,7 @@ public static class SpreadsheetImport
 
             return Results.Ok(new ImportResult(await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct)));
         }).Produces<ImportResult>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+          .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(spec.Permission);
     }
 
     /// <summary>Shared setup: the permission for every company. A company's rows: the permission for some company, at least.</summary>

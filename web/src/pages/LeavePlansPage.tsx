@@ -4,6 +4,7 @@ import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
@@ -105,6 +106,7 @@ export default function LeavePlansPage() {
   const plans = useLeavePlans()
   const schedules = useSchedules()
   const done = useSetupDone(true)
+  const canManage = usePermissions().can(permissions.leave.manage)
   const [tab, setTab] = useState<Tab>('plans')
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [editing, setEditing] = useState<{ kind: 'plan'; item: LeavePlan | null } | { kind: 'type'; item: LeaveType | null } | null>(null)
@@ -160,11 +162,11 @@ export default function LeavePlansPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Tabs id={tabsId} label={t('leavePlans.kinds')} current={tab} onChange={key => setTab(key as Tab)}
               tabs={(['plans', 'types'] as const).map(k => ({ key: k, label: t(`leavePlans.tabs.${k}`) }))} />
-            <div className="ml-auto flex gap-2">
+            {canManage && <div className="ml-auto flex gap-2">
               <Button onClick={() => setEditing(tab === 'plans' ? { kind: 'plan', item: null } : { kind: 'type', item: null })}>
                 <PlusIcon />{t('leavePlans.add')}
               </Button>
-            </div>
+            </div>}
           </div>
           <TabPanel id={tabsId} tab="plans" current={tab}>
             <TableCard footer={<Pagination label={t('pagination.of', { what: t('leavePlans.tabs.plans') })} {...pagedPlans.pagination} />} title={t('leavePlans.tabs.plans')} count={visible.length}>
@@ -176,7 +178,7 @@ export default function LeavePlansPage() {
                       <th scope="col">{t('leavePlans.leave')}</th>
                       <th scope="col">{t('leavePlans.appliesTo')}</th>
                       <th scope="col">{t('leavePlans.defaultFor')}</th>
-                      <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                      {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -191,10 +193,10 @@ export default function LeavePlansPage() {
                         </td>
                         <td>{p.allCompanies ? t('leavePlans.allCompanies') : companyNames(p.companyIds).join(', ') || none}</td>
                         <td>{[...companyNames(p.defaultFor), ...schedules.data.filter(s => p.defaultForSchedules.includes(s.id)).map(s => s.name)].join(', ') || none}</td>
-                        <td className="whitespace-nowrap text-right">
+                        {canManage && <td className="whitespace-nowrap text-right">
                           <IconButton label={t('leavePlans.edit', { name: p.name })} onClick={() => setEditing({ kind: 'plan', item: p })}>{editIcon}</IconButton>
                           <IconButton tone="danger" label={t('leavePlans.delete', { name: p.name })} onClick={() => setDeleting({ kind: 'plans', id: p.id, name: p.name })}>{deleteIcon}</IconButton>
-                        </td>
+                        </td>}
                       </tr>
                     ))}
                   </tbody>
@@ -212,7 +214,7 @@ export default function LeavePlansPage() {
                     <th scope="col">{t('leavePlans.paid')}</th>
                     <th scope="col">{t('leavePlans.proof')}</th>
                     <th scope="col">{t('leavePlans.whenUsedUp')}</th>
-                    <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                    {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -233,8 +235,8 @@ export default function LeavePlansPage() {
                             {t('leavePlans.setByLaw')}
                           </span>
                         )}
-                        <IconButton label={t('leavePlans.edit', { name: lt.name })} onClick={() => setEditing({ kind: 'type', item: lt })}>{editIcon}</IconButton>
-                        {!lt.locked && (
+                        {canManage && <IconButton label={t('leavePlans.edit', { name: lt.name })} onClick={() => setEditing({ kind: 'type', item: lt })}>{editIcon}</IconButton>}
+                        {canManage && !lt.locked && (
                           <IconButton tone="danger" label={t('leavePlans.delete', { name: lt.name })} onClick={() => setDeleting({ kind: 'types', id: lt.id, name: lt.name })}>{deleteIcon}</IconButton>
                         )}
                       </td>

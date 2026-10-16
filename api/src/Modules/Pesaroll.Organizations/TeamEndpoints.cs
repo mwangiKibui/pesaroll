@@ -66,7 +66,7 @@ public static class TeamEndpoints
             var open = await db.Invitations.AsNoTracking().Include(i => i.Companies)
                 .Where(i => i.AcceptedAt == null && i.RevokedAt == null).OrderByDescending(i => i.CreatedAt).ToListAsync(ct);
             return Results.Ok(open.Select(i => ToRow(i, clock.GetUtcNow())).ToList());
-        }).Produces<List<InvitationRow>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+        }).Produces<List<InvitationRow>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(Permissions.TeamView);
 
         invitations.MapPost("/", async (InviteRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, Notifier notifier,
             IConfiguration configuration, TimeProvider clock, CancellationToken ct) =>
@@ -164,7 +164,7 @@ public static class TeamEndpoints
             return Results.Created($"/api/team/invitations/{invitation.Id}", ToRow(invitation, now));
         }).Produces<InvitationRow>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
         // A new link (the old one stops working) and 7 more days, sent again.
         invitations.MapPost("/{id:guid}/resend", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, Notifier notifier,
@@ -184,7 +184,31 @@ public static class TeamEndpoints
             await SendAsync(invitation, token, db, notifier, configuration, ct);
             return Results.Ok(ToRow(invitation, now));
         }).Produces<InvitationRow>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
+
+        // ACC-04: a wrong group or company fixed before they accept. The link and its 7 days stay the same.
+        invitations.MapPut("/{id:guid}/access", async (Guid id, AccessRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
+            TimeProvider clock, CancellationToken ct) =>
+        {
+            var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            var invitation = await OpenAsync(db, id, ct);
+            var (groups, companyIds) = await ValidAccessAsync(request, db, ct);
+            var now = clock.GetUtcNow();
+            invitation.GroupKeys = groups;
+            invitation.AllCompanies = request.AllCompanies;
+            invitation.Companies.Clear();
+            if (!request.AllCompanies)
+            {
+                invitation.Companies.AddRange(companyIds.Select(c => new InvitationCompany { OrganizationId = organizationId, InvitationId = invitation.Id, CompanyId = c }));
+            }
+
+            invitation.UpdatedAt = now;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToRow(invitation, now));
+        }).Produces<InvitationRow>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
         // Revoking: the link stops working; the row stays, so who was invited when stays known.
         invitations.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
@@ -199,7 +223,7 @@ public static class TeamEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
         // ONB-11, the people already in: their groups and companies; change them, or remove someone.
         var members = app.MapGroup("/api/team/members").WithTags("Team");
@@ -229,7 +253,7 @@ public static class TeamEndpoints
                     first.UserId == userId, groups);
             }).ToList();
             return Results.Ok(team);
-        }).Produces<List<TeamMember>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden);
+        }).Produces<List<TeamMember>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(Permissions.TeamView);
 
         // Into the group for this role and companies, out of the others. Never the last administrator.
         members.MapPut("/{id:guid}/access", async (Guid id, AccessRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
@@ -237,31 +261,13 @@ public static class TeamEndpoints
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Team);
-            var errors = new Dictionary<string, string>();
-            var groups = GroupsFrom(request.Groups);
-            if (groups is null)
-            {
-                errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
-            }
-
-            var companyIds = (request.CompanyIds ?? []).Distinct().ToArray();
-            if (!request.AllCompanies
-                && (companyIds.Length == 0 || await db.Companies.CountAsync(c => companyIds.Contains(c.Id) && c.Status == "active", ct) != companyIds.Length))
-            {
-                errors["companyIds"] = "Choose at least one company, or all companies.";
-            }
-
-            if (errors.Count > 0)
-            {
-                throw OnboardingErrors.AccessInvalid(errors);
-            }
-
+            var (groups, companyIds) = await ValidAccessAsync(request, db, ct);
             await TeamChangeAsync(() => db.Database.ExecuteSqlAsync(
-                $"select set_member_access({id}, {groups!}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
+                $"select set_member_access({id}, {groups}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
         // Out of the organization and every group. Never the last administrator.
         members.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
@@ -272,7 +278,7 @@ public static class TeamEndpoints
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-          .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
         return app;
     }
@@ -304,6 +310,26 @@ public static class TeamEndpoints
                 _ => OnboardingErrors.NoPermission(),
             };
         }
+    }
+
+    /// <summary>New access, checked: one or more known groups, and all companies or at least one active company (ACC-8009).</summary>
+    private static async Task<(string[] Groups, Guid[] CompanyIds)> ValidAccessAsync(AccessRequest request, OrganizationsDbContext db, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string>();
+        var groups = GroupsFrom(request.Groups);
+        if (groups is null)
+        {
+            errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
+        }
+
+        var companyIds = (request.CompanyIds ?? []).Distinct().ToArray();
+        if (!request.AllCompanies
+            && (companyIds.Length == 0 || await db.Companies.CountAsync(c => companyIds.Contains(c.Id) && c.Status == "active", ct) != companyIds.Length))
+        {
+            errors["companyIds"] = "Choose at least one company, or all companies.";
+        }
+
+        return errors.Count > 0 ? throw OnboardingErrors.AccessInvalid(errors) : (groups!, companyIds);
     }
 
     private static async Task<Invitation> OpenAsync(OrganizationsDbContext db, Guid id, CancellationToken ct)
