@@ -18,6 +18,7 @@ const EmployeesPage = lazyRouteComponent(() => import('../pages/EmployeesPage'))
 const PayrollHistoryPage = lazyRouteComponent(() => import('../pages/PayrollHistoryPage'))
 const TeamPage = lazyRouteComponent(() => import('../pages/TeamPage'))
 const NoOrganizationPage = lazyRouteComponent(() => import('../pages/NoOrganizationPage'))
+const DevicesPage = lazyRouteComponent(() => import('../pages/DevicesPage'))
 const HomePage = lazyRouteComponent(() => import('../pages/HomePage'))
 
 interface RouterContext { auth: AuthClient; api: Services['api'] }
@@ -75,6 +76,12 @@ const noOrganization = async ({ context, location }: { context: RouterContext; l
   if (await canOnboard(context)) throw redirect({ to: '/setup/organization' })
 }
 
+// Pages about the person themselves (AUTH-05: where you're signed in): signed in, organization or not.
+const signedIn = async ({ context, location }: { context: RouterContext; location: { href: string } }) => {
+  await context.auth.start()
+  if (context.auth.status() !== 'signedIn') throw redirect({ to: '/signin', search: { redirect: location.href } })
+}
+
 const validateRedirect = (search: Record<string, unknown>): { redirect?: string } => ({ redirect: safeRedirect(search.redirect) })
 
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', beforeLoad: signedInWithOrganization, component: HomePage })
@@ -92,6 +99,7 @@ const teamRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/t
 const historyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/payroll-history', beforeLoad: signedInWithOrganization, component: PayrollHistoryPage })
 // An invitation's link (AUTH-08): open to anyone holding it, signed in or not.
 const invitationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/invite/$token', component: AcceptInvitationPage })
+const devicesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/account/devices', beforeLoad: signedIn, component: DevicesPage })
 const noOrganizationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/no-organization', beforeLoad: noOrganization, component: NoOrganizationPage })
 // The old placeholder's address, kept so bookmarks still work.
 const welcomeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/welcome', beforeLoad: () => { throw redirect({ to: '/' }) } })
@@ -101,7 +109,7 @@ const devRoutes = import.meta.env.DEV
   ? [createRoute({ getParentRoute: () => rootRoute, path: '/dev/components', component: lazyRouteComponent(() => import('../dev/ComponentsPage')) })]
   : []
 
-const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, invitationRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, earningsRoute, historyRoute, teamRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
+const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, invitationRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, earningsRoute, historyRoute, teamRoute, devicesRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
 
 export function createAppRouter(auth: AuthClient, api: Services['api'], initialPath?: string) {
   return createRouter({

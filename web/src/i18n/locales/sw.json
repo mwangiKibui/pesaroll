@@ -177,6 +177,26 @@
     "title": "Karibu, {{name}}",
     "next": "Inayofuata: {{step}}"
   },
+  "devices": {
+    "title": "Ulipoingia",
+    "intro": "Kila kifaa kilichoingia kwenye akaunti yako. Toka kwenye kimoja usichokitumia tena, au kwenye vifaa vingine vyote kwa pamoja.",
+    "back": "Rudi Pesaroll",
+    "tableTitle": "Vifaa vilivyoingia",
+    "device": "Kifaa",
+    "where": "Mahali",
+    "signedIn": "Kiliingia",
+    "lastActive": "Kilitumika mwisho",
+    "thisDevice": "Kifaa hiki",
+    "unknownPlace": "Haijulikani",
+    "signOut": "Toka",
+    "signOutDevice": "Toka kwenye {{device}}",
+    "signedOut": "Umetoka kwenye {{device}}",
+    "signOutOthers": "Toka kwenye vifaa vingine vyote",
+    "othersTitle": "Toka kwenye vifaa vingine vyote?",
+    "othersButton": "Toka kwenye vingine",
+    "othersText": "Kila kifaa isipokuwa hiki kitahitaji kuingia tena.",
+    "othersSignedOut": "Umetoka kwenye vifaa vyako vingine"
+  },
   "noOrganization": {
     "title": "Wewe si sehemu ya shirika lolote",
     "text": "Ikiwa unadhani hili ni kosa, mwombe msimamizi wa shirika lako akuongeze tena."

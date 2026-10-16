@@ -158,6 +158,24 @@ public static class IdentityModule
             return Results.Ok(MeResponse.From(user, tenant.OrganizationId, hasOnboarded, tenant.Grants));
         }).Produces<MeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
 
+        // AUTH-05: where you're signed in; sign out one device, or every other one.
+        auth.MapGet("/sessions", async (SessionService sessions, HttpContext http, CancellationToken ct) =>
+            Results.Ok(await sessions.ListAsync(http, ct)))
+            .Produces<List<SessionResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
+
+        auth.MapPost("/sessions/{id:guid}/end", async (Guid id, SessionService sessions, HttpContext http, CancellationToken ct) =>
+        {
+            await sessions.EndOneAsync(id, http, ct);
+            return Results.NoContent();
+        }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).SignedIn();
+
+        auth.MapPost("/sessions/end-others", async (SessionService sessions, HttpContext http, CancellationToken ct) =>
+        {
+            await sessions.EndOthersAsync(http, ct);
+            return Results.NoContent();
+        }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).SignedIn();
+
         return app;
     }
 }

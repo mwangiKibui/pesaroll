@@ -15,6 +15,12 @@ namespace Pesaroll.Identity;
 /// token names, so sign-out works at once. A session ends after 12 hours idle, 7 days in total,
 /// at sign-out, or when a replaced refresh token is used again (see rotate_session_token).
 /// </summary>
+/// <summary>
+/// A signed-in device (AUTH-05): which browser on which system, where from, since when, last used,
+/// and whether it is the one asking.
+/// </summary>
+public sealed record SessionResponse(Guid Id, string Device, string? IpAddress, DateTimeOffset SignedInAt, DateTimeOffset LastActiveAt, bool Current);
+
 public sealed class SessionService(
     IdentityDbContext db, TenantContext tenant, AccessTokens tokens, IConfiguration configuration, TimeProvider clock)
 {
@@ -161,6 +167,54 @@ public sealed class SessionService(
                 .Where(s => s.Id == claims.SessionId)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.LastSeenAt, now), ct);
         }
+    }
+
+    /// <summary>
+    /// AUTH-05: the signed-in person's active sessions, the one they're using marked, most recently used
+    /// first. Row-level security keeps sessions to their owner.
+    /// </summary>
+    public async Task<IReadOnlyList<SessionResponse>> ListAsync(HttpContext http, CancellationToken ct)
+    {
+        var userId = tenant.UserId ?? throw RequireSignedIn(http);
+        var current = CurrentSessionId(http);
+        var now = clock.GetUtcNow();
+        var sessions = await db.Sessions.AsNoTracking()
+            .Where(s => s.UserId == userId && s.RevokedAt == null && s.ExpiresAt > now && s.LastSeenAt > now.AddHours(-12))
+            .OrderByDescending(s => s.LastSeenAt)
+            .ToListAsync(ct);
+        return sessions.Select(s => new SessionResponse(s.Id, Devices.Describe(s.UserAgent), s.Ip?.ToString(), s.CreatedAt, s.LastSeenAt, s.Id == current))
+            .OrderByDescending(s => s.Current)
+            .ToList();
+    }
+
+    /// <summary>AUTH-05: ends one of the person's sessions; their own one is the same as signing out (its cookie is cleared).</summary>
+    public async Task EndOneAsync(Guid sessionId, HttpContext http, CancellationToken ct)
+    {
+        var userId = tenant.UserId ?? throw RequireSignedIn(http);
+        var now = clock.GetUtcNow();
+        var ended = await db.Sessions
+            .Where(s => s.Id == sessionId && s.UserId == userId && s.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, now), ct);
+        if (ended == 0)
+        {
+            throw AuthErrors.SessionNotFound();
+        }
+
+        if (sessionId == CurrentSessionId(http))
+        {
+            http.Response.Cookies.Delete(RefreshCookie, CookieOptions(null));
+        }
+    }
+
+    /// <summary>AUTH-05: ends every session of the person's except the one they're using.</summary>
+    public async Task EndOthersAsync(HttpContext http, CancellationToken ct)
+    {
+        var userId = tenant.UserId ?? throw RequireSignedIn(http);
+        var current = CurrentSessionId(http) ?? throw RequireSignedIn(http);
+        var now = clock.GetUtcNow();
+        await db.Sessions
+            .Where(s => s.UserId == userId && s.Id != current && s.RevokedAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, now), ct);
     }
 
     /// <summary>Ends the session named by the access token, or else by the refresh cookie, and clears the cookie.</summary>
