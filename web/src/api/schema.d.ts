@@ -7020,7 +7020,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["RenameGroupRequest"];
+                    "application/json": components["schemas"]["GroupDetailsRequest"];
                 };
             };
             responses: {
@@ -7613,6 +7613,12 @@ export interface components {
                 [key: string]: string;
             };
         };
+        GroupDetailsRequest: {
+            name: null | string;
+            description: null | string;
+            allCompanies: null | boolean;
+            companyIds: null | string[];
+        };
         /** Format: binary */
         IFormFile: string;
         ImportCheck: {
@@ -7891,6 +7897,8 @@ export interface components {
             areas: null | {
                 [key: string]: string;
             };
+            allCompanies: null | boolean;
+            companyIds: null | string[];
         };
         OrganizationResponse: {
             /** Format: uuid */
@@ -8175,10 +8183,6 @@ export interface components {
             channel: string;
             recipient: string;
         };
-        RenameGroupRequest: {
-            name: null | string;
-            description: null | string;
-        };
         RenameOrganizationRequest: {
             name: null | string;
         };
@@ -8221,6 +8225,8 @@ export interface components {
             description: null | string;
             standard: boolean;
             custom: boolean;
+            allCompanies: boolean;
+            companyIds: string[];
             /** Format: int32 */
             people: number | string;
             areas: components["schemas"]["AreaLevel"][];
