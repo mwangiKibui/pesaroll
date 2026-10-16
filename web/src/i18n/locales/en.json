@@ -177,6 +177,26 @@
     "title": "Karibu, {{name}}",
     "next": "Next: {{step}}"
   },
+  "devices": {
+    "title": "Where you're signed in",
+    "intro": "Every device signed in to your account. Sign out one you no longer use, or every other device at once.",
+    "back": "Back to Pesaroll",
+    "tableTitle": "Signed-in devices",
+    "device": "Device",
+    "where": "Where",
+    "signedIn": "Signed in",
+    "lastActive": "Last active",
+    "thisDevice": "This device",
+    "unknownPlace": "Not known",
+    "signOut": "Sign out",
+    "signOutDevice": "Sign out {{device}}",
+    "signedOut": "{{device}} is signed out",
+    "signOutOthers": "Sign out of all other devices",
+    "othersTitle": "Sign out of all other devices?",
+    "othersButton": "Sign out others",
+    "othersText": "Every device except this one will need to sign in again.",
+    "othersSignedOut": "Your other devices are signed out"
+  },
   "noOrganization": {
     "title": "You're not part of an organization",
     "text": "If you think this is a mistake, ask an administrator in your organization to add you back."
