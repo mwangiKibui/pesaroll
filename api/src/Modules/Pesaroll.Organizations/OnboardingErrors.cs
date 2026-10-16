@@ -43,6 +43,12 @@ internal static class OnboardingErrors
     public static AppException GroupInUse() =>
         new("ACC-8012", "Move everyone out of this group before you delete it.", 409);
 
+    public static AppException GroupCompanyNotAllowed() =>
+        new("ACC-8013", "This group is only for some of your companies. Choose from those.") { Fields = new Dictionary<string, string> { ["companyIds"] = "This group is only for some of your companies. Choose from those." } };
+
+    public static AppException GroupCompaniesInUse() =>
+        new("ACC-8014", "Someone in this group still covers a company you took away. Change their access first.", 409);
+
     public static AppException AreaLevelInvalid() =>
         new("ACC-8010", "Choose No access, View or Manage for each area.");
 

@@ -10,6 +10,8 @@ declare
   otis  constant uuid := '00000000-0000-7000-8000-0000000c5104';
   sid2  constant uuid := '00000000-0000-7000-8000-0000000c5105';
   co_a  constant uuid := '00000000-0000-7000-8000-0000000c51a1';
+  co_b  constant uuid := '00000000-0000-7000-8000-0000000c51a2';
+  k_key text;
   org uuid;
   other uuid;
   ken_m uuid := uuidv7();
@@ -28,13 +30,13 @@ begin
   set local role pesaroll_app;
   org := create_organization('Own Groups Test', sid);
   reset role;
-  insert into companies (id, organization_id, legal_name, country_code, currency) values (co_a, org, 'Westlands Ltd', 'KE', 'KES');
+  insert into companies (id, organization_id, legal_name, country_code, currency) values (co_a, org, 'Westlands Ltd', 'KE', 'KES'), (co_b, org, 'Kisumu Ltd', 'KE', 'KES');
   insert into memberships (id, organization_id, user_id) values (ken_m, org, ken);
   perform set_config('app.org_id', org::text, true);
 
   -- Branch managers: manage employees, view leave. Kennedy joins it for Westlands.
   set local role pesaroll_app;
-  v_key := add_group('Branch managers', 'Run a branch', array['employees.manage', 'leave.view']);
+  v_key := add_group('Branch managers', 'Run a branch', array['employees.manage', 'leave.view'], true, null);
   perform set_member_access(ken_m, array[v_key], false, array[co_a]);
   reset role;
   if v_key is distinct from 'branch_managers' then raise exception 'the key is %, not branch_managers', v_key; end if;
@@ -49,7 +51,7 @@ begin
   -- The same name again is refused; a name like a standard group's too.
   begin
     set local role pesaroll_app;
-    perform add_group('branch managers', null, array['leave.view']);
+    perform add_group('branch managers', null, array['leave.view'], true, null);
     reset role;
     raise exception 'added a second Branch managers';
   exception when others then
@@ -69,7 +71,7 @@ begin
 
   -- Renaming keeps the key and the people.
   set local role pesaroll_app;
-  perform rename_group(v_key, 'Branch leads', 'Leads a branch');
+  perform update_group(v_key, 'Branch leads', 'Leads a branch', true, null);
   reset role;
   if not exists (select 1 from roles where key = v_key and organization_id = org and name_en = 'Branch leads') then
     raise exception 'the group was not renamed';
@@ -98,11 +100,42 @@ begin
     raise exception 'Kennedy''s time in the group was forgotten';
   end if;
 
+  -- A group only for Kisumu: Westlands is refused; all companies means Kisumu; Kisumu can't be taken away while used.
+  set local role pesaroll_app;
+  k_key := add_group('Kisumu kitchen leads', null, array['leave.view'], false, array[co_b]);
+  reset role;
+  begin
+    set local role pesaroll_app;
+    perform set_member_access(ken_m, array[k_key], false, array[co_a]);
+    reset role;
+    raise exception 'gave a Kisumu-only group for Westlands';
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    reset role;
+    if msg <> 'ACC-8013' then raise exception 'expected ACC-8013, got %', msg; end if;
+  end;
+  set local role pesaroll_app;
+  perform set_member_access(ken_m, array[k_key], true, null);
+  reset role;
+  if not exists (select 1 from member_grants(ken, org) where permission_key = 'leave.view' and not all_companies and company_ids = array[co_b]) then
+    raise exception 'all companies did not mean the group''s companies';
+  end if;
+  begin
+    set local role pesaroll_app;
+    perform update_group(k_key, 'Kisumu kitchen leads', null, false, array[co_a]);
+    reset role;
+    raise exception 'took Kisumu away while Kennedy covers it';
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    reset role;
+    if msg <> 'ACC-8014' then raise exception 'expected ACC-8014, got %', msg; end if;
+  end;
+
   -- Only someone who manages the team for every company may add groups.
   perform set_config('app.user_id', ken::text, true);
   begin
     set local role pesaroll_app;
-    perform add_group('Kitchen leads', null, array['leave.view']);
+    perform add_group('Kitchen leads', null, array['leave.view'], true, null);
     reset role;
     raise exception 'Kennedy added a group';
   exception when others then

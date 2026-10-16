@@ -26,7 +26,7 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
     private sealed record AreaName(string En, string Sw);
     private sealed record Area(string Key, AreaName Name);
     private sealed record AreaLevel(string Area, string Level);
-    private sealed record Group(string Key, string Name, string? Description, bool Standard, bool Custom, int People, List<AreaLevel> Areas);
+    private sealed record Group(string Key, string Name, string? Description, bool Standard, bool Custom, bool AllCompanies, List<Guid> CompanyIds, int People, List<AreaLevel> Areas);
     private sealed record Groups(List<Area> Areas, List<Group> Items);
 
     private const string Password = "Mombasa-raha-7";
@@ -274,5 +274,32 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         {
             firstName = "Otieno", lastName = "Ouma", email = $"o-{Guid.NewGuid():N}@example.com", groups = new[] { "finance" }, allCompanies = false, companyIds = new[] { westlands.Id },
         })));
+    }
+
+    [Fact]
+    public async Task An_own_group_for_some_companies_is_only_given_for_them()
+    {
+        var (owner, westlands, mombasa) = await Organization();
+        var added = (await (await owner.PostAsJsonAsync("/api/team/groups", new
+        {
+            name = "Mombasa kitchen leads", areas = new Dictionary<string, string> { ["employees"] = "view" }, allCompanies = false, companyIds = new[] { mombasa.Id },
+        })).Content.ReadFromJsonAsync<Group>())!;
+        Assert.False(added.AllCompanies);
+        Assert.Equal([mombasa.Id], added.CompanyIds);
+
+        Assert.Equal("ACC-8013", await Code(await owner.PostAsJsonAsync("/api/team/invitations", new
+        {
+            firstName = "Otieno", lastName = "Ouma", email = $"o-{Guid.NewGuid():N}@example.com", groups = new[] { added.Key }, allCompanies = false, companyIds = new[] { westlands.Id },
+        })));
+
+        // Invited for all companies: they get the group's companies.
+        var lead = await Joined(owner, added.Key);
+        Assert.Equal(HttpStatusCode.OK, (await lead.GetAsync($"/api/employees?companyId={mombasa.Id}")).StatusCode);
+        Assert.Equal("ACC-8001", await Code(await lead.GetAsync($"/api/employees?companyId={westlands.Id}")));
+
+        var narrowed = await owner.PatchAsJsonAsync($"/api/team/groups/{added.Key}", new { name = "Mombasa kitchen leads", allCompanies = false, companyIds = new[] { westlands.Id } });
+        Assert.Equal((HttpStatusCode.Conflict, "ACC-8014"), (narrowed.StatusCode, await Code(narrowed)));
+        Assert.Equal(HttpStatusCode.OK, (await owner.PatchAsJsonAsync($"/api/team/groups/{added.Key}", new { name = "Coast kitchen leads", allCompanies = true })).StatusCode);
+        Assert.True((await owner.GetFromJsonAsync<Groups>("/api/team/groups"))!.Items.Single(g => g.Key == added.Key).AllCompanies);
     }
 }

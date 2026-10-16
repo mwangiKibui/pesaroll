@@ -42,13 +42,14 @@ public sealed record AreaLevel(string Area, string Level);
 /// One of the organization's groups (administrators, hr, payroll, approvers), as the organization has it:
 /// whether it is still the standard, how many people are in it (any companies), and its level per area.
 /// </summary>
-public sealed record TeamGroup(string Key, string Name, string? Description, bool Standard, bool Custom, int People, IReadOnlyList<AreaLevel> Areas);
+public sealed record TeamGroup(string Key, string Name, string? Description, bool Standard, bool Custom, bool AllCompanies, IReadOnlyList<Guid> CompanyIds,
+    int People, IReadOnlyList<AreaLevel> Areas);
 
-/// <summary>A group the organization adds (ACC-08): a name, an optional description, and a level per area.</summary>
-public sealed record NewGroupRequest(string? Name, string? Description, Dictionary<string, string>? Areas);
+/// <summary>A group the organization adds (ACC-08): a name, an optional description, a level per area, and the companies it is for (all to start).</summary>
+public sealed record NewGroupRequest(string? Name, string? Description, Dictionary<string, string>? Areas, bool? AllCompanies, List<Guid>? CompanyIds);
 
-/// <summary>A new name and description for one of the organization's own groups.</summary>
-public sealed record RenameGroupRequest(string? Name, string? Description);
+/// <summary>One of the organization's own groups, changed: its name, description and companies (left out: unchanged).</summary>
+public sealed record GroupDetailsRequest(string? Name, string? Description, bool? AllCompanies, List<Guid>? CompanyIds);
 
 public sealed record TeamGroups(IReadOnlyList<AccessArea> Areas, IReadOnlyList<TeamGroup> Items);
 
@@ -136,6 +137,15 @@ public static class TeamEndpoints
             }
 
             var companyIds = (request.CompanyIds ?? []).Distinct().ToList();
+            if (groups is not null && !request.AllCompanies && companyIds.Count > 0)
+            {
+                var limits = (await GroupsAsync(db, ct)).Items.Where(g => groups.Contains(g.Key) && !g.AllCompanies);
+                if (limits.Any(g => companyIds.Any(c => !g.CompanyIds.Contains(c))))
+                {
+                    throw OnboardingErrors.GroupCompanyNotAllowed();
+                }
+            }
+
             if (!request.AllCompanies)
             {
                 var known = await db.Companies.Where(c => companyIds.Contains(c.Id) && c.Status == "active").CountAsync(ct);
@@ -288,17 +298,23 @@ public static class TeamEndpoints
             Access.Require(tenant, Permissions.Team);
             var keys = await PermissionKeysAsync(request.Areas, db, ct);
             string? key = null;
+            var all = request.AllCompanies ?? true;
+            var companies = all ? null : (request.CompanyIds ?? []).Distinct().ToArray();
             await TeamChangeAsync(async () => { key = await db.Database.SqlQuery<string>(
-                $"select add_group({request.Name ?? ""}, {request.Description}, {keys}) as \"Value\"").SingleAsync(ct); return 1; });
+                $"select add_group({request.Name ?? ""}, {request.Description}, {keys}, {all}, {companies}) as \"Value\"").SingleAsync(ct); return 1; });
             return Results.Created($"/api/team/groups/{key}", (await GroupsAsync(db, ct)).Items.Single(g => g.Key == key));
         }).Produces<TeamGroup>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(Permissions.Team);
 
-        groups.MapPatch("/{key}", async (string key, RenameGroupRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        groups.MapPatch("/{key}", async (string key, GroupDetailsRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Team);
-            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select rename_group({key}, {request.Name ?? ""}, {request.Description})", ct));
+            var current = (await GroupsAsync(db, ct)).Items.SingleOrDefault(g => g.Key == key && g.Custom) ?? throw OnboardingErrors.AreaLevelInvalid();
+            var all = request.AllCompanies ?? current.AllCompanies;
+            var companies = all ? null : (request.AllCompanies is null ? current.CompanyIds : request.CompanyIds ?? []).Distinct().ToArray();
+            await TeamChangeAsync(() => db.Database.ExecuteSqlAsync(
+                $"select update_group({key}, {request.Name ?? current.Name}, {request.Description}, {all}, {companies})", ct));
             return Results.Ok((await GroupsAsync(db, ct)).Items.Single(g => g.Key == key));
         }).Produces<TeamGroup>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(Permissions.Team);
@@ -398,7 +414,7 @@ public static class TeamEndpoints
 
     private sealed record AreaRow(string Key, string NameEn, string NameSw);
     private sealed record GroupPermissionRow(string GroupKey, string? PermissionKey, bool Standard);
-    private sealed record GroupRow(string GroupKey, string Name, string? Description, bool Custom, int People);
+    private sealed record GroupRow(string GroupKey, string Name, string? Description, bool Custom, Guid[] CompanyIds, int People);
 
     /// <summary>A level per area as permission keys (none: nothing; view or manage: that key), or ACC-8010.</summary>
     private static async Task<string[]> PermissionKeysAsync(Dictionary<string, string>? levels, OrganizationsDbContext db, CancellationToken ct)
@@ -439,6 +455,7 @@ public static class TeamEndpoints
             """).ToListAsync(ct);
         var rows = await db.Database.SqlQueryRaw<GroupRow>(GroupsCte + """
             select x.group_key, x.name, x.description, x.custom,
+                   array(select rc.company_id from role_companies rc where rc.role_id = x.role_id order by rc.company_id) as company_ids,
                    (select count(distinct gm.membership_id)::int from security_group_roles gr
                     join security_group_members gm on gm.security_group_id = gr.security_group_id and gm.removed_at is null
                     join memberships m on m.id = gm.membership_id and m.status = 'active'
@@ -454,7 +471,7 @@ public static class TeamEndpoints
         return new TeamGroups(
             areas.Select(a => new AccessArea(a.Key, new AreaName(a.NameEn, a.NameSw))).ToList(),
             rows.Select(r => new TeamGroup(r.GroupKey, r.Name, r.Description,
-                !r.Custom && permissions.Where(p => p.GroupKey == r.GroupKey).All(p => p.Standard), r.Custom, r.People,
+                !r.Custom && permissions.Where(p => p.GroupKey == r.GroupKey).All(p => p.Standard), r.Custom, r.CompanyIds.Length == 0, r.CompanyIds, r.People,
                 areas.Select(a => new AreaLevel(a.Key, Level(r.GroupKey, a.Key))).ToList())).ToList());
     }
 
@@ -465,10 +482,13 @@ public static class TeamEndpoints
         {
             await change();
         }
-        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008" or "ACC-8009" or "ACC-8010" or "ACC-8011" or "ACC-8012")
+        catch (Npgsql.PostgresException error) when (error.MessageText is "ACC-8001" or "ACC-8007" or "ACC-8008" or "ACC-8009" or "ACC-8010" or "ACC-8011"
+            or "ACC-8012" or "ACC-8013" or "ACC-8014")
         {
             throw error.MessageText switch
             {
+                "ACC-8013" => OnboardingErrors.GroupCompanyNotAllowed(),
+                "ACC-8014" => OnboardingErrors.GroupCompaniesInUse(),
                 "ACC-8011" => OnboardingErrors.GroupNameInvalid(),
                 "ACC-8012" => OnboardingErrors.GroupInUse(),
                 "ACC-8010" => OnboardingErrors.AreaLevelInvalid(),

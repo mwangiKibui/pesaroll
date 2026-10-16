@@ -89,6 +89,7 @@ declare
     v_name text;
     v_base uuid;
     v_base_name text;
+    v_allowed uuid[];
 begin
     perform create_default_groups(p_organization_id, null);
     select r.id into v_role from roles r
@@ -97,6 +98,16 @@ begin
        or (r.organization_id = p_organization_id and r.key = p_group_key and r.deleted_at is null);
     if v_role is null then
         raise exception 'ACC-8009';
+    end if;
+    -- A group only for some companies (ACC-08): all companies means those; others are refused.
+    select array_agg(rc.company_id order by rc.company_id) into v_allowed from role_companies rc where rc.role_id = v_role;
+    if v_allowed is not null then
+        if p_all_companies then
+            p_all_companies := false;
+            p_company_ids := v_allowed;
+        elsif exists (select 1 from unnest(coalesce(p_company_ids, '{}')) c where not c = any (v_allowed)) then
+            raise exception 'ACC-8013';
+        end if;
     end if;
     select g.id, g.name into v_base, v_base_name from security_groups g
     where g.organization_id = p_organization_id and g.all_companies

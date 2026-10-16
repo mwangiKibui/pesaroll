@@ -169,7 +169,7 @@ begin
 end
 $$;
 
-create or replace function add_group(p_name text, p_description text, p_permission_keys text[])
+create or replace function add_group(p_name text, p_description text, p_permission_keys text[], p_all_companies boolean, p_company_ids uuid[])
 returns text
 language plpgsql security definer set search_path = public
 as $$
@@ -189,6 +189,7 @@ begin
     if exists (select 1 from unnest(coalesce(p_permission_keys, '{}')) k where k not in (select key from permissions)) then
         raise exception 'ACC-8010';
     end if;
+    perform group_companies_ok(p_all_companies, p_company_ids);
     v_base := left(coalesce(nullif(btrim(regexp_replace(lower(v_name), '[^a-z]+', '_', 'g'), '_'), ''), 'group'), 40);
     v_key := v_base;
     while v_key in ('administrators', 'hr', 'payroll', 'approvers', 'admin', 'approver')
@@ -200,6 +201,9 @@ begin
     insert into role_customizations (organization_id, role_id, updated_by) values (app_org_id(), v_role, app_user_id());
     insert into role_customization_permissions (organization_id, role_id, permission_key)
     select distinct app_org_id(), v_role, k from unnest(coalesce(p_permission_keys, '{}')) k;
+    if not p_all_companies then
+        insert into role_companies (organization_id, role_id, company_id) select distinct app_org_id(), v_role, unnest(p_company_ids);
+    end if;
     insert into security_groups (id, organization_id, name, description, all_companies)
     values (v_group, app_org_id(), v_name, nullif(btrim(coalesce(p_description, '')), ''), true);
     insert into security_group_roles (organization_id, security_group_id, role_id) values (app_org_id(), v_group, v_role);
@@ -207,9 +211,25 @@ begin
 end
 $$;
 
--- Renames one of the organization's own groups; its key and people stay. Groups made for chosen
--- companies ("Branch managers · Westlands Ltd") take the new name too.
-create or replace function rename_group(p_key text, p_name text, p_description text)
+-- All companies, or at least one of the organization's active companies (ACC-8009).
+create or replace function group_companies_ok(p_all_companies boolean, p_company_ids uuid[])
+returns void
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+    if not coalesce(p_all_companies, false) and (coalesce(cardinality(p_company_ids), 0) = 0 or exists (
+        select 1 from unnest(p_company_ids) c
+        where not exists (select 1 from companies x where x.id = c and x.organization_id = app_org_id() and x.status = 'active'))) then
+        raise exception 'ACC-8009';
+    end if;
+end
+$$;
+
+-- Changes one of the organization's own groups: its name and description (its key and people stay;
+-- groups made for chosen companies, "Branch managers · Westlands Ltd", take the new name too) and the
+-- companies it is for. Taking a company away while someone in it, or an open invitation to it,
+-- covers that company is refused (ACC-8014).
+create or replace function update_group(p_key text, p_name text, p_description text, p_all_companies boolean, p_company_ids uuid[])
 returns void
 language plpgsql security definer set search_path = public
 as $$
@@ -226,10 +246,26 @@ begin
     if not group_name_ok(v_name, v_role) then
         raise exception 'ACC-8011';
     end if;
+    perform group_companies_ok(p_all_companies, p_company_ids);
+    if not p_all_companies and (
+        exists (select 1 from security_group_roles gr
+                join security_groups g on g.id = gr.security_group_id
+                join security_group_members gm on gm.security_group_id = g.id and gm.removed_at is null
+                join memberships m on m.id = gm.membership_id and m.status = 'active'
+                where gr.role_id = v_role
+                  and (g.all_companies or exists (select 1 from security_group_companies gc where gc.security_group_id = g.id and not gc.company_id = any (p_company_ids))))
+        or exists (select 1 from invitations i where i.organization_id = app_org_id() and i.accepted_at is null and i.revoked_at is null and p_key = any (i.group_keys)
+                   and (i.all_companies or exists (select 1 from invitation_companies ic where ic.invitation_id = i.id and not ic.company_id = any (p_company_ids))))) then
+        raise exception 'ACC-8014';
+    end if;
     update roles set name_en = v_name, name_sw = v_name where id = v_role;
     update security_groups g set name = case when g.all_companies then v_name else left(v_name || substr(g.name, char_length(v_old) + 1), 120) end,
         description = case when g.all_companies then nullif(btrim(coalesce(p_description, '')), '') else g.description end, updated_at = now()
     where g.organization_id = app_org_id() and exists (select 1 from security_group_roles gr where gr.security_group_id = g.id and gr.role_id = v_role);
+    delete from role_companies where role_id = v_role;
+    if not p_all_companies then
+        insert into role_companies (organization_id, role_id, company_id) select distinct app_org_id(), v_role, unnest(p_company_ids);
+    end if;
 end
 $$;
 
@@ -274,9 +310,10 @@ revoke all on function reset_role_access(text) from public;
 grant execute on function set_role_access(text, text[]) to pesaroll_app;
 grant execute on function reset_role_access(text) to pesaroll_app;
 revoke all on function group_name_ok(text, uuid) from public;
-revoke all on function add_group(text, text, text[]) from public;
-revoke all on function rename_group(text, text, text) from public;
+revoke all on function add_group(text, text, text[], boolean, uuid[]) from public;
+revoke all on function group_companies_ok(boolean, uuid[]) from public;
+revoke all on function update_group(text, text, text, boolean, uuid[]) from public;
 revoke all on function delete_group(text) from public;
-grant execute on function add_group(text, text, text[]) to pesaroll_app;
-grant execute on function rename_group(text, text, text) to pesaroll_app;
+grant execute on function add_group(text, text, text[], boolean, uuid[]) to pesaroll_app;
+grant execute on function update_group(text, text, text, boolean, uuid[]) to pesaroll_app;
 grant execute on function delete_group(text) to pesaroll_app;
