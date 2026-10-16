@@ -48,7 +48,8 @@ create policy invitations_tenant on invitations using (organization_id = app_org
 create policy invitation_companies_tenant on invitation_companies using (organization_id = app_org_id());
 
 grant select, insert, update on table invitations to pesaroll_app;
-grant select, insert on table invitation_companies to pesaroll_app;
+-- Delete: changing an open invitation's companies (ACC-04).
+grant select, insert, delete on table invitation_companies to pesaroll_app;
 
 -- An invitation by its link, for the accept page (the person isn't signed in, so row-level
 -- security can't apply): who invited them, to what, and whether they already have an account.

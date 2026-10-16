@@ -186,6 +186,30 @@ public static class TeamEndpoints
         }).Produces<InvitationRow>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
 
+        // ACC-04: a wrong group or company fixed before they accept. The link and its 7 days stay the same.
+        invitations.MapPut("/{id:guid}/access", async (Guid id, AccessRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
+            TimeProvider clock, CancellationToken ct) =>
+        {
+            var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
+            Access.Require(tenant, Permissions.Team);
+            var invitation = await OpenAsync(db, id, ct);
+            var (groups, companyIds) = await ValidAccessAsync(request, db, ct);
+            var now = clock.GetUtcNow();
+            invitation.GroupKeys = groups;
+            invitation.AllCompanies = request.AllCompanies;
+            invitation.Companies.Clear();
+            if (!request.AllCompanies)
+            {
+                invitation.Companies.AddRange(companyIds.Select(c => new InvitationCompany { OrganizationId = organizationId, InvitationId = invitation.Id, CompanyId = c }));
+            }
+
+            invitation.UpdatedAt = now;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToRow(invitation, now));
+        }).Produces<InvitationRow>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
+          .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+          .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Team);
+
         // Revoking: the link stops working; the row stays, so who was invited when stays known.
         invitations.MapDelete("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
@@ -237,27 +261,9 @@ public static class TeamEndpoints
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Team);
-            var errors = new Dictionary<string, string>();
-            var groups = GroupsFrom(request.Groups);
-            if (groups is null)
-            {
-                errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
-            }
-
-            var companyIds = (request.CompanyIds ?? []).Distinct().ToArray();
-            if (!request.AllCompanies
-                && (companyIds.Length == 0 || await db.Companies.CountAsync(c => companyIds.Contains(c.Id) && c.Status == "active", ct) != companyIds.Length))
-            {
-                errors["companyIds"] = "Choose at least one company, or all companies.";
-            }
-
-            if (errors.Count > 0)
-            {
-                throw OnboardingErrors.AccessInvalid(errors);
-            }
-
+            var (groups, companyIds) = await ValidAccessAsync(request, db, ct);
             await TeamChangeAsync(() => db.Database.ExecuteSqlAsync(
-                $"select set_member_access({id}, {groups!}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
+                $"select set_member_access({id}, {groups}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -304,6 +310,26 @@ public static class TeamEndpoints
                 _ => OnboardingErrors.NoPermission(),
             };
         }
+    }
+
+    /// <summary>New access, checked: one or more known groups, and all companies or at least one active company (ACC-8009).</summary>
+    private static async Task<(string[] Groups, Guid[] CompanyIds)> ValidAccessAsync(AccessRequest request, OrganizationsDbContext db, CancellationToken ct)
+    {
+        var errors = new Dictionary<string, string>();
+        var groups = GroupsFrom(request.Groups);
+        if (groups is null)
+        {
+            errors["groups"] = "Choose one or more groups: Administrators, HR, Payroll or Approvers.";
+        }
+
+        var companyIds = (request.CompanyIds ?? []).Distinct().ToArray();
+        if (!request.AllCompanies
+            && (companyIds.Length == 0 || await db.Companies.CountAsync(c => companyIds.Contains(c.Id) && c.Status == "active", ct) != companyIds.Length))
+        {
+            errors["companyIds"] = "Choose at least one company, or all companies.";
+        }
+
+        return errors.Count > 0 ? throw OnboardingErrors.AccessInvalid(errors) : (groups!, companyIds);
     }
 
     private static async Task<Invitation> OpenAsync(OrganizationsDbContext db, Guid id, CancellationToken ct)
