@@ -16,7 +16,11 @@ export const roles = [
   ] },
 ]
 
-export const me = { id: 'u1', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau', fullName: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: null, signupRoleId: roles[0].roles[0].id, signupRoleOther: null, organizationId: null, signedUpVia: 'self', canOnboardOrganization: true }
+/** Every area's View and Manage, for every company: what the person who onboarded the organization has. */
+export const adminPermissions = ['companies', 'employees', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team']
+  .flatMap(area => [`${area}.view`, `${area}.manage`]).map(permission => ({ permission, allCompanies: true, companyIds: [] as string[] }))
+
+export const me = { id: 'u1', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau', fullName: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: null, signupRoleId: roles[0].roles[0].id, signupRoleOther: null, organizationId: null, signedUpVia: 'self', canOnboardOrganization: true, permissions: adminPermissions }
 
 export const token = (t = 'access-1') => json(200, { accessToken: t, tokenType: 'Bearer', expiresIn: 900 })
 

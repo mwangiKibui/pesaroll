@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { PlusIcon } from '../components/icons'
 import { Button, IconButton } from '../components/Button'
@@ -61,6 +62,7 @@ export default function CompaniesPage() {
   const countries = useCountries()
   const industries = useIndustries()
   const done = useSetupDone(true)
+  const canManage = usePermissions().can(permissions.companies.manage)
   const [editing, setEditing] = useState<Company | 'new' | null>(null)
   const [startTab, setStartTab] = useState<TabKey>('details')
   const [deleting, setDeleting] = useState<Company | null>(null)
@@ -98,7 +100,7 @@ export default function CompaniesPage() {
     void navigate({ to: '/setup/locations' })
   }
 
-  const addButton = <Button onClick={() => { setNeedOne(false); setEditing('new') }}><PlusIcon />{t('companies.add')}</Button>
+  const addButton = canManage && <Button onClick={() => { setNeedOne(false); setEditing('new') }}><PlusIcon />{t('companies.add')}</Button>
 
   return (
     <SetupLayout current="companies" done={done} hasOrganization>
@@ -123,7 +125,7 @@ export default function CompaniesPage() {
                 <th scope="col">{t('companies.location')}</th>
                 <th scope="col">{t('companies.contact')}</th>
                 <th scope="col">{t('companies.readiness')}</th>
-                <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -147,14 +149,14 @@ export default function CompaniesPage() {
                       ? <Tag tone="brand">{t('companies.ready')}</Tag>
                       : <Tag tone="warning">{t('companies.missing', { items: c.readiness.missing.map(m => local(m.label)).join(', ') })}</Tag>}
                   </td>
-                  <td className="whitespace-nowrap text-right">
+                  {canManage && <td className="whitespace-nowrap text-right">
                     <IconButton label={t('companies.edit', { name: c.legalName })} onClick={() => setEditing(c)}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                     </IconButton>
                     <IconButton tone="danger" label={t('companies.delete', { name: c.legalName })} onClick={() => setDeleting(c)}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                     </IconButton>
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>

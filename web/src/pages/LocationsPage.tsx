@@ -4,6 +4,7 @@ import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { BulkUpload } from '../components/BulkUpload'
 import { PlusIcon, UploadIcon } from '../components/icons'
@@ -61,6 +62,8 @@ export default function LocationsPage() {
   const locations = useLocations()
   const countries = useCountries()
   const done = useSetupDone(true)
+  // View-only people see the list with nothing that changes it; the server checks every change.
+  const canManage = usePermissions().can(permissions.locations.manage)
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [editing, setEditing] = useState<Location | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Location | null>(null)
@@ -92,7 +95,7 @@ export default function LocationsPage() {
     }
   }
 
-  const addButton = <>
+  const addButton = canManage && <>
     <Button onClick={() => setEditing('new')}><PlusIcon />{t('locations.add')}</Button>
     <Button variant="secondary" onClick={() => setUploading(true)}><UploadIcon />{t('locations.upload')}</Button>
   </>
@@ -120,7 +123,7 @@ export default function LocationsPage() {
                   <th scope="col">{t('locations.townAndCounty', { region: local(country.regionLabel).toLowerCase() })}</th>
                   <th scope="col">{t('locations.appliesTo')}</th>
                   <th scope="col">{t('locations.mainFor')}</th>
-                  <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                  {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
                 </tr>
               </thead>
               <tbody>
@@ -136,14 +139,14 @@ export default function LocationsPage() {
                       <td>{[l.town, region].filter(Boolean).join(', ') || none}</td>
                       <td>{l.allCompanies ? t('locations.allCompanies') : companyNames(l.companyIds) || none}</td>
                       <td>{companyNames(l.mainFor) || none}</td>
-                      <td className="whitespace-nowrap text-right">
+                      {canManage && <td className="whitespace-nowrap text-right">
                         <IconButton label={t('locations.edit', { name: l.name })} onClick={() => setEditing(l)}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                         </IconButton>
                         <IconButton tone="danger" label={t('locations.delete', { name: l.name })} onClick={() => setDeleting(l)}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                         </IconButton>
-                      </td>
+                      </td>}
                     </tr>
                   )
                 })}

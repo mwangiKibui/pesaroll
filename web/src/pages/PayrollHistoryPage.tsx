@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices } from '../app/services'
 import { BulkUpload, type BulkUploadColumn, type BulkUploadRow } from '../components/BulkUpload'
 import { Button, IconButton } from '../components/Button'
@@ -59,6 +60,7 @@ export default function PayrollHistoryPage() {
   const navigate = useNavigate()
   const companies = useCompanies()
   const done = useSetupDone(true)
+  const canManage = usePermissions().can(permissions.payrollHistory.manage)
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState<Batch | null>(null)
@@ -99,7 +101,7 @@ export default function PayrollHistoryPage() {
 
   const ready = companies.data && batches.data
   const many = (companies.data?.length ?? 0) > 1
-  const upload = <Button onClick={() => setUploading(true)}><UploadIcon />{t('history.upload')}</Button>
+  const upload = canManage && <Button onClick={() => setUploading(true)}><UploadIcon />{t('history.upload')}</Button>
 
   return (
     <SetupLayout current="history" done={done} hasOrganization>
@@ -146,9 +148,9 @@ export default function PayrollHistoryPage() {
                       <IconButton label={t('history.view', { name: b.fileName })} onClick={() => setViewing(b)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
                       </IconButton>
-                      <IconButton tone="danger" label={t('history.delete', { name: b.fileName })} onClick={() => setDeleting(b)}>
+                      {canManage && <IconButton tone="danger" label={t('history.delete', { name: b.fileName })} onClick={() => setDeleting(b)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
-                      </IconButton>
+                      </IconButton>}
                     </td>
                   </tr>
                 ))}

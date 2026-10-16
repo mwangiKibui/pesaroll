@@ -5,6 +5,7 @@ import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
@@ -90,6 +91,7 @@ export default function EarningsPage() {
   const items = usePayItems()
   const payees = usePayees()
   const done = useSetupDone(true)
+  const canManage = usePermissions().can(permissions.payItems.manage)
   const [tab, setTab] = useState<Kind>('earning')
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [editing, setEditing] = useState<PayItem | 'new' | null>(null)
@@ -161,9 +163,9 @@ export default function EarningsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Tabs id={tabsId} label={t('payItems.kinds')} current={tab} onChange={key => setTab(key as Kind)}
               tabs={kinds.map(k => ({ key: k, label: t(`payItems.tabs.${k}`) }))} />
-            <div className="ml-auto flex gap-2">
+            {canManage && <div className="ml-auto flex gap-2">
               <Button onClick={() => setEditing('new')}><PlusIcon />{t('payItems.add')}</Button>
-            </div>
+            </div>}
           </div>
           {kinds.map(k => {
             const list = visible.filter(i => i.kind === k)
@@ -209,7 +211,7 @@ export default function EarningsPage() {
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></svg>
                                   {t(i.lockedKey === 'basic' ? 'payItems.alwaysIncluded' : 'payItems.setByLaw')}
                                 </span>
-                              ) : <>
+                              ) : canManage && <>
                                 <IconButton label={t('payItems.edit', { name: i.name })} onClick={() => setEditing(i)}>
                                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                                 </IconButton>
@@ -233,7 +235,7 @@ export default function EarningsPage() {
         {viewing && (
           <PayItemView item={viewing} companies={companies.data} payee={payees.data?.find(p => p.id === viewing.payeeId)}
             authority={viewing.lockedKey ? authorities[viewing.lockedKey] : undefined} method={method(viewing)} tax={tax(viewing)}
-            onClose={() => setViewing(null)} onEdit={viewing.locked ? undefined : () => { setEditing(viewing); setViewing(null) }} />
+            onClose={() => setViewing(null)} onEdit={viewing.locked || !canManage ? undefined : () => { setEditing(viewing); setViewing(null) }} />
         )}
         {editing && (
           <PayItemDrawer item={editing === 'new' ? null : editing} kind={tab} companies={companies.data}

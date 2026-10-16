@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { PlusIcon } from '../components/icons'
 import { Button, IconButton } from '../components/Button'
@@ -49,6 +50,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
   const toast = useToast()
   // 'new', the account being edited, or nothing.
   const [editing, setEditing] = useState<Account | 'new' | null>(null)
+  const canManage = usePermissions().can(permissions.paymentAccounts.manage, company.id)
   const [removing, setRemoving] = useState<Account | null>(null)
   const [busy, setBusy] = useState(false)
   const key = ['payment-accounts', company.id]
@@ -99,7 +101,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
 
   const list = accounts.data ?? []
   const paged = usePaged(list)
-  const addButton = <Button onClick={() => setEditing('new')}><PlusIcon />{t('payingAccounts.add')}</Button>
+  const addButton = canManage && <Button onClick={() => setEditing('new')}><PlusIcon />{t('payingAccounts.add')}</Button>
   return (
     <div className="flex flex-col gap-3">
       <p className="m-0 text-hint text-muted">{t('payingAccounts.intro')}</p>
@@ -114,7 +116,7 @@ export function PaymentAccounts({ company }: { company: Company }) {
                   <th scope="col">{t('payingAccounts.accountName')}</th>
                   <th scope="col">{t('payingAccounts.account')}</th>
                   <th scope="col">{t('payingAccounts.default')}</th>
-                  <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                  {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
                 </tr>
               </thead>
               <tbody>
@@ -132,16 +134,16 @@ export function PaymentAccounts({ company }: { company: Company }) {
                     <td>
                       {a.isDefault
                         ? <Tag tone="brand">{t('payingAccounts.default')}</Tag>
-                        : <Button variant="ghost" aria-label={t('payingAccounts.makeDefaultLabel', { name: shortName(t, a) })} onClick={() => void makeDefault(a)}>{t('payingAccounts.makeDefault')}</Button>}
+                        : canManage && <Button variant="ghost" aria-label={t('payingAccounts.makeDefaultLabel', { name: shortName(t, a) })} onClick={() => void makeDefault(a)}>{t('payingAccounts.makeDefault')}</Button>}
                     </td>
-                    <td className="whitespace-nowrap text-right">
+                    {canManage && <td className="whitespace-nowrap text-right">
                       <IconButton label={t('payingAccounts.edit', { name: shortName(t, a) })} onClick={() => setEditing(a)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                       </IconButton>
                       <IconButton tone="danger" label={t('payingAccounts.remove', { name: shortName(t, a) })} onClick={() => setRemoving(a)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                       </IconButton>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>

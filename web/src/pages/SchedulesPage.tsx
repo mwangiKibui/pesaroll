@@ -5,6 +5,7 @@ import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../api/schema'
 import { errorMessage, isApiError } from '../app/apiErrors'
+import { permissions, usePermissions } from '../app/permissions'
 import { useServices, type ApiError } from '../app/services'
 import { Button, IconButton } from '../components/Button'
 import { CompanySelect, type CompanySelection } from '../components/CompanySelect'
@@ -96,6 +97,7 @@ export default function SchedulesPage() {
   const companies = useCompanies()
   const schedules = useSchedules()
   const done = useSetupDone(true)
+  const canManage = usePermissions().can(permissions.schedules.manage)
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [editing, setEditing] = useState<Schedule | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Schedule | null>(null)
@@ -154,7 +156,7 @@ export default function SchedulesPage() {
           </div>
         )}
         <TableCard footer={<Pagination label={t('pagination.of', { what: t('schedules.tableTitle') })} {...paged.pagination} />} title={t('schedules.tableTitle')} count={list.length}
-          actions={<Button onClick={() => setEditing('new')}><PlusIcon />{t('schedules.add')}</Button>}>
+          actions={canManage && <Button onClick={() => setEditing('new')}><PlusIcon />{t('schedules.add')}</Button>}>
           {list.length === 0 ? <EmptyState title={t('schedules.emptyTitle')}>{t('schedules.emptyText')}</EmptyState> : (
             <table>
               <thead>
@@ -167,7 +169,7 @@ export default function SchedulesPage() {
                   <th scope="col">{t('schedules.appliesTo')}</th>
                   <th scope="col">{t('schedules.defaultFor')}</th>
                   <th scope="col">{t('schedules.reminders')}</th>
-                  <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>
+                  {canManage && <th scope="col"><span className="sr-only">{t('companies.actions')}</span></th>}
                 </tr>
               </thead>
               <tbody>
@@ -181,14 +183,14 @@ export default function SchedulesPage() {
                     <td>{s.allCompanies ? t('schedules.allCompanies') : companyNames(s.companyIds) || none}</td>
                     <td>{companyNames(s.defaultFor) || none}</td>
                     <td>{s.reminders.length || none}</td>
-                    <td className="whitespace-nowrap text-right">
+                    {canManage && <td className="whitespace-nowrap text-right">
                       <IconButton label={t('schedules.edit', { name: s.name })} onClick={() => setEditing(s)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
                       </IconButton>
                       <IconButton tone="danger" label={t('schedules.delete', { name: s.name })} onClick={() => setDeleting(s)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                       </IconButton>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>
