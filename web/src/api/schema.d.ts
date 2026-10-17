@@ -180,7 +180,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    includePay?: boolean;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -3321,6 +3323,7 @@ export interface paths {
                     payTo?: number | string;
                     hiredFrom?: string;
                     hiredTo?: string;
+                    includePay?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -3470,7 +3473,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    includePay?: boolean;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -7717,6 +7722,7 @@ export interface components {
             pay: null | components["schemas"]["PayResponse"];
             account: null | components["schemas"]["AccountResponse"];
             readiness: components["schemas"]["ReadinessResponse"];
+            payHidden: boolean;
         };
         EmployeeRow: {
             /** Format: uuid */
@@ -7738,6 +7744,7 @@ export interface components {
             readiness: components["schemas"]["ReadinessResponse"];
             /** Format: date */
             hireDate: string;
+            payHidden: boolean;
         };
         ErrorResponse: {
             code: string;
