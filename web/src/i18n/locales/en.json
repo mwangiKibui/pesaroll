@@ -1310,7 +1310,8 @@
     "readyFilters": {"all": "Everyone", "none": "Ready", "any": "Not ready", "kra_pin": "No KRA PIN", "national_id": "No ID number", "basic_pay": "No basic pay", "payment_account": "Nowhere to pay them"},
     "leaveGives": "What {{plan}} gives",
     "leaveBalancesTitle": "Balances and requests",
-    "leaveBalancesSoon": "Leave balances and requests show here once leave tracking is on."
+    "leaveBalancesSoon": "Leave balances and requests show here once leave tracking is on.",
+    "peopleIntro": "Everyone at the company chosen at the top. Search by name, staff number, phone, ID number or KRA PIN."
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",

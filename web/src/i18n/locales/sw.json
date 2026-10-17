@@ -1310,7 +1310,8 @@
     "readyFilters": {"all": "Wote", "none": "Tayari", "any": "Si tayari", "kra_pin": "Hakuna PIN ya KRA", "national_id": "Hakuna nambari ya kitambulisho", "basic_pay": "Hakuna mshahara wa msingi", "payment_account": "Hakuna mahali pa kuwalipa"},
     "leaveGives": "Kile {{plan}} kinatoa",
     "leaveBalancesTitle": "Salio na maombi",
-    "leaveBalancesSoon": "Salio la likizo na maombi yataonekana hapa ufuatiliaji wa likizo ukiwashwa."
+    "leaveBalancesSoon": "Salio la likizo na maombi yataonekana hapa ufuatiliaji wa likizo ukiwashwa.",
+    "peopleIntro": "Kila mtu katika kampuni uliyochagua juu. Tafuta kwa jina, nambari ya mfanyakazi, simu, nambari ya kitambulisho au PIN ya KRA."
   },
   "pagination": {
     "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",

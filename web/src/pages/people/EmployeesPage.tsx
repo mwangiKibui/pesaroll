@@ -35,7 +35,10 @@ function Employees() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="m-0 font-display text-title text-ink">{t('employees.peopleTitle')}</h1>
+      <div className="flex flex-col gap-1.5">
+        <h1 className="m-0 font-display text-title text-ink">{t('employees.peopleTitle')}</h1>
+        <p className="m-0 text-muted">{t('employees.peopleIntro')}</p>
+      </div>
       {!ready || !companyId ? <Loading rows={4} />
         : !can(permissions.employees.view, companyId) ? <EmptyState title={t('employees.noAccessTitle')}>{t('employees.noAccessText')}</EmptyState>
           // A new company starts afresh: page 1, nothing searched, amounts hidden again.
