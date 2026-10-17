@@ -306,7 +306,9 @@ public static class PayItemsEndpoints
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayItems);
 
         // What one person gets: their own rows and their company's "everyone" rows.
-        app.MapGet("/api/employees/{id:guid}/pay-items", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        // ACC-05: amounts and rates go out only when asked for (includePay) by someone with View on pay; who saw whose is recorded.
+        app.MapGet("/api/employees/{id:guid}/pay-items", async (Guid id, bool? includePay, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
+            CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             var employee = await db.Employees.AsNoTracking().Include(e => e.Accounts.Where(a => a.ValidTo == null))
@@ -322,10 +324,13 @@ public static class PayItemsEndpoints
                     Payee = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.Name).FirstOrDefault(),
                     Source = db.Payees.Where(p => p.Id == i.PayeeId).Select(p => p.ReferenceSource).FirstOrDefault() ?? "typed",
                 }).ToListAsync(ct);
+            var shows = includePay == true && tenant.Can(Permissions.PayView, employee.CompanyId);
+            await SensitiveViews.RecordAsync(db, tenant, http, "employee_pay", shows && rows.Count > 0 ? [employee.Id] : [], ct);
             return Results.Ok(rows
                 .OrderBy(r => Array.IndexOf(Kinds, r.i.Kind)).ThenBy(r => r.i.Name)
                 .Select(r => new EmployeePayItemResponse(r.i.Id, r.i.Name, r.i.Code, r.i.Kind, r.i.CalcMethod,
-                    r.x.Amount ?? (r.i.CalcMethod == "fixed" ? r.i.DefaultAmount : null), r.x.Rate ?? (r.i.CalcMethod == "percent_of_basic" ? r.i.Rate : null),
+                    shows ? r.x.Amount ?? (r.i.CalcMethod == "fixed" ? r.i.DefaultAmount : null) : null,
+                    shows ? r.x.Rate ?? (r.i.CalcMethod == "percent_of_basic" ? r.i.Rate : null) : null,
                     r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference ?? FromProfile(employee, r.Source), r.Payee))
                 .ToList());
         }).WithTags("Earnings and deductions").Produces<List<EmployeePayItemResponse>>()

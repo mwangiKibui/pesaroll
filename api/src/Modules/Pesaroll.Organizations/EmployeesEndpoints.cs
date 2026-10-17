@@ -43,11 +43,11 @@ public sealed record AccountResponse(string Method, string? BankCode, string? Br
 public sealed record EmployeeResponse(
     Guid Id, Guid CompanyId, string StaffNo, string FirstName, string? MiddleName, string LastName, DateOnly? DateOfBirth, string? Phone, string? Email,
     string? Address, string? NationalIdMasked, string? KraPinMasked, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
-    JobResponse Job, PayResponse? Pay, AccountResponse? Account, ReadinessResponse Readiness);
+    JobResponse Job, PayResponse? Pay, AccountResponse? Account, ReadinessResponse Readiness, bool PayHidden);
 
 public sealed record EmployeeRow(
     Guid Id, Guid CompanyId, string StaffNo, string Name, string? PositionTitle, string? DepartmentName, Guid? PayScheduleId,
-    decimal? BasicAmount, string? PayBasis, string? Currency, DateOnly? ExitDate, ReadinessResponse Readiness, DateOnly HireDate);
+    decimal? BasicAmount, string? PayBasis, string? Currency, DateOnly? ExitDate, ReadinessResponse Readiness, DateOnly HireDate, bool PayHidden);
 
 /// <summary>Someone to pick (as a line manager): name, staff number and department.</summary>
 public sealed record EmployeeChoice(Guid Id, string Name, string StaffNo, Guid? DepartmentId);
@@ -73,7 +73,7 @@ public static class EmployeesEndpoints
 
         employees.MapGet("/", async (Guid? companyId, Guid[]? companyIds, string? search, string? status, int? page, int? pageSize,
             string? sort, string? dir, Guid[]? departmentIds, Guid[]? positionIds, Guid[]? scheduleIds, decimal? payFrom, decimal? payTo,
-            DateOnly? hiredFrom, DateOnly? hiredTo, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
+            DateOnly? hiredFrom, DateOnly? hiredTo, bool? includePay, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
             FieldEncryptor encryptor, CancellationToken ct) =>
         {
             var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
@@ -81,6 +81,13 @@ public static class EmployeesEndpoints
             // Only companies where they may view employees (ACC-04); asking for another is refused.
             var allowed = tenant.CompaniesFor(Permissions.EmployeesView);
             if ((companyId is Guid one && !allowed.Contains(one)) || (companyIds ?? []).Any(c => !allowed.Contains(c)))
+            {
+                throw AccessErrors.NoPermission();
+            }
+
+            // ACC-05: filtering or sorting by pay needs View on pay for every company listed.
+            var listed = companyId is Guid only ? [only] : companyIds is { Length: > 0 } chosen ? chosen : allowed;
+            if ((payFrom is not null || payTo is not null || sort == "basicPay") && listed.Any(c => !tenant.Can(Permissions.PayView, c)))
             {
                 throw AccessErrors.NoPermission();
             }
@@ -203,13 +210,16 @@ public static class EmployeesEndpoints
             var shownDepartments = list.SelectMany(e => e.Employments).Select(x => x.DepartmentId).OfType<Guid>().ToList();
             var positions = await db.Positions.AsNoTracking().Where(p => shownPositions.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
             var departments = await db.Departments.AsNoTracking().Where(d => shownDepartments.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.Name, ct);
+            // ACC-05: pay only when asked for, for the companies where they may see it; who saw whose is recorded.
+            bool Shows(Employee e) => includePay == true && tenant.Can(Permissions.PayView, e.CompanyId);
+            await SensitiveViews.RecordAsync(db, tenant, http, "employee_pay", list.Where(Shows).Select(e => e.Id).ToList(), ct);
             return Results.Ok(new EmployeePage(list.Select(e =>
             {
                 var job = e.Employments.FirstOrDefault();
-                var pay = e.Compensations.FirstOrDefault();
+                var pay = Shows(e) ? e.Compensations.FirstOrDefault() : null;
                 return new EmployeeRow(e.Id, e.CompanyId, e.StaffNo, $"{e.FirstName} {e.LastName}",
                     job?.PositionId is Guid p ? positions.GetValueOrDefault(p) : null, job?.DepartmentId is Guid d ? departments.GetValueOrDefault(d) : null,
-                    job?.PayScheduleId, pay?.BasicAmount, pay?.PayBasis, pay?.Currency, e.ExitDate, Readiness(e), e.HireDate);
+                    job?.PayScheduleId, pay?.BasicAmount, pay?.PayBasis, pay?.Currency, e.ExitDate, Readiness(e), e.HireDate, !Shows(e));
             }).ToList(), total, number, size));
         }).Produces<EmployeePage>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.EmployeesView);
 
@@ -227,12 +237,14 @@ public static class EmployeesEndpoints
                 .ToListAsync(ct));
         }).Produces<List<EmployeeChoice>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.EmployeesView);
 
-        employees.MapGet("/{id:guid}", async (Guid id, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
+        employees.MapGet("/{id:guid}", async (Guid id, bool? includePay, OrganizationsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             var employee = await LoadAsync(db, id, ct, tracked: false);
             Access.Require(tenant, Permissions.EmployeesView, employee.CompanyId);
-            return Results.Ok(ToResponse(employee));
+            var shows = includePay == true && tenant.Can(Permissions.PayView, employee.CompanyId);
+            await SensitiveViews.RecordAsync(db, tenant, http, "employee_pay", shows ? [employee.Id] : [], ct);
+            return Results.Ok(ToResponse(employee, shows));
         }).Produces<EmployeeResponse>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.EmployeesView);
 
         employees.MapPost("/", async (EmployeeRequest request, OrganizationsDbContext db, TenantContext tenant, HttpContext http,
@@ -240,7 +252,8 @@ public static class EmployeesEndpoints
         {
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Employees, request.CompanyId);
-            var valid = await ValidateAsync(request, null, db, ct);
+            RequirePayAccess(tenant, request, request.CompanyId);
+            var valid = await ValidateAsync(request, null, db, ct, payManaged: tenant.Can(Permissions.Pay, request.CompanyId));
             var now = clock.GetUtcNow();
             var employee = new Employee
             {
@@ -254,7 +267,7 @@ public static class EmployeesEndpoints
             await RequireUniqueNumbersAsync(db, employee, ct);
             db.Employees.Add(employee);
             await SaveAsync(db, ct);
-            return Results.Created($"/api/employees/{employee.Id}", ToResponse(employee));
+            return Results.Created($"/api/employees/{employee.Id}", ToResponse(employee, shows: false));
         }).Produces<EmployeeResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Employees);
@@ -265,7 +278,8 @@ public static class EmployeesEndpoints
             var (userId, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
             var employee = await LoadAsync(db, id, ct, tracked: true);
             Access.Require(tenant, Permissions.Employees, employee.CompanyId);
-            var valid = await ValidateAsync(request with { CompanyId = employee.CompanyId }, employee, db, ct);
+            RequirePayAccess(tenant, request, employee.CompanyId);
+            var valid = await ValidateAsync(request with { CompanyId = employee.CompanyId }, employee, db, ct, payManaged: tenant.Can(Permissions.Pay, employee.CompanyId));
             employee.FirstName = valid.FirstName;
             employee.LastName = valid.LastName;
             employee.StaffNo = valid.StaffNo ?? employee.StaffNo;
@@ -278,7 +292,7 @@ public static class EmployeesEndpoints
             db.AddRange(added);
             await SaveAsync(db, ct);
             await transaction.CommitAsync(ct);
-            return Results.Ok(ToResponse(await LoadAsync(db, id, ct, tracked: false)));
+            return Results.Ok(ToResponse(await LoadAsync(db, id, ct, tracked: false), shows: false));
         }).Produces<EmployeeResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.Employees);
@@ -319,7 +333,21 @@ public static class EmployeesEndpoints
         string? Phone, string? Email, string? Address, string? NationalId, string? KraPin, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
         ValidJob Job, (decimal Amount, string Basis)? Pay, ValidAccount? Account);
 
-    internal static async Task<ValidEmployee> ValidateAsync(EmployeeRequest request, Employee? existing, OrganizationsDbContext db, CancellationToken ct)
+    /// <summary>ACC-05: pay and the account they are paid into are set only with Manage on pay for the company.</summary>
+    private static void RequirePayAccess(TenantContext tenant, EmployeeRequest request, Guid companyId)
+    {
+        if ((request.Pay is not null || request.Account is not null) && !tenant.Can(Permissions.Pay, companyId))
+        {
+            throw AccessErrors.NoPermission();
+        }
+    }
+
+    /// <param name="payManaged">
+    /// Whoever is adding or changing them may set pay (ACC-05). If not, a current employee may be saved
+    /// without the account they are paid into; readiness lists it as missing until Payroll adds it.
+    /// </param>
+    internal static async Task<ValidEmployee> ValidateAsync(EmployeeRequest request, Employee? existing, OrganizationsDbContext db, CancellationToken ct,
+        bool payManaged = true)
     {
         var errors = new Dictionary<string, string>();
         var company = await db.Companies.AsNoTracking().SingleOrDefaultAsync(c => c.Id == request.CompanyId && c.Status == "active", ct);
@@ -420,7 +448,7 @@ public static class EmployeesEndpoints
 
         var account = await AccountAsync(request.Account, company, existing, db, errors, ct);
         // Current staff are paid into a bank or M-Pesa, one the company pays from (once it has a paying account).
-        if (request.ExitDate is null && await PayMethodsAsync(db, company.Id, ct) is { Count: > 0 } methods && !errors.ContainsKey("account.method"))
+        if (payManaged && request.ExitDate is null && await PayMethodsAsync(db, company.Id, ct) is { Count: > 0 } methods && !errors.ContainsKey("account.method"))
         {
             var method = account?.Method ?? existing?.Accounts.FirstOrDefault(a => a.ValidTo == null)?.Method;
             if (method is null || !methods.Contains(method))
@@ -756,11 +784,12 @@ public static class EmployeesEndpoints
         }
     }
 
-    private static EmployeeResponse ToResponse(Employee e)
+    /// <param name="shows">Pay and the account they are paid into go out only when asked for by someone who may see them (ACC-05).</param>
+    private static EmployeeResponse ToResponse(Employee e, bool shows)
     {
         var job = e.Employments.Single(x => x.ValidTo == null);
-        var pay = e.Compensations.FirstOrDefault(x => x.ValidTo == null);
-        var account = e.Accounts.FirstOrDefault(x => x.ValidTo == null);
+        var pay = shows ? e.Compensations.FirstOrDefault(x => x.ValidTo == null) : null;
+        var account = shows ? e.Accounts.FirstOrDefault(x => x.ValidTo == null) : null;
         return new EmployeeResponse(e.Id, e.CompanyId, e.StaffNo, e.FirstName, e.MiddleName, e.LastName, e.DateOfBirth, e.Phone, e.Email, e.Address,
             e.NationalIdLast4 is null ? null : $"•••• {e.NationalIdLast4}", e.KraPinLast4 is null ? null : $"•••• {e.KraPinLast4}", e.NssfNo, e.ShaNo,
             e.HireDate, e.ExitDate,
@@ -768,6 +797,6 @@ public static class EmployeesEndpoints
             pay is null ? null : new PayResponse(pay.BasicAmount, pay.PayBasis, pay.Currency),
             account is null ? null : new AccountResponse(account.Method, account.BankCode, account.BranchCode,
                 account.AccountLast4 is null ? null : $"•••• {account.AccountLast4}", account.MpesaLast4 is null ? null : $"•••• {account.MpesaLast4}"),
-            Readiness(e));
+            Readiness(e), !shows);
     }
 }

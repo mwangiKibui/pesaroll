@@ -17,7 +17,7 @@ export const roles = [
 ]
 
 /** Every area's View and Manage, for every company: what the person who onboarded the organization has. */
-export const adminPermissions = ['companies', 'employees', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team']
+export const adminPermissions = ['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team']
   .flatMap(area => [`${area}.view`, `${area}.manage`]).map(permission => ({ permission, allCompanies: true, companyIds: [] as string[] }))
 
 export const me = { id: 'u1', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau', fullName: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: null, signupRoleId: roles[0].roles[0].id, signupRoleOther: null, organizationId: null, signedUpVia: 'self', canOnboardOrganization: true, permissions: adminPermissions }
@@ -141,7 +141,7 @@ export const leavePlan = (overrides: Record<string, unknown> = {}) => ({
 export const employeeRow = (overrides: Record<string, unknown> = {}) => ({
   id: '0199c0de-0000-7000-8000-00000000a501', companyId: company().id, staffNo: 'EMP-01', name: 'Wanjiru Kamau', positionTitle: 'Head cook',
   departmentName: 'Kitchen', payScheduleId: schedule().id, basicAmount: 85000, payBasis: 'monthly', currency: 'KES', exitDate: null,
-  hireDate: '2024-01-15', readiness: { ready: true, missing: [] }, ...overrides,
+  hireDate: '2024-01-15', readiness: { ready: true, missing: [] }, payHidden: false, ...overrides,
 })
 
 /** One employee in full, numbers masked, as the API returns it. */
@@ -153,7 +153,7 @@ export const employeeDetail = (overrides: Record<string, unknown> = {}) => ({
     leavePlanId: '0199c0de-0000-7000-8000-00000000f101', employmentType: 'permanent', contractEnd: null },
   pay: { basicAmount: 85000, payBasis: 'monthly', currency: 'KES' },
   account: { method: 'mpesa', bankCode: null, branchCode: null, accountMasked: null, mpesaMasked: '•••• 5678' },
-  readiness: { ready: true, missing: [] }, ...overrides,
+  readiness: { ready: true, missing: [] }, payHidden: false, ...overrides,
 })
 
 /** An access token shaped like the API's (a JWT; the screen only reads it, never verifies it). */

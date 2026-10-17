@@ -227,9 +227,9 @@ public sealed class EmployeesImportTests(OnboardingTests.Api api) : IClassFixtur
 
         var page = (await client.GetFromJsonAsync<Page>("/api/employees?status=all"))!;
         Assert.Equal(3, page.Total);
-        var wanjiru = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.StaffNo == "K-1").Id}"))!;
-        var otieno = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.StaffNo == "K-2").Id}"))!;
-        var akinyi = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.Name == "Akinyi Odera").Id}"))!;
+        var wanjiru = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.StaffNo == "K-1").Id}?includePay=true"))!;
+        var otieno = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.StaffNo == "K-2").Id}?includePay=true"))!;
+        var akinyi = (await client.GetFromJsonAsync<Employee>($"/api/employees/{page.Items.Single(r => r.Name == "Akinyi Odera").Id}?includePay=true"))!;
         Assert.Equal(("•••• 678Z", 85000m, "bank", "68", "•••• 9012"), (wanjiru.KraPinMasked, wanjiru.Pay!.BasicAmount, wanjiru.Account!.Method, wanjiru.Account.BankCode, wanjiru.Account.AccountMasked));
         Assert.Equal("monthly", wanjiru.Pay.PayBasis);   // from the Monthly schedule
         Assert.Equal("Kilimani, Nairobi", wanjiru.Address);

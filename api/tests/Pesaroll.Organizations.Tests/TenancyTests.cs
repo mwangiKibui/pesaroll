@@ -116,6 +116,24 @@ public sealed class TenancyTests : IAsyncLifetime
         Assert.Equal(0, await mine.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from role_companies").SingleAsync());
     }
 
+    // ACC-05: who saw whose pay stays in the organization.
+    [Fact]
+    public async Task Organization_sees_only_its_own_pay_views()
+    {
+        await using (var connection = new NpgsqlConnection(ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"insert into sensitive_views (id, organization_id, user_id, kind, subject_ids) values (uuidv7(), '{Org2}', '{Owner2}', 'employee_pay', array['{Owner2}'::uuid])";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await using var mine = ContextFor(Tenant(Org1, Org1Kenya, Org1Uganda));
+        Assert.Equal(0, await mine.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from sensitive_views").SingleAsync());
+        await using var theirs = ContextFor(Tenant(Org2, Org2Kenya));
+        Assert.Equal(1, await theirs.Database.SqlQuery<int>($"select count(*)::int as \"Value\" from sensitive_views").SingleAsync());
+    }
+
     [Fact]
     public async Task Organization_sees_only_its_own_companies()
     {

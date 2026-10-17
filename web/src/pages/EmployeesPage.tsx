@@ -65,6 +65,9 @@ function usePaysBy(companyId: string) {
 const none = <span className="text-muted">—</span>
 
 /** The columns the employees list sorts by (the API's sort keys). */
+/** The upload's pay and bank columns: only for people with Manage on pay (ACC-05). */
+const payColumns: readonly string[] = ['basicPay', 'paidInto', 'bank', 'branch', 'accountNumber', 'mpesa']
+
 type SortKey = 'company' | 'name' | 'job' | 'schedule' | 'basicPay' | 'hireDate'
 
 /** The column filters: ids ticked (none ticked: no filter), amounts and dates as typed. */
@@ -91,7 +94,11 @@ export default function EmployeesPage() {
   const companies = useCompanies()
   const schedules = useSchedules()
   const done = useSetupDone(true)
-  const canManage = usePermissions().can(permissions.employees.manage)
+  const { can } = usePermissions()
+  const canManage = can(permissions.employees.manage)
+  // ACC-05: pay is sent only when asked for (Show amounts), to people with View on pay.
+  const canViewPay = can(permissions.pay.view)
+  const [showPay, setShowPay] = useState(false)
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('current')
@@ -123,7 +130,7 @@ export default function EmployeesPage() {
     sort: sort?.key, dir: sort ? (sort.direction === 'ascending' ? 'asc' : 'desc') : undefined,
     departmentIds: filters.departments.length ? filters.departments : undefined, positionIds: filters.positions.length ? filters.positions : undefined,
     scheduleIds: filters.schedules.length ? filters.schedules : undefined, payFrom: amount(filters.payFrom), payTo: amount(filters.payTo),
-    hiredFrom: filters.hiredFrom || undefined, hiredTo: filters.hiredTo || undefined,
+    hiredFrom: filters.hiredFrom || undefined, hiredTo: filters.hiredTo || undefined, includePay: showPay || undefined,
   }
   const employees = useQuery({
     queryKey: ['employees', query],
@@ -163,6 +170,7 @@ export default function EmployeesPage() {
       <TextField type="search" size="sm" label={t('employees.search')} hideLabel placeholder={t('employees.searchPlaceholder')} value={search}
         onChange={e => { setSearch(e.target.value); setPage(1) }} />
     </div>
+    {canViewPay && <Button variant="ghost" onClick={() => setShowPay(s => !s)}>{showPay ? t('employees.hideAmounts') : t('employees.showAmounts')}</Button>}
     {canManage && <>
       <Button onClick={() => setBulk('add')}><PlusIcon />{t('employees.add')}</Button>
       <Button variant="secondary" onClick={() => setBulk('upload')}><UploadIcon />{t('employees.upload')}</Button>
@@ -244,7 +252,7 @@ export default function EmployeesPage() {
                   {header('schedule', t('employees.schedule'), filters.schedules.length > 0,
                     <Checklist values={scoped(schedules.data).map(s => ({ value: s.id, label: s.name }))}
                       isTicked={id => filters.schedules.includes(id)} onTick={(ids, on) => filter({ schedules: toggle(filters.schedules, ids, on) })} />)}
-                  {header('basicPay', t('employees.basicPay'), !!(filters.payFrom || filters.payTo), <div className="grid grid-cols-2 gap-2">
+                  {!canViewPay ? <th scope="col">{t('employees.basicPay')}</th> : header('basicPay', t('employees.basicPay'), !!(filters.payFrom || filters.payTo), <div className="grid grid-cols-2 gap-2">
                     <TextField size="sm" inputMode="decimal" label={t('employees.payFrom')} placeholder={t('employees.payFromPlaceholder')} value={filters.payFrom}
                       onChange={e => filter({ payFrom: e.target.value })} />
                     <TextField size="sm" inputMode="decimal" label={t('employees.payTo')} placeholder={t('employees.payToPlaceholder')} value={filters.payTo}
@@ -271,9 +279,10 @@ export default function EmployeesPage() {
                     <td>{job(r) || none}</td>
                     <td>{schedules.data.find(s => s.id === r.payScheduleId)?.name ?? none}</td>
                     <td className="whitespace-nowrap">
-                      {r.basicAmount != null && r.payBasis
-                        ? <span className="tabular-nums">{t(`employees.per.${r.payBasis}`, { amount: formatMoney(r.basicAmount, { currency: r.currency ?? 'KES' }) })}</span>
-                        : none}
+                      {r.payHidden ? <span className={canViewPay ? 'tabular-nums' : 'text-muted'}>{canViewPay ? t('employees.payDots') : t('employees.payHidden')}</span>
+                        : r.basicAmount != null && r.payBasis
+                          ? <span className="tabular-nums">{t(`employees.per.${r.payBasis}`, { amount: formatMoney(r.basicAmount, { currency: r.currency ?? 'KES' }) })}</span>
+                          : none}
                     </td>
                     <td className="whitespace-nowrap tabular-nums">{shortDate(r.hireDate)}</td>
                     <td className="whitespace-nowrap text-right">
@@ -328,10 +337,15 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
   const { api } = useServices()
   const tabsId = useId()
   const [tab, setTab] = useState<TabKey>('personal')
+  // ACC-05: pay and where it's paid only with View on pay, and only after Show amounts.
+  const canViewPay = usePermissions().can(permissions.pay.view)
+  const [showPay, setShowPay] = useState(false)
+  const shownTabs = tabs.filter(k => canViewPay || (k !== 'pay' && k !== 'account'))
   const detail = useQuery({
-    queryKey: ['employee', id],
+    queryKey: ['employee', id, showPay],
+    placeholderData: previous => previous,
     queryFn: async () => {
-      const { data, error } = await api.GET('/api/employees/{id}', { params: { path: { id } } })
+      const { data, error } = await api.GET('/api/employees/{id}', { params: { path: { id }, query: { includePay: showPay || undefined } } })
       if (error || !data) throw new Error('employee')
       return data
     },
@@ -347,9 +361,10 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
   const banks = useBanks(company.countryCode)
   // What they get besides basic pay: their own items and their company's "everyone" items.
   const payItems = useQuery({
-    queryKey: ['employee', id, 'payItems'],
+    queryKey: ['employee', id, 'payItems', showPay],
+    enabled: canViewPay,
     queryFn: async () => {
-      const { data, error } = await api.GET('/api/employees/{id}/pay-items', { params: { path: { id } } })
+      const { data, error } = await api.GET('/api/employees/{id}/pay-items', { params: { path: { id }, query: { includePay: showPay || undefined } } })
       if (error || !data) throw new Error('payItems')
       return data
     },
@@ -393,9 +408,10 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
       [t('employees.employmentType'), t(`employees.types.${e.job.employmentType}`)], [t('employees.contractEnd'), e.job.contractEnd],
     ],
     pay: [
-      [t('employees.basicPay'), e.pay ? t(`employees.per.${e.pay.payBasis}`, { amount: formatMoney(e.pay.basicAmount, { currency: e.pay.currency }) }) : null],
+      [t('employees.basicPay'), e.payHidden ? t('employees.payDots')
+        : e.pay ? t(`employees.per.${e.pay.payBasis}`, { amount: formatMoney(e.pay.basicAmount, { currency: e.pay.currency }) }) : null],
     ],
-    account: [
+    account: e.payHidden ? [[t('employees.method'), t('employees.accountDots')]] : [
       [t('employees.method'), t(`employees.methods.${e.account?.method ?? 'none'}`)],
       ...(e.account?.method === 'bank' ? [
         [t('employees.bank'), bank?.name ?? e.account.bankCode], [t('employees.branch'), branch ? `${branch.name} (${branch.code})` : e.account.branchCode],
@@ -408,15 +424,16 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
   return (
     <Drawer open size="wide" title={name} onClose={onClose}
       tabs={<Tabs id={tabsId} label={t('employees.sections')} current={tab} onChange={k => setTab(k as TabKey)}
-        tabs={tabs.map(k => ({ key: k, label: t(`employees.tabs.${k}`) }))} />}
+        tabs={shownTabs.map(k => ({ key: k, label: t(`employees.tabs.${k}`) }))} />}
       footer={<>
+        {canViewPay && <Button variant="ghost" className="mr-auto" onClick={() => setShowPay(s => !s)}>{showPay ? t('employees.hideAmounts') : t('employees.showAmounts')}</Button>}
         <Button variant="secondary" onClick={onClose}>{t('common.close')}</Button>
         {onEdit && <Button onClick={onEdit}>{t('employees.editButton')}</Button>}
       </>}>
       {!e.readiness.ready && (
         <Notice>{t('employees.needs', { items: e.readiness.missing.map(m => m.label.en).join(', ') })}</Notice>
       )}
-      {tabs.map(k => (
+      {shownTabs.map(k => (
         <TabPanel key={k} id={tabsId} tab={k} current={tab}>
           <dl className="m-0 grid gap-x-6 gap-y-4 sm:grid-cols-2">
             {fields[k].map(([label, value]) => (
@@ -435,8 +452,9 @@ function EmployeeView({ id, companies, onClose, onEdit }: { id: string; companie
                   <li key={i.payItemId} className="text-body text-ink">
                     <span className="font-medium">{i.name}</span>{' · '}
                     {i.calcMethod === 'each_run' ? t('employees.payItemEachRun')
-                      : i.rate != null ? t('employees.payItemRate', { rate: Number(i.rate) })
-                        : i.amount != null ? formatMoney(i.amount) : none}
+                      : e.payHidden ? t('employees.payDots')
+                        : i.rate != null ? t('employees.payItemRate', { rate: Number(i.rate) })
+                          : i.amount != null ? formatMoney(i.amount) : none}
                     {' · '}{t('employees.payItemFrom', { date: shortDate(i.startsOn) })}
                     {i.endsOn && <> {t('employees.payItemUntil', { date: shortDate(i.endsOn) })}</>}
                     {(i.payeeName || i.reference) && <>{' · '}{i.payeeName && i.reference ? t('employees.payItemPayeeMember', { payee: i.payeeName, reference: i.reference })
@@ -486,11 +504,13 @@ function EmployeeDrawer({ id, companies, defaultCompany, onClose }: {
 }) {
   const { t } = useTranslation()
   const { api } = useServices()
+  // ACC-05: the form shows someone's pay only to people who may change it (asking for it is recorded).
+  const canManagePay = usePermissions().can(permissions.pay.manage)
   const detail = useQuery({
-    queryKey: ['employee', id],
+    queryKey: ['employee', id, 'edit', canManagePay],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await api.GET('/api/employees/{id}', { params: { path: { id: id! } } })
+      const { data, error } = await api.GET('/api/employees/{id}', { params: { path: { id: id! }, query: { includePay: canManagePay || undefined } } })
       if (error || !data) throw new Error('employee')
       return data
     },
@@ -515,6 +535,8 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
   const tabsId = useId()
   const [tab, setTab] = useState<TabKey>('personal')
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
+  const canManagePay = usePermissions().can(permissions.pay.manage, employee?.companyId ?? defaultCompany)
+  const formTabs = tabs.filter(k => canManagePay || (k !== 'pay' && k !== 'account'))
   const schedules = useSchedules()
   const plans = useLeavePlans()
   const locations = useLocations()
@@ -599,7 +621,7 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
       return setTab('personal')
     }
     // People who work here are paid the way the company pays.
-    if (stillHere && methods.length > 0 && !methods.includes(v.method as 'bank' | 'mpesa')) {
+    if (canManagePay && stillHere && methods.length > 0 && !methods.includes(v.method as 'bank' | 'mpesa')) {
       setError('method', { message: paysByMessage() })
       return setTab('account')
     }
@@ -616,8 +638,8 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
         employmentType: v.employmentType, contractEnd: v.employmentType === 'contract' && v.contractEnd ? v.contractEnd : null,
       },
       // Paid as often as their schedule runs (the API takes it from the schedule).
-      pay: v.basicAmount.trim() ? { basicAmount: Number(v.basicAmount.replace(/kes|ksh|[\s,]/gi, '')), payBasis: null } : null,
-      account: !accountTouched || v.method === 'none' ? null
+      pay: canManagePay && v.basicAmount.trim() ? { basicAmount: Number(v.basicAmount.replace(/kes|ksh|[\s,]/gi, '')), payBasis: null } : null,
+      account: !canManagePay || !accountTouched || v.method === 'none' ? null
         : v.method === 'bank' ? { method: 'bank', bankCode: v.bankCode, branchCode: v.branchCode, accountNumber: v.accountNumber.trim() || null }
           : { method: 'mpesa', mpesaPhone: v.mpesaPhone.trim() || null },
     }
@@ -670,7 +692,7 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
   return (
     <Drawer open size="wide" title={employee ? t('employees.editTitle') : t('employees.addTitle')} onClose={onClose}
       tabs={<Tabs id={tabsId} label={t('employees.sections')} current={tab} onChange={k => setTab(k as TabKey)}
-        tabs={tabs.map(k => ({ key: k, label: t(`employees.tabs.${k}`), invalid: invalidTabs.has(k) }))} />}
+        tabs={formTabs.map(k => ({ key: k, label: t(`employees.tabs.${k}`), invalid: invalidTabs.has(k) }))} />}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
         <Button type="submit" form={formId} busy={isSubmitting}>{employee ? t('employees.save') : t('employees.add')}</Button>
@@ -679,6 +701,7 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
         {banner && banner !== 'network' && <FormErrorBanner error={{ ...banner, message: errorMessage(t, banner) }} />}
 
+        {!canManagePay && <Notice>{t('employees.payrollAddsPay')}</Notice>}
         <TabPanel id={tabsId} tab="personal" current={tab}>
           <div className="grid gap-4 sm:grid-cols-3">
             <TextField label={t('employees.firstName')} placeholder={t('employees.firstNamePlaceholder')} maxLength={60} error={errors.firstName?.message} {...register('firstName', check(rules.name))} />
@@ -813,6 +836,7 @@ function EmployeeForm({ employee, companies, defaultCompany, onClose }: {
 function UploadEmployees({ adding, companies, defaultCompany, onClose }: { adding: boolean; companies: Company[]; defaultCompany: string; onClose: () => void }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
+  const canManagePay = usePermissions().can(permissions.pay.manage, defaultCompany)
   const toast = useToast()
   // Uploading waits for a company to be chosen (unless there's only one); adding starts with the one shown.
   const [companyId, setCompanyId] = useState(adding || companies.length === 1 ? defaultCompany : '')
@@ -884,7 +908,7 @@ function UploadEmployees({ adding, companies, defaultCompany, onClose }: { addin
   }
   const dates = new Set(['dateOfBirth', 'hireDate', 'exitDate', 'contractEnd'])
   const isContract = (cells: Record<string, string>) => (cells.employmentType ?? '').trim().toLowerCase() === 'contract'
-  const columns: BulkUploadColumn[] = columnKeys.map(key => ({
+  const columns: BulkUploadColumn[] = columnKeys.filter(key => canManagePay || !payColumns.includes(key)).map(key => ({
     key, label: key === 'stillHere' ? t('employees.stillHere') : t(`employees.columns.${key}`),
     ...(lists[key] ? { optionsFor: (cells: Record<string, string>) => withCurrent(lists[key]!, cells[key]) } : {}),
     ...(key === 'branch' ? {
