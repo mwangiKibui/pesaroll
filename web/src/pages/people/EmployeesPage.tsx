@@ -27,10 +27,10 @@ function Employees() {
   const { companyId } = useCurrentCompany()
   const { ready, can } = usePermissions()
   const search = readFilters(useSearch({ strict: false }))
-  const filters: ListFilters = { status: search.status ?? 'current', missing: search.missing ?? null }
+  const filters: ListFilters = { status: search.status ?? 'current', missing: search.missing ?? null, hiredFrom: search.hiredFrom ?? null }
   const setFilters = (next: ListFilters) => void navigate({
     to: '/people/employees', replace: true,
-    search: { ...(next.status !== 'current' ? { status: next.status } : {}), ...(next.missing ? { missing: next.missing } : {}) },
+    search: { ...(next.status !== 'current' ? { status: next.status } : {}), ...(next.missing ? { missing: next.missing } : {}), ...(next.hiredFrom ? { hiredFrom: next.hiredFrom } : {}) },
   })
 
   return (

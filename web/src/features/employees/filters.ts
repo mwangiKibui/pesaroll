@@ -1,6 +1,6 @@
 /**
  * People → Employees' filters (OP-07), kept in the page's address so other pages can link to them,
- * e.g. the HR home's "Fix them": /people/employees?missing=kra_pin, or ?status=leaving.
+ * e.g. the HR home's "Fix them": /people/employees?missing=kra_pin, ?status=leaving or ?hiredFrom=2026-10-01.
  */
 
 /** Who to show: still here (leaving ones too), leaving (a date set), left (the API's "former"), or everyone. */
@@ -11,11 +11,13 @@ export type Status = (typeof listStatuses)[number]
 export const missingFilters = ['none', 'any', 'kra_pin', 'national_id', 'basic_pay', 'payment_account'] as const
 export type Missing = (typeof missingFilters)[number]
 
-export interface ListFilters { status: Status; missing: Missing | null }
+/** hiredFrom: who started on or after this day (YYYY-MM-DD). */
+export interface ListFilters { status: Status; missing: Missing | null; hiredFrom: string | null }
 
 /** The address's search as filters; anything unknown is left out. */
-export function readFilters(search: Record<string, unknown>): { status?: Status; missing?: Missing } {
+export function readFilters(search: Record<string, unknown>): { status?: Status; missing?: Missing; hiredFrom?: string } {
   const status = listStatuses.find(s => s === search.status)
   const missing = missingFilters.find(m => m === search.missing)
-  return { ...(status ? { status } : {}), ...(missing ? { missing } : {}) }
+  const hiredFrom = typeof search.hiredFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.hiredFrom) ? search.hiredFrom : undefined
+  return { ...(status ? { status } : {}), ...(missing ? { missing } : {}), ...(hiredFrom ? { hiredFrom } : {}) }
 }

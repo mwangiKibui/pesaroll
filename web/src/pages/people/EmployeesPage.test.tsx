@@ -164,6 +164,29 @@ it('filters by status and by what payroll still needs; the address can carry the
   await vi.waitFor(() => expect(listCalls(calls).at(-1)!.get('status')).toBe('former'))
 })
 
+it('?hiredFrom= (Home\'s "joined this month") shows who started since then, and clears', async () => {
+  const calls = signedIn(hr)
+  renderApp('/people/employees?hiredFrom=2026-10-01&status=leaving')
+  await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
+  await vi.waitFor(() => expect(listCalls(calls).at(-1)!.get('hiredFrom')).toBe('2026-10-01'))
+  expect(listCalls(calls).at(-1)!.get('status')).toBe('leaving')
+  expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('Leaving')
+  const chips = screen.getByRole('group', { name: 'Filtered by' })
+  expect(chips).toHaveTextContent('Joined since 1 Oct 2026')
+  await userEvent.click(within(chips).getByRole('button', { name: 'Clear filters' }))
+  await vi.waitFor(() => expect(listCalls(calls).at(-1)!.has('hiredFrom')).toBe(false))
+  expect(listCalls(calls).at(-1)!.get('status')).toBe('current')
+  expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('Current staff')
+})
+
+it('unknown values in the address are ignored', async () => {
+  const calls = signedIn(hr)
+  renderApp('/people/employees?missing=salary&status=fired&hiredFrom=yesterday')
+  await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
+  const last = listCalls(calls).at(-1)!
+  expect([last.get('status'), last.has('missing'), last.has('hiredFrom')]).toEqual(['current', false, false])
+})
+
 it('filters by department and payroll schedule from their columns', async () => {
   const calls = signedIn(hr, {
     'GET /api/structure/departments': () => json(200, [{ id: 'dp1', code: 'KIT-01', name: 'Kitchen', divisionId: null, parentId: null, allCompanies: true, companyIds: [] }]),

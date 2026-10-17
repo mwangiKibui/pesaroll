@@ -1311,7 +1311,8 @@
     "leaveGives": "What {{plan}} gives",
     "leaveBalancesTitle": "Balances and requests",
     "leaveBalancesSoon": "Leave balances and requests show here once leave tracking is on.",
-    "peopleIntro": "Everyone at the company chosen at the top. Search by name, staff number, phone, ID number or KRA PIN."
+    "peopleIntro": "Everyone at the company chosen at the top. Search by name, staff number, phone, ID number or KRA PIN.",
+    "joinedSince": "Joined since {{date}}"
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",

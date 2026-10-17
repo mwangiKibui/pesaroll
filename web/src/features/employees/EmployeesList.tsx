@@ -65,12 +65,13 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
   const [ownStatus, setOwnStatus] = useState<Status>('current')
   const status = listFilters?.status ?? ownStatus
   const missing = listFilters?.missing ?? null
+  const hiredSince = listFilters?.hiredFrom ?? null
   const changeFilters = (next: ListFilters) => {
     if (onFiltersChange) onFiltersChange(next)
     else setOwnStatus(next.status)
     setPage(1)
   }
-  const setStatus = (value: string) => changeFilters({ status: value as Status, missing })
+  const setStatus = (value: string) => changeFilters({ status: value as Status, missing, hiredFrom: hiredSince })
   // Each column sorts and filters on the server, across every page; any change goes back to page 1.
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null)
   const [filters, setFilters] = useState<ColumnFilters>(noFilters)
@@ -99,7 +100,7 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
     sort: sort?.key, dir: sort ? (sort.direction === 'ascending' ? 'asc' : 'desc') : undefined,
     departmentIds: filters.departments.length ? filters.departments : undefined, positionIds: filters.positions.length ? filters.positions : undefined,
     scheduleIds: filters.schedules.length ? filters.schedules : undefined, payFrom: amount(filters.payFrom), payTo: amount(filters.payTo),
-    hiredFrom: filters.hiredFrom || undefined, hiredTo: filters.hiredTo || undefined, includePay: showPay || undefined,
+    hiredFrom: hiredSince ?? (filters.hiredFrom || undefined), hiredTo: filters.hiredTo || undefined, includePay: showPay || undefined,
   }
   const employees = useQuery({
     queryKey: ['employees', query],
@@ -160,7 +161,7 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
     setPage(1)
   }
   const toggle = (list: string[], ids: string[], on: boolean) => (on ? [...new Set([...list, ...ids])] : list.filter(id => !ids.includes(id)))
-  const narrowed = !!term || status !== 'current' || !!missing || active.length > 0 || !shown.all
+  const narrowed = !!term || status !== 'current' || !!missing || !!hiredSince || active.length > 0 || !shown.all
   const header = (key: SortKey, label: string, filtered: boolean, panel?: ReactNode) => (
     <th scope="col" aria-sort={sort?.key === key ? sort.direction : undefined}>
       <span className="flex items-center gap-1">
@@ -170,13 +171,14 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
       </span>
     </th>
   )
-  const chips = (active.length > 0 || (!one && status !== 'current') || !shown.all) && (
+  const chips = (active.length > 0 || (!one && status !== 'current') || !!hiredSince || !shown.all) && (
     <span role="group" aria-label={t('employees.filteredBy')} className="flex flex-wrap items-center gap-2">
       {!shown.all && <Tag tone="brand">{t('employees.company')}</Tag>}
       {!one && status !== 'current' && <Tag tone="brand">{t(`employees.statuses.${status}`)}</Tag>}
+      {hiredSince && <Tag tone="brand">{t('employees.joinedSince', { date: formatDate(hiredSince) })}</Tag>}
       {active.map(a => <Tag key={a} tone="brand">{t(`employees.filtered.${a}`)}</Tag>)}
       <button type="button" className="text-label font-medium text-brand hover:underline"
-        onClick={() => { setFilters(noFilters); changeFilters({ status: 'current', missing: null }); setShown({ all: true, ids: [] }) }}>{t('bulk.clearFilters')}</button>
+        onClick={() => { setFilters(noFilters); changeFilters({ status: 'current', missing: null, hiredFrom: null }); setShown({ all: true, ids: [] }) }}>{t('bulk.clearFilters')}</button>
     </span>
   )
 
@@ -207,7 +209,7 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
             <div className="w-full sm:w-64">
               <SelectField label={t('employees.readyFilter')} placeholder={t('employees.readyFilterPlaceholder')} size="sm" value={missing ?? 'all'}
                 options={['all', ...missingFilters].map(k => ({ value: k, label: t(`employees.readyFilters.${k}`) }))}
-                onChange={value => changeFilters({ status, missing: value === 'all' ? null : value as Missing })} />
+                onChange={value => changeFilters({ status, missing: value === 'all' ? null : value as Missing, hiredFrom: hiredSince })} />
             </div>
           </>}
           {!one && companies.data.length > 1 && (
