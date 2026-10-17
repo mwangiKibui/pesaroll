@@ -58,7 +58,6 @@ export default function ComponentsPage() {
 
   return (
     <AppShell current="components" organization="Mama Oliech Group" person={{ name: 'Grace Wanjiru', detail: 'Mama Oliech Group' }}
-      setup={{ done: 8, total: 10, next: 'Payroll history', href: '#' }}
       topBar={<SearchBox label="Search Pesaroll" placeholder="Search, like payroll or leave" empty="Nothing you can open matches."
         search={q => [{ key: 'payroll', label: 'Payroll schedules', group: 'Organization', href: '#' }, { key: 'leave', label: 'Leave plans', group: 'Organization', href: '#' }]
           .filter(r => r.label.toLowerCase().includes(q.toLowerCase()))} onPick={() => {}} />}

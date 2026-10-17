@@ -8,18 +8,14 @@ import { useCompanies, useMe, useOrganization, useSignOut } from '../setup/hooks
 import { chooseCompany, CurrentCompanyContext, rememberCompany, rememberedCompany } from './company'
 import { featureOn } from './features'
 import { navigation, searchPages, visibleNavigation } from './navigation'
-import { usePermissions } from './permissions'
+import { permissions, usePermissions } from './permissions'
 
 /**
  * The organization portal's frame (OP-01) around a page: the shell with the person's sections (by
  * permission and flag), the company switcher (DASH-03), search and the person menu. Pages inside
  * read the chosen company with `useCurrentCompany()`.
  */
-export function OrgShell({ current, setup, children }: {
-  current: string
-  setup?: { done: number; total: number; next: string; href: string }
-  children: ReactNode
-}) {
+export function OrgShell({ current, children }: { current: string; children: ReactNode }) {
   const { t } = useTranslation()
   const router = useRouter()
   const me = useMe()
@@ -46,6 +42,8 @@ export function OrgShell({ current, setup, children }: {
     key: l.key, label: t(`nav.links.${l.key}`), href: l.href, group: t(`nav.sections.${sectionOf(l.key)}`),
   }))
 
+  // Back to company setup (the build steps), always one click away for people who set companies up.
+  const setupHref = navigation.flatMap(s => s.links).find(l => l.key === 'setup')?.href ?? '/setup/organization'
   const topBar = <>
     {(companies.data?.length ?? 0) > 0 && (
       <div className="w-40 flex-none sm:w-56">
@@ -56,6 +54,13 @@ export function OrgShell({ current, setup, children }: {
     <div className="hidden min-w-0 flex-1 sm:block">
       <SearchBox label={t('nav.search')} placeholder={t('nav.searchPlaceholder')} empty={t('nav.searchNone')} search={search} onPick={go} />
     </div>
+    {can(permissions.companies.manage) && (
+      <a href={setupHref} onClick={e => { e.preventDefault(); go(setupHref) }} aria-label={t('nav.links.setup')}
+        className="flex min-h-10 flex-none items-center gap-2 rounded-control border border-line px-3 text-label font-medium text-ink no-underline hover:bg-raised">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+        <span className="hidden sm:inline">{t('nav.links.setup')}</span>
+      </a>
+    )}
   </>
 
   const person = { name: me.data?.fullName ?? '', detail: organization.data?.name }
@@ -95,7 +100,7 @@ export function OrgShell({ current, setup, children }: {
   return (
     <CurrentCompanyContext.Provider value={{ companyId, setCompanyId }}>
       <AppShell sections={sections} current={current} organization={organization.data?.name ?? ''} topBar={topBar}
-        person={person} personMenu={personMenu} setup={setup} onNavigate={go}>
+        person={person} personMenu={personMenu} onNavigate={go}>
         {children}
       </AppShell>
     </CurrentCompanyContext.Provider>

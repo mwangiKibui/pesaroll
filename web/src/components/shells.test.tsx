@@ -82,11 +82,6 @@ it('the person at the bottom of the sidebar opens their menu, and Escape closes 
   expect(person).toHaveFocus()
 })
 
-it('shows the setup card while setup is incomplete', () => {
-  shell({ setup: { done: 8, total: 10, next: 'Payroll history', href: '/setup/payroll-history' } })
-  expect(screen.getByRole('link', { name: /Finish setting up · 8 of 10/ })).toHaveAttribute('href', '/setup/payroll-history')
-})
-
 it('the phone layout has a bottom bar with the current tab marked', async () => {
   const { container } = render(
     <PhoneShell company="Mama Oliech Restaurants" title="Habari, Peter" tabs={[{ key: 'home', label: 'Home', href: '/' }, { key: 'leave', label: 'Leave', href: '/leave' }]} current="home">

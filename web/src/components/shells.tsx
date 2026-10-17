@@ -18,8 +18,6 @@ interface AppShellProps {
   person: { name: string; detail?: string }
   /** The person's menu (how they use Pesaroll, Where you're signed in, Sign out); gets a function that closes it. */
   personMenu?: (close: () => void) => ReactNode
-  /** "Finish setting up" card while setup is incomplete. */
-  setup?: { done: number; total: number; next: string; href: string }
   /** Follows a link inside the app (no reload); links behave as plain links without it. */
   onNavigate?: (href: string) => void
   children: ReactNode
@@ -38,7 +36,7 @@ const chevron = (open: boolean) => (
  * person at the bottom opening their menu, and the page. On phones the sidebar slides in from the
  * Menu button over a scrim.
  */
-export function AppShell({ sections, current, organization, topBar, person, personMenu, setup, onNavigate, children }: AppShellProps) {
+export function AppShell({ sections, current, organization, topBar, person, personMenu, onNavigate, children }: AppShellProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   // Sections the person opened or closed themselves; others follow the current page.
@@ -97,13 +95,6 @@ export function AppShell({ sections, current, organization, topBar, person, pers
                 </div>
               )
             })}
-            {setup && (
-              <a href={setup.href} onClick={follow(setup.href)} className="mt-3.5 flex flex-col gap-1.5 rounded-card bg-sidebar-raise p-3 no-underline">
-                <span className="text-hint font-semibold text-sidebar-ink">{t('setup.progress', { done: setup.done, total: setup.total })}</span>
-                <span aria-hidden="true" className="block h-1.5 overflow-hidden rounded-full bg-sidebar"><span className="block h-1.5 bg-sidebar-accent" style={{ width: `${Math.round(setup.done / setup.total * 100)}%` }} /></span>
-                <span className="text-tag text-sidebar-muted">{t('setup.next', { step: setup.next })}</span>
-              </a>
-            )}
           </div>
           <PersonButton person={person} menu={personMenu} />
         </nav>

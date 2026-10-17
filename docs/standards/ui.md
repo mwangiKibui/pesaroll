@@ -52,10 +52,9 @@ Colour tokens (light / dark):
 ## Screens
 
 - **Organization portal layout (`OrgShell` in `web/src/app/OrgShell.tsx`, over `AppShell`; OP-01):**
-  - a white top bar: logo, organization, the **company switcher** (one company at a time, the person's first to start, remembered on their device) and **search** (pages the person may open, by name or the words people use)
+  - a white top bar: logo, organization, the **company switcher** (one company at a time, the person's first to start, remembered on their device) and **search** (pages the person may open, by name or the words people use), and a **Setup** button back to company setup for people who may manage companies (no progress or counts)
   - a green sidebar of sections (Pay · People · Leave · Organization · Reports · Admin) that open and close; the one holding the current page opens by itself, a closed one adds up its counts; current page highlighted
   - the person at the bottom of the sidebar opens their menu: how they use Pesaroll, Where you're signed in, Sign out
-  - a "Finish setting up · 8 of 10" card while setup is incomplete
   - on phones the sidebar slides in from the Menu button over a scrim
   - **Pages read the chosen company with `useCurrentCompany()`** (`web/src/app/company.ts`). The switcher holds one company; setup pages keep the multi-company `CompanySelect`.
   - **Navigation is data** (`web/src/app/navigation.ts`): each link names the permission it needs (an area's View) and, until its page is built, its feature flag. A link shows when the person may open it for the chosen company and its flag is on. A test fails if a link has neither a page nor a flag.

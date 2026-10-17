@@ -48,6 +48,21 @@ it('HR sees People and HR\'s organization pages, and no Pay', async () => {
   expect(within(nav()).getByRole('link', { name: 'Employees' })).toHaveAttribute('href', '/setup/employees')
 })
 
+it('Setup is a button in the top bar for people who manage companies, with no progress card', async () => {
+  signedIn()
+  renderApp('/')
+  const banner = await screen.findByRole('banner')
+  expect(await within(banner).findByRole('link', { name: 'Setup' })).toHaveAttribute('href', '/setup/organization')
+  expect(screen.queryByText(/Finish setting up/)).not.toBeInTheDocument()
+})
+
+it('HR has no Setup button', async () => {
+  signedIn({}, hr)
+  renderApp('/')
+  await within(await screen.findByRole('navigation', { name: 'Main' })).findByRole('button', { name: /People/ })
+  expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Setup' })).not.toBeInTheDocument()
+})
+
 it('the company switcher is remembered, and a group for one company shows its pages only there', async () => {
   signedIn({}, [grant('employees.view', [mombasa.id])])
   renderApp('/')

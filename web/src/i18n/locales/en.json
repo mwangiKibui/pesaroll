@@ -120,8 +120,6 @@
     "searchPlaceholder": "Your company name"
   },
   "setup": {
-    "progress": "Finish setting up · {{done}} of {{total}}",
-    "next": "Next: {{step}}",
     "stepsLabel": "Setup steps",
     "optional": "optional",
     "steps": {

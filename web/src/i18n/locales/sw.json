@@ -120,8 +120,6 @@
     "searchPlaceholder": "Jina la kampuni yako"
   },
   "setup": {
-    "progress": "Maliza kuweka mipangilio · {{done}} kati ya {{total}}",
-    "next": "Inayofuata: {{step}}",
     "stepsLabel": "Hatua za kuweka mipangilio",
     "optional": "si lazima",
     "steps": {
