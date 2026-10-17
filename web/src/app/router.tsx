@@ -2,6 +2,7 @@ import { createMemoryHistory, createRootRouteWithContext, createRoute, createRou
 import type { AuthClient } from '../auth/authClient'
 import type { Services } from './services'
 import { Loading } from '../components/feedback'
+import { NotReadyPage } from '../pages/NotReadyPage'
 
 // Each page loads only when visited, so phones download less up front.
 const SignInPage = lazyRouteComponent(() => import('../pages/SignInPage'))
@@ -117,6 +118,7 @@ export function createAppRouter(auth: AuthClient, api: Services['api'], initialP
     context: { auth, api },
     history: initialPath ? createMemoryHistory({ initialEntries: [initialPath] }) : undefined,
     defaultPendingComponent: () => <div className="mx-auto max-w-md p-8"><Loading /></div>,
+    defaultNotFoundComponent: NotReadyPage,
   })
 }
 

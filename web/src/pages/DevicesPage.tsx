@@ -22,7 +22,7 @@ const when = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric',
 /**
  * AUTH-05: where you're signed in. Every device with an active session, the one you're on marked;
  * sign out any one of them, or every other one at once. Signing out this one is signing out here.
- * The person menu of the app shell (OP-01) links here; until then, your name in the navbar does.
+ * The person menu of the app shell (OP-01) links here, and so does your name in the setup navbar.
  */
 export default function DevicesPage() {
   const { t } = useTranslation()

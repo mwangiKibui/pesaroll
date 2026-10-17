@@ -51,11 +51,15 @@ Colour tokens (light / dark):
 
 ## Screens
 
-- **Admin layout (`AppShell`):**
-  - dark sidebar grouped Home · People · Pay · Organization · Admin
-  - current page highlighted, counts as badges
+- **Organization portal layout (`OrgShell` in `web/src/app/OrgShell.tsx`, over `AppShell`; OP-01):**
+  - a white top bar: logo, organization, the **company switcher** (one company at a time, the person's first to start, remembered on their device) and **search** (pages the person may open, by name or the words people use)
+  - a green sidebar of sections (Pay · People · Leave · Organization · Reports · Admin) that open and close; the one holding the current page opens by itself, a closed one adds up its counts; current page highlighted
+  - the person at the bottom of the sidebar opens their menu: how they use Pesaroll, Where you're signed in, Sign out
   - a "Finish setting up · 8 of 10" card while setup is incomplete
-  - on phones the sidebar opens from a Menu button
+  - on phones the sidebar slides in from the Menu button over a scrim
+  - **Pages read the chosen company with `useCurrentCompany()`** (`web/src/app/company.ts`). The switcher holds one company; setup pages keep the multi-company `CompanySelect`.
+  - **Navigation is data** (`web/src/app/navigation.ts`): each link names the permission it needs (an area's View) and, until its page is built, its feature flag. A link shows when the person may open it for the chosen company and its flag is on. A test fails if a link has neither a page nor a flag.
+  - **Feature flags** (`web/src/app/features.ts`) hide unfinished pages and cards: off unless named in `VITE_FEATURES` (a comma list, or `all`). A task that finishes a page removes its flag.
 - **What a person can do (ACC-04):** `usePermissions().can(permissions.<area>.manage)` (from `web/src/app/permissions.ts`, over `/api/auth/me`) hides Add, Edit, Delete and Upload from people who can only view, and pages they can't view aren't linked. Check permission keys, never group names. Hiding is never the protection: the server checks every request.
 - **Setup and list pages:**
   1. A title phrased as a question ("Where do your people work?"), one sentence of help, and a skip link.

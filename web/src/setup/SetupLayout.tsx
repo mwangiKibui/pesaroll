@@ -27,7 +27,7 @@ export function SetupLayout({ current, done, hasOrganization, children }: {
     <div className="flex min-h-dvh flex-col bg-page">
       <Navbar>
         <div className="flex items-center gap-3">
-          {/* Where you're signed in (AUTH-05); the app shell's person menu will link there too. */}
+          {/* Where you're signed in (AUTH-05); the app shell's person menu links there too. */}
           {me.data && <Link to="/account/devices" className="hidden text-label text-muted no-underline hover:text-ink md:inline">{me.data.fullName}</Link>}
           <Button variant="secondary" onClick={signOut}>{t('nav.signOut')}</Button>
           {hasOrganization && (

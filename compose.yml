@@ -93,6 +93,8 @@ services:
     environment:
       API_URL: http://api:8080
       npm_config_store_dir: /pnpm-store
+      # Feature flags for unfinished pages (OP-01): VITE_FEATURES=all docker compose up -d web
+      VITE_FEATURES: ${VITE_FEATURES:-}
     ports: ["5173:5173"]
     volumes:
       - .:/src

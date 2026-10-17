@@ -52,6 +52,8 @@ it('home names the organization and the next setup step, and signing out ends th
   expect(screen.getAllByText('Next: Companies').length).toBeGreaterThan(0)
   expect(screen.getByRole('link', { name: /Finish setting up/ })).toHaveAttribute('href', '/setup/companies')
 
+  // Sign out is in the person menu, at the bottom of the sidebar (OP-01).
+  await userEvent.click(screen.getByRole('button', { name: /Wanjiru Kamau/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
   expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
@@ -86,4 +88,12 @@ it('someone who signed up and comes back later, still without an organization, i
   renderApp('/no-organization')
 
   expect(await screen.findByRole('heading', { name: "What's your organization called?" })).toBeInTheDocument()
+})
+
+it("a page that isn't built yet says so and links home", async () => {
+  fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
+  renderApp('/pay/runs')
+
+  expect(await screen.findByText("This page isn't ready yet.")).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Back to Home' })).toHaveAttribute('href', '/')
 })
