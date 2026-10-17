@@ -5,7 +5,7 @@ import { MultiSelectField } from '../components/MultiSelectField'
 import { BulkUpload } from '../components/BulkUpload'
 import { Drawer } from '../components/Drawer'
 import { Modal } from '../components/Modal'
-import { EmptyState, FormErrorBanner, Loading, Notice, Tag } from '../components/feedback'
+import { EmptyState, FormErrorBanner, Loading, Notice, ProgressBar, Tag } from '../components/feedback'
 import { Checkbox, RadioGroup, SelectField, Switch, TextField } from '../components/fields'
 import { NewPasswordField } from '../components/NewPasswordField'
 import { PasswordField } from '../components/PasswordField'
@@ -127,6 +127,7 @@ export default function ComponentsPage() {
           <FormErrorBanner error={{ code: 'AUTH-1001', message: "That email or phone number and password don't match.", reference: '7F3K92QD' }} />
           <Notice><strong>Oliech Catering Uganda needs a main location.</strong> Edit a location and tick "Main location for" to fix it.</Notice>
           <div className="flex flex-wrap gap-2"><Tag>All companies</Tag><Tag tone="brand">Main · KE</Tag><Tag tone="warning">Not saved yet</Tag><Tag tone="danger">Locked</Tag></div>
+          <div className="flex flex-col gap-1.5"><span className="text-label">37 of 40 ready for the 30 Oct pay run</span><ProgressBar label="Ready for payroll" value={37} max={40} /></div>
           <div><Button variant="secondary" onClick={() => toast.show('Location added')}>Show a toast</Button></div>
         </Section>
 

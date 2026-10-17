@@ -262,8 +262,41 @@
     "saved": "Jina la shirika limehifadhiwa"
   },
   "home": {
-    "title": "Karibu, {{name}}",
-    "next": "Inayofuata: {{step}}"
+    "title": "Habari, {{name}}",
+    "addEmployee": "Ongeza mfanyakazi",
+    "comingSoon": "Inakuja hivi karibuni.",
+    "people": {
+      "title": "Watu",
+      "employees": "Wafanyakazi",
+      "joined": "Walioanza mwezi huu",
+      "started": "Alianza {{date}}",
+      "noneJoined": "Hakuna aliyeanza mwezi huu bado"
+    },
+    "ready": {
+      "title": "Tayari kwa mishahara",
+      "summary": "{{ready}} kati ya {{total}} tayari kwa malipo ya {{date}}",
+      "summaryNoDate": "{{ready}} kati ya {{total}} tayari kwa malipo yajayo",
+      "everyone": "Kila mtu anaweza kulipwa",
+      "noPeople": "Ongeza watu wako uone nani anaweza kulipwa.",
+      "fix": "Rekebisha",
+      "fixLabel": "Rekebisha: {{what}}",
+      "missing": {
+        "kra_pin": "{{count}} bila PIN ya KRA",
+        "national_id": "{{count}} bila nambari ya kitambulisho",
+        "basic_pay": "{{count}} bila mshahara wa msingi",
+        "payment_account": "{{count}} bila njia ya kuwalipa",
+        "other": "{{count}} bila {{label}}"
+      }
+    },
+    "cards": {
+      "waitingForYou": "Vinavyokusubiri",
+      "offToday": "Walio likizo leo",
+      "whosOffThisWeek": "Walio likizo wiki hii",
+      "joinerChecklists": "Orodha za wanaojiunga",
+      "midYearReviews": "Tathmini za katikati ya mwaka",
+      "announcements": "Matangazo na tafiti",
+      "belowMinimumWage": "Mishahara chini ya kima cha chini"
+    }
   },
   "devices": {
     "title": "Ulipoingia",

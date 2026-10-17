@@ -10,6 +10,8 @@ export const features = [
   'leaveRequests', 'whosOff', 'holidays',
   'workflows', 'reports', 'settings', 'billing',
   'employeePortal',
+  // People → Employees in the app (OP-07, /people/employees): Home's "Fix them" and number links go there once it's on.
+  'employees',
 ] as const
 
 export type Feature = (typeof features)[number]

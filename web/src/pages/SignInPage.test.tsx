@@ -17,7 +17,7 @@ it('signs in with a phone number and goes home', async () => {
   await userEvent.type(screen.getByLabelText('Password'), 'Mombasa-raha-7')
   await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: /Habari, Wanjiru/ })).toBeInTheDocument()
   expect(screen.getAllByText('Mama Oliech Group').length).toBeGreaterThan(0)
   expect(calls.find(c => c.path === '/api/auth/signin')?.body).toEqual({ identifier: '0712 345 678', password: 'Mombasa-raha-7' })
 })

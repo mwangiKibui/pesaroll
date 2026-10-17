@@ -58,7 +58,7 @@ it('creates the organization, then keeps the name in the field to fix, with Orga
 
   await userEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Proceed to Org Dashboard' }))
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: /Habari, Wanjiru/ })).toBeInTheDocument()
 })
 
 it('with an organization, the step shows the name ready to fix, and saving a typo fix updates it', async () => {

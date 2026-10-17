@@ -496,7 +496,8 @@ const fieldOf = (name: string): FieldPath<Values> | null => {
   return (map[last] ?? (last in tabOf ? last : null)) as FieldPath<Values> | null
 }
 
-function EmployeeDrawer({ id, companies, defaultCompany, onClose }: {
+/** Add (id null) or edit an employee, in the wide drawer; also opened from Home (OP-30). */
+export function EmployeeDrawer({ id, companies, defaultCompany, onClose }: {
   id: string | null
   companies: Company[]
   defaultCompany: string
