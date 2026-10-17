@@ -73,7 +73,7 @@ public static class EmployeesEndpoints
 
         employees.MapGet("/", async (Guid? companyId, Guid[]? companyIds, string? search, string? status, int? page, int? pageSize,
             string? sort, string? dir, Guid[]? departmentIds, Guid[]? positionIds, Guid[]? scheduleIds, decimal? payFrom, decimal? payTo,
-            DateOnly? hiredFrom, DateOnly? hiredTo, bool? includePay, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
+            DateOnly? hiredFrom, DateOnly? hiredTo, string? missing, bool? includePay, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
             FieldEncryptor encryptor, CancellationToken ct) =>
         {
             var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
@@ -107,6 +107,8 @@ public static class EmployeesEndpoints
             query = status switch
             {
                 "former" => query.Where(e => e.ExitDate != null && e.ExitDate < today),
+                // Still here, with the date they leave set (OP-07); they are current too.
+                "leaving" => query.Where(e => e.ExitDate != null && e.ExitDate >= today),
                 "all" => query,
                 _ => query.Where(e => e.ExitDate == null || e.ExitDate >= today),
             };
@@ -128,6 +130,20 @@ public static class EmployeesEndpoints
                     || (e.NssfNo != null && EF.Functions.ILike(e.NssfNo, term)) || (e.ShaNo != null && EF.Functions.ILike(e.ShaNo, term))
                     || (idLookup != null && e.NationalIdLookup == idLookup) || (pinLookup != null && e.KraPinLookup == pinLookup));
             }
+
+            // What payroll still needs (the readiness keys), anything (any) or nothing (none); anything else is no filter.
+            query = missing switch
+            {
+                "kra_pin" => query.Where(e => e.KraPinEnc == null),
+                "national_id" => query.Where(e => e.NationalIdEnc == null),
+                "basic_pay" => query.Where(e => !e.Compensations.Any(c => c.ValidTo == null)),
+                "payment_account" => query.Where(e => !e.Accounts.Any(a => a.ValidTo == null)),
+                "any" => query.Where(e => e.KraPinEnc == null || e.NationalIdEnc == null
+                    || !e.Compensations.Any(c => c.ValidTo == null) || !e.Accounts.Any(a => a.ValidTo == null)),
+                "none" => query.Where(e => e.KraPinEnc != null && e.NationalIdEnc != null
+                    && e.Compensations.Any(c => c.ValidTo == null) && e.Accounts.Any(a => a.ValidTo == null)),
+                _ => query,
+            };
 
             if (hiredFrom is DateOnly from)
             {
@@ -707,7 +723,7 @@ public static class EmployeesEndpoints
         return from;
     }
 
-    private static readonly MissingItem KraPinMissing = new("employee", "kra_pin", new LocalizedText("KRA PIN", "PIN ya KRA"));
+    private static readonly MissingItem KraPinMissing = new("employee", "kra_pin", new LocalizedText("KRA PIN", "PIN ya KRA"), "PAY-2001");
     private static readonly MissingItem NationalIdMissing = new("employee", "national_id", new LocalizedText("ID number", "Nambari ya kitambulisho"));
     private static readonly MissingItem PayMissing = new("employee", "basic_pay", new LocalizedText("Basic pay", "Mshahara wa msingi"));
     private static readonly MissingItem AccountMissing = new("employee", "payment_account", new LocalizedText("Where to pay them", "Mahali pa kuwalipa"));

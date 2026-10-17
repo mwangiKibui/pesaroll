@@ -3323,6 +3323,7 @@ export interface paths {
                     payTo?: number | string;
                     hiredFrom?: string;
                     hiredTo?: string;
+                    missing?: string;
                     includePay?: boolean;
                 };
                 header?: never;
@@ -8030,6 +8031,7 @@ export interface components {
             kind: string;
             key: string;
             label: components["schemas"]["LocalizedText"];
+            code?: null | string;
         };
         MissingPersonResponse: {
             /** Format: uuid */

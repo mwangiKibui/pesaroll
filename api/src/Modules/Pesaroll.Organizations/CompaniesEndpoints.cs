@@ -26,8 +26,11 @@ public sealed record CountryResponse(
 
 public sealed record IndustryResponse(string Code, LocalizedText Name);
 
-/// <summary>One thing that stops this company's payroll from running (PAY-03 enforces it).</summary>
-public sealed record MissingItem(string Kind, string Key, LocalizedText Label);
+/// <summary>
+/// One thing that stops payroll from running (PAY-03 enforces it), with the error payroll will raise
+/// for it (`Code`, from the catalogue) when there is one, e.g. PAY-2001 for an employee's KRA PIN.
+/// </summary>
+public sealed record MissingItem(string Kind, string Key, LocalizedText Label, string? Code = null);
 
 public sealed record ReadinessResponse(bool Ready, IReadOnlyList<MissingItem> Missing);
 
