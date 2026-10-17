@@ -1,28 +1,24 @@
 import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
+import { OrgShell } from '../app/OrgShell'
 import { useServices } from '../app/services'
 import { Loading } from '../components/feedback'
-import { AppShell } from '../components/shells'
 import { Card } from '../components/TableCard'
-import { nextSetupPath, useMe, useOrganization, useSetupDone, useSignOut } from '../setup/hooks'
+import { useMe, useOrganization, useSetupDone } from '../setup/hooks'
 import { setupSteps } from '../setup/steps'
 
-/** Home for someone with an organization. Until the dashboard (DASH) exists: the setup progress. */
+/** Home for someone with an organization, in the organization portal's shell (OP-01). Until the HR home (OP-30): the setup progress. */
 export default function HomePage() {
   const { t } = useTranslation()
   const { auth } = useServices()
   const me = useMe()
-  const signOut = useSignOut()
   const organization = useOrganization()
   const doneSteps = useSetupDone(!!useSyncExternalStore(auth.subscribe, auth.organizationId))
-  const done = doneSteps.length
   // The first step not done yet (steps can be done out of order: earnings and deductions come with the first company).
   const next = t(`setup.steps.${(setupSteps.find(s => !doneSteps.includes(s.key)) ?? setupSteps[setupSteps.length - 1]).key}`)
 
   return (
-    <AppShell groups={[{ items: [{ key: 'home', label: t('nav.home'), href: '/' }] }]} current="home"
-      organization={organization.data?.name ?? ''} person={me.data?.fullName ?? ''} onSignOut={signOut}
-      setup={{ done, total: setupSteps.length, next, href: nextSetupPath(doneSteps) }}>
+    <OrgShell current="home">
       <div className="mx-auto flex max-w-3xl flex-col gap-5">
         {me.data && organization.data ? (
           <>
@@ -33,6 +29,6 @@ export default function HomePage() {
           </>
         ) : <Loading rows={3} />}
       </div>
-    </AppShell>
+    </OrgShell>
   )
 }

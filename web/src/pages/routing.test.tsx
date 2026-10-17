@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fakeApi, json, jwt, me, orgToken, token } from '../test/fakeApi'
@@ -43,15 +43,16 @@ it('with an organization, the old welcome page leads home', async () => {
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
 })
 
-it('home names the organization and the next setup step, and signing out ends the session', async () => {
+it('home names the next setup step, Setup is in the top bar, and signing out ends the session', async () => {
   const calls = fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
   renderApp('/')
 
   expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
-  expect(await screen.findByText('Finish setting up · 1 of 10')).toBeInTheDocument()
-  expect(screen.getAllByText('Next: Companies').length).toBeGreaterThan(0)
-  expect(screen.getByRole('link', { name: /Finish setting up/ })).toHaveAttribute('href', '/setup/companies')
+  expect(await screen.findByText('Next: Companies')).toBeInTheDocument()
+  expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Setup' })).toHaveAttribute('href', '/setup/organization')
 
+  // Sign out is in the person menu, at the bottom of the sidebar (OP-01).
+  await userEvent.click(screen.getByRole('button', { name: /Wanjiru Kamau/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
   expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
@@ -86,4 +87,12 @@ it('someone who signed up and comes back later, still without an organization, i
   renderApp('/no-organization')
 
   expect(await screen.findByRole('heading', { name: "What's your organization called?" })).toBeInTheDocument()
+})
+
+it("a page that isn't built yet says so and links home", async () => {
+  fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
+  renderApp('/pay/runs')
+
+  expect(await screen.findByText("This page isn't ready yet.")).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Back to Home' })).toHaveAttribute('href', '/')
 })

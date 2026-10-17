@@ -11,6 +11,7 @@ import { NewPasswordField } from '../components/NewPasswordField'
 import { PasswordField } from '../components/PasswordField'
 import { Money } from '../components/Money'
 import { AppShell, PhoneShell } from '../components/shells'
+import { SearchBox } from '../components/SearchBox'
 import { LanguageSwitch, ThemeSwitch } from '../components/switches'
 import { Pagination } from '../components/Pagination'
 import { Card, TableCard } from '../components/TableCard'
@@ -56,12 +57,15 @@ export default function ComponentsPage() {
   const [isDefault, setIsDefault] = useState(true)
 
   return (
-    <AppShell current="components" organization="Mama Oliech Group" person="Grace Wanjiru · CEO or Managing Director"
-      setup={{ done: 8, total: 10, next: 'Payroll history', href: '#' }}
-      groups={[
-        { items: [{ key: 'components', label: 'Components', href: '/dev/components' }] },
-        { label: 'People', items: [{ key: 'employees', label: 'Employees', href: '#' }, { key: 'leave', label: 'Leave', href: '#', badge: 2 }] },
-        { label: 'Pay', items: [{ key: 'payroll', label: 'Payroll', href: '#' }] },
+    <AppShell current="components" organization="Mama Oliech Group" person={{ name: 'Grace Wanjiru', detail: 'Mama Oliech Group' }}
+      topBar={<SearchBox label="Search Pesaroll" placeholder="Search, like payroll or leave" empty="Nothing you can open matches."
+        search={q => [{ key: 'payroll', label: 'Payroll schedules', group: 'Organization', href: '#' }, { key: 'leave', label: 'Leave plans', group: 'Organization', href: '#' }]
+          .filter(r => r.label.toLowerCase().includes(q.toLowerCase()))} onPick={() => {}} />}
+      personMenu={close => <Button variant="secondary" onClick={close}>Sign out</Button>}
+      sections={[
+        { key: 'main', links: [{ key: 'components', label: 'Components', href: '/dev/components' }] },
+        { key: 'people', label: 'People', links: [{ key: 'employees', label: 'Employees', href: '#' }, { key: 'leave', label: 'Leave', href: '#', badge: 2 }] },
+        { key: 'pay', label: 'Pay', links: [{ key: 'payroll', label: 'Payroll', href: '#', badge: 1 }] },
       ]}>
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
         <header className="flex flex-col gap-4">
