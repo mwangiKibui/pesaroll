@@ -707,21 +707,8 @@ public static class EmployeesEndpoints
         return from;
     }
 
-    private static readonly MissingItem KraPinMissing = new("employee", "kra_pin", new LocalizedText("KRA PIN", "PIN ya KRA"));
-    private static readonly MissingItem NationalIdMissing = new("employee", "national_id", new LocalizedText("ID number", "Nambari ya kitambulisho"));
-    private static readonly MissingItem PayMissing = new("employee", "basic_pay", new LocalizedText("Basic pay", "Mshahara wa msingi"));
-    private static readonly MissingItem AccountMissing = new("employee", "payment_account", new LocalizedText("Where to pay them", "Mahali pa kuwalipa"));
-
-    /// <summary>What payroll still needs for this person (PAY-03 enforces it).</summary>
-    internal static ReadinessResponse Readiness(Employee e)
-    {
-        var missing = new List<MissingItem>();
-        if (e.KraPinEnc is null) missing.Add(KraPinMissing);
-        if (e.NationalIdEnc is null) missing.Add(NationalIdMissing);
-        if (!e.Compensations.Any(c => c.ValidTo == null)) missing.Add(PayMissing);
-        if (!e.Accounts.Any(a => a.ValidTo == null)) missing.Add(AccountMissing);
-        return new ReadinessResponse(missing.Count == 0, missing);
-    }
+    /// <summary>What payroll still needs for this person (PAY-03 enforces it); the rules are shared with Home.</summary>
+    internal static ReadinessResponse Readiness(Employee e) => EmployeeReadiness.For(e);
 
     private static async Task<Employee> LoadAsync(OrganizationsDbContext db, Guid id, CancellationToken ct, bool tracked)
     {

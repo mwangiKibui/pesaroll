@@ -89,6 +89,7 @@ app.MapStructureEndpoints();
 app.MapStructureImportEndpoints();
 app.MapPayrollHistoryEndpoints();
 app.MapTeamEndpoints();
+app.MapHomeEndpoints();
 
 app.Run();
 
