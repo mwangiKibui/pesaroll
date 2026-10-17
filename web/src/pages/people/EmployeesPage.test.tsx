@@ -195,3 +195,41 @@ it('the profile shows a missing KRA PIN with its code', async () => {
   expect(pin).toHaveTextContent('Missing')
   expect(pin).toHaveTextContent('PAY-2001')
 })
+
+const openProfile = async () => {
+  await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
+  await userEvent.click(within(table()).getByRole('button', { name: 'View Wanjiru Kamau' }))
+  return screen.findByRole('dialog', { name: 'Wanjiru Kamau' })
+}
+const profile = { [`GET /api/employees/${wanjiru.id}`]: () => json(200, employeeDetail({ companyId: westlands.id, pay: null, account: null, payHidden: true })) }
+
+it('the profile\'s Leave tab shows their leave plan and what it gives; balances wait for leave tracking', async () => {
+  signedIn(hr, profile)
+  renderApp('/people/employees')
+  const view = await openProfile()
+  await userEvent.click(within(view).getByRole('tab', { name: 'Leave' }))
+  const leave = within(view).getByRole('tabpanel', { name: 'Leave' })
+  expect(await within(leave).findByText('Standard')).toBeInTheDocument()
+  const gives = within(leave).getByRole('list', { name: 'What Standard gives' })
+  expect(within(gives).getAllByRole('listitem').map(li => li.textContent).slice(0, 2))
+    .toEqual(['Annual leave: 1.75 days a month', 'Sick leave: 7 days a year + 7 on half pay'])
+  expect(within(leave).queryByRole('region', { name: 'Balances and requests' })).not.toBeInTheDocument()
+})
+
+it('with the leaveBalances flag on, the Leave tab has a place for balances and requests', async () => {
+  vi.stubEnv('VITE_FEATURES', 'leaveBalances')
+  signedIn(hr, profile)
+  renderApp('/people/employees')
+  const view = await openProfile()
+  await userEvent.click(within(view).getByRole('tab', { name: 'Leave' }))
+  expect(await within(view).findByRole('region', { name: 'Balances and requests' })).toBeInTheDocument()
+  vi.unstubAllEnvs()
+})
+
+it('without View on leave, the profile has no Leave tab', async () => {
+  signedIn(viewer, profile)
+  renderApp('/people/employees')
+  const view = await openProfile()
+  expect(within(view).getByRole('tab', { name: 'Job' })).toBeInTheDocument()
+  expect(within(view).queryByRole('tab', { name: 'Leave' })).not.toBeInTheDocument()
+})

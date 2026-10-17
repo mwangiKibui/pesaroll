@@ -1095,7 +1095,8 @@
       "ids": "Vitambulisho na nambari",
       "job": "Kazi",
       "pay": "Malipo",
-      "account": "Hulipwa kupitia"
+      "account": "Hulipwa kupitia",
+      "leave": "Likizo"
     },
     "firstName": "Jina la kwanza",
     "firstNamePlaceholder": "Jina la kwanza la mfanyakazi wako",
@@ -1306,7 +1307,10 @@
     "listStatuses": {"current": "Wafanyakazi wa sasa", "leaving": "Wanaoondoka", "former": "Walioondoka", "all": "Wote"},
     "readyFilter": "Tayari kwa mishahara",
     "readyFilterPlaceholder": "Chagua cha kuonyesha",
-    "readyFilters": {"all": "Wote", "none": "Tayari", "any": "Si tayari", "kra_pin": "Hakuna PIN ya KRA", "national_id": "Hakuna nambari ya kitambulisho", "basic_pay": "Hakuna mshahara wa msingi", "payment_account": "Hakuna mahali pa kuwalipa"}
+    "readyFilters": {"all": "Wote", "none": "Tayari", "any": "Si tayari", "kra_pin": "Hakuna PIN ya KRA", "national_id": "Hakuna nambari ya kitambulisho", "basic_pay": "Hakuna mshahara wa msingi", "payment_account": "Hakuna mahali pa kuwalipa"},
+    "leaveGives": "Kile {{plan}} kinatoa",
+    "leaveBalancesTitle": "Salio na maombi",
+    "leaveBalancesSoon": "Salio la likizo na maombi yataonekana hapa ufuatiliaji wa likizo ukiwashwa."
   },
   "pagination": {
     "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",
