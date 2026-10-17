@@ -22,6 +22,9 @@ export const formatDate = (iso: string) =>
   new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`))
 export const shortDate = (iso: string | null | undefined) => (!iso ? none : formatDate(iso))
 
+/** Today's date in Kenya as YYYY-MM-DD, the day the API counts someone as left. */
+export const todayInKenya = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' }).format(new Date())
+
 /** How the company pays people: the methods of its paying accounts (none before one is set), and its default's. */
 export function usePaysBy(companyId: string) {
   const { api } = useServices()

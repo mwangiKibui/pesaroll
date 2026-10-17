@@ -9,7 +9,7 @@ import { Checklist, FilterButton, SortButton } from '../../components/ColumnCont
 import { CompanySelect, type CompanySelection } from '../../components/CompanySelect'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState, Loading, Tag } from '../../components/feedback'
-import { RadioGroup, TextField } from '../../components/fields'
+import { RadioGroup, SelectField, TextField } from '../../components/fields'
 import { PlusIcon, UploadIcon } from '../../components/icons'
 import { Pagination } from '../../components/Pagination'
 import { matches } from '../../components/search'
@@ -19,7 +19,8 @@ import { formatMoney } from '../../lib/money'
 import { useCompanies, useSchedules, useStructure } from '../../setup/hooks'
 import { EmployeeDrawer } from './EmployeeForm'
 import { EmployeeView } from './EmployeeView'
-import { none, shortDate, type Row } from './shared'
+import { listStatuses, missingFilters, type ListFilters, type Missing, type Status } from './filters'
+import { formatDate, none, shortDate, todayInKenya, type Row } from './shared'
 import { UploadEmployees } from './UploadEmployees'
 
 const statuses = ['current', 'former', 'all'] as const
@@ -40,20 +41,36 @@ const activeFilters = (f: ColumnFilters) => [
  * several in a sheet of empty rows, or many from a spreadsheet, all held to the same checks by the
  * API. Used by the setup step (several companies, with the company selector) and People → Employees.
  */
-export function EmployeesList({ after }: { after?: ReactNode }) {
+export function EmployeesList({ after, companyId, filters: listFilters, onFiltersChange }: {
+  after?: ReactNode
+  /** The company chosen in the top bar (People → Employees); without it, every company with the company selector (setup). */
+  companyId?: string
+  /** Who to show and what's missing, when the page keeps them (in its address); otherwise kept here. */
+  filters?: ListFilters
+  onFiltersChange?: (filters: ListFilters) => void
+}) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const toast = useToast()
   const companies = useCompanies()
   const schedules = useSchedules()
   const { can } = usePermissions()
-  const canManage = can(permissions.employees.manage)
-  // ACC-05: pay is sent only when asked for (Show amounts), to people with View on pay.
-  const canViewPay = can(permissions.pay.view)
+  const one = companyId !== undefined
+  const canManage = can(permissions.employees.manage, companyId)
+  // ACC-05: pay is sent only when asked for (Show amounts), to people with View on pay (for this company, in the app).
+  const canViewPay = can(permissions.pay.view, companyId)
   const [showPay, setShowPay] = useState(false)
   const [shown, setShown] = useState<CompanySelection>({ all: true, ids: [] })
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<string>('current')
+  const [ownStatus, setOwnStatus] = useState<Status>('current')
+  const status = listFilters?.status ?? ownStatus
+  const missing = listFilters?.missing ?? null
+  const changeFilters = (next: ListFilters) => {
+    if (onFiltersChange) onFiltersChange(next)
+    else setOwnStatus(next.status)
+    setPage(1)
+  }
+  const setStatus = (value: string) => changeFilters({ status: value as Status, missing })
   // Each column sorts and filters on the server, across every page; any change goes back to page 1.
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ascending' | 'descending' } | null>(null)
   const [filters, setFilters] = useState<ColumnFilters>(noFilters)
@@ -78,7 +95,7 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
 
   const amount = (text: string) => (text.trim() && Number(text.replace(/[\s,]/g, '')) >= 0 ? Number(text.replace(/[\s,]/g, '')) : undefined)
   const query = {
-    search: term || undefined, status, page, pageSize, companyIds: shown.all ? undefined : shown.ids,
+    search: term || undefined, status, page, pageSize, companyId, companyIds: one || shown.all ? undefined : shown.ids, missing: missing ?? undefined,
     sort: sort?.key, dir: sort ? (sort.direction === 'ascending' ? 'asc' : 'desc') : undefined,
     departmentIds: filters.departments.length ? filters.departments : undefined, positionIds: filters.positions.length ? filters.positions : undefined,
     scheduleIds: filters.schedules.length ? filters.schedules : undefined, payFrom: amount(filters.payFrom), payTo: amount(filters.payTo),
@@ -132,7 +149,8 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
   // What the company selector shows: the structure and schedules those companies use.
   type Scoped = { allCompanies: boolean; companyIds: string[] }
   const scoped = <T extends Scoped>(items: T[] | undefined) =>
-    (items ?? []).filter(i => shown.all || i.allCompanies || i.companyIds.some(id => shown.ids.includes(id)))
+    (items ?? []).filter(i => (one ? i.allCompanies || i.companyIds.includes(companyId)
+      : shown.all || i.allCompanies || i.companyIds.some(id => shown.ids.includes(id))))
   // The Company column's filter is the company selector's choice: ticking in either changes both. One stays ticked.
   const pickCompanies = (ids: string[], on: boolean) => {
     const all = companies.data?.map(c => c.id) ?? []
@@ -142,31 +160,57 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
     setPage(1)
   }
   const toggle = (list: string[], ids: string[], on: boolean) => (on ? [...new Set([...list, ...ids])] : list.filter(id => !ids.includes(id)))
-  const narrowed = !!term || status !== 'current' || active.length > 0 || !shown.all
-  const header = (key: SortKey, label: string, filtered: boolean, panel: ReactNode) => (
+  const narrowed = !!term || status !== 'current' || !!missing || active.length > 0 || !shown.all
+  const header = (key: SortKey, label: string, filtered: boolean, panel?: ReactNode) => (
     <th scope="col" aria-sort={sort?.key === key ? sort.direction : undefined}>
       <span className="flex items-center gap-1">
         <span className="mr-auto">{label}</span>
         <SortButton label={label} direction={sort?.key === key ? sort.direction : null} onClick={() => sortBy(key)} />
-        <FilterButton label={label} active={filtered}>{panel}</FilterButton>
+        {panel && <FilterButton label={label} active={filtered}>{panel}</FilterButton>}
       </span>
     </th>
   )
-  const chips = (active.length > 0 || status !== 'current' || !shown.all) && (
+  const chips = (active.length > 0 || (!one && status !== 'current') || !shown.all) && (
     <span role="group" aria-label={t('employees.filteredBy')} className="flex flex-wrap items-center gap-2">
       {!shown.all && <Tag tone="brand">{t('employees.company')}</Tag>}
-      {status !== 'current' && <Tag tone="brand">{t(`employees.statuses.${status}`)}</Tag>}
+      {!one && status !== 'current' && <Tag tone="brand">{t(`employees.statuses.${status}`)}</Tag>}
       {active.map(a => <Tag key={a} tone="brand">{t(`employees.filtered.${a}`)}</Tag>)}
       <button type="button" className="text-label font-medium text-brand hover:underline"
-        onClick={() => { setFilters(noFilters); setStatus('current'); setShown({ all: true, ids: [] }); setPage(1) }}>{t('bulk.clearFilters')}</button>
+        onClick={() => { setFilters(noFilters); changeFilters({ status: 'current', missing: null }); setShown({ all: true, ids: [] }) }}>{t('bulk.clearFilters')}</button>
     </span>
   )
+
+  // People → Employees: when they joined, or when they leave or left (today in Kenya, as the API counts).
+  const today = todayInKenya()
+  const joinedOrLeaving = (r: Row) => !r.exitDate ? t('employees.joined', { date: formatDate(r.hireDate) })
+    : r.exitDate >= today ? t('employees.leavingOn', { date: formatDate(r.exitDate) }) : t('employees.left', { date: formatDate(r.exitDate) })
+  const readiness = (r: Row) => (r.readiness.ready ? <Tag tone="brand">{t('employees.ready')}</Tag> : (
+    <ul className="m-0 flex list-none flex-col items-start gap-1 p-0">
+      {r.readiness.missing.map(m => (
+        <li key={m.key} className="flex flex-wrap items-center gap-1.5">
+          <Tag tone="warning">{t(`employees.missing.${m.key}`, { defaultValue: m.label.en })}</Tag>
+          {m.code && <span className="font-mono text-hint text-muted">{m.code}</span>}
+        </li>
+      ))}
+    </ul>
+  ))
 
   return (
     <>
       {!ready ? <Loading rows={4} /> : <>
         <div className="flex flex-wrap items-end gap-3">
-          {companies.data.length > 1 && (
+          {one && <>
+            <div className="w-full sm:w-56">
+              <SelectField label={t('employees.listStatus')} placeholder={t('employees.listStatusPlaceholder')} size="sm" value={status}
+                options={listStatuses.map(k => ({ value: k, label: t(`employees.listStatuses.${k}`) }))} onChange={setStatus} />
+            </div>
+            <div className="w-full sm:w-64">
+              <SelectField label={t('employees.readyFilter')} placeholder={t('employees.readyFilterPlaceholder')} size="sm" value={missing ?? 'all'}
+                options={['all', ...missingFilters].map(k => ({ value: k, label: t(`employees.readyFilters.${k}`) }))}
+                onChange={value => changeFilters({ status, missing: value === 'all' ? null : value as Missing })} />
+            </div>
+          </>}
+          {!one && companies.data.length > 1 && (
             <div className="w-full max-w-sm">
               <CompanySelect label={t('employees.show')} value={shown} onChange={value => { setShown(value); setPage(1) }}
                 companies={companies.data.map(c => ({ id: c.id, name: c.legalName, code: c.countryCode }))} />
@@ -180,11 +224,11 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
             <table>
               <thead>
                 <tr>
-                  {header('company', t('employees.company'), !shown.all,
+                  {!one && header('company', t('employees.company'), !shown.all,
                     <Checklist values={companies.data.map(c => ({ value: c.id, label: c.legalName }))}
                       isTicked={id => shown.all || shown.ids.includes(id)} onTick={(ids, on) => pickCompanies(ids, on)} />)}
-                  {header('name', t('employees.employee'), status !== 'current', <>
-                    <RadioGroup label={t('employees.status')} name="employee-status" value={status} onChange={value => { setStatus(value); setPage(1) }}
+                  {header('name', t('employees.employee'), status !== 'current', one ? undefined : <>
+                    <RadioGroup label={t('employees.status')} name="employee-status" value={status} onChange={setStatus}
                       options={statuses.map(k => ({ value: k, label: t(`employees.statuses.${k}`) }))} />
                   </>)}
                   {header('job', t('employees.job'), filters.departments.length + filters.positions.length > 0, <>
@@ -206,7 +250,8 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
                     <TextField size="sm" inputMode="decimal" label={t('employees.payTo')} placeholder={t('employees.payToPlaceholder')} value={filters.payTo}
                       onChange={e => filter({ payTo: e.target.value })} />
                   </div>)}
-                  {header('hireDate', t('employees.hireDate'), !!(filters.hiredFrom || filters.hiredTo), <div className="grid grid-cols-2 gap-2">
+                  {one && <th scope="col">{t('employees.readyForPayroll')}</th>}
+                  {!one && header('hireDate', t('employees.hireDate'), !!(filters.hiredFrom || filters.hiredTo), <div className="grid grid-cols-2 gap-2">
                     <TextField size="sm" type="date" label={t('employees.hiredFrom')} placeholder={t('employees.hiredFromPlaceholder')} value={filters.hiredFrom}
                       onChange={e => filter({ hiredFrom: e.target.value })} />
                     <TextField size="sm" type="date" label={t('employees.hiredTo')} placeholder={t('employees.hiredToPlaceholder')} value={filters.hiredTo}
@@ -218,11 +263,12 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
               <tbody>
                 {employees.data.items.map(r => (
                   <tr key={r.id}>
-                    <td>{companies.data.find(c => c.id === r.companyId)?.legalName ?? none}</td>
+                    {!one && <td>{companies.data.find(c => c.id === r.companyId)?.legalName ?? none}</td>}
                     <td>
                       <span className="block font-medium text-ink">{r.name}</span>
                       <span className="block font-mono text-hint text-muted">{r.staffNo}</span>
-                      {r.exitDate && <span className="block text-hint text-muted">{t('employees.left', { date: r.exitDate })}</span>}
+                      {one ? <span className="block text-hint text-muted">{joinedOrLeaving(r)}</span>
+                        : r.exitDate && <span className="block text-hint text-muted">{t('employees.left', { date: r.exitDate })}</span>}
                     </td>
                     <td>{job(r) || none}</td>
                     <td>{schedules.data.find(s => s.id === r.payScheduleId)?.name ?? none}</td>
@@ -232,7 +278,7 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
                           ? <span className="tabular-nums">{t(`employees.per.${r.payBasis}`, { amount: formatMoney(r.basicAmount, { currency: r.currency ?? 'KES' }) })}</span>
                           : none}
                     </td>
-                    <td className="whitespace-nowrap tabular-nums">{shortDate(r.hireDate)}</td>
+                    {one ? <td>{readiness(r)}</td> : <td className="whitespace-nowrap tabular-nums">{shortDate(r.hireDate)}</td>}
                     <td className="whitespace-nowrap text-right">
                       <IconButton label={t('employees.view', { name: r.name })} onClick={() => setViewing(r.id)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -249,7 +295,7 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
                   </tr>
                 ))}
                 {employees.data.items.length === 0 && (
-                  <tr><td colSpan={7} className="text-center text-muted">{t('employees.noMatches')}</td></tr>
+                  <tr><td colSpan={one ? 6 : 7} className="text-center text-muted">{t('employees.noMatches')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -263,10 +309,10 @@ export function EmployeesList({ after }: { after?: ReactNode }) {
         )}
         {editing && (
           <EmployeeDrawer id={editing === 'new' ? null : editing} companies={companies.data}
-            defaultCompany={shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id} onClose={() => setEditing(null)} />
+            defaultCompany={companyId ?? (shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id)} onClose={() => setEditing(null)} />
         )}
         {bulk && <UploadEmployees adding={bulk === 'add'} companies={companies.data}
-          defaultCompany={shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id} onClose={() => setBulk(null)} />}
+          defaultCompany={companyId ?? (shown.all ? companies.data[0].id : shown.ids[0] ?? companies.data[0].id)} onClose={() => setBulk(null)} />}
       </>}
       <ConfirmDialog open={!!deleting} title={t('employees.deleteTitle', { name: deleting?.name })}
         confirmLabel={t('employees.deleteConfirm')} busy={busy} onConfirm={remove} onCancel={() => setDeleting(null)}>

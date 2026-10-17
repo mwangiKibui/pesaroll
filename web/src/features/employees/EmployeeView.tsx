@@ -5,7 +5,7 @@ import { permissions, usePermissions } from '../../app/permissions'
 import { useServices } from '../../app/services'
 import { Button } from '../../components/Button'
 import { Drawer } from '../../components/Drawer'
-import { Loading, Notice } from '../../components/feedback'
+import { Loading, Notice, Tag } from '../../components/feedback'
 import { TabPanel, Tabs } from '../../components/Tabs'
 import { formatMoney } from '../../lib/money'
 import { useBanks, useLeavePlans, useLocations, useSchedules, useStructure, type StructureItem } from '../../setup/hooks'
@@ -72,6 +72,13 @@ export function EmployeeView({ id, companies, onClose, onEdit }: { id: string; c
   const manager = managers.data?.find(m => m.id === e.job.lineManagerId)
   const bank = banks.data?.find(b => b.code === e.account?.bankCode)
   const branch = bank?.branches.find(b => b.code === e.account?.branchCode)
+  // A number payroll needs and doesn't have: Missing, with the error payroll will raise for it (PAY-2001 for the KRA PIN).
+  const missing = (key: string) => {
+    const item = e.readiness.missing.find(m => m.key === key)
+    return item ? <span className="flex flex-wrap items-center gap-1.5">
+      <Tag tone="warning">{t('employees.missingValue')}</Tag>{item.code && <span className="font-mono text-hint text-muted">{item.code}</span>}
+    </span> : null
+  }
   const fields: Record<TabKey, [string, ReactNode][]> = {
     personal: [
       [t('employees.staffNo'), e.staffNo], [t('employees.firstName'), e.firstName], [t('employees.middleName'), e.middleName], [t('employees.lastName'), e.lastName],
@@ -79,7 +86,8 @@ export function EmployeeView({ id, companies, onClose, onEdit }: { id: string; c
       [t('employees.dateOfBirth'), e.dateOfBirth], [t('employees.phone'), e.phone], [t('employees.email'), e.email], [t('employees.address'), e.address],
     ],
     ids: [
-      [t('employees.nationalId'), e.nationalIdMasked], [t('employees.kraPin'), e.kraPinMasked], [t('employees.nssfNo'), e.nssfNo], [t('employees.shaNo'), e.shaNo],
+      [t('employees.nationalId'), e.nationalIdMasked ?? missing('national_id')], [t('employees.kraPin'), e.kraPinMasked ?? missing('kra_pin')],
+      [t('employees.nssfNo'), e.nssfNo], [t('employees.shaNo'), e.shaNo],
     ],
     job: [
       [t('employees.company'), company.legalName], [t('employees.department'), nameOf(departments.data, e.job.departmentId)],

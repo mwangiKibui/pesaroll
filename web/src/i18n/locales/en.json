@@ -1291,7 +1291,22 @@
     "payItemRate": "{{rate}}% of basic pay",
     "payItemPayee": "to {{payee}}",
     "payItemPayeeMember": "to {{payee}}, member {{reference}}",
-    "payItemMember": "member {{reference}}"
+    "payItemMember": "member {{reference}}",
+    "peopleTitle": "Employees",
+    "noAccessTitle": "You can't see this company's employees",
+    "noAccessText": "Choose another company in the top bar, or ask an administrator for access.",
+    "joined": "Joined {{date}}",
+    "leavingOn": "Leaving on {{date}}",
+    "ready": "Ready",
+    "readyForPayroll": "Ready for payroll",
+    "missing": {"kra_pin": "No KRA PIN", "national_id": "No ID number", "basic_pay": "No basic pay", "payment_account": "Nowhere to pay them"},
+    "missingValue": "Missing",
+    "listStatus": "Status",
+    "listStatusPlaceholder": "Choose who to show",
+    "listStatuses": {"current": "Current staff", "leaving": "Leaving", "former": "Left", "all": "Everyone"},
+    "readyFilter": "Ready for payroll",
+    "readyFilterPlaceholder": "Choose what to show",
+    "readyFilters": {"all": "Everyone", "none": "Ready", "any": "Not ready", "kra_pin": "No KRA PIN", "national_id": "No ID number", "basic_pay": "No basic pay", "payment_account": "Nowhere to pay them"}
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",

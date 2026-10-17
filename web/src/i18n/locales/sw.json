@@ -1291,7 +1291,22 @@
     "payItemRate": "{{rate}}% ya mshahara wa msingi",
     "payItemPayee": "kwa {{payee}}",
     "payItemPayeeMember": "kwa {{payee}}, mwanachama {{reference}}",
-    "payItemMember": "mwanachama {{reference}}"
+    "payItemMember": "mwanachama {{reference}}",
+    "peopleTitle": "Wafanyakazi",
+    "noAccessTitle": "Huwezi kuona wafanyakazi wa kampuni hii",
+    "noAccessText": "Chagua kampuni nyingine juu, au omba msimamizi akupe ruhusa.",
+    "joined": "Alijiunga {{date}}",
+    "leavingOn": "Anaondoka {{date}}",
+    "ready": "Tayari",
+    "readyForPayroll": "Tayari kwa mishahara",
+    "missing": {"kra_pin": "Hakuna PIN ya KRA", "national_id": "Hakuna nambari ya kitambulisho", "basic_pay": "Hakuna mshahara wa msingi", "payment_account": "Hakuna mahali pa kuwalipa"},
+    "missingValue": "Haipo",
+    "listStatus": "Hali",
+    "listStatusPlaceholder": "Chagua wa kuonyesha",
+    "listStatuses": {"current": "Wafanyakazi wa sasa", "leaving": "Wanaoondoka", "former": "Walioondoka", "all": "Wote"},
+    "readyFilter": "Tayari kwa mishahara",
+    "readyFilterPlaceholder": "Chagua cha kuonyesha",
+    "readyFilters": {"all": "Wote", "none": "Tayari", "any": "Si tayari", "kra_pin": "Hakuna PIN ya KRA", "national_id": "Hakuna nambari ya kitambulisho", "basic_pay": "Hakuna mshahara wa msingi", "payment_account": "Hakuna mahali pa kuwalipa"}
   },
   "pagination": {
     "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",
