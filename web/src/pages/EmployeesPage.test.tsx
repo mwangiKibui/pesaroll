@@ -46,9 +46,9 @@ it('lists employees with their job, schedule, pay and start date', async () => {
   expect(await screen.findByRole('heading', { name: 'Who works for you?' })).toBeInTheDocument()
   const row = (await within(table()).findByText('Wanjiru Kamau')).closest('tr')!
   expect(within(table()).getAllByRole('columnheader').map(h => h.textContent))
-    .toEqual(['Company', 'Employee', 'Job', 'Payroll schedule', 'Basic pay', 'Start date', 'Actions'])
+    .toEqual(['Company', 'Employee', 'Position', 'Payroll schedule', 'Basic pay', 'Start date', 'Actions'])
   expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 6))
-    .toEqual(['Mama Oliech Restaurant Ltd', 'Wanjiru KamauEMP-01', 'Head cook · Kitchen', 'Monthly', 'KES 85,000 a month', '15 Jan 2024'])
+    .toEqual(['Mama Oliech Restaurant Ltd', 'Wanjiru KamauEMP-01', 'Head cookKitchen', 'Monthly', 'KES 85,000 a month', '15 Jan 2024'])
 
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search employees' }), 'wanj')
   const steps = screen.getByRole('list', { name: 'Setup steps' })
@@ -62,7 +62,7 @@ it('the table has pagination even when everyone fits on one page', async () => {
   const pages = await screen.findByRole('navigation', { name: 'Pages of Employees' })
   expect(within(pages).getByText('Showing 1–2 of 2')).toBeInTheDocument()
   expect(within(pages).getByText('Page 1 of 1')).toBeInTheDocument()
-  expect(within(pages).getByRole('combobox', { name: 'Rows per page' })).toHaveValue('20')
+  expect(within(pages).getByRole('combobox', { name: 'Rows per page' })).toHaveValue('10')
 })
 
 it('searches and pages on the server', async () => {
@@ -74,11 +74,11 @@ it('searches and pages on the server', async () => {
     },
   })
   renderApp('/setup/employees')
-  expect(await screen.findByText('Page 1 of 12')).toBeInTheDocument()   // 20 a page to start
-  expect(seen.some(q => q.includes('pageSize=20'))).toBe(true)
+  expect(await screen.findByText('Page 1 of 23')).toBeInTheDocument()   // 10 a page to start
+  expect(seen.some(q => q.includes('pageSize=10'))).toBe(true)
 
   await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
-  expect(await screen.findByText('Page 2 of 12')).toBeInTheDocument()
+  expect(await screen.findByText('Page 2 of 23')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('combobox', { name: 'Rows per page' }))
   await userEvent.click(screen.getByRole('option', { name: '100' }))
   expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument()
@@ -142,14 +142,14 @@ it('every column sorts and filters on the server; chips show what is filtered an
   await userEvent.click(sortPay())
   expect(within(table()).getByRole('columnheader', { name: /Basic pay/ })).not.toHaveAttribute('aria-sort')   // back to by name (already loaded)
 
-  // Job: departments and positions to tick.
-  await userEvent.click(within(table()).getByRole('button', { name: 'Filter Job' }))
-  const job = screen.getByRole('dialog', { name: 'Filter Job' })
-  await userEvent.click(within(job).getByRole('checkbox', { name: 'Kitchen' }))
-  await userEvent.click(within(job).getByRole('checkbox', { name: 'Head cook' }))
+  // Department: the dropdown above the table. Position: positions to tick in its column.
+  await userEvent.click(screen.getByRole('combobox', { name: 'Department' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Kitchen' }))
+  await userEvent.click(within(table()).getByRole('button', { name: 'Filter Position' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter Position' })).getByRole('checkbox', { name: 'Head cook' }))
   await vi.waitFor(() => expect([last().getAll('departmentIds'), last().getAll('positionIds')]).toEqual([['dp1'], ['ps1']]))
   await userEvent.keyboard('{Escape}')
-  expect(within(table()).getByRole('button', { name: 'Filter Job' })).toHaveAttribute('aria-pressed', 'true')
+  expect(within(table()).getByRole('button', { name: 'Filter Position' })).toHaveAttribute('aria-pressed', 'true')
 
   // Start date: a range.
   await userEvent.click(within(table()).getByRole('button', { name: 'Filter Start date' }))
@@ -164,13 +164,14 @@ it('every column sorts and filters on the server; chips show what is filtered an
   await userEvent.keyboard('{Escape}')
   expect(within(table()).getByRole('columnheader', { name: /Start date/ })).toBeInTheDocument()
 
-  expect(within(screen.getByRole('group', { name: 'Filtered by' })).getAllByText(/^(Job|Basic pay|Start date)$/).map(c => c.textContent))
-    .toEqual(['Job', 'Basic pay', 'Start date'])   // a chip per filtered column
+  expect(within(screen.getByRole('group', { name: 'Filtered by' })).getAllByText(/^(Department|Position|Basic pay|Start date)$/).map(c => c.textContent))
+    .toEqual(['Department', 'Position', 'Basic pay', 'Start date'])   // a chip per filter
   await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
   // Back to the unfiltered list (already loaded): no chips, no filter on.
   expect(await within(table()).findByText('Wanjiru Kamau')).toBeInTheDocument()
   expect(screen.queryByRole('group', { name: 'Filtered by' })).not.toBeInTheDocument()
-  for (const column of ['Job', 'Basic pay', 'Start date']) {
+  expect(screen.getByRole('combobox', { name: 'Department' })).toHaveValue('All departments')
+  for (const column of ['Position', 'Basic pay', 'Start date']) {
     expect(within(table()).getByRole('button', { name: `Filter ${column}` })).toHaveAttribute('aria-pressed', 'false')
   }
 })

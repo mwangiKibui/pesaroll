@@ -22,7 +22,7 @@ How every Pesaroll screen looks and is built: the admin app, the back office and
    - the pointer hand on everything clickable (buttons, menu items, options, radio and checkbox labels), "not allowed" on disabled buttons: set once in `web/src/index.css`, never per component
    - text contrast at least 4.5:1 in both themes (tested on the tokens)
    - every component test runs axe
-10. **Every table has pagination,** shown even when everything fits on one page: put `Pagination` in the `TableCard` footer. It reads "Showing 21–40 of 132", offers rows per page (10, 20, 50, 100; 20 to start), and Previous / Next with "Page 2 of 7"; changing rows per page goes back to page 1. Lists that can grow large page on the server (employees: `page` and `pageSize` in the request); setup lists page in the browser with `usePaged`. A search or filter goes back to page 1. The upload and add sheet pages its rows the same way (50, 100 or 200 a page; 100 to start).
+10. **Every table has pagination,** shown even when everything fits on one page: put `Pagination` in the `TableCard` footer. It reads "Showing 21–40 of 132", offers rows per page (10, 20, 50, 100; 20 to start, 10 for Employees), and Previous / Next with "Page 2 of 7"; changing rows per page goes back to page 1. Lists that can grow large page on the server (employees: `page` and `pageSize` in the request); setup lists page in the browser with `usePaged`. A search or filter goes back to page 1. The upload and add sheet pages its rows the same way (50, 100 or 200 a page; 100 to start).
 11. **Test-first:** component behaviour, keyboard use and axe, with Vitest and React Testing Library, next to the component (`Component.test.tsx`). Test what people see and do, not class names.
 
 ## Look

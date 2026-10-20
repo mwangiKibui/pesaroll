@@ -42,7 +42,7 @@ const table = () => screen.getByRole('region', { name: 'Employees' })
 const listCalls = (calls: ReturnType<typeof fakeApi>) =>
   calls.filter(c => c.method === 'GET' && c.path === '/api/employees').map(c => new URL(c.url).searchParams)
 
-it('opens in the shell for the top bar\'s company: name and staff number, job, schedule, pay, ready for payroll', async () => {
+it('opens in the shell for the top bar\'s company: name and staff number, position, schedule, pay, ready for payroll', async () => {
   const calls = signedIn(hr)
   const { container } = renderApp('/people/employees')
 
@@ -50,12 +50,15 @@ it('opens in the shell for the top bar\'s company: name and staff number, job, s
   expect(await within(screen.getByRole('navigation', { name: 'Main' })).findByRole('link', { name: 'Employees' })).toHaveAttribute('aria-current', 'page')
   const row = (await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')).closest('tr')!
   expect(within(table()).getAllByRole('columnheader').map(h => h.textContent))
-    .toEqual(['Employee', 'Job', 'Payroll schedule', 'Basic pay', 'Ready for payroll', 'Actions'])
+    .toEqual(['Employee', 'Position', 'Payroll schedule', 'Basic pay', 'Ready for payroll', 'Actions'])
   expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 5))
-    .toEqual(['Wanjiru KamauEMP-01Joined 15 Jan 2024', 'Head cook · Kitchen', 'Monthly', 'Hidden', 'Ready'])
+    .toEqual(['Wanjiru KamauEMP-01Joined 15 Jan 2024', 'Head cookKitchen', 'Monthly', 'Hidden', 'Ready'])
   // Only the top bar's company is asked for.
   await vi.waitFor(() => expect(listCalls(calls).at(-1)!.get('companyId')).toBe(westlands.id))
   expect(listCalls(calls).every(q => !q.has('companyIds'))).toBe(true)
+  // 10 a page to start.
+  expect(listCalls(calls).at(-1)!.get('pageSize')).toBe('10')
+  expect(within(screen.getByRole('navigation', { name: 'Pages of Employees' })).getByRole('combobox', { name: 'Rows per page' })).toHaveValue('10')
   await expectNoA11yViolations(container)
 })
 
@@ -187,16 +190,27 @@ it('unknown values in the address are ignored', async () => {
   expect([last.get('status'), last.has('missing'), last.has('hiredFrom')]).toEqual(['current', false, false])
 })
 
-it('filters by department and payroll schedule from their columns', async () => {
+it('filters by department above the table, and by payroll schedule from its column', async () => {
   const calls = signedIn(hr, {
-    'GET /api/structure/departments': () => json(200, [{ id: 'dp1', code: 'KIT-01', name: 'Kitchen', divisionId: null, parentId: null, allCompanies: true, companyIds: [] }]),
+    'GET /api/structure/departments': () => json(200, [
+      { id: 'dp1', code: 'KIT-01', name: 'Kitchen', divisionId: null, parentId: null, allCompanies: true, companyIds: [] },
+      { id: 'dp2', code: 'BAR-01', name: 'Bar', divisionId: null, parentId: null, allCompanies: true, companyIds: [] },
+    ]),
   })
   renderApp('/people/employees')
   await within(await screen.findByRole('region', { name: 'Employees' })).findByText('Wanjiru Kamau')
-  await userEvent.click(within(table()).getByRole('button', { name: 'Filter Job' }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter Job' })).getByRole('checkbox', { name: 'Kitchen' }))
+  const department = screen.getByRole('combobox', { name: 'Department' })
+  expect(department).toHaveValue('All departments')
+  await userEvent.click(department)
+  await userEvent.click(screen.getByRole('option', { name: 'Kitchen' }))
   await vi.waitFor(() => expect(listCalls(calls).at(-1)!.getAll('departmentIds')).toEqual(['dp1']))
-  await userEvent.keyboard('{Escape}')
+  expect(listCalls(calls).at(-1)!.get('page')).toBe('1')
+  await userEvent.click(department)
+  expect(within(screen.getByRole('group', { name: 'Filtered by' })).getByText('Department')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('option', { name: 'All departments' }))
+  // Back to everyone (already loaded): no department chip.
+  expect(department).toHaveValue('All departments')
+  expect(screen.queryByRole('group', { name: 'Filtered by' })).not.toBeInTheDocument()
   await userEvent.click(within(table()).getByRole('button', { name: 'Filter Payroll schedule' }))
   await userEvent.click(within(screen.getByRole('dialog', { name: 'Filter Payroll schedule' })).getByRole('checkbox', { name: 'Monthly' }))
   await vi.waitFor(() => expect(listCalls(calls).at(-1)!.getAll('scheduleIds')).toEqual([schedule().id]))

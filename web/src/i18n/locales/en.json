@@ -1277,7 +1277,8 @@
     "hiredToPlaceholder": "Your date",
     "noMatches": "No one matches the search and filters. Change or clear them.",
     "filtered": {
-      "job": "Job",
+      "department": "Department",
+      "position": "Position",
       "schedule": "Payroll schedule",
       "basicPay": "Basic pay",
       "hireDate": "Start date"
@@ -1300,19 +1301,39 @@
     "leavingOn": "Leaving on {{date}}",
     "ready": "Ready",
     "readyForPayroll": "Ready for payroll",
-    "missing": {"kra_pin": "No KRA PIN", "national_id": "No ID number", "basic_pay": "No basic pay", "payment_account": "Nowhere to pay them"},
+    "missing": {
+      "kra_pin": "No KRA PIN",
+      "national_id": "No ID number",
+      "basic_pay": "No basic pay",
+      "payment_account": "Nowhere to pay them"
+    },
     "missingValue": "Missing",
     "listStatus": "Status",
     "listStatusPlaceholder": "Choose who to show",
-    "listStatuses": {"current": "Current staff", "leaving": "Leaving", "former": "Left", "all": "Everyone"},
+    "listStatuses": {
+      "current": "Current staff",
+      "leaving": "Leaving",
+      "former": "Left",
+      "all": "Everyone"
+    },
     "readyFilter": "Ready for payroll",
     "readyFilterPlaceholder": "Choose what to show",
-    "readyFilters": {"all": "Everyone", "none": "Ready", "any": "Not ready", "kra_pin": "No KRA PIN", "national_id": "No ID number", "basic_pay": "No basic pay", "payment_account": "Nowhere to pay them"},
+    "readyFilters": {
+      "all": "Everyone",
+      "none": "Ready",
+      "any": "Not ready",
+      "kra_pin": "No KRA PIN",
+      "national_id": "No ID number",
+      "basic_pay": "No basic pay",
+      "payment_account": "Nowhere to pay them"
+    },
     "leaveGives": "What {{plan}} gives",
     "leaveBalancesTitle": "Balances and requests",
     "leaveBalancesSoon": "Leave balances and requests show here once leave tracking is on.",
     "peopleIntro": "Everyone at the company chosen at the top. Search by name, staff number, phone, ID number or KRA PIN.",
-    "joinedSince": "Joined since {{date}}"
+    "joinedSince": "Joined since {{date}}",
+    "allDepartments": "All departments",
+    "departmentFilterPlaceholder": "Choose a department"
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",
@@ -1619,7 +1640,10 @@
     "deleteGroupText": "Nobody can be put in this group any more. Who was in it stays in the history.",
     "groupDeleted": "{{name}} is deleted",
     "tabsLabel": "Team access",
-    "tabs": {"people": "People", "groups": "Groups"},
+    "tabs": {
+      "people": "People",
+      "groups": "Groups"
+    },
     "groupsTitle": "Groups",
     "canDo": "What it can do",
     "people": "People",
@@ -1627,12 +1651,21 @@
     "changeGroup": "Change what {{name}} can do",
     "groupTitle": "What {{name}} can do",
     "groupIntro": "Choose what everyone in this group can see and change, for the companies each person has. Manage includes View. Changes apply on their next click.",
-    "levels": {"none": "No access", "view": "View", "manage": "Manage"},
+    "levels": {
+      "none": "No access",
+      "view": "View",
+      "manage": "Manage"
+    },
     "levelPlaceholder": "Your choice",
     "backToStandard": "Back to standard",
     "groupUpdated": "{{name}}'s access is updated",
     "groupReset": "{{name}} is back to standard",
-    "access": {"everything": "Everything, including team access.", "manage": "Manage: {{areas}}", "view": "View: {{areas}}", "nothing": "Nothing to set up yet."},
+    "access": {
+      "everything": "Everything, including team access.",
+      "manage": "Manage: {{areas}}",
+      "view": "View: {{areas}}",
+      "nothing": "Nothing to set up yet."
+    },
     "changeInvitationTitle": "Change {{name}}'s invitation",
     "changeInvitation": "Change invitation",
     "invitationUpdated": "{{name}}'s invitation is updated",

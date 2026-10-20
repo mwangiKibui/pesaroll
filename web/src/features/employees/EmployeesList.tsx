@@ -31,7 +31,7 @@ type SortKey = 'company' | 'name' | 'job' | 'schedule' | 'basicPay' | 'hireDate'
 interface ColumnFilters { departments: string[]; positions: string[]; schedules: string[]; payFrom: string; payTo: string; hiredFrom: string; hiredTo: string }
 const noFilters: ColumnFilters = { departments: [], positions: [], schedules: [], payFrom: '', payTo: '', hiredFrom: '', hiredTo: '' }
 const activeFilters = (f: ColumnFilters) => [
-  ...(f.departments.length || f.positions.length ? ['job'] : []), ...(f.schedules.length ? ['schedule'] : []),
+  ...(f.departments.length ? ['department'] : []), ...(f.positions.length ? ['position'] : []), ...(f.schedules.length ? ['schedule'] : []),
   ...(f.payFrom || f.payTo ? ['basicPay'] : []), ...(f.hiredFrom || f.hiredTo ? ['hireDate'] : []),
 ]
 
@@ -85,7 +85,7 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
   const [jobSearch, setJobSearch] = useState('')
   const active = activeFilters(filters)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(10)
   const [editing, setEditing] = useState<string | 'new' | null>(null)
   const [viewing, setViewing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<Row | null>(null)
@@ -133,7 +133,6 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
     }
   }
 
-  const job = (r: Row) => [r.positionTitle, r.departmentName].filter(Boolean).join(' · ')
   // In the table's header line: the search, then Add and Upload.
   const actions = <>
     <div className="w-full sm:w-64">
@@ -201,6 +200,12 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
     <>
       {!ready ? <Loading rows={4} /> : <>
         <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full sm:w-56">
+            <SelectField label={t('employees.department')} placeholder={t('employees.departmentFilterPlaceholder')} size="sm"
+              value={filters.departments.length === 1 ? filters.departments[0] : 'all'}
+              options={[{ value: 'all', label: t('employees.allDepartments') }, ...scoped(departments.data).map(d => ({ value: d.id, label: d.name ?? '' }))]}
+              onChange={value => filter({ departments: value === 'all' ? [] : [value] })} />
+          </div>
           {one && <>
             <div className="w-full sm:w-56">
               <SelectField label={t('employees.listStatus')} placeholder={t('employees.listStatusPlaceholder')} size="sm" value={status}
@@ -233,13 +238,9 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
                     <RadioGroup label={t('employees.status')} name="employee-status" value={status} onChange={setStatus}
                       options={statuses.map(k => ({ value: k, label: t(`employees.statuses.${k}`) }))} />
                   </>)}
-                  {header('job', t('employees.job'), filters.departments.length + filters.positions.length > 0, <>
-                    <TextField type="search" size="sm" label={t('bulk.filterSearch', { column: t('employees.job') })} hideLabel placeholder={t('bulk.searchPlaceholder')}
+                  {header('job', t('employees.position'), filters.positions.length > 0, <>
+                    <TextField type="search" size="sm" label={t('bulk.filterSearch', { column: t('employees.position') })} hideLabel placeholder={t('bulk.searchPlaceholder')}
                       value={jobSearch} onChange={e => setJobSearch(e.target.value)} />
-                    <p className="m-0 text-hint font-medium text-muted">{t('employees.department')}</p>
-                    <Checklist values={scoped(departments.data).filter(d => matches(d.name ?? '', jobSearch)).map(d => ({ value: d.id, label: d.name ?? '' }))}
-                      isTicked={id => filters.departments.includes(id)} onTick={(ids, on) => filter({ departments: toggle(filters.departments, ids, on) })} />
-                    <p className="m-0 text-hint font-medium text-muted">{t('employees.position')}</p>
                     <Checklist values={scoped(positions.data).filter(p => matches(p.title ?? p.name ?? '', jobSearch)).map(p => ({ value: p.id, label: p.title ?? p.name ?? '' }))}
                       isTicked={id => filters.positions.includes(id)} onTick={(ids, on) => filter({ positions: toggle(filters.positions, ids, on) })} />
                   </>)}
@@ -272,7 +273,12 @@ export function EmployeesList({ after, companyId, filters: listFilters, onFilter
                       {one ? <span className="block text-hint text-muted">{joinedOrLeaving(r)}</span>
                         : r.exitDate && <span className="block text-hint text-muted">{t('employees.left', { date: r.exitDate })}</span>}
                     </td>
-                    <td>{job(r) || none}</td>
+                    <td>
+                      {r.positionTitle || r.departmentName ? <>
+                        <span className="block">{r.positionTitle ?? none}</span>
+                        {r.departmentName && <span className="block text-hint text-muted">{r.departmentName}</span>}
+                      </> : none}
+                    </td>
                     <td>{schedules.data.find(s => s.id === r.payScheduleId)?.name ?? none}</td>
                     <td className="whitespace-nowrap">
                       {r.payHidden ? <span className={canViewPay ? 'tabular-nums' : 'text-muted'}>{canViewPay ? t('employees.payDots') : t('employees.payHidden')}</span>
