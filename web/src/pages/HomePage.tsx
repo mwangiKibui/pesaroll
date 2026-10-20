@@ -38,10 +38,10 @@ function HomeCards() {
   const people = useHomePeople(companyId, shows('peopleNumbers') || shows('readyForPayroll'))
   const company = companies.data?.find(c => c.id === companyId)
 
-  if (!me.data) return <div className="mx-auto max-w-5xl"><Loading rows={3} /></div>
+  if (!me.data) return <Loading rows={3} />
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="m-0 font-display text-title text-ink">{t('home.title', { name: me.data.firstName })}</h1>
