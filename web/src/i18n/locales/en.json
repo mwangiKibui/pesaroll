@@ -262,7 +262,7 @@
     "saved": "Organization name saved"
   },
   "home": {
-    "title": "Habari, {{name}}",
+    "title": "Home",
     "addEmployee": "Add employee",
     "comingSoon": "Coming soon.",
     "people": {

@@ -21,9 +21,6 @@ export default function HomePage() {
   )
 }
 
-const longDate = () =>
-  new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }).format(new Date())
-
 /** Inside the shell, so it follows the company chosen in the top bar. */
 function HomeCards() {
   const { t } = useTranslation()
@@ -36,22 +33,14 @@ function HomeCards() {
   const cards = ready ? visibleCards(can, featureOn, companyId ?? undefined) : []
   const shows = (key: string) => cards.some(c => c.key === key)
   const people = useHomePeople(companyId, shows('peopleNumbers') || shows('readyForPayroll'))
-  const company = companies.data?.find(c => c.id === companyId)
 
   if (!me.data) return <Loading rows={3} />
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="m-0 font-display text-title text-ink">{t('home.title', { name: me.data.firstName })}</h1>
-          <p className="m-0 text-muted">
-            <span>{longDate()}</span>
-            {company && <><span aria-hidden="true"> · </span><span>{company.legalName}</span></>}
-          </p>
-        </div>
-        {shows('addEmployee') && <Button onClick={() => setAdding(true)}>{t('home.addEmployee')}</Button>}
-      </div>
+      {/* No greeting or date on screen; the page is titled for screen readers. */}
+      <h1 className="sr-only">{t('home.title')}</h1>
+      {shows('addEmployee') && <div className="flex justify-end"><Button onClick={() => setAdding(true)}>{t('home.addEmployee')}</Button></div>}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {cards.map(c => {

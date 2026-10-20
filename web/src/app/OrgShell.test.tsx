@@ -28,7 +28,7 @@ it('after setup, home opens in the shell: organization, company switcher, search
   signedIn()
   const { container } = renderApp('/')
 
-  expect(await screen.findByRole('heading', { name: /Habari, Wanjiru/ })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toBeInTheDocument()
   const banner = screen.getByRole('banner')
   expect(await within(banner).findByText('Mama Oliech Group')).toBeInTheDocument()
   expect(within(banner).getByRole('combobox', { name: 'Company' })).toHaveValue('Westlands Ltd')

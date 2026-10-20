@@ -43,14 +43,15 @@ function signedIn(permissions = hr, home: (companyId: string) => unknown = () =>
 const today = () => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' }).format(new Date())
 const card = (name: string) => screen.findByRole('region', { name })
 
-it('HR sees the greeting, the people numbers and Ready for payroll for the chosen company, and no amounts', async () => {
+it('HR sees the people numbers and Ready for payroll for the chosen company, no greeting or date, and no amounts', async () => {
   const calls = signedIn()
   const { container } = renderApp('/')
 
-  expect(await screen.findByRole('heading', { name: 'Habari, Mary' })).toBeInTheDocument()
+  // The page is titled Home for screen readers only; no greeting or date on screen.
+  expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toHaveClass('sr-only')
   const main = screen.getByRole('main')
-  expect(within(main).getByText(today())).toBeInTheDocument()
-  expect(within(main).getByText('Westlands Ltd')).toBeInTheDocument()
+  expect(within(main).queryByText(/Habari/)).not.toBeInTheDocument()
+  expect(within(main).queryByText(today())).not.toBeInTheDocument()
 
   const numbers = await card('People')
   expect(within(numbers).getByRole('link', { name: /40\s*Employees/ })).toBeInTheDocument()
@@ -83,7 +84,6 @@ it('every number follows the company chosen in the top bar', async () => {
 
   const ready = await card('Ready for payroll')
   expect(await within(ready).findByText('8 of 8 ready for the 30 Oct pay run')).toBeInTheDocument()
-  expect(within(screen.getByRole('main')).getByText('Mombasa Ltd')).toBeInTheDocument()
   expect(within(await card('People')).getByRole('link', { name: /8\s*Employees/ })).toBeInTheDocument()
   expect(calls.some(c => c.path === '/api/home/people' && c.url.includes(`companyId=${mombasa.id}`))).toBe(true)
 })
@@ -127,10 +127,10 @@ it('someone who may only view employees has no Add employee', async () => {
   expect(screen.queryByRole('button', { name: 'Add employee' })).not.toBeInTheDocument()
 })
 
-it('an Approver (no employees.view) sees the greeting and none of these cards', async () => {
+it('an Approver (no employees.view) sees none of these cards', async () => {
   const calls = signedIn([])
   renderApp('/')
-  expect(await screen.findByRole('heading', { name: 'Habari, Mary' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'People' })).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Ready for payroll' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Add employee' })).not.toBeInTheDocument()
@@ -140,7 +140,7 @@ it('an Approver (no employees.view) sees the greeting and none of these cards', 
 it('HR for one company sees the cards only while that company is chosen', async () => {
   const calls = signedIn([grant('employees.view', [mombasa.id])])
   renderApp('/')
-  await screen.findByRole('heading', { name: 'Habari, Mary' })
+  await screen.findByRole('heading', { name: 'Home', level: 1 })
   expect(screen.queryByRole('region', { name: 'Ready for payroll' })).not.toBeInTheDocument()
 
   await userEvent.click(within(screen.getByRole('banner')).getByRole('combobox', { name: 'Company' }))
