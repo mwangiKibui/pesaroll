@@ -7,7 +7,7 @@ import { usePermissions } from '../app/permissions'
 import { Button } from '../components/Button'
 import { Loading } from '../components/feedback'
 import { visibleCards } from '../features/home/cards'
-import { ComingCard, PeopleNumbersCard, ReadyForPayrollCard } from '../features/home/PeopleCards'
+import { ComingCard, EmployeesCard, JoinedThisMonthCard, ReadyForPayrollCard } from '../features/home/PeopleCards'
 import { useHomePeople } from '../features/home/useHomePeople'
 import { useCompanies, useMe } from '../setup/hooks'
 import { EmployeeDrawer } from '../features/employees/EmployeeForm'
@@ -32,7 +32,7 @@ function HomeCards() {
 
   const cards = ready ? visibleCards(can, featureOn, companyId ?? undefined) : []
   const shows = (key: string) => cards.some(c => c.key === key)
-  const people = useHomePeople(companyId, shows('peopleNumbers') || shows('readyForPayroll'))
+  const people = useHomePeople(companyId, shows('employees') || shows('joinedThisMonth') || shows('readyForPayroll'))
 
   if (!me.data) return <Loading rows={3} />
 
@@ -46,8 +46,9 @@ function HomeCards() {
         {cards.map(c => {
           switch (c.key) {
             case 'addEmployee': return null
-            case 'peopleNumbers': return <PeopleNumbersCard key={c.key} people={people.data} />
-            case 'readyForPayroll': return <ReadyForPayrollCard key={c.key} people={people.data} />
+            case 'employees': return <EmployeesCard key={c.key} people={people.data} />
+            case 'joinedThisMonth': return <JoinedThisMonthCard key={c.key} people={people.data} />
+            case 'readyForPayroll': return <div key={c.key} className="md:col-span-2"><ReadyForPayrollCard people={people.data} /></div>
             default: return <ComingCard key={c.key} cardKey={c.key} />
           }
         })}

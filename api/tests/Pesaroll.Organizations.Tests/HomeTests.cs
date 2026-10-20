@@ -9,7 +9,7 @@ namespace Pesaroll.Organizations.Tests;
 
 /// <summary>
 /// OP-30: the people numbers on HR's Home (GET /api/home/people) for the company chosen in the top
-/// bar: employees now, who joined this month (a few names), and readiness for the next pay run,
+/// bar: employees now, how many joined this month (no names), and readiness for the next pay run,
 /// grouped by what's missing with its code, the same as the Employees readiness. Counted in the
 /// database; no pay, no ID numbers; employees.view for that company or ACC-8001.
 /// </summary>
@@ -21,10 +21,9 @@ public sealed class HomeTests(OnboardingTests.Api api) : IClassFixture<Onboardin
     private sealed record Error(string Code, string Message);
     private sealed record Company(Guid Id, string LegalName);
     private sealed record Label(string En, string Sw);
-    private sealed record Joiner(Guid Id, string Name, DateOnly HireDate);
     private sealed record Missing(string Key, Label Label, string? Code, int People);
     private sealed record Readiness(DateOnly? NextPayDate, int Ready, int Total, List<Missing> Missing);
-    private sealed record People(Guid CompanyId, int Employees, int JoinedThisMonth, List<Joiner> Joined, Readiness Readiness);
+    private sealed record People(Guid CompanyId, int Employees, int JoinedThisMonth, Readiness Readiness);
     private sealed record RowMissing(string Key);
     private sealed record RowReadiness(bool Ready, List<RowMissing> Missing);
     private sealed record Row(Guid Id, RowReadiness Readiness);
@@ -123,7 +122,6 @@ public sealed class HomeTests(OnboardingTests.Api api) : IClassFixture<Onboardin
 
         var home = (await owner.GetFromJsonAsync<People>($"/api/home/people?companyId={westlands.Id}"))!;
         Assert.Equal((westlands.Id, 4, 1), (home.CompanyId, home.Employees, home.JoinedThisMonth));
-        Assert.Equal("Baraka Kamau", Assert.Single(home.Joined).Name);
         Assert.Equal((3, 4), (home.Readiness.Ready, home.Readiness.Total));
         var kra = Assert.Single(home.Readiness.Missing);
         Assert.Equal(("kra_pin", "KRA PIN", "PAY-2001", 1), (kra.Key, kra.Label.En, kra.Code, kra.People));
@@ -161,7 +159,7 @@ public sealed class HomeTests(OnboardingTests.Api api) : IClassFixture<Onboardin
     }
 
     [Fact]
-    public async Task Home_names_at_most_three_joiners_newest_first()
+    public async Task Home_counts_who_joined_this_month_up_to_today()
     {
         var (owner, _, westlands, _) = await Organization();
         var first = new DateOnly(Today.Year, Today.Month, 1);
@@ -174,13 +172,10 @@ public sealed class HomeTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         await Add(owner, westlands.Id, "Earlier", hireDate: first.AddDays(-1).ToString("yyyy-MM-dd"));
         var home = (await owner.GetFromJsonAsync<People>($"/api/home/people?companyId={westlands.Id}"))!;
         Assert.Equal((6, 5), (home.Employees, home.JoinedThisMonth));
-        Assert.Equal(3, home.Joined.Count);
-        Assert.Equal(home.Joined.OrderByDescending(j => j.HireDate).Select(j => j.HireDate), home.Joined.Select(j => j.HireDate));
-        Assert.Equal(days.Max(), home.Joined[0].HireDate);
     }
 
     [Fact]
-    public async Task Home_sends_no_pay_and_no_ID_numbers()
+    public async Task Home_sends_no_pay_no_ID_numbers_and_no_names()
     {
         var (owner, _, westlands, _) = await Organization();
         await Add(owner, westlands.Id, "Wanjiru", hireDate: Today.ToString("yyyy-MM-dd"));
@@ -209,7 +204,7 @@ public sealed class HomeTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         }
 
         Walk(JsonDocument.Parse(text).RootElement);
-        Assert.Equal(["code", "companyId", "employees", "en", "hireDate", "id", "joined", "joinedThisMonth", "key", "label", "missing", "name",
+        Assert.Equal(["code", "companyId", "employees", "en", "joinedThisMonth", "key", "label", "missing",
             "nextPayDate", "people", "ready", "readiness", "sw", "total"], names);
         Assert.DoesNotContain("85000", text);
     }

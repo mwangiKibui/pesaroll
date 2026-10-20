@@ -266,11 +266,8 @@
     "addEmployee": "Add employee",
     "comingSoon": "Coming soon.",
     "people": {
-      "title": "People",
       "employees": "Employees",
-      "joined": "Joined this month",
-      "started": "Started {{date}}",
-      "noneJoined": "No one yet this month"
+      "joined": "Joined this month"
     },
     "ready": {
       "title": "Ready for payroll",

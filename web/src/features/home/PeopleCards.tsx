@@ -25,34 +25,27 @@ function AppLink({ href, label, className = '', children }: { href: string; labe
   )
 }
 
-function Stat({ value, label, href }: { value: number; label: string; href: string | null }) {
-  const body = <><span className="block font-display text-title text-ink">{value}</span><span className="block text-label text-muted">{label}</span></>
-  return href ? <AppLink href={href} className="block">{body}</AppLink> : <div>{body}</div>
-}
-
-/** Employees now and who joined this month, with a few names. */
-export function PeopleNumbersCard({ people }: { people: HomePeople | undefined }) {
-  const { t } = useTranslation()
-  if (!people) return <Card title={t('home.people.title')}><Loading rows={2} /></Card>
-  const monthStart = `${kenyaToday().slice(0, 8)}01`
+/** A number card: its title, and the number linking to the matching People → Employees list. */
+function NumberCard({ title, value, href }: { title: string; value: number | undefined; href: string }) {
   return (
-    <Card title={t('home.people.title')}>
-      <div className="grid grid-cols-2 gap-4">
-        <Stat value={Number(people.employees)} label={t('home.people.employees')} href={employeesHref()} />
-        <Stat value={Number(people.joinedThisMonth)} label={t('home.people.joined')} href={employeesHref(`?hiredFrom=${monthStart}`)} />
-      </div>
-      {people.joined.length > 0 ? (
-        <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-          {people.joined.map(j => (
-            <li key={j.id} className="flex items-center justify-between gap-3 text-label">
-              <span className="truncate text-ink">{j.name}</span>
-              <span className="flex-none text-muted">{t('home.people.started', { date: shortDate(j.hireDate) })}</span>
-            </li>
-          ))}
-        </ul>
-      ) : <p className="m-0 text-label text-muted">{t('home.people.noneJoined')}</p>}
+    <Card title={title}>
+      {value === undefined ? <Loading rows={1} />
+        : <AppLink href={href} label={`${value} ${title}`} className="block font-display text-title text-ink">{value}</AppLink>}
     </Card>
   )
+}
+
+/** Employees now (OP-30). */
+export function EmployeesCard({ people }: { people: HomePeople | undefined }) {
+  const { t } = useTranslation()
+  return <NumberCard title={t('home.people.employees')} value={people && Number(people.employees)} href={employeesHref()} />
+}
+
+/** How many joined this month, up to today (OP-30); no names. */
+export function JoinedThisMonthCard({ people }: { people: HomePeople | undefined }) {
+  const { t } = useTranslation()
+  return <NumberCard title={t('home.people.joined')} value={people && Number(people.joinedThisMonth)}
+    href={employeesHref(`?hiredFrom=${kenyaToday().slice(0, 8)}01`)} />
 }
 
 /** How many can be paid in the next pay run, and what the rest lack, one line per detail with its code. */

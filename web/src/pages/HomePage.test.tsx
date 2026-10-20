@@ -17,10 +17,6 @@ const mary = { ...me, firstName: 'Mary', lastName: 'Wambui', fullName: 'Mary Wam
 const label = (en: string) => ({ en, sw: en })
 const people = (overrides: Record<string, unknown> = {}) => ({
   companyId: westlands.id, employees: 40, joinedThisMonth: 2,
-  joined: [
-    { id: 'e1', name: 'Baraka Mwangi', hireDate: '2026-10-12' },
-    { id: 'e2', name: 'Achieng Otieno', hireDate: '2026-10-01' },
-  ],
   readiness: {
     nextPayDate: '2026-10-30', ready: 37, total: 40,
     missing: [
@@ -53,11 +49,10 @@ it('HR sees the people numbers and Ready for payroll for the chosen company, no 
   expect(within(main).queryByText(/Habari/)).not.toBeInTheDocument()
   expect(within(main).queryByText(today())).not.toBeInTheDocument()
 
-  const numbers = await card('People')
-  expect(within(numbers).getByRole('link', { name: /40\s*Employees/ })).toBeInTheDocument()
-  expect(within(numbers).getByText('Joined this month')).toBeInTheDocument()
-  expect(within(numbers).getByText('2')).toBeInTheDocument()
-  expect(within(numbers).getByText('Baraka Mwangi')).toBeInTheDocument()
+  // Two number cards, no names or start dates.
+  expect(within(await card('Employees')).getByRole('link', { name: /^40/ })).toBeInTheDocument()
+  expect(within(await card('Joined this month')).getByRole('link', { name: /^2/ })).toBeInTheDocument()
+  expect(within(main).queryByText(/^Started /)).not.toBeInTheDocument()
 
   const ready = await card('Ready for payroll')
   expect(within(ready).getByText('37 of 40 ready for the 30 Oct pay run')).toBeInTheDocument()
@@ -74,7 +69,7 @@ it('HR sees the people numbers and Ready for payroll for the chosen company, no 
 
 it('every number follows the company chosen in the top bar', async () => {
   const calls = signedIn(hr, id => id === mombasa.id
-    ? people({ companyId: mombasa.id, employees: 8, joinedThisMonth: 0, joined: [], readiness: { nextPayDate: '2026-10-30', ready: 8, total: 8, missing: [] } })
+    ? people({ companyId: mombasa.id, employees: 8, joinedThisMonth: 0, readiness: { nextPayDate: '2026-10-30', ready: 8, total: 8, missing: [] } })
     : people())
   renderApp('/')
   expect(await within(await card('Ready for payroll')).findByText('37 of 40 ready for the 30 Oct pay run')).toBeInTheDocument()
@@ -84,7 +79,7 @@ it('every number follows the company chosen in the top bar', async () => {
 
   const ready = await card('Ready for payroll')
   expect(await within(ready).findByText('8 of 8 ready for the 30 Oct pay run')).toBeInTheDocument()
-  expect(within(await card('People')).getByRole('link', { name: /8\s*Employees/ })).toBeInTheDocument()
+  expect(within(await card('Employees')).getByRole('link', { name: /^8/ })).toBeInTheDocument()
   expect(calls.some(c => c.path === '/api/home/people' && c.url.includes(`companyId=${mombasa.id}`))).toBe(true)
 })
 
@@ -96,11 +91,11 @@ it('when everyone can be paid, Ready for payroll says so', async () => {
   expect(within(ready).queryByRole('link', { name: /Fix them/ })).not.toBeInTheDocument()
 })
 
-it('without a payroll schedule it speaks of the next pay run, and nobody joined shows no names', async () => {
-  signedIn(hr, () => people({ joinedThisMonth: 0, joined: [], readiness: { nextPayDate: null, ready: 37, total: 40, missing: [] } }))
+it('without a payroll schedule it speaks of the next pay run, and nobody joined shows 0', async () => {
+  signedIn(hr, () => people({ joinedThisMonth: 0, readiness: { nextPayDate: null, ready: 37, total: 40, missing: [] } }))
   renderApp('/')
   expect(await within(await card('Ready for payroll')).findByText('37 of 40 ready for the next pay run')).toBeInTheDocument()
-  expect(within(await card('People')).getByText('No one yet this month')).toBeInTheDocument()
+  expect(within(await card('Joined this month')).getByRole('link', { name: /^0/ })).toBeInTheDocument()
 })
 
 it('Fix them opens People → Employees filtered to the people missing each detail; the numbers link there too', async () => {
@@ -109,8 +104,8 @@ it('Fix them opens People → Employees filtered to the people missing each deta
   const ready = await card('Ready for payroll')
   expect(await within(ready).findByRole('link', { name: 'Fix them: 3 without a KRA PIN' })).toHaveAttribute('href', '/people/employees?missing=kra_pin')
   expect(within(ready).getByRole('link', { name: 'Fix them: 1 without basic pay' })).toHaveAttribute('href', '/people/employees?missing=basic_pay')
-  expect(within(await card('People')).getByRole('link', { name: /40\s*Employees/ })).toHaveAttribute('href', '/people/employees')
-  expect(within(await card('People')).getByRole('link', { name: /Joined this month/ }).getAttribute('href')).toMatch(/^\/people\/employees\?hiredFrom=\d{4}-\d{2}-01$/)
+  expect(within(await card('Employees')).getByRole('link', { name: /^40/ })).toHaveAttribute('href', '/people/employees')
+  expect(within(await card('Joined this month')).getByRole('link', { name: /^2/ }).getAttribute('href')).toMatch(/^\/people\/employees\?hiredFrom=\d{4}-\d{2}-01$/)
 })
 
 it('people who may add employees get Add employee, which opens the form for the chosen company', async () => {
@@ -131,7 +126,8 @@ it('an Approver (no employees.view) sees none of these cards', async () => {
   const calls = signedIn([])
   renderApp('/')
   expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toBeInTheDocument()
-  expect(screen.queryByRole('region', { name: 'People' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'Employees' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'Joined this month' })).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Ready for payroll' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Add employee' })).not.toBeInTheDocument()
   expect(calls.some(c => c.path === '/api/home/people')).toBe(false)

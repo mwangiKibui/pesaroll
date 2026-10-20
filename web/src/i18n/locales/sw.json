@@ -266,11 +266,8 @@
     "addEmployee": "Ongeza mfanyakazi",
     "comingSoon": "Inakuja hivi karibuni.",
     "people": {
-      "title": "Watu",
       "employees": "Wafanyakazi",
-      "joined": "Walioanza mwezi huu",
-      "started": "Alianza {{date}}",
-      "noneJoined": "Hakuna aliyeanza mwezi huu bado"
+      "joined": "Walioanza mwezi huu"
     },
     "ready": {
       "title": "Tayari kwa mishahara",

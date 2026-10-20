@@ -9,8 +9,6 @@ using Pesaroll.Shared.Tenancy;
 namespace Pesaroll.Organizations;
 
 /// <summary>Someone who started this month: name and start date only.</summary>
-public sealed record HomeJoiner(Guid Id, string Name, DateOnly HireDate);
-
 /// <summary>One detail payroll needs, how many people lack it, and its catalogue code when it has one (PAY-2001).</summary>
 public sealed record HomeMissing(string Key, LocalizedText Label, string? Code, int People);
 
@@ -18,17 +16,15 @@ public sealed record HomeMissing(string Key, LocalizedText Label, string? Code, 
 public sealed record HomeReadiness(DateOnly? NextPayDate, int Ready, int Total, IReadOnlyList<HomeMissing> Missing);
 
 /// <summary>Home's people numbers for one company (OP-30). No pay, no ID numbers.</summary>
-public sealed record HomePeople(Guid CompanyId, int Employees, int JoinedThisMonth, IReadOnlyList<HomeJoiner> Joined, HomeReadiness Readiness);
+public sealed record HomePeople(Guid CompanyId, int Employees, int JoinedThisMonth, HomeReadiness Readiness);
 
 /// <summary>
 /// OP-30: the numbers on HR's Home for the company chosen in the top bar. Everything is counted in
 /// the database (never loading every employee) with the same rules as the Employees readiness
-/// (<see cref="EmployeeReadiness"/>); at most <see cref="JoinedShown"/> names come back.
+/// (<see cref="EmployeeReadiness"/>). Counts only: no names, no pay, no ID numbers.
 /// </summary>
 public static class HomeEndpoints
 {
-    public const int JoinedShown = 3;
-
     public static IEndpointRouteBuilder MapHomeEndpoints(this IEndpointRouteBuilder app)
     {
         var home = app.MapGroup("/api/home").WithTags("Home");
@@ -48,13 +44,7 @@ public static class HomeEndpoints
             // Current employees, as the Employees list counts them.
             var current = db.Employees.AsNoTracking().Where(e => e.CompanyId == companyId && (e.ExitDate == null || e.ExitDate >= today));
             var employees = await current.CountAsync(ct);
-            var joinedQuery = current.Where(e => e.HireDate >= monthStart && e.HireDate <= today);
-            var joinedThisMonth = await joinedQuery.CountAsync(ct);
-            var joined = await joinedQuery
-                .OrderByDescending(e => e.HireDate).ThenBy(e => e.FirstName).ThenBy(e => e.LastName)
-                .Take(JoinedShown)
-                .Select(e => new HomeJoiner(e.Id, e.FirstName + " " + e.LastName, e.HireDate))
-                .ToListAsync(ct);
+            var joinedThisMonth = await current.CountAsync(e => e.HireDate >= monthStart && e.HireDate <= today, ct);
 
             var ready = await current.CountAsync(EmployeeReadiness.Ready, ct);
             var missing = new List<HomeMissing>();
@@ -74,7 +64,7 @@ public static class HomeEndpoints
             DateOnly? next = schedule is null ? null
                 : PayDates.For(schedule.Frequency, schedule.PayDayRule, schedule.PayDay, schedule.PayWeekday, schedule.FirstPayDate, today, count: 1)[0];
 
-            return Results.Ok(new HomePeople(companyId, employees, joinedThisMonth, joined,
+            return Results.Ok(new HomePeople(companyId, employees, joinedThisMonth,
                 new HomeReadiness(next, ready, employees, missing.OrderByDescending(m => m.People).ToList())));
         }).Produces<HomePeople>().Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(Permissions.EmployeesView);
 

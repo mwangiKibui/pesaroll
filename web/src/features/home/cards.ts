@@ -12,7 +12,8 @@ export interface HomeCard { key: string; permission?: string; feature?: Feature 
 const p = permissions
 export const homeCards: HomeCard[] = [
   { key: 'addEmployee', permission: p.employees.manage },
-  { key: 'peopleNumbers', permission: p.employees.view },
+  { key: 'employees', permission: p.employees.view },
+  { key: 'joinedThisMonth', permission: p.employees.view },
   { key: 'readyForPayroll', permission: p.employees.view },
   // Later cards, each added by the task that brings its data.
   { key: 'waitingForYou', feature: 'approvals' },

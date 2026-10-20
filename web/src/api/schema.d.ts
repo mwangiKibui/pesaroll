@@ -7812,13 +7812,6 @@ export interface components {
             allCompanies: null | boolean;
             companyIds: null | string[];
         };
-        HomeJoiner: {
-            /** Format: uuid */
-            id: string;
-            name: string;
-            /** Format: date */
-            hireDate: string;
-        };
         HomeMissing: {
             key: string;
             label: components["schemas"]["LocalizedText"];
@@ -7833,7 +7826,6 @@ export interface components {
             employees: number | string;
             /** Format: int32 */
             joinedThisMonth: number | string;
-            joined: components["schemas"]["HomeJoiner"][];
             readiness: components["schemas"]["HomeReadiness"];
         };
         HomeReadiness: {
