@@ -21,7 +21,7 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
     private sealed record Schedule(Guid Id, string Name, List<Guid> DefaultFor);
     private sealed record Plan(Guid Id, string Name, List<Guid> DefaultFor);
     private sealed record Location(Guid Id, string Name, List<Guid> MainFor);
-    private sealed record Missing(string Key);
+    private sealed record Missing(string Key, string? Code = null);
     private sealed record Readiness(bool Ready, List<Missing> Missing);
     private sealed record Job(Guid? PositionId, Guid? DepartmentId, Guid? UnitId, Guid? LocationId, Guid? LineManagerId, Guid PayScheduleId,
         Guid LeavePlanId, string EmploymentType, DateOnly? ContractEnd);
@@ -274,6 +274,42 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
         Assert.Equal(3, combined.Total);
         Assert.Equal(["Akinyi"], combined.Items.Select(r => r.Name.Split(' ')[0]));   // Baraka and Esther are on page 1
         Assert.Equal(DateOnly.Parse("2021-03-01"), combined.Items[0].HireDate);
+    }
+
+    [Fact]
+    public async Task People_leaving_and_what_payroll_still_needs_filter_the_list()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+        await Add(client, Full(company.Id));   // Wanjiru: ready for payroll
+        await Add(client, new { companyId = company.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-15", nationalId = "23456789",
+            job = new { employmentType = "permanent" }, pay = new { basicAmount = 40000m } });   // no KRA PIN, no account
+        await Add(client, new { companyId = company.Id, firstName = "Akinyi", lastName = "Odera", hireDate = "2023-01-15", exitDate = "2099-12-31",
+            kraPin = "A112345678Z", job = new { employmentType = "permanent" } });   // leaving; no ID number, pay or account
+        await Add(client, new { companyId = company.Id, firstName = "Faith", lastName = "Kamau", hireDate = "2020-01-01", exitDate = "2025-02-01",
+            job = new { employmentType = "permanent" } });   // left
+
+        async Task<List<string>> Names(string query) =>
+            (await client.GetFromJsonAsync<Page>($"/api/employees?{query}"))!.Items.Select(r => r.Name.Split(' ')[0]).ToList();
+
+        // Leaving: still here, with a date they leave; current includes them; left is "former".
+        Assert.Equal(["Akinyi"], await Names("status=leaving"));
+        Assert.Equal(["Akinyi", "Otieno", "Wanjiru"], await Names(""));
+        Assert.Equal(["Faith"], await Names("status=former"));
+
+        // What payroll still needs: one thing, anything, or nothing (ready).
+        Assert.Equal(["Otieno"], await Names("missing=kra_pin"));
+        Assert.Equal(["Akinyi"], await Names("missing=national_id"));
+        Assert.Equal(["Akinyi"], await Names("missing=basic_pay"));
+        Assert.Equal(["Akinyi", "Otieno"], await Names("missing=payment_account"));
+        Assert.Equal(["Akinyi", "Otieno"], await Names("missing=any"));
+        Assert.Equal(["Wanjiru"], await Names("missing=none"));
+        Assert.Equal(["Akinyi", "Faith", "Otieno"], await Names("missing=any&status=all"));
+        Assert.Equal(["Akinyi", "Otieno", "Wanjiru"], await Names("missing=nonsense"));   // anything else: no filter
+
+        // A missing KRA PIN carries the error payroll will raise (PAY-2001); the rest have none in the catalogue yet.
+        var otieno = (await client.GetFromJsonAsync<Page>("/api/employees?missing=kra_pin"))!.Items.Single();
+        Assert.Equal([("kra_pin", "PAY-2001"), ("payment_account", null)], otieno.Readiness.Missing.Select(m => (m.Key, m.Code)));
     }
 
     [Fact]

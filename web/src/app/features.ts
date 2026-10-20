@@ -7,7 +7,7 @@ export const features = [
   'approvals', 'tasks', 'notifications',
   'payRuns', 'payouts', 'expenses', 'filings',
   'orgChart', 'attendance', 'performance', 'checklists', 'announcements', 'surveys',
-  'leaveRequests', 'whosOff', 'holidays',
+  'leaveRequests', 'whosOff', 'holidays', 'leaveBalances',
   'workflows', 'reports', 'settings', 'billing',
   'employeePortal',
 ] as const

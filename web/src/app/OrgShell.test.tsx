@@ -45,7 +45,7 @@ it('HR sees People and HR\'s organization pages, and no Pay', async () => {
   await within(await screen.findByRole('navigation', { name: 'Main' })).findByRole('button', { name: /People/ })
   expect(within(nav()).getAllByRole('button', { name: /^(Pay|People|Organization|Admin)/ }).map(b => b.textContent?.trim())).toEqual(['People', 'Organization'])
   await userEvent.click(within(nav()).getByRole('button', { name: /People/ }))
-  expect(within(nav()).getByRole('link', { name: 'Employees' })).toHaveAttribute('href', '/setup/employees')
+  expect(within(nav()).getByRole('link', { name: 'Employees' })).toHaveAttribute('href', '/people/employees')
 })
 
 it('Setup is a button in the top bar for people who manage companies, with no progress card', async () => {

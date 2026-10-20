@@ -215,6 +215,11 @@ public sealed class AccessTests(OnboardingTests.Api api) : IClassFixture<Onboard
         Assert.Equal("ACC-8001", await Code(await mary.GetAsync($"/api/employees?companyIds={mombasa.Id}")));
         Assert.Equal("ACC-8001", await Code(await mary.GetAsync($"/api/employees/choices?companyId={mombasa.Id}")));
         Assert.Equal("ACC-8001", await Code(await mary.GetAsync($"/api/employees/{theirs.Id}")));
+
+        // OP-07: the People → Employees filters (leaving, what's missing for payroll) stay within her companies.
+        Assert.Equal(["W-10"], (await mary.GetFromJsonAsync<Page>("/api/employees?missing=kra_pin"))!.Items.Select(e => e.StaffNo));
+        Assert.Equal(["W-10"], (await mary.GetFromJsonAsync<Page>("/api/employees?missing=any&status=all"))!.Items.Select(e => e.StaffNo));
+        Assert.Equal("ACC-8001", await Code(await mary.GetAsync($"/api/employees?companyId={mombasa.Id}&missing=kra_pin")));
     }
 
     [Fact]

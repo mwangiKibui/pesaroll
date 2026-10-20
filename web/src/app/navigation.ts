@@ -30,7 +30,7 @@ export const navigation: NavSection[] = [
     { key: 'payrollHistory', href: '/setup/payroll-history', permission: p.payrollHistory.view },
   ] },
   { key: 'people', links: [
-    { key: 'employees', href: '/setup/employees', permission: p.employees.view },
+    { key: 'employees', href: '/people/employees', permission: p.employees.view },
     { key: 'orgChart', href: '/people/org-chart', permission: p.employees.view, feature: 'orgChart' },
     { key: 'attendance', href: '/people/attendance', permission: p.employees.view, feature: 'attendance' },
     { key: 'performance', href: '/people/performance', permission: p.employees.view, feature: 'performance' },

@@ -20,6 +20,7 @@ import { TableCard } from '../components/TableCard'
 import { usePaged } from '../components/usePaged'
 import { TabPanel, Tabs } from '../components/Tabs'
 import { useToast } from '../components/toast'
+import { useRuleText } from '../lib/leaveText'
 import { useCompanies, useLeavePlans, useLeaveTypes, useSchedules, useSetupDone } from '../setup/hooks'
 import { Proceed } from '../setup/Proceed'
 import { SetupLayout } from '../setup/SetupLayout'
@@ -264,15 +265,6 @@ export default function LeavePlansPage() {
       </ConfirmDialog>
     </SetupLayout>
   )
-}
-
-/** "1.75 days a month", "7 days a year + 7 on half pay", "no limit". */
-function useRuleText() {
-  const { t } = useTranslation()
-  return (r: { earnMethod: string; amount?: number | string | null; unit: string; halfPay: number | string }) => {
-    const text = t(`leavePlans.ruleText.${r.earnMethod}`, { amount: r.amount == null ? '' : Number(r.amount), unit: t(`leavePlans.units.${r.unit}`) })
-    return Number(r.halfPay) > 0 ? text + t('leavePlans.halfPayText', { amount: Number(r.halfPay) }) : text
-  }
 }
 
 /** The legal problems with a rule, by field, and a warning for leave earned by what's worked (as the API). */
