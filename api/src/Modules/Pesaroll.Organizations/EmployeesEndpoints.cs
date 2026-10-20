@@ -73,7 +73,7 @@ public static class EmployeesEndpoints
 
         employees.MapGet("/", async (Guid? companyId, Guid[]? companyIds, string? search, string? status, int? page, int? pageSize,
             string? sort, string? dir, Guid[]? departmentIds, Guid[]? positionIds, Guid[]? scheduleIds, decimal? payFrom, decimal? payTo,
-            DateOnly? hiredFrom, DateOnly? hiredTo, bool? includePay, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
+            DateOnly? hiredFrom, DateOnly? hiredTo, string? missing, bool? includePay, OrganizationsDbContext db, TenantContext tenant, HttpContext http, TimeProvider clock,
             FieldEncryptor encryptor, CancellationToken ct) =>
         {
             var (_, organizationId) = CompaniesEndpoints.RequireOrganization(tenant, http);
@@ -107,6 +107,8 @@ public static class EmployeesEndpoints
             query = status switch
             {
                 "former" => query.Where(e => e.ExitDate != null && e.ExitDate < today),
+                // Still here, with the date they leave set (OP-07); they are current too.
+                "leaving" => query.Where(e => e.ExitDate != null && e.ExitDate >= today),
                 "all" => query,
                 _ => query.Where(e => e.ExitDate == null || e.ExitDate >= today),
             };
@@ -128,6 +130,15 @@ public static class EmployeesEndpoints
                     || (e.NssfNo != null && EF.Functions.ILike(e.NssfNo, term)) || (e.ShaNo != null && EF.Functions.ILike(e.ShaNo, term))
                     || (idLookup != null && e.NationalIdLookup == idLookup) || (pinLookup != null && e.KraPinLookup == pinLookup));
             }
+
+            // What payroll still needs (the readiness keys), anything (any) or nothing (none); anything else is no filter.
+            query = missing switch
+            {
+                "any" => query.Where(EmployeeReadiness.NotReady),
+                "none" => query.Where(EmployeeReadiness.Ready),
+                _ when EmployeeReadiness.Rules.FirstOrDefault(r => r.Item.Key == missing) is { } rule => query.Where(rule.IsMissing),
+                _ => query,
+            };
 
             if (hiredFrom is DateOnly from)
             {

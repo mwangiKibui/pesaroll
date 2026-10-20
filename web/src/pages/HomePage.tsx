@@ -10,7 +10,7 @@ import { visibleCards } from '../features/home/cards'
 import { ComingCard, PeopleNumbersCard, ReadyForPayrollCard } from '../features/home/PeopleCards'
 import { useHomePeople } from '../features/home/useHomePeople'
 import { useCompanies, useMe } from '../setup/hooks'
-import { EmployeeDrawer } from './EmployeesPage'
+import { EmployeeDrawer } from '../features/employees/EmployeeForm'
 
 /** Home for someone with an organization, in the organization portal's shell (OP-01): cards by permission and flag (OP-30). */
 export default function HomePage() {

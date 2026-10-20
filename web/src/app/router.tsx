@@ -3,6 +3,7 @@ import type { AuthClient } from '../auth/authClient'
 import type { Services } from './services'
 import { Loading } from '../components/feedback'
 import { NotReadyPage } from '../pages/NotReadyPage'
+import { readFilters } from '../features/employees/filters'
 
 // Each page loads only when visited, so phones download less up front.
 const SignInPage = lazyRouteComponent(() => import('../pages/SignInPage'))
@@ -21,6 +22,7 @@ const TeamPage = lazyRouteComponent(() => import('../pages/TeamPage'))
 const NoOrganizationPage = lazyRouteComponent(() => import('../pages/NoOrganizationPage'))
 const DevicesPage = lazyRouteComponent(() => import('../pages/DevicesPage'))
 const HomePage = lazyRouteComponent(() => import('../pages/HomePage'))
+const PeopleEmployeesPage = lazyRouteComponent(() => import('../pages/people/EmployeesPage'))
 
 interface RouterContext { auth: AuthClient; api: Services['api'] }
 
@@ -96,6 +98,8 @@ const schedulesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/se
 const earningsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/earnings-and-deductions', beforeLoad: signedInWithOrganization, component: EarningsPage })
 const leavePlansRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/leave-plans', beforeLoad: signedInWithOrganization, component: LeavePlansPage })
 const employeesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/employees', beforeLoad: signedInWithOrganization, component: EmployeesPage })
+// People → Employees (OP-07): ?status= and ?missing= filter it, so other pages (the HR home) can link to a filtered list.
+const peopleEmployeesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/people/employees', validateSearch: readFilters, beforeLoad: signedInWithOrganization, component: PeopleEmployeesPage })
 const teamRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/team', beforeLoad: signedInWithOrganization, component: TeamPage })
 const historyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/payroll-history', beforeLoad: signedInWithOrganization, component: PayrollHistoryPage })
 // An invitation's link (AUTH-08): open to anyone holding it, signed in or not.
@@ -110,7 +114,7 @@ const devRoutes = import.meta.env.DEV
   ? [createRoute({ getParentRoute: () => rootRoute, path: '/dev/components', component: lazyRouteComponent(() => import('../dev/ComponentsPage')) })]
   : []
 
-const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, invitationRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, earningsRoute, historyRoute, teamRoute, devicesRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
+const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, invitationRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, peopleEmployeesRoute, earningsRoute, historyRoute, teamRoute, devicesRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
 
 export function createAppRouter(auth: AuthClient, api: Services['api'], initialPath?: string) {
   return createRouter({

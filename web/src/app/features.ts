@@ -7,11 +7,9 @@ export const features = [
   'approvals', 'tasks', 'notifications',
   'payRuns', 'payouts', 'expenses', 'filings',
   'orgChart', 'attendance', 'performance', 'checklists', 'announcements', 'surveys',
-  'leaveRequests', 'whosOff', 'holidays',
+  'leaveRequests', 'whosOff', 'holidays', 'leaveBalances',
   'workflows', 'reports', 'settings', 'billing',
   'employeePortal',
-  // People → Employees in the app (OP-07, /people/employees): Home's "Fix them" and number links go there once it's on.
-  'employees',
 ] as const
 
 export type Feature = (typeof features)[number]

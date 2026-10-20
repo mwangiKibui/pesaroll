@@ -2,16 +2,14 @@ import { useRouter } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../../api/schema'
-import { featureOn } from '../../app/features'
 import { Loading, ProgressBar, Tag } from '../../components/feedback'
 import { Card } from '../../components/TableCard'
 
 type HomePeople = components['schemas']['HomePeople']
 type Missing = components['schemas']['HomeMissing']
 
-/** People → Employees, the app's page (OP-07), once its flag is on; until then no filtered links (Employees links to the setup list). */
-const employeesPage = '/people/employees'
-const employeesHref = (search = '') => featureOn('employees') ? `${employeesPage}${search}` : null
+/** People → Employees (OP-07), filtered by its address: `?missing=<readiness key>`, `?hiredFrom=YYYY-MM-DD`. */
+const employeesHref = (search = '') => `/people/employees${search}`
 
 const shortDate = (iso: string) =>
   new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`))
@@ -40,7 +38,7 @@ export function PeopleNumbersCard({ people }: { people: HomePeople | undefined }
   return (
     <Card title={t('home.people.title')}>
       <div className="grid grid-cols-2 gap-4">
-        <Stat value={Number(people.employees)} label={t('home.people.employees')} href={employeesHref() ?? '/setup/employees'} />
+        <Stat value={Number(people.employees)} label={t('home.people.employees')} href={employeesHref()} />
         <Stat value={Number(people.joinedThisMonth)} label={t('home.people.joined')} href={employeesHref(`?hiredFrom=${monthStart}`)} />
       </div>
       {people.joined.length > 0 ? (
@@ -85,7 +83,7 @@ export function ReadyForPayrollCard({ people }: { people: HomePeople | undefined
                   <li key={m.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-label">
                     <span className="text-ink">{line(m)}</span>
                     {m.code && <Tag tone="warning">{m.code}</Tag>}
-                    {href && <AppLink href={href} label={t('home.ready.fixLabel', { what: line(m) })} className="ml-auto font-medium">{t('home.ready.fix')}</AppLink>}
+                    <AppLink href={href} label={t('home.ready.fixLabel', { what: line(m) })} className="ml-auto font-medium">{t('home.ready.fix')}</AppLink>
                   </li>
                 )
               })}

@@ -103,22 +103,14 @@ it('without a payroll schedule it speaks of the next pay run, and nobody joined 
   expect(within(await card('People')).getByText('No one yet this month')).toBeInTheDocument()
 })
 
-it('Fix them opens People → Employees filtered to the people missing that detail, once that page is on', async () => {
-  signedIn()
-  renderApp('/')
-  const ready = await card('Ready for payroll')
-  await within(ready).findByText('3 without a KRA PIN')
-  expect(within(ready).queryByRole('link', { name: /Fix them/ })).not.toBeInTheDocument()
-})
-
-it('with People → Employees switched on, Fix them links to the people missing each detail', async () => {
-  vi.stubEnv('VITE_FEATURES', 'employees')
+it('Fix them opens People → Employees filtered to the people missing each detail; the numbers link there too', async () => {
   signedIn()
   renderApp('/')
   const ready = await card('Ready for payroll')
   expect(await within(ready).findByRole('link', { name: 'Fix them: 3 without a KRA PIN' })).toHaveAttribute('href', '/people/employees?missing=kra_pin')
   expect(within(ready).getByRole('link', { name: 'Fix them: 1 without basic pay' })).toHaveAttribute('href', '/people/employees?missing=basic_pay')
   expect(within(await card('People')).getByRole('link', { name: /40\s*Employees/ })).toHaveAttribute('href', '/people/employees')
+  expect(within(await card('People')).getByRole('link', { name: /Joined this month/ }).getAttribute('href')).toMatch(/^\/people\/employees\?hiredFrom=\d{4}-\d{2}-01$/)
 })
 
 it('people who may add employees get Add employee, which opens the form for the chosen company', async () => {
