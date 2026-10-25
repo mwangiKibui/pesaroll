@@ -98,6 +98,7 @@ app.MapWorkflowsEndpoints();
 app.MapPayRunsEndpoints();
 app.MapStatutoryDeductionsEndpoints();
 app.MapPayRunInputsEndpoints();
+app.MapWorkingHoursEndpoints();
 
 app.Run();
 

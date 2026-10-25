@@ -760,5 +760,45 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         Assert.Equal(["kind", "multiplier", "unit"], (await refused.Content.ReadFromJsonAsync<Error>())!.Fields!.Keys.Order());
     }
 
+    private sealed record WorkingHours(Guid CompanyId, decimal? HoursPerDay, decimal? HoursPerMonth, decimal UsedPerDay, decimal UsedPerMonth,
+        Guid? SetBy);
+
+    [Fact]
+    public async Task Each_company_sets_its_own_hours_and_overtime_follows_them()
+    {
+        var world = await Organization();
+        await WorksIn(world.Westlands, "other");
+        var weekly = await Schedule(world, "weekly");
+        var peter = await Employee(world, world.Westlands, 900, name: "Peter Kamau", basis: "daily", schedule: weekly);
+
+        // The wage order's hours until the company says otherwise.
+        var hours = (await world.Owner.Client.GetFromJsonAsync<WorkingHours>($"/api/companies/{world.Westlands.Id}/working-hours"))!;
+        Assert.Equal(((decimal?)null, (decimal?)null, 8m, 225m), (hours.HoursPerDay, hours.HoursPerMonth, hours.UsedPerDay, hours.UsedPerMonth));
+
+        var bad = await world.Owner.Client.PutAsJsonAsync($"/api/companies/{world.Westlands.Id}/working-hours", new { hoursPerDay = 25, hoursPerMonth = 0 });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        var error = (await bad.Content.ReadFromJsonAsync<Error>())!;
+        Assert.Equal("PAY-2027", error.Code);
+        Assert.Equal(["hoursPerDay", "hoursPerMonth"], error.Fields!.Keys.Order());
+
+        var set = await world.Owner.Client.PutAsJsonAsync($"/api/companies/{world.Westlands.Id}/working-hours", new { hoursPerDay = 9, hoursPerMonth = (decimal?)null });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+        hours = (await set.Content.ReadFromJsonAsync<WorkingHours>())!;
+        Assert.Equal((9m, 9m, 225m, (Guid?)world.Owner.UserId), (hours.HoursPerDay!.Value, hours.UsedPerDay, hours.UsedPerMonth, hours.SetBy));
+
+        // Overtime for someone on 900 a day: 900 / 9 hours x 1.5 = 150 an hour, not 168.75 on 8 hours.
+        var run = await Started(await StartOn(world, weekly, "2026-10-02"));
+        var overtime = (await Time(world.Owner, run.Id)).Items.Single(i => i.Code == "OVERTIME").PayItemId;
+        await EnterTime(world.Owner, run.Id, new { employeeId = peter, payItemId = (Guid?)null, quantity = 5 }, new { employeeId = peter, payItemId = overtime, quantity = 2 });
+        await Calculate(world, run.Id);
+        Assert.Equal(150m, Paid(await People(world.Owner, run.Id), peter).Lines.Single(l => l.Code == "OVERTIME").UnitRate);
+
+        // Mombasa still works on the wage order's; someone with no say over pay at Westlands can't change it.
+        Assert.Null((await world.Owner.Client.GetFromJsonAsync<WorkingHours>($"/api/companies/{world.Mombasa.Id}/working-hours"))!.HoursPerDay);
+        var approver = await Colleague(world.OrgId, "approver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await approver.Client.PutAsJsonAsync($"/api/companies/{world.Westlands.Id}/working-hours",
+            new { hoursPerDay = 10 })).StatusCode);
+    }
+
     private sealed record PayItemShape(Guid Id, string Code, string CalcMethod, decimal? DefaultAmount, string? Unit, decimal? Multiplier);
 }

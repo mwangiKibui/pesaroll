@@ -2,7 +2,7 @@ using Pesaroll.Shared.Errors;
 
 namespace Pesaroll.Payroll;
 
-/// <summary>Pay run errors (PAY-2002, PAY-2012 to PAY-2026, docs/standards/errors.md; PAY-2013 is retired).</summary>
+/// <summary>Pay run errors (PAY-2002, PAY-2012 to PAY-2027, docs/standards/errors.md; PAY-2013 is retired).</summary>
 public static class PayRunErrors
 {
     public static AppException AlreadyExists(string schedule, string period, string company) =>
@@ -43,6 +43,11 @@ public static class PayRunErrors
 
     public static AppException InputsInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("PAY-2025", "Some days or hours don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException HoursInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("PAY-2027", "Some working hours don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException CompanyNotFound() => new("ONB-3509", "We couldn't find that company.", 404);
 
     public static AppException NothingToCopy() =>
         new("PAY-2026", "There's no approved pay run on this schedule before this one to copy days and hours from.", 409);
