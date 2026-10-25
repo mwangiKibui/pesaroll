@@ -1,0 +1,23 @@
+{
+  "description": "KES 150,000: NSSF stops at 6% of 108,000",
+  "payDate": "2026-07-31",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 150000.0
+  },
+  "expected": {
+    "nssf_employee": 6480.0,
+    "shif": 4125.0,
+    "ahl_employee": 2250.0,
+    "paye": 33526.85,
+    "nssf_employer": 6480.0,
+    "ahl_employer": 2250.0,
+    "nita": 50.0,
+    "taxablePay": 137145.0,
+    "netPay": 103618.15
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

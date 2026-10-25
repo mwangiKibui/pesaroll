@@ -125,6 +125,8 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | NTF-0503 | We couldn't deliver an SMS to {recipient}. | Support | Africa's Talking kept refusing it (5 attempts); notification_deliveries.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance. |
 | PAY-2001 | {employee} has no KRA PIN, so PAYE can't be filed. | Customer | Add the KRA PIN on the employee's profile, then rerun. |
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
+| PAY-2010 | We don't have the statutory rules for {country} on {date} yet, so pay can't be worked out. | Support | No published rule pack covers that country and pay date (rule_packs). Publish the pack for the period in database/rule-packs/. |
+| PAY-2011 | A published rule pack can't be changed. | Engineering | Someone tried to update, delete or re-seed a published rule pack with different rules. Add a new version with its own start date instead. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |
 | PLAT-9002 | This request came from another website and was blocked. | Engineering | Check App:AllowedOrigins includes the app's address; otherwise a cross-site request was stopped. |
 | PLAT-9001 | Something went wrong on our side. Quote reference {reference} to support. | Engineering | Look up the reference; escalate with the request id. |

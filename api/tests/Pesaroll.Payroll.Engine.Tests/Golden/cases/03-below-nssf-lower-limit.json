@@ -1,0 +1,23 @@
+{
+  "description": "KES 8,000: below NSSF's lower limit (6% of all of it) and SHIF at its 300 minimum",
+  "payDate": "2026-04-30",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 8000.0
+  },
+  "expected": {
+    "nssf_employee": 480.0,
+    "shif": 300.0,
+    "ahl_employee": 120.0,
+    "paye": 0.0,
+    "nssf_employer": 480.0,
+    "ahl_employer": 120.0,
+    "nita": 50.0,
+    "taxablePay": 7100.0,
+    "netPay": 7100.0
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

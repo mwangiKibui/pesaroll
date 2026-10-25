@@ -10,6 +10,7 @@
 \i reference/saccos.sql
 \i reference/statutory_items.sql
 \i reference/statutory_leave.sql
+\i reference/rule_packs.sql
 \i identity/signup_roles.sql
 \i identity/users.sql
 \i identity/signup_role_check.sql

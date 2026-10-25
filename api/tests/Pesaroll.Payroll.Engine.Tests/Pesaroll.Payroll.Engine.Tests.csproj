@@ -18,6 +18,12 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The rule packs post-deploy publishes, so the tests check the real data, not a copy. -->
+  <ItemGroup>
+    <None Include="..\..\..\database\rule-packs\*.json" LinkBase="RulePacks" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Golden\cases\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Pesaroll.Payroll.Engine\Pesaroll.Payroll.Engine.csproj" />
   </ItemGroup>

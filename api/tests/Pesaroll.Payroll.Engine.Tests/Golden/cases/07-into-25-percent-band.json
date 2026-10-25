@@ -1,0 +1,23 @@
+{
+  "description": "KES 35,000: taxable pay just into the 25% band",
+  "payDate": "2026-06-30",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 35000.0
+  },
+  "expected": {
+    "nssf_employee": 2100.0,
+    "shif": 962.5,
+    "ahl_employee": 525.0,
+    "paye": 1853.13,
+    "nssf_employer": 2100.0,
+    "ahl_employer": 525.0,
+    "nita": 50.0,
+    "taxablePay": 31412.5,
+    "netPay": 29559.37
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

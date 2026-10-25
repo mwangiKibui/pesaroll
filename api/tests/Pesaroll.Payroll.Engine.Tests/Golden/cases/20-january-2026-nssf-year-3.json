@@ -1,0 +1,23 @@
+{
+  "description": "KES 150,000 paid 30 January 2026: NSSF Year 3 (6% of 72,000)",
+  "payDate": "2026-01-30",
+  "rulePack": "KE-2025.02",
+  "inputs": {
+    "grossCashPay": 150000.0
+  },
+  "expected": {
+    "nssf_employee": 4320.0,
+    "shif": 4125.0,
+    "ahl_employee": 2250.0,
+    "paye": 34174.85,
+    "nssf_employer": 4320.0,
+    "ahl_employer": 2250.0,
+    "nita": 50.0,
+    "taxablePay": 139305.0,
+    "netPay": 105130.15
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

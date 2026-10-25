@@ -1,0 +1,24 @@
+{
+  "description": "KES 100,000 with a 10,000 pension contribution: NSSF plus pension (16,000) under the 30,000 cap",
+  "payDate": "2026-08-31",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 100000.0,
+    "pensionContributions": 10000.0
+  },
+  "expected": {
+    "nssf_employee": 6000.0,
+    "shif": 2750.0,
+    "ahl_employee": 1500.0,
+    "paye": 16308.35,
+    "nssf_employer": 6000.0,
+    "ahl_employer": 1500.0,
+    "nita": 50.0,
+    "taxablePay": 79750.0,
+    "netPay": 73441.65
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

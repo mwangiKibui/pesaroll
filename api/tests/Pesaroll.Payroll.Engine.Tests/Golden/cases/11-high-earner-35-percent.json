@@ -1,0 +1,23 @@
+{
+  "description": "KES 1,000,000: taxable pay over 800,000, into the 35% band",
+  "payDate": "2026-08-31",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 1000000.0
+  },
+  "expected": {
+    "nssf_employee": 6480.0,
+    "shif": 27500.0,
+    "ahl_employee": 15000.0,
+    "paye": 292740.35,
+    "nssf_employer": 6480.0,
+    "ahl_employer": 15000.0,
+    "nita": 50.0,
+    "taxablePay": 951020.0,
+    "netPay": 658279.65
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}
