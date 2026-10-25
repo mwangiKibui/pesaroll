@@ -1,0 +1,23 @@
+{
+  "description": "KES 600,000: taxable pay over 500,000, into the 32.5% band",
+  "payDate": "2026-07-31",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 600000.0
+  },
+  "expected": {
+    "nssf_employee": 6480.0,
+    "shif": 16500.0,
+    "ahl_employee": 9000.0,
+    "paye": 164489.85,
+    "nssf_employer": 6480.0,
+    "ahl_employer": 9000.0,
+    "nita": 50.0,
+    "taxablePay": 568020.0,
+    "netPay": 403530.15
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "description": "No pay this month: no deductions, but NITA is still due",
+  "payDate": "2026-12-31",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 0.0
+  },
+  "expected": {
+    "nssf_employee": 0.0,
+    "shif": 0.0,
+    "ahl_employee": 0.0,
+    "paye": 0.0,
+    "nssf_employer": 0.0,
+    "ahl_employer": 0.0,
+    "nita": 50.0,
+    "taxablePay": 0.0,
+    "netPay": 0.0
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

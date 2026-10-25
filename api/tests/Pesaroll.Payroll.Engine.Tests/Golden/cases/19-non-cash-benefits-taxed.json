@@ -1,0 +1,24 @@
+{
+  "description": "KES 100,000 with 6,000 of benefits in kind: all 6,000 taxed, but not in SHIF, NSSF or the levy",
+  "payDate": "2026-12-31",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 100000.0,
+    "nonCashBenefits": 6000.0
+  },
+  "expected": {
+    "nssf_employee": 6000.0,
+    "shif": 2750.0,
+    "ahl_employee": 1500.0,
+    "paye": 21108.35,
+    "nssf_employer": 6000.0,
+    "ahl_employer": 1500.0,
+    "nita": 50.0,
+    "taxablePay": 95750.0,
+    "netPay": 68641.65
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

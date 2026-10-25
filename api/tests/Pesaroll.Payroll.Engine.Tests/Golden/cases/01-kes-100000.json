@@ -1,0 +1,23 @@
+{
+  "description": "KES 100,000 a month: the headline example (70,441.65 net, 70,442 rounded)",
+  "payDate": "2026-02-27",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 100000.0
+  },
+  "expected": {
+    "nssf_employee": 6000.0,
+    "shif": 2750.0,
+    "ahl_employee": 1500.0,
+    "paye": 19308.35,
+    "nssf_employer": 6000.0,
+    "ahl_employer": 1500.0,
+    "nita": 50.0,
+    "taxablePay": 89750.0,
+    "netPay": 70441.65
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

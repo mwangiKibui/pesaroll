@@ -1,0 +1,24 @@
+{
+  "description": "KES 300,000 with a 40,000 pension contribution: NSSF plus pension capped at 30,000",
+  "payDate": "2026-09-30",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 300000.0,
+    "pensionContributions": 40000.0
+  },
+  "expected": {
+    "nssf_employee": 6480.0,
+    "shif": 8250.0,
+    "ahl_employee": 4500.0,
+    "paye": 69558.35,
+    "nssf_employer": 6480.0,
+    "ahl_employer": 4500.0,
+    "nita": 50.0,
+    "taxablePay": 257250.0,
+    "netPay": 211211.65
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

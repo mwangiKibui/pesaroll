@@ -1,0 +1,23 @@
+{
+  "description": "KES 10,000: SHIF would be 275, so the 300 minimum applies",
+  "payDate": "2026-04-30",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 10000.0
+  },
+  "expected": {
+    "nssf_employee": 600.0,
+    "shif": 300.0,
+    "ahl_employee": 150.0,
+    "paye": 0.0,
+    "nssf_employer": 600.0,
+    "ahl_employer": 150.0,
+    "nita": 50.0,
+    "taxablePay": 8950.0,
+    "netPay": 8950.0
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

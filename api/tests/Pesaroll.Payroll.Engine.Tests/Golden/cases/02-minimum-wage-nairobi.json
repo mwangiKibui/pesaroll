@@ -1,0 +1,23 @@
+{
+  "description": "KES 16,113.75: about the Nairobi general labourer's minimum wage (Regulation of Wages Order 2024); relief covers all the tax",
+  "payDate": "2026-03-31",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 16113.75
+  },
+  "expected": {
+    "nssf_employee": 966.83,
+    "shif": 443.13,
+    "ahl_employee": 241.71,
+    "paye": 0.0,
+    "nssf_employer": 966.83,
+    "ahl_employer": 241.71,
+    "nita": 50.0,
+    "taxablePay": 14462.08,
+    "netPay": 14462.08
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}

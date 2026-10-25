@@ -1,0 +1,23 @@
+{
+  "description": "KES 26,000: taxable pay (23,335) inside the 10% band, so relief clears the tax",
+  "payDate": "2026-05-29",
+  "rulePack": "KE-2026.02",
+  "inputs": {
+    "grossCashPay": 26000.0
+  },
+  "expected": {
+    "nssf_employee": 1560.0,
+    "shif": 715.0,
+    "ahl_employee": 390.0,
+    "paye": 0.0,
+    "nssf_employer": 1560.0,
+    "ahl_employer": 390.0,
+    "nita": 50.0,
+    "taxablePay": 23335.0,
+    "netPay": 23335.0
+  },
+  "checked": {
+    "by": "computed from sources",
+    "on": "2026-10-25"
+  }
+}
