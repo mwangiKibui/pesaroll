@@ -7,7 +7,8 @@ create table memberships (
     status           text not null default 'active' check (status in ('invited', 'active', 'removed')),
     created_at       timestamptz not null default now(),
     updated_at       timestamptz not null default now(),
-    unique (organization_id, user_id)
+    unique (organization_id, user_id),
+    unique (organization_id, id)
 );
 
 alter table memberships enable row level security;

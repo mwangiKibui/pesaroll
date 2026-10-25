@@ -11,10 +11,12 @@
 \i reference/statutory_items.sql
 \i reference/statutory_leave.sql
 \i reference/rule_packs.sql
+\i reference/workflow_kinds.sql
 \i identity/signup_roles.sql
 \i identity/users.sql
 \i identity/signup_role_check.sql
 \i tenancy/organizations.sql
+\i identity/memberships.sql
 \i tenancy/leave_plans.sql
 \i tenancy/locations.sql
 \i tenancy/pay_schedules.sql
@@ -33,7 +35,6 @@
 \i tenancy/payroll_history.sql
 \i tenancy/notification_deliveries.sql
 \i tenancy/sensitive_views.sql
-\i identity/memberships.sql
 \i identity/access.sql
 \i identity/invitations.sql
 \i identity/team.sql
@@ -41,3 +42,4 @@
 \i identity/sessions.sql
 \i identity/signin_functions.sql
 \i tenancy/onboarding_functions.sql
+\i tenancy/approvals.sql
