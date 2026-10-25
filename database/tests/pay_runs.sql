@@ -66,6 +66,19 @@ begin
     raise exception 'someone left out without a reason';
   exception when check_violation then null;
   end;
+  -- PAY-10: pay on another basis than the schedule's is other_basis; not_monthly is gone.
+  begin
+    insert into pay_run_people (id, organization_id, company_id, pay_run_id, employee_id, staff_no, full_name, included, excluded_reason)
+    values (uuidv7(), org1, ke1, run1, amina, 'RUN-01', 'Amina Otieno', false, 'not_monthly');
+    raise exception 'the old not_monthly reason';
+  exception when check_violation then null;
+  end;
+  -- A statutory line keeps the month to date and what earlier runs took; nothing earlier is 0.
+  insert into pay_run_lines (organization_id, company_id, pay_run_id, person_id, kind, code, name, statutory_key, amount, month_to_date, earlier, position)
+  values (org1, ke1, run1, person, 'deduction', 'SHIF', 'SHIF', 'shif', 687.50, 1375, 687.50, 2);
+  if (select earlier from pay_run_lines where pay_run_id = run1 and position = 1) <> 0 then
+    raise exception 'a line without earlier runs should say 0';
+  end if;
 
   -- While it waits for approval its figures can't change.
   update pay_runs set status = 'awaiting_approval' where id = run1;

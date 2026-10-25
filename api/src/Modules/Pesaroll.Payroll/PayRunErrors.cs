@@ -2,13 +2,11 @@ using Pesaroll.Shared.Errors;
 
 namespace Pesaroll.Payroll;
 
-/// <summary>Pay run errors (PAY-2012 to PAY-2021, docs/standards/errors.md).</summary>
+/// <summary>Pay run errors (PAY-2012 to PAY-2024, docs/standards/errors.md; PAY-2013 is retired).</summary>
 public static class PayRunErrors
 {
-    public static AppException AlreadyExists(string schedule, string month, string company) =>
-        new("PAY-2012", $"A pay run for {schedule} in {month} already exists at {company}.", 409);
-
-    public static AppException MonthlyOnly() => new("PAY-2013", "Only monthly payroll schedules can be run for now.", 422);
+    public static AppException AlreadyExists(string schedule, string period, string company) =>
+        new("PAY-2012", $"A pay run for {schedule} in {period} already exists at {company}.", 409);
 
     public static AppException Final(string status) =>
         new("PAY-2014", $"This pay run is {status} and can't change. To fix an approved pay run, run a correction.", 409);
@@ -28,4 +26,18 @@ public static class PayRunErrors
         new("PAY-2020", "Some pay run details don't look right. Check the fields marked.") { Fields = fields };
 
     public static AppException WaitingForApproval() => new("PAY-2021", "This pay run is waiting for approval. Cancel the request to change it.", 409);
+
+    public static AppException NotAPayDate(string schedule, string date) =>
+        new("PAY-2022", $"{schedule} doesn't pay on {date}. Choose one of its pay dates.") { Fields = new Dictionary<string, string> { ["payDate"] = "Choose one of the schedule's pay dates." } };
+
+    public static AppException EarlierNotApproved(string date) =>
+        new("PAY-2023", $"The pay run paid on {date} isn't approved yet. Approve or cancel it first: each run takes what earlier ones in the month didn't.", 409);
+
+    // The catalogue's codes for a schedule or employee this person can't find (Organizations returns them too).
+    public static AppException ScheduleNotFound() => new("ONB-3526", "We couldn't find that schedule. It may have been deleted.", 404);
+
+    public static AppException EmployeeNotFound() => new("ONB-3539", "We couldn't find that employee. They may have been deleted.", 404);
+
+    public static AppException DeductionsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("PAY-2024", "Some deduction details don't look right. Check the fields marked.") { Fields = fields };
 }

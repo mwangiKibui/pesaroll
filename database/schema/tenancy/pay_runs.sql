@@ -4,7 +4,8 @@
 -- A declined or cancelled request sends it back to calculated; a run that isn't sent can be cancelled.
 -- Once sent its figures can't change, and an approved or cancelled run never changes (PAY-2014): a
 -- mistake is fixed with a correction run (kind correction, for chosen people), never an edit.
--- Periods are calendar months for now; weekly, fortnightly and daily runs come with PAY-10.
+-- Periods: a calendar month, or (PAY-10) the week or fortnight up to the pay date, or the pay date
+-- itself for a daily run. A run counts in the tax month of its pay date.
 create table pay_runs (
     id                   uuid primary key,
     organization_id      uuid not null,
@@ -86,12 +87,15 @@ create trigger pay_runs_keep_final before update on pay_runs
 
 -- Each person a run worked out, with what it used and their totals, or why they were left out:
 --   no_pay        no basic pay in force
---   not_monthly   paid weekly, fortnightly, daily or hourly (PAY-10)
+--   other_basis   paid on another basis than the schedule's frequency (hourly: PAY-11)
 --   other_currency  paid in a currency other than the rule pack's
 --   not_in_period   (corrections) not employed on this schedule in the period
 -- Their name and staff number are copied in, as on the payslip. notes flag what Payroll should
--- check before sending: joined or left in the period (paid the whole month until PAY-04),
--- negative_net (blocks sending, PAY-2019).
+-- check before sending: joined or left in the period (paid the whole period until PAY-04),
+-- negative_net (blocks sending, PAY-2019), no_deductions or some_deductions (the statutory items
+-- chosen for them, PAY-10), refund (a statutory line below zero). deductions_made lists the
+-- statutory items made for them and deductions_chosen_by/at who chose that (null: every item, as
+-- monthly payroll always makes). Taxable pay, tax before relief and relief are the month to date's.
 create table pay_run_people (
     id                uuid primary key,
     organization_id   uuid not null,
@@ -101,7 +105,7 @@ create table pay_run_people (
     staff_no          text not null,
     full_name         text not null,
     included          boolean not null,
-    excluded_reason   text check (excluded_reason in ('no_pay', 'not_monthly', 'other_currency', 'not_in_period')),
+    excluded_reason   text check (excluded_reason in ('no_pay', 'other_basis', 'other_currency', 'not_in_period')),
     notes             text[] not null default '{}',
     employment_id     uuid,
     compensation_id   uuid,
@@ -114,6 +118,9 @@ create table pay_run_people (
     total_deductions  numeric(18, 2),                             -- statutory and the organization's own
     net_pay           numeric(18, 2),
     employer_costs    numeric(18, 2),
+    deductions_made   text[],
+    deductions_chosen_by uuid references users (id),
+    deductions_chosen_at timestamptz,
     unique (organization_id, id),
     unique (pay_run_id, employee_id),
     foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade,
@@ -137,7 +144,9 @@ grant select, insert, delete on table pay_run_people to pesaroll_app;
 
 -- Every line of a person's pay: basic pay, the organization's earnings, deductions and employer costs
 -- (pay_item_id), and each statutory line (statutory_key) with what it was worked out on and its rate.
--- The code and name are copied in, so a run never changes when items do.
+-- The code and name are copied in, so a run never changes when items do. Statutory lines are worked
+-- out on the month to date (PAY-10): month_to_date is the line's total for the tax month and earlier
+-- what the person's earlier approved runs in the month took, so amount = month_to_date - earlier.
 create table pay_run_lines (
     id               uuid primary key default uuidv7(),
     organization_id  uuid not null,
@@ -154,6 +163,8 @@ create table pay_run_lines (
     base             numeric(18, 2),
     rate             numeric(9, 6),
     amount           numeric(18, 2) not null,
+    month_to_date    numeric(18, 2),
+    earlier          numeric(18, 2) not null default 0,
     position         int not null,
     foreign key (organization_id, person_id) references pay_run_people (organization_id, id) on delete cascade,
     foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade

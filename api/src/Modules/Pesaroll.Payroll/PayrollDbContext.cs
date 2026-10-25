@@ -69,6 +69,11 @@ public sealed class PayRunPerson
     public decimal? TotalDeductions { get; set; }
     public decimal? NetPay { get; set; }
     public decimal? EmployerCosts { get; set; }
+    /// <summary>The statutory items made for them (paye, shif, nssf, housing_levy, nita).</summary>
+    public string[]? DeductionsMade { get; set; }
+    /// <summary>Who chose the deductions made for them, and when (null: every one, as monthly payroll makes).</summary>
+    public Guid? DeductionsChosenBy { get; set; }
+    public DateTimeOffset? DeductionsChosenAt { get; set; }
     public List<PayRunLine> Lines { get; set; } = [];
 }
 
@@ -90,11 +95,43 @@ public sealed class PayRunLine
     public decimal? Base { get; set; }
     public decimal? Rate { get; set; }
     public decimal Amount { get; set; }
+    /// <summary>Statutory lines: the tax month's total, and what earlier approved runs in the month took.</summary>
+    public decimal? MonthToDate { get; set; }
+    public decimal Earlier { get; set; }
     public int Position { get; set; }
 }
 
+/// <summary>Which statutory deductions a weekly, fortnightly or daily schedule makes from a date (PAY-10).</summary>
+public sealed class ScheduleDeductions
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid PayScheduleId { get; set; }
+    public DateOnly StartsOn { get; set; }
+    public bool MakesDeductions { get; set; }
+    public string[] Items { get; set; } = [];
+    /// <summary>everyone, or chosen (the employees in EmployeeIds).</summary>
+    public string AppliesTo { get; set; } = "everyone";
+    public Guid[]? EmployeeIds { get; set; }
+    public Guid SetBy { get; set; }
+    public DateTimeOffset SetAt { get; set; }
+}
+
+/// <summary>A person's own statutory deductions from a date: the items listed, or their schedule's (null).</summary>
+public sealed class EmployeeDeductions
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public DateOnly StartsOn { get; set; }
+    public string[]? Items { get; set; }
+    public Guid SetBy { get; set; }
+    public DateTimeOffset SetAt { get; set; }
+}
+
 /// <summary>
-/// Pay runs (PAY-03). Reads and writes data only: the schema lives in database/schema, never here.
+/// Pay runs (PAY-03) and statutory deduction choices (PAY-10). Reads and writes data only: the schema lives in database/schema, never here.
 /// Employees, their pay and the organization's items are read through the Organizations context.
 /// </summary>
 public sealed class PayrollDbContext(DbContextOptions<PayrollDbContext> options) : DbContext(options)
@@ -102,6 +139,8 @@ public sealed class PayrollDbContext(DbContextOptions<PayrollDbContext> options)
     public DbSet<PayRun> PayRuns => Set<PayRun>();
     public DbSet<PayRunPerson> People => Set<PayRunPerson>();
     public DbSet<PayRunLine> Lines => Set<PayRunLine>();
+    public DbSet<ScheduleDeductions> ScheduleDeductions => Set<ScheduleDeductions>();
+    public DbSet<EmployeeDeductions> EmployeeDeductions => Set<EmployeeDeductions>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -109,5 +148,7 @@ public sealed class PayrollDbContext(DbContextOptions<PayrollDbContext> options)
         model.Entity<PayRunPerson>().ToTable("pay_run_people");
         model.Entity<PayRunPerson>().HasMany(p => p.Lines).WithOne().HasForeignKey(l => l.PersonId);
         model.Entity<PayRunLine>().ToTable("pay_run_lines");
+        model.Entity<ScheduleDeductions>().ToTable("pay_schedule_deductions");
+        model.Entity<EmployeeDeductions>().ToTable("employee_statutory_deductions");
     }
 }

@@ -96,6 +96,7 @@ app.MapTeamEndpoints();
 app.MapHomeEndpoints();
 app.MapWorkflowsEndpoints();
 app.MapPayRunsEndpoints();
+app.MapStatutoryDeductionsEndpoints();
 
 app.Run();
 

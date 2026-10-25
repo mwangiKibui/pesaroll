@@ -50,13 +50,46 @@ public sealed record PayResult(
 }
 
 /// <summary>
+/// Which statutory deductions an employer makes (PAY-10), by group: paye, shif, nssf (employee and
+/// employer), housing_levy (employee and employer) and nita. A group not made is nil and takes
+/// nothing off taxable pay. Monthly payroll makes them all.
+/// </summary>
+public sealed record StatutoryChoice
+{
+    public static readonly IReadOnlyList<string> Groups = ["paye", "shif", "nssf", "housing_levy", "nita"];
+
+    public static readonly StatutoryChoice All = new(Groups);
+
+    public IReadOnlySet<string> Makes { get; }
+
+    public StatutoryChoice(IEnumerable<string> makes)
+    {
+        Makes = makes.ToHashSet();
+        if (Makes.FirstOrDefault(g => !Groups.Contains(g)) is { } unknown)
+            throw new ArgumentException($"{unknown} is not a statutory group.", nameof(makes));
+    }
+
+    public bool Made(string group) => Makes.Contains(group);
+
+    /// <summary>The group a line (statutory_items.key) belongs to.</summary>
+    public static string GroupOf(string key) => key switch
+    {
+        "nssf_employee" or "nssf_employer" => "nssf",
+        "ahl_employee" or "ahl_employer" => "housing_levy",
+        "paye" or "shif" or "nita" => key,
+        _ => throw new ArgumentException($"{key} is not a statutory line.", nameof(key)),
+    };
+}
+
+/// <summary>
 /// The payroll engine (PAY-01): a pure function of a month's pay and a rule pack. No database, clock or
 /// settings: the same inputs and pack always give the same result. Monthly pay only for now.
 /// </summary>
 public static class PayCalculator
 {
-    public static PayResult Calculate(PayInputs pay, RulePack pack)
+    public static PayResult Calculate(PayInputs pay, RulePack pack, StatutoryChoice? choice = null)
     {
+        choice ??= StatutoryChoice.All;
         foreach (var (name, value) in new[]
                  {
                      (nameof(pay.GrossCashPay), pay.GrossCashPay), (nameof(pay.NonCashBenefits), pay.NonCashBenefits),
@@ -70,11 +103,13 @@ public static class PayCalculator
         // NSSF, SHIF and the Housing Levy are on cash pay; benefits in kind only count for PAYE.
         var nssf = pack.Nssf;
         var pensionable = Math.Min(gross, nssf.UpperLimit);
-        var nssfEmployee = NssfOn(gross, nssf.EmployeeRate, nssf, pack);
-        var nssfEmployer = NssfOn(gross, nssf.EmployerRate, nssf, pack);
-        var shif = gross == 0 ? 0 : pack.Round(Math.Max(gross * pack.Shif.Rate, pack.Shif.Minimum), pack.Shif.Rounding);
-        var ahlEmployee = pack.Round(gross * pack.Ahl.EmployeeRate, pack.Ahl.Rounding);
-        var ahlEmployer = pack.Round(gross * pack.Ahl.EmployerRate, pack.Ahl.Rounding);
+        var makesNssf = choice.Made("nssf");
+        var makesAhl = choice.Made("housing_levy");
+        var nssfEmployee = makesNssf ? NssfOn(gross, nssf.EmployeeRate, nssf, pack) : 0;
+        var nssfEmployer = makesNssf ? NssfOn(gross, nssf.EmployerRate, nssf, pack) : 0;
+        var shif = gross == 0 || !choice.Made("shif") ? 0 : pack.Round(Math.Max(gross * pack.Shif.Rate, pack.Shif.Minimum), pack.Shif.Rounding);
+        var ahlEmployee = makesAhl ? pack.Round(gross * pack.Ahl.EmployeeRate, pack.Ahl.Rounding) : 0;
+        var ahlEmployer = makesAhl ? pack.Round(gross * pack.Ahl.EmployerRate, pack.Ahl.Rounding) : 0;
 
         var taxableBenefits = pay.NonCashBenefits > pack.Benefits.NonCashExemption ? pay.NonCashBenefits : 0;
 
@@ -92,7 +127,7 @@ public static class PayCalculator
         var tax = TaxOn(taxablePay, pack);
         var insuranceRelief = pack.Round(Math.Min(pay.InsurancePremiums * pack.Reliefs.Insurance.Rate, pack.Reliefs.Insurance.Cap));
         var personalRelief = Math.Min(pack.Paye.PersonalRelief, tax);
-        var paye = pack.Round(Math.Max(0, tax - pack.Paye.PersonalRelief - insuranceRelief), pack.Paye.Rounding);
+        var paye = choice.Made("paye") ? pack.Round(Math.Max(0, tax - pack.Paye.PersonalRelief - insuranceRelief), pack.Paye.Rounding) : 0;
 
         StatutoryLine[] deductions =
         [
@@ -105,7 +140,7 @@ public static class PayCalculator
         [
             new("nssf_employer", pensionable, nssf.EmployerRate, nssfEmployer),
             new("ahl_employer", gross, pack.Ahl.EmployerRate, ahlEmployer),
-            new("nita", 1, null, pack.Nita.EmployerAmount),
+            new("nita", 1, null, choice.Made("nita") ? pack.Nita.EmployerAmount : 0),
         ];
 
         return new PayResult(
