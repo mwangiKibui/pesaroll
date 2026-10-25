@@ -25,7 +25,7 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
     private sealed record Readiness(bool Ready, List<Missing> Missing);
     private sealed record Job(Guid? PositionId, Guid? DepartmentId, Guid? UnitId, Guid? LocationId, Guid? LineManagerId, Guid PayScheduleId,
         Guid LeavePlanId, string EmploymentType, DateOnly? ContractEnd);
-    private sealed record Pay(decimal BasicAmount, string PayBasis, string Currency);
+    private sealed record Pay(decimal BasicAmount, string PayBasis, string Currency, decimal? UsualQuantity = null);
     private sealed record Account(string Method, string? BankCode, string? BranchCode, string? AccountMasked, string? MpesaMasked);
     private sealed record Employee(Guid Id, Guid CompanyId, string StaffNo, string FirstName, string? MiddleName, string LastName, string? Phone,
         string? Email, string? NationalIdMasked, string? KraPinMasked, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
@@ -455,6 +455,24 @@ public sealed class EmployeesTests(OnboardingTests.Api api) : IClassFixture<Onbo
             job = new { payScheduleId = weekly.Id }, pay = new { basicAmount = 4500m } });
 
         Assert.Equal(("monthly", "weekly"), (monthly.Pay!.PayBasis, casual.Pay!.PayBasis));
+    }
+
+    [Fact]
+    public async Task A_daily_or_hourly_rate_can_say_the_days_or_hours_usually_worked()
+    {
+        var (client, _, _) = await Onboarded();
+        var company = await AddCompany(client, "Oliech Restaurants Ltd");
+
+        var daily = await Add(client, new { companyId = company.Id, firstName = "Otieno", lastName = "Ouma", hireDate = "2024-01-01",
+            pay = new { basicAmount = 800m, payBasis = "daily", usualQuantity = 6m } });
+        Assert.Equal(("daily", (decimal?)6m), (daily.Pay!.PayBasis, daily.Pay.UsualQuantity));
+
+        var salary = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Amina", lastName = "Otieno", hireDate = "2024-01-01",
+            pay = new { basicAmount = 50000m, payBasis = "monthly", usualQuantity = 26m } });
+        Assert.Equal("Only a daily or hourly rate has usual days or hours.", (await ErrorFrom(salary)).Fields!["pay.usualQuantity"]);
+        var none = await client.PostAsJsonAsync("/api/employees", new { companyId = company.Id, firstName = "Amina", lastName = "Otieno", hireDate = "2024-01-01",
+            pay = new { basicAmount = 150m, payBasis = "hourly", usualQuantity = 0m } });
+        Assert.True((await ErrorFrom(none)).Fields!.ContainsKey("pay.usualQuantity"));
     }
 
     [Fact]

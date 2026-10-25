@@ -60,19 +60,19 @@ public sealed class OtherSchedulesTests
     }
 
     [Theory]
-    [InlineData("weekly", "weekly", true)]
-    [InlineData("fortnightly", "fortnightly", true)]
-    [InlineData("daily", "daily", true)]
-    [InlineData("weekly", "monthly", false)]
-    [InlineData("weekly", "daily", false)]       // days worked come with PAY-11
-    [InlineData("monthly", "weekly", false)]
-    [InlineData("daily", "hourly", false)]
-    public void A_run_pays_the_wage_for_its_schedule(string frequency, string basis, bool paid)
+    [InlineData("weekly", "weekly", null)]
+    [InlineData("fortnightly", "fortnightly", null)]
+    [InlineData("daily", "daily", null)]
+    [InlineData("weekly", "monthly", "other_basis")]
+    [InlineData("weekly", "daily", "no_time")]       // a daily rate on a weekly schedule: the days worked (PAY-11)
+    [InlineData("monthly", "weekly", "other_basis")]
+    [InlineData("daily", "hourly", "no_time")]
+    public void A_run_pays_the_wage_for_its_schedule(string frequency, string basis, string? excluded)
     {
         var worked = Assert.Single(PayRunCalculator.Work(Week(OctoberFridays[0], frequency: frequency), [Person(450, basis)]));
 
-        Assert.Equal(paid ? null : "other_basis", worked.ExcludedReason);
-        if (paid) Assert.Equal(450m, worked.Totals!.BasicPay);
+        Assert.Equal(excluded, worked.ExcludedReason);
+        if (excluded is null) Assert.Equal(450m, worked.Totals!.BasicPay);
     }
 
     [Fact]

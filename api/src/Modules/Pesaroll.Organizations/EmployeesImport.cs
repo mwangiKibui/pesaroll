@@ -444,13 +444,13 @@ public static class EmployeesImport
             }
 
             // Paid as the schedule pays: a monthly salary, a weekly wage, a daily rate.
-            (decimal, string)? pay = null;
+            (decimal, string, decimal?)? pay = null;
             var payText = Cell("basicPay");
             if (payText.Length > 0)
             {
                 if (ParseAmount(payText) is decimal amount && amount > 0)
                 {
-                    pay = (amount, schedule?.Frequency ?? "monthly");
+                    pay = (amount, schedule?.Frequency ?? "monthly", null);
                 }
                 else
                 {

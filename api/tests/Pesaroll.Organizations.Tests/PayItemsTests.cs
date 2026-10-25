@@ -56,8 +56,11 @@ public sealed class PayItemsTests(OnboardingTests.Api api) : IClassFixture<Onboa
         await AddCompany(client, "Mama Oliech Restaurants Ltd");
         await AddCompany(client, "Mama Oliech Catering Ltd");   // nothing twice
 
-        var items = await Items(client);
-        Assert.Equal(["BASIC", "PAYE", "SHIF", "NSSF", "AHL", "NSSF-ER", "AHL-ER", "NITA"], items.Select(i => i.Code));
+        var all = await Items(client);
+        Assert.Equal(["BASIC", "PAYE", "SHIF", "NSSF", "AHL", "NSSF-ER", "AHL-ER", "NITA", "OVERTIME", "REST-DAY"], all.Select(i => i.Code));
+        // PAY-11: with them, the usual hourly rates: the organization's own to change, not locked.
+        Assert.All(all.Skip(8), i => Assert.True(!i.Locked && i.AllCompanies && i.CalcMethod == "per_unit"));
+        var items = all.Take(8).ToList();
         Assert.All(items, i => Assert.True(i.Locked && i.AllCompanies));
         var basic = items[0];
         Assert.Equal(("Basic pay", "earning", true, "fixed"), (basic.Name, basic.Kind, basic.Taxable, basic.CalcMethod));
@@ -146,7 +149,7 @@ public sealed class PayItemsTests(OnboardingTests.Api api) : IClassFixture<Onboa
         var saved = (await renamed.Content.ReadFromJsonAsync<PayItem>())!;
         Assert.Equal(("Housing allowance", (decimal?)20000m, true), (saved.Name, saved.DefaultAmount, saved.AllCompanies));
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/pay-items/{house.Id}")).StatusCode);
-        Assert.Equal(8, (await Items(client)).Count);
+        Assert.Equal(10, (await Items(client)).Count);   // the locked items and the usual hourly rates
     }
 
     [Fact]

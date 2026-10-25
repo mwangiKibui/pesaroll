@@ -7,7 +7,9 @@
 --                pack's caps)
 --   calc_method  fixed (an amount per person, default_amount suggests it), percent_of_basic
 --                (rate), each_run (entered each payroll: overtime, commission), by_law (the rule
---                pack works it out; statutory items only)
+--                pack works it out; statutory items only), per_unit (PAY-11: earnings paid by the
+--                hour or day entered each run, at multiplier times the person's own hourly or daily
+--                rate, or default_amount a unit)
 create table pay_items (
     id               uuid primary key,
     organization_id  uuid not null references organizations (id),
@@ -16,9 +18,11 @@ create table pay_items (
     kind             text not null check (kind in ('earning', 'deduction', 'employer_cost')),
     taxable          boolean not null default false,
     before_tax       boolean not null default false,
-    calc_method      text not null check (calc_method in ('fixed', 'percent_of_basic', 'each_run', 'by_law')),
+    calc_method      text not null check (calc_method in ('fixed', 'percent_of_basic', 'each_run', 'by_law', 'per_unit')),
     default_amount   numeric(18, 2) check (default_amount >= 0),
     rate             numeric(9, 4) check (rate > 0 and rate <= 100),     -- percent of basic pay
+    unit             text check (unit in ('hour', 'day')),               -- per_unit items
+    multiplier       numeric(6, 4) check (multiplier > 0 and multiplier <= 10),   -- per_unit: 1.5 is time and a half
     locked_key       text,                                               -- basic, or a statutory item's key
     country_code     char(2),                                            -- the statutory item's country
     all_companies    boolean not null default false,
@@ -33,7 +37,10 @@ create table pay_items (
     check (kind = 'earning' or not taxable),
     check (kind = 'deduction' or not before_tax),
     check ((calc_method = 'percent_of_basic') = (rate is not null)),
-    check (calc_method = 'fixed' or default_amount is null),
+    check (calc_method in ('fixed', 'per_unit') or default_amount is null),
+    check ((calc_method = 'per_unit') = (unit is not null)),
+    check (calc_method = 'per_unit' or multiplier is null),
+    check (calc_method <> 'per_unit' or (kind = 'earning' and (multiplier is null) <> (default_amount is null))),
     check ((calc_method = 'by_law') = (locked_key is not null and locked_key <> 'basic')),
     check ((locked_key = 'basic') = (locked_key is not null and country_code is null))
 );

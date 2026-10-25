@@ -104,7 +104,9 @@ create policy employments_scope on employments as restrictive
 grant select, insert, update, delete on table employments to pesaroll_app;
 
 -- Basic pay over time (ONB-09): a monthly salary, a weekly or two-weekly wage, a daily or an hourly
--- rate; it follows the payroll schedule unless said otherwise. One current row.
+-- rate; it follows the payroll schedule unless said otherwise. One current row. A daily or hourly
+-- rate is paid for the days or hours worked in a run (PAY-11); usual_quantity is what they usually
+-- work in a pay period (6 days a week, 26 a month), paid when nothing is entered for a run.
 create table compensations (
     id               uuid primary key,
     organization_id  uuid not null,
@@ -115,9 +117,11 @@ create table compensations (
     basic_amount     numeric(18, 2) not null check (basic_amount > 0),
     pay_basis        text not null check (pay_basis in ('monthly', 'weekly', 'fortnightly', 'daily', 'hourly')),
     currency         char(3) not null,
+    usual_quantity   numeric(6, 2) check (usual_quantity > 0 and usual_quantity <= 744),
     created_at       timestamptz not null default now(),
     foreign key (company_id, employee_id) references employees (company_id, id) on delete cascade,
-    check (valid_to is null or valid_to >= valid_from)
+    check (valid_to is null or valid_to >= valid_from),
+    check (usual_quantity is null or pay_basis in ('daily', 'hourly'))
 );
 
 create unique index compensations_one_current on compensations (employee_id) where valid_to is null;

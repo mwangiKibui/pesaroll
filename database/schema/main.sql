@@ -11,6 +11,7 @@
 \i reference/statutory_items.sql
 \i reference/statutory_leave.sql
 \i reference/rule_packs.sql
+\i reference/minimum_wages.sql
 \i reference/workflow_kinds.sql
 \i identity/signup_roles.sql
 \i identity/users.sql

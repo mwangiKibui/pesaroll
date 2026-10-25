@@ -12,15 +12,18 @@ namespace Pesaroll.Organizations;
 /// <summary>
 /// Adding or editing an earning, deduction or employer cost. <see cref="Code"/> is made up when
 /// empty. Only what fits its kind and way of working out is kept: taxable for earnings, before tax
-/// for deductions, a default amount for fixed items, a rate for a percentage of basic pay.
+/// for deductions, a default amount for fixed items, a rate for a percentage of basic pay. An earning
+/// paid by the hour or day (per_unit, PAY-11) has its unit and a multiplier of the person's own rate
+/// (1.5: time and a half) or a default amount a unit.
 /// </summary>
 public sealed record PayItemRequest(
     string? Code, string? Name, string? Kind, bool Taxable, bool BeforeTax, string? CalcMethod, decimal? DefaultAmount, decimal? Rate,
-    bool AllCompanies, List<Guid>? CompanyIds, Guid? PayeeId = null);
+    bool AllCompanies, List<Guid>? CompanyIds, Guid? PayeeId = null, string? Unit = null, decimal? Multiplier = null);
 
 public sealed record PayItemResponse(
     Guid Id, string Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod, decimal? DefaultAmount, decimal? Rate,
-    bool Locked, string? LockedKey, bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<AssignmentSummary> Assignments, Guid? PayeeId);
+    bool Locked, string? LockedKey, bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<AssignmentSummary> Assignments, Guid? PayeeId,
+    string? Unit = null, decimal? Multiplier = null);
 
 /// <summary>Who gets an item at a company, briefly: everyone there, or how many chosen people.</summary>
 public sealed record AssignmentSummary(Guid CompanyId, bool Everyone, int People);
@@ -28,26 +31,28 @@ public sealed record AssignmentSummary(Guid CompanyId, bool Everyone, int People
 /// <summary>
 /// Who gets an item at one company, replacing what was there: everyone (people hired later too), or
 /// the people listed (none: nobody). Amount for fixed items, rate for a percentage of basic pay
-/// (empty: the item's); nothing for items entered each payroll. Starts today unless said.
+/// (empty: the item's); an amount a unit or a multiplier for items paid by the hour or day; nothing
+/// for items entered each payroll. Starts today unless said.
 /// </summary>
 public sealed record AssignmentRequest(Guid CompanyId, bool Everyone, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn,
-    List<AssignmentPersonRequest>? People);
+    List<AssignmentPersonRequest>? People, decimal? Multiplier = null);
 
-public sealed record AssignmentPersonRequest(Guid EmployeeId, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn, string? Reference = null);
+public sealed record AssignmentPersonRequest(Guid EmployeeId, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn, string? Reference = null,
+    decimal? Multiplier = null);
 
 /// <summary>Who gets an item at a company; Missing: people whose profile lacks the account number it takes from there.</summary>
 public sealed record CompanyAssignmentResponse(Guid CompanyId, bool Everyone, decimal? Amount, decimal? Rate, DateOnly? StartsOn, DateOnly? EndsOn,
-    IReadOnlyList<AssignedPersonResponse> People, IReadOnlyList<MissingPersonResponse> Missing);
+    IReadOnlyList<AssignedPersonResponse> People, IReadOnlyList<MissingPersonResponse> Missing, decimal? Multiplier = null);
 
 /// <summary>Reference: as typed for them; ShownReference: what applies (typed, else from their profile, masked where sensitive).</summary>
 public sealed record AssignedPersonResponse(Guid EmployeeId, string Name, string StaffNo, decimal? Amount, decimal? Rate, DateOnly StartsOn, DateOnly? EndsOn,
-    string? Reference, string? ShownReference, bool FromProfile);
+    string? Reference, string? ShownReference, bool FromProfile, decimal? Multiplier = null);
 
 public sealed record MissingPersonResponse(Guid EmployeeId, string Name, string StaffNo);
 
-/// <summary>An item someone gets, with what applies to them (their own amount or rate, else the item's).</summary>
+/// <summary>An item someone gets, with what applies to them (their own amount, rate or multiplier, else the item's).</summary>
 public sealed record EmployeePayItemResponse(Guid PayItemId, string Name, string Code, string Kind, string CalcMethod, decimal? Amount, decimal? Rate,
-    DateOnly StartsOn, DateOnly? EndsOn, bool Everyone, string? Reference, string? PayeeName);
+    DateOnly StartsOn, DateOnly? EndsOn, bool Everyone, string? Reference, string? PayeeName, string? Unit = null, decimal? Multiplier = null);
 
 /// <summary>
 /// ONB-07, the Earnings and deductions step ("pay items" in code). Basic pay and the law's items
@@ -58,7 +63,10 @@ public static class PayItemsEndpoints
 {
     public static readonly string[] Kinds = ["earning", "deduction", "employer_cost"];
     /// <summary>How an own item is worked out; by_law is only for the law's items.</summary>
-    public static readonly string[] CalcMethods = ["fixed", "percent_of_basic", "each_run"];
+    public static readonly string[] CalcMethods = ["fixed", "percent_of_basic", "each_run", "per_unit"];
+    /// <summary>The rates paid by the hour every organization starts with (PAY-11); database/post-deploy/0019 adds them to existing ones.</summary>
+    internal static readonly (string Code, string Name, decimal Multiplier)[] StandardRates =
+        [("OVERTIME", "Overtime", 1.5m), ("REST-DAY", "Rest day and public holiday", 2m)];
 
     public static IEndpointRouteBuilder MapPayItemsEndpoints(this IEndpointRouteBuilder app)
     {
@@ -136,7 +144,8 @@ public static class PayItemsEndpoints
 
             if (methodChanged)
             {
-                await db.EmployeePayItems.Where(x => x.PayItemId == id).ExecuteUpdateAsync(x => x.SetProperty(y => y.Amount, (decimal?)null).SetProperty(y => y.Rate, (decimal?)null), ct);
+                await db.EmployeePayItems.Where(x => x.PayItemId == id).ExecuteUpdateAsync(x => x.SetProperty(y => y.Amount, (decimal?)null).SetProperty(y => y.Rate, (decimal?)null)
+                    .SetProperty(y => y.Multiplier, (decimal?)null), ct);
             }
 
             await SaveAsync(db, ct);
@@ -198,7 +207,8 @@ public static class PayItemsEndpoints
             var today = PayDates.TodayInKenya(now);
             var errors = new Dictionary<string, string>();
             var rows = new List<EmployeePayItem>();
-            EmployeePayItem Row(Guid? employee, decimal? amount, decimal? rate, DateOnly? startsOn, DateOnly? endsOn, string at, string? reference = null)
+            EmployeePayItem Row(Guid? employee, decimal? amount, decimal? rate, decimal? multiplier, DateOnly? startsOn, DateOnly? endsOn, string at,
+                string? reference = null)
             {
                 reference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();
                 if (reference?.Length > 40)
@@ -206,7 +216,7 @@ public static class PayItemsEndpoints
                     errors[$"{at}reference"] = "Keep the member or account number to 40 characters.";
                 }
 
-                if (amount is not null && item.CalcMethod != "fixed")
+                if (amount is not null && item.CalcMethod is not ("fixed" or "per_unit"))
                 {
                     errors[$"{at}amount"] = item.CalcMethod == "each_run" ? $"{item.Name} is entered each payroll, so it has no amount here."
                         : $"{item.Name} is a percentage of basic pay: give a rate, not an amount.";
@@ -222,12 +232,30 @@ public static class PayItemsEndpoints
 
                 if (rate is not null && item.CalcMethod != "percent_of_basic")
                 {
-                    errors[$"{at}rate"] = item.CalcMethod == "fixed" ? $"{item.Name} is a fixed amount: give an amount, not a rate."
-                        : $"{item.Name} is entered each payroll, so it has no rate here.";
+                    errors[$"{at}rate"] = item.CalcMethod switch
+                    {
+                        "fixed" => $"{item.Name} is a fixed amount: give an amount, not a rate.",
+                        "per_unit" => $"{item.Name} is paid by the {item.Unit}: give an amount a {item.Unit} or a multiplier, not a rate.",
+                        _ => $"{item.Name} is entered each payroll, so it has no rate here.",
+                    };
                 }
                 else if (rate is <= 0 or > 100)
                 {
                     errors[$"{at}rate"] = "Enter a rate above 0 and up to 100.";
+                }
+
+                // Paid by the hour or day: their own amount a unit or multiplier of their own rate, not both.
+                if (multiplier is not null && item.CalcMethod != "per_unit")
+                {
+                    errors[$"{at}multiplier"] = $"Only items paid by the hour or day have a multiplier.";
+                }
+                else if (multiplier is not null && amount is not null)
+                {
+                    errors[$"{at}multiplier"] = "Give an amount a unit or a multiplier, not both.";
+                }
+                else if (multiplier is not (null or (> 0 and <= 10)))
+                {
+                    errors[$"{at}multiplier"] = "Enter a multiplier above 0 and up to 10 (1.5 is time and a half).";
                 }
 
                 var starts = startsOn ?? today;
@@ -239,13 +267,14 @@ public static class PayItemsEndpoints
                 return new EmployeePayItem
                 {
                     Id = Guid.CreateVersion7(), OrganizationId = organizationId, CompanyId = company.Id, PayItemId = item.Id, EmployeeId = employee,
-                    Amount = amount, Rate = rate, StartsOn = starts, EndsOn = endsOn, Reference = reference, CreatedAt = now, UpdatedAt = now,
+                    Amount = amount, Rate = rate, Multiplier = multiplier, StartsOn = starts, EndsOn = endsOn, Reference = reference, CreatedAt = now,
+                    UpdatedAt = now,
                 };
             }
 
             if (request.Everyone)
             {
-                rows.Add(Row(null, request.Amount, request.Rate, request.StartsOn, request.EndsOn, ""));
+                rows.Add(Row(null, request.Amount, request.Rate, request.Multiplier, request.StartsOn, request.EndsOn, ""));
             }
             else
             {
@@ -276,7 +305,7 @@ public static class PayItemsEndpoints
                     }
                     else
                     {
-                        rows.Add(Row(e.Id, p.Amount, p.Rate, p.StartsOn, p.EndsOn, at, p.Reference));
+                        rows.Add(Row(e.Id, p.Amount, p.Rate, p.Multiplier, p.StartsOn, p.EndsOn, at, p.Reference));
                     }
                 }
             }
@@ -329,9 +358,10 @@ public static class PayItemsEndpoints
             return Results.Ok(rows
                 .OrderBy(r => Array.IndexOf(Kinds, r.i.Kind)).ThenBy(r => r.i.Name)
                 .Select(r => new EmployeePayItemResponse(r.i.Id, r.i.Name, r.i.Code, r.i.Kind, r.i.CalcMethod,
-                    shows ? r.x.Amount ?? (r.i.CalcMethod == "fixed" ? r.i.DefaultAmount : null) : null,
+                    shows ? r.x.Amount ?? (r.i.CalcMethod is "fixed" or "per_unit" && r.x.Multiplier is null ? r.i.DefaultAmount : null) : null,
                     shows ? r.x.Rate ?? (r.i.CalcMethod == "percent_of_basic" ? r.i.Rate : null) : null,
-                    r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference ?? FromProfile(employee, r.Source), r.Payee))
+                    r.x.StartsOn, r.x.EndsOn, r.x.EmployeeId is null, r.x.Reference ?? FromProfile(employee, r.Source), r.Payee, r.i.Unit,
+                    shows ? r.x.Multiplier ?? (r.x.Amount is null ? r.i.Multiplier : null) : null))
                 .ToList());
         }).WithTags("Earnings and deductions").Produces<List<EmployeePayItemResponse>>()
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PayItemsView);
@@ -402,15 +432,17 @@ public static class PayItemsEndpoints
                 {
                     var fromProfile = x.Row.Reference is null ? FromProfile(x.Person, source) : null;
                     return new AssignedPersonResponse(x.Person.Id, Name(x.Person), x.Person.StaffNo, x.Row.Amount, x.Row.Rate, x.Row.StartsOn, x.Row.EndsOn,
-                        x.Row.Reference, x.Row.Reference ?? fromProfile, fromProfile is not null);
+                        x.Row.Reference, x.Row.Reference ?? fromProfile, fromProfile is not null, x.Row.Multiplier);
                 }).ToList(),
-                missing);
+                missing, everyone?.Multiplier);
         }).ToList();
     }
 
     /// <summary>
     /// Basic pay and the law's items for a new company's country, locked and for all companies,
-    /// unless the organization has them already. Kept even if the step is skipped.
+    /// unless the organization has them already. Kept even if the step is skipped. With them come
+    /// the usual rates paid by the hour (PAY-11), for all companies and the organization's to change:
+    /// overtime at time and a half, rest days and public holidays at double time.
     /// </summary>
     internal static async Task<List<PayItem>> LockedForNewCompanyAsync(OrganizationsDbContext db, Guid organizationId, string countryCode,
         DateTimeOffset now, CancellationToken ct)
@@ -436,11 +468,21 @@ public static class PayItemsEndpoints
             }
         }
 
+        var codes = await db.PayItems.Select(i => i.Code).ToListAsync(ct);   // archived too: one the organization removed stays removed
+        foreach (var (code, name, multiplier) in StandardRates.Where(r => !codes.Contains(r.Code)))
+        {
+            made.Add(new PayItem
+            {
+                Id = Guid.CreateVersion7(), OrganizationId = organizationId, Code = code, Name = name, Kind = "earning", Taxable = true,
+                CalcMethod = "per_unit", Unit = "hour", Multiplier = multiplier, AllCompanies = true, CreatedAt = now, UpdatedAt = now,
+            });
+        }
+
         return made;
     }
 
     private sealed record ValidItem(string? Code, string Name, string Kind, bool Taxable, bool BeforeTax, string CalcMethod,
-        decimal? DefaultAmount, decimal? Rate, bool AllCompanies, List<Guid> CompanyIds, Guid? PayeeId);
+        decimal? DefaultAmount, decimal? Rate, bool AllCompanies, List<Guid> CompanyIds, Guid? PayeeId, string? Unit, decimal? Multiplier);
 
     private static async Task<ValidItem> ValidateAsync(PayItemRequest request, OrganizationsDbContext db, CancellationToken ct)
     {
@@ -475,10 +517,35 @@ public static class PayItemsEndpoints
             errors["rate"] = "Enter a percentage from 0.01 to 100.";
         }
 
-        var amount = calc == "fixed" ? request.DefaultAmount : null;
+        var amount = calc is "fixed" or "per_unit" ? request.DefaultAmount : null;
         if (amount is < 0)
         {
             errors["defaultAmount"] = "Enter an amount of 0 or more, or leave it empty.";
+        }
+
+        // Paid by the hour or day (PAY-11): an earning, its unit, and a multiplier of the person's own rate or an amount a unit.
+        var unit = calc == "per_unit" ? request.Unit?.Trim() : null;
+        var multiplier = calc == "per_unit" ? request.Multiplier : null;
+        if (calc == "per_unit")
+        {
+            if (Kinds.Contains(kind) && kind != "earning")
+            {
+                errors["kind"] = "Only earnings are paid by the hour or day.";
+            }
+
+            if (unit is not ("hour" or "day"))
+            {
+                errors["unit"] = "Choose by the hour or by the day.";
+            }
+
+            if ((multiplier is null) == (amount is null))
+            {
+                errors["multiplier"] = "Give a multiplier of their own rate (1.5 is time and a half) or an amount a unit, not both.";
+            }
+            else if (multiplier is not (null or (> 0 and <= 10)))
+            {
+                errors["multiplier"] = "Enter a multiplier above 0 and up to 10.";
+            }
         }
 
         var companies = await db.Companies.AsNoTracking().Where(c => c.Status == "active").Select(c => c.Id).ToListAsync(ct);
@@ -511,7 +578,7 @@ public static class PayItemsEndpoints
         }
 
         return new ValidItem(code, name, kind, kind == "earning" && request.Taxable, kind == "deduction" && request.BeforeTax, calc,
-            amount, rate, request.AllCompanies, request.AllCompanies ? [] : chosen, kind == "earning" ? null : request.PayeeId);
+            amount, rate, request.AllCompanies, request.AllCompanies ? [] : chosen, kind == "earning" ? null : request.PayeeId, unit, multiplier);
     }
 
     private static void Apply(PayItem item, ValidItem valid, DateTimeOffset now)
@@ -521,6 +588,8 @@ public static class PayItemsEndpoints
         item.DefaultAmount = valid.DefaultAmount;
         item.PayeeId = valid.PayeeId;
         item.Rate = valid.Rate;
+        item.Unit = valid.Unit;
+        item.Multiplier = valid.Multiplier;
         item.AllCompanies = valid.AllCompanies;
         item.UpdatedAt = now;
         foreach (var companyId in valid.CompanyIds.Where(id => !item.Companies.Any(c => c.CompanyId == id)))
@@ -550,5 +619,6 @@ public static class PayItemsEndpoints
 
     private static PayItemResponse ToResponse(PayItem i, Dictionary<Guid, List<AssignmentSummary>> who) => new(
         i.Id, i.Code, i.Name, i.Kind, i.Taxable, i.BeforeTax, i.CalcMethod, i.DefaultAmount, i.Rate,
-        i.LockedKey is not null, i.LockedKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(), who.GetValueOrDefault(i.Id) ?? [], i.PayeeId);
+        i.LockedKey is not null, i.LockedKey, i.AllCompanies, i.Companies.Select(c => c.CompanyId).ToList(), who.GetValueOrDefault(i.Id) ?? [], i.PayeeId,
+        i.Unit, i.Multiplier);
 }
