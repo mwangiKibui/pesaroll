@@ -43,3 +43,4 @@
 \i identity/signin_functions.sql
 \i tenancy/onboarding_functions.sql
 \i tenancy/approvals.sql
+\i tenancy/pay_runs.sql

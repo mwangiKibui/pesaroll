@@ -23,6 +23,7 @@ export const permissions = {
   team: area('team'),
   workflows: area('workflows'),
   payRunApprovals: area('pay_run_approvals'),
+  payRuns: area('pay_runs'),
 }
 
 /**

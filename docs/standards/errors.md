@@ -127,6 +127,16 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | PAY-2010 | We don't have the statutory rules for {country} on {date} yet, so pay can't be worked out. | Support | No published rule pack covers that country and pay date (rule_packs). Publish the pack for the period in database/rule-packs/. |
 | PAY-2011 | A published rule pack can't be changed. | Engineering | Someone tried to update, delete or re-seed a published rule pack with different rules. Add a new version with its own start date instead. |
+| PAY-2012 | A pay run for {schedule} in {month} already exists at {company}. | Customer | One regular pay run per company, schedule and month that isn't cancelled. Open the existing one, or cancel it first if it hasn't been sent. |
+| PAY-2013 | Only monthly payroll schedules can be run for now. | Customer | Weekly, fortnightly and daily pay runs come with PAY-10. Move the people to a monthly schedule or wait for it. |
+| PAY-2014 | This pay run is {approved or cancelled} and can't change. To fix an approved pay run, run a correction. | Customer | Approved and cancelled pay runs never change, and a run's figures are fixed once it is sent for approval; the database refuses changes too. Corrections are new runs for chosen people. |
+| PAY-2015 | Work out this pay run before sending it for approval. | Customer | Only a calculated run can be sent. It may still be calculating (refresh), or the last calculation failed: see calculationError on the run. |
+| PAY-2016 | We couldn't find that pay run. It may be at a company you can't see. | Customer | The run doesn't exist, belongs to another organization or company, or (for approvers) isn't waiting for them. |
+| PAY-2017 | Nobody is paid in this pay run. Check who is left out and why. | Customer | Every employee on the schedule was left out (no pay, paid weekly or daily, another currency). Fix their pay and recalculate. |
+| PAY-2018 | Only an approved pay run can be corrected. | Customer | Runs that aren't approved are changed by recalculating them. |
+| PAY-2019 | {n} people would get pay below zero. Check their deductions, then recalculate. | Customer | Deductions are more than someone's pay. Lower or end the deductions (a loan, an advance) and recalculate; the run can't be sent until nobody is below zero. |
+| PAY-2020 | Some pay run details don't look right. Check the fields marked. | Customer | The company, schedule (used by the company), month, or for corrections the people (employees of the company, at least one). |
+| PAY-2021 | This pay run is waiting for approval. Cancel the request to change it. | Customer | A run's figures are fixed while it is sent; the sender cancels the request (Approvals), then recalculates. |
 | WF-5001 | You can't decide this request. | Customer | The person isn't an approver of the request's current step, or no longer holds that step's permission for the company. |
 | WF-5002 | Give a reason for declining, so the sender knows what to fix. | Customer | Declining needs a reason (1 to 500 characters). |
 | WF-5003 | This request has already been decided or cancelled. | Customer | Approved, declined and cancelled requests never change; send a new one. |

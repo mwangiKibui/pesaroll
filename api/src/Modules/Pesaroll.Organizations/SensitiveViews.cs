@@ -9,7 +9,7 @@ namespace Pesaroll.Organizations;
 /// into sensitive_views, one row per request: never the amounts (CLAUDE.md rule 8). The first part of
 /// the audit log (PLAT-03).
 /// </summary>
-internal static class SensitiveViews
+public static class SensitiveViews
 {
     public static async Task RecordAsync(OrganizationsDbContext db, TenantContext tenant, HttpContext http, string kind, IReadOnlyList<Guid> whose,
         CancellationToken ct)

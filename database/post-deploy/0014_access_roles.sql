@@ -16,10 +16,11 @@ insert into permission_areas (key, name_en, name_sw, sort_order) values
   ('payroll_history',  'Payroll history',                  'Historia ya mishahara',   10),
   ('team',             'Team access',                      'Ufikiaji wa timu',        11),
   ('workflows',        'Approval workflows',               'Mitiririko ya idhini',    12),
-  ('pay_run_approvals','Pay run approvals',                'Idhini za mishahara',     13)
+  ('pay_run_approvals','Pay run approvals',                'Idhini za mishahara',     13),
+  ('pay_runs',         'Pay runs',                         'Malipo ya mishahara',     14)
 on conflict (key) do update set name_en = excluded.name_en, name_sw = excluded.name_sw, sort_order = excluded.sort_order;
 
-delete from permission_areas where key not in ('companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'workflows', 'pay_run_approvals');
+delete from permission_areas where key not in ('companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'workflows', 'pay_run_approvals', 'pay_runs');
 
 insert into permissions (key, description, area, level) values
   ('companies.view',          'See companies'' registration and statutory details. Every member sees the company names they work with.', 'companies', 'view'),
@@ -47,7 +48,9 @@ insert into permissions (key, description, area, level) values
   ('workflows.view',          'See who approves pay runs, leave and other requests.', 'workflows', 'view'),
   ('workflows.manage',        'Set up and change who approves pay runs, leave and other requests.', 'workflows', 'manage'),
   ('pay_run_approvals.view',  'See pay runs waiting for approval.', 'pay_run_approvals', 'view'),
-  ('pay_run_approvals.manage','Approve or decline pay runs.', 'pay_run_approvals', 'manage')
+  ('pay_run_approvals.manage','Approve or decline pay runs.', 'pay_run_approvals', 'manage'),
+  ('pay_runs.view',           'See pay runs and the pay worked out in them. Every view of people''s pay is recorded.', 'pay_runs', 'view'),
+  ('pay_runs.manage',         'Start, work out, send for approval, cancel and correct pay runs.', 'pay_runs', 'manage')
 on conflict (key) do update set description = excluded.description, area = excluded.area, level = excluded.level;
 
 delete from permissions p where not exists (select 1 from (values
@@ -55,7 +58,8 @@ delete from permissions p where not exists (select 1 from (values
   ('structure.view'), ('structure.manage'), ('leave.view'), ('leave.manage'), ('schedules.view'), ('schedules.manage'),
   ('pay_items.view'), ('pay_items.manage'), ('payment_accounts.view'), ('payment_accounts.manage'),
   ('payroll_history.view'), ('payroll_history.manage'), ('team.view'), ('team.manage'),
-  ('workflows.view'), ('workflows.manage'), ('pay_run_approvals.view'), ('pay_run_approvals.manage')) k (key) where k.key = p.key);
+  ('workflows.view'), ('workflows.manage'), ('pay_run_approvals.view'), ('pay_run_approvals.manage'),
+  ('pay_runs.view'), ('pay_runs.manage')) k (key) where k.key = p.key);
 
 insert into roles (id, organization_id, key, name_en, name_sw) values
   ('0199c0de-acc0-7000-8000-000000000001', null, 'admin',    'Administrator', 'Msimamizi'),
@@ -69,7 +73,7 @@ insert into wanted values
   ('admin', 'companies.manage'), ('admin', 'payment_accounts.manage'), ('admin', 'locations.manage'), ('admin', 'structure.manage'),
   ('admin', 'leave.manage'), ('admin', 'schedules.manage'), ('admin', 'pay_items.manage'), ('admin', 'employees.manage'),
   ('admin', 'payroll_history.manage'), ('admin', 'team.manage'), ('admin', 'pay.manage'),
-  ('admin', 'workflows.manage'), ('admin', 'pay_run_approvals.manage'),
+  ('admin', 'workflows.manage'), ('admin', 'pay_run_approvals.manage'), ('admin', 'pay_runs.manage'),
   ('hr', 'locations.manage'), ('hr', 'structure.manage'), ('hr', 'leave.manage'), ('hr', 'employees.manage'),
   -- The employee form picks a payroll schedule (HR), and a department, position, location and leave plan (Payroll).
   ('hr', 'schedules.view'),
@@ -77,6 +81,8 @@ insert into wanted values
   ('payroll', 'payroll_history.manage'), ('payroll', 'pay.manage'), ('payroll', 'locations.view'), ('payroll', 'structure.view'), ('payroll', 'leave.view'),
   -- Payroll sees who approves; it doesn't approve its own pay runs unless a workflow says so (WF-03).
   ('payroll', 'workflows.view'),
+  -- Payroll prepares pay runs (PAY-03); approvers see the ones sent to them through the request.
+  ('payroll', 'pay_runs.manage'),
   ('approver', 'pay_run_approvals.manage');
 
 insert into role_permissions (role_id, permission_key)
