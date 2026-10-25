@@ -8,6 +8,7 @@ using Pesaroll.Shared.Jobs;
 using Pesaroll.Shared.Security;
 using Pesaroll.Shared.Tenancy;
 using Pesaroll.Shared.Web;
+using Pesaroll.Workflows;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,7 @@ builder.Services.AddFieldEncryption(builder.Configuration);
 // The API queues background work; the worker runs it (PLAT-04).
 builder.Services.AddPesarollJobs(connectionString, runJobs: false);
 // Email and SMS (NTF-01): queued here, sent by the worker.
+builder.Services.AddWorkflowsModule(connectionString);
 builder.Services.AddNotificationsModule(connectionString, builder.Configuration, builder.Environment.IsProduction());
 
 // The API only runs behind Caddy, which sets the client's address and scheme.
@@ -90,6 +92,7 @@ app.MapStructureImportEndpoints();
 app.MapPayrollHistoryEndpoints();
 app.MapTeamEndpoints();
 app.MapHomeEndpoints();
+app.MapWorkflowsEndpoints();
 
 app.Run();
 

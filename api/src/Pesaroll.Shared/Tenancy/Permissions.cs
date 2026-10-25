@@ -19,6 +19,8 @@ public static class Permissions
     public const string PayrollHistory = "payroll_history.manage";
     public const string Team = "team.manage";
     public const string Pay = "pay.manage";
+    public const string Workflows = "workflows.manage";
+    public const string PayRunApprovals = "pay_run_approvals.manage";
 
     // View (ACC-04): each area's Manage brings its View.
     public const string CompaniesView = "companies.view";
@@ -32,10 +34,12 @@ public static class Permissions
     public const string PayrollHistoryView = "payroll_history.view";
     public const string TeamView = "team.view";
     public const string PayView = "pay.view";
+    public const string WorkflowsView = "workflows.view";
+    public const string PayRunApprovalsView = "pay_run_approvals.view";
 
     public static readonly IReadOnlyList<string> All =
-        [Companies, PaymentAccounts, Locations, Structure, Leave, Schedules, PayItems, Employees, PayrollHistory, Team, Pay,
-         CompaniesView, PaymentAccountsView, LocationsView, StructureView, LeaveView, SchedulesView, PayItemsView, EmployeesView, PayrollHistoryView, TeamView, PayView];
+        [Companies, PaymentAccounts, Locations, Structure, Leave, Schedules, PayItems, Employees, PayrollHistory, Team, Pay, Workflows, PayRunApprovals,
+         CompaniesView, PaymentAccountsView, LocationsView, StructureView, LeaveView, SchedulesView, PayItemsView, EmployeesView, PayrollHistoryView, TeamView, PayView, WorkflowsView, PayRunApprovalsView];
 }
 
 /// <summary>A permission a person has from their groups: for all companies, or for these.</summary>
