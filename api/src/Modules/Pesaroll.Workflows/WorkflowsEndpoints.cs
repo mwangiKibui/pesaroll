@@ -59,9 +59,9 @@ public static class WorkflowsEndpoints
             return Results.Ok(kinds.Select(k => new KindResponse(k.Key, new KindName(k.NameEn, k.NameSw), k.Required,
                 JsonDocument.Parse(k.SuggestedSteps).RootElement.Clone())).ToList());
         }).Produces<List<KindResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
-          .RequirePermission(Permissions.WorkflowsView);
+          .WithTags("Approval workflows").RequirePermission(Permissions.WorkflowsView);
 
-        var workflows = app.MapGroup("/api/workflows");
+        var workflows = app.MapGroup("/api/workflows").WithTags("Approval workflows");
 
         workflows.MapGet("/", async (Guid companyId, WorkflowsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
         {
@@ -160,7 +160,7 @@ public static class WorkflowsEndpoints
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .RequirePermission(Permissions.Workflows);
 
-        var approvals = app.MapGroup("/api/approvals");
+        var approvals = app.MapGroup("/api/approvals").WithTags("Approvals");
 
         // What waits for me at a company.
         approvals.MapGet("/", async (Guid companyId, WorkflowsDbContext db, TenantContext tenant, HttpContext http, CancellationToken ct) =>
