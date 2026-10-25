@@ -70,5 +70,9 @@
       "cap": 5000
     },
     "source": "Income Tax Act s.31 (15% of qualifying premiums, at most KES 5,000 a month)"
+  },
+  "benefits": {
+    "nonCashExemption": 5000,
+    "source": "Income Tax Act s.5(4)(a), as amended by the Tax Laws (Amendment) Act 2024: non-cash benefits worth KES 5,000 a month or less in total are not taxed; above that, all of it is"
   }
 }
