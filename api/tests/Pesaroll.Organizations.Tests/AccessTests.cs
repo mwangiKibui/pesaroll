@@ -118,8 +118,9 @@ public sealed class AccessTests(OnboardingTests.Api api) : IClassFixture<Onboard
         var me = (await owner.GetFromJsonAsync<Me>("/api/auth/me"))!;
         Assert.Equal(orgId, me.OrganizationId);
         Assert.Equal(["companies.manage", "companies.view", "employees.manage", "employees.view", "leave.manage", "leave.view", "locations.manage", "locations.view",
-            "pay_items.manage", "pay_items.view", "pay.manage", "pay.view", "payment_accounts.manage", "payment_accounts.view", "payroll_history.manage", "payroll_history.view",
-            "schedules.manage", "schedules.view", "structure.manage", "structure.view", "team.manage", "team.view"], me.Permissions.Select(p => p.Permission).Order());
+            "pay_items.manage", "pay_items.view", "pay_run_approvals.manage", "pay_run_approvals.view", "pay.manage", "pay.view", "payment_accounts.manage", "payment_accounts.view",
+            "payroll_history.manage", "payroll_history.view", "schedules.manage", "schedules.view", "structure.manage", "structure.view", "team.manage", "team.view",
+            "workflows.manage", "workflows.view"], me.Permissions.Select(p => p.Permission).Order());
         Assert.All(me.Permissions, p => Assert.True(p.AllCompanies));
     }
 
@@ -152,7 +153,7 @@ public sealed class AccessTests(OnboardingTests.Api api) : IClassFixture<Onboard
 
         Assert.Equal(2, (await otieno.GetFromJsonAsync<List<Company>>("/api/companies"))!.Count);
         Assert.Equal(["employees.manage", "employees.view", "leave.view", "locations.view", "pay_items.manage", "pay_items.view", "pay.manage", "pay.view", "payment_accounts.manage",
-            "payment_accounts.view", "payroll_history.manage", "payroll_history.view", "schedules.manage", "schedules.view", "structure.view"],
+            "payment_accounts.view", "payroll_history.manage", "payroll_history.view", "schedules.manage", "schedules.view", "structure.view", "workflows.view"],
             (await otieno.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions.Select(p => p.Permission).Order());
         Assert.Equal(HttpStatusCode.Created, (await otieno.PostAsJsonAsync("/api/pay-items",
             new { name = "Bonus", kind = "earning", taxable = true, calcMethod = "each_run", allCompanies = true })).StatusCode);
@@ -162,12 +163,13 @@ public sealed class AccessTests(OnboardingTests.Api api) : IClassFixture<Onboard
     }
 
     [Fact]
-    public async Task An_approver_sees_every_company_and_changes_nothing_yet()
+    public async Task An_approver_sees_every_company_approves_pay_runs_and_changes_nothing()
     {
         var (_, orgId, westlands, _) = await Organization();
         var njeri = await Colleague(orgId, "approver");
         Assert.Equal(2, (await njeri.GetFromJsonAsync<List<Company>>("/api/companies"))!.Count);
-        Assert.Empty((await njeri.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions);
+        Assert.Equal(["pay_run_approvals.manage", "pay_run_approvals.view"],
+            (await njeri.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions.Select(p => p.Permission).Order());   // WF-03
         Assert.Equal("ACC-8001", await Code(await njeri.PostAsJsonAsync("/api/employees", Employee(westlands.Id, "W-03"))));
     }
 
