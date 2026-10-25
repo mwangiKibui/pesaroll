@@ -53,7 +53,7 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
             .ToList();
         var setup = await SetupAsync(run, company.CountryCode, pack, ct) with
         {
-            Frequency = frequency, Choice = choices.Schedule?.Choice ?? StatutoryChoice.All, Wages = await WageOrderAsync(company.CountryCode, run.PayDate, ct),
+            Frequency = frequency, Choice = choices.Schedule?.Choice ?? StatutoryChoice.All, Wages = await WageOrderAsync(company, run.PayDate, ct),
         };
         var people = PayRunCalculator.Work(setup, candidates);
         await SaveAsync(run.Id, people, id => choices.People.GetValueOrDefault(id) ?? choices.Schedule, pack.Version, userId, ct);
@@ -122,15 +122,17 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         return new RunSetup(new RunPeriod(run.PeriodStart, run.PeriodEnd), run.PayScheduleId, run.EmployeeIds, pack, names, own, assignments);
     }
 
-    /// <summary>The wage order in force for a country on a pay date, with its minimum wages (null: none).</summary>
-    private async Task<WageOrder?> WageOrderAsync(string country, DateOnly payDate, CancellationToken ct)
+    /// <summary>
+    /// The wage order in force for the company's country on a pay date, with its minimum wages and the
+    /// company's own working hours where it set them (null: no order for the country).
+    /// </summary>
+    private async Task<WageOrder?> WageOrderAsync(Company company, DateOnly payDate, CancellationToken ct)
     {
-        var order = await db.WageOrders.AsNoTracking().Where(w => w.CountryCode == country && w.EffectiveFrom <= payDate)
-            .OrderByDescending(w => w.EffectiveFrom).FirstOrDefaultAsync(ct);
+        var order = await WorkingHoursEndpoints.OrderInForceAsync(db, company.CountryCode, payDate, ct);
         if (order is null) return null;
-        var minimums = await db.MinimumWages.AsNoTracking().Where(m => m.CountryCode == country && m.EffectiveFrom == order.EffectiveFrom)
+        var minimums = await db.MinimumWages.AsNoTracking().Where(m => m.CountryCode == company.CountryCode && m.EffectiveFrom == order.EffectiveFrom)
             .ToDictionaryAsync(m => m.WageAreaCode, m => new MinimumWage(m.Monthly, m.Daily, m.Hourly), ct);
-        return new WageOrder(order.HoursPerDay, order.HoursPerMonth, minimums);
+        return new WageOrder(company.HoursPerDay ?? order.HoursPerDay, company.HoursPerMonth ?? order.HoursPerMonth, minimums);
     }
 
     private async Task<List<Candidate>> CandidatesAsync(PayRun run, Company company, CancellationToken ct)

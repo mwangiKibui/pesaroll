@@ -34,6 +34,14 @@ public sealed class Company
     public Guid? DefaultPayScheduleId { get; set; }
     /// <summary>The leave plan its employees get (ONB-08) unless their pay schedule names one; "Standard" to start.</summary>
     public Guid? DefaultLeavePlanId { get; set; }
+    /// <summary>
+    /// Its working day and month in hours (PAY-11), which turn a daily rate or a salary into an hourly
+    /// one for overtime; null: the wage order's (8 and 225). Set through Payroll, with who and when.
+    /// </summary>
+    public decimal? HoursPerDay { get; set; }
+    public decimal? HoursPerMonth { get; set; }
+    public Guid? HoursSetBy { get; set; }
+    public DateTimeOffset? HoursSetAt { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

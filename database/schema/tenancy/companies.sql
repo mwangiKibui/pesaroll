@@ -18,6 +18,10 @@ create table companies (
     main_location_id   uuid,                          -- its one main location (ONB-04); can't be deleted while main
     default_pay_schedule_id uuid,                     -- the schedule its employees get (ONB-06); can't be deleted while default
     default_leave_plan_id uuid,                       -- the leave plan its employees get (ONB-08), unless their schedule names one
+    hours_per_day      numeric(5, 2) check (hours_per_day > 0 and hours_per_day <= 24),        -- PAY-11: its working day (null: the wage order's)
+    hours_per_month    numeric(6, 2) check (hours_per_month > 0 and hours_per_month <= 744),  -- PAY-11: its working month (null: the wage order's)
+    hours_set_by       uuid references users (id),                       -- who last set its hours, and when
+    hours_set_at       timestamptz,
     status             text not null default 'active' check (status in ('active', 'archived')),
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
