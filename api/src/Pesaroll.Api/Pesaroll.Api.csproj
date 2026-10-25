@@ -17,6 +17,7 @@
     <ProjectReference Include="..\Modules\Pesaroll.Organizations\Pesaroll.Organizations.csproj" />
     <ProjectReference Include="..\Modules\Pesaroll.Identity\Pesaroll.Identity.csproj" />
     <ProjectReference Include="..\Modules\Pesaroll.Notifications\Pesaroll.Notifications.csproj" />
+    <ProjectReference Include="..\Modules\Pesaroll.Workflows\Pesaroll.Workflows.csproj" />
   </ItemGroup>
 
 </Project>

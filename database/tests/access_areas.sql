@@ -23,7 +23,7 @@ begin
     raise exception 'an area does not have exactly View and Manage';
   end if;
   if (select array_agg(key order by sort_order) from permission_areas)
-     is distinct from array['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team'] then
+     is distinct from array['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'workflows', 'pay_run_approvals'] then
     raise exception 'the areas are not the ones planned, in order';
   end if;
 
@@ -35,16 +35,18 @@ begin
   end if;
   if (select array_agg(rp.permission_key order by rp.permission_key) from role_permissions rp join roles r on r.id = rp.role_id
       where r.key = 'payroll' and r.organization_id is null)
-     is distinct from array['employees.manage', 'leave.view', 'locations.view', 'pay_items.manage', 'pay.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.view'] then
-    raise exception 'Payroll is not: manage employees, pay, pay items, paying accounts, payroll history and schedules; view leave, locations and structure';
+     is distinct from array['employees.manage', 'leave.view', 'locations.view', 'pay_items.manage', 'pay.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.view', 'workflows.view'] then
+    raise exception 'Payroll is not: manage employees, pay, pay items, paying accounts, payroll history and schedules; view leave, locations, structure and workflows';
   end if;
   if (select count(*) from role_permissions rp join roles r on r.id = rp.role_id join permissions p on p.key = rp.permission_key
       where r.key = 'admin' and r.organization_id is null and p.level = 'manage')
      <> (select count(*) from permissions where level = 'manage') then
     raise exception 'an administrator does not manage every area';
   end if;
-  if exists (select 1 from role_permissions rp join roles r on r.id = rp.role_id where r.key = 'approver' and r.organization_id is null) then
-    raise exception 'an approver has setup access';
+  -- WF-03: an approver approves pay runs, and has no setup access.
+  if (select array_agg(rp.permission_key) from role_permissions rp join roles r on r.id = rp.role_id where r.key = 'approver' and r.organization_id is null)
+     is distinct from array['pay_run_approvals.manage'] then
+    raise exception 'an approver does more than approve pay runs';
   end if;
 
   -- Manage brings View, for the same companies.

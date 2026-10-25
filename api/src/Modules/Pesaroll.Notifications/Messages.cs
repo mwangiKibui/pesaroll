@@ -93,6 +93,31 @@ public static partial class Templates
             "{inviter} amekualika kwenye {organization} katika Pesaroll",
             "Habari {firstName},\n\n{inviter} amekualika ujiunge na {organization} katika Pesaroll kama {role}.\n\nKubali mwaliko na uweke nenosiri lako: {link}\n\nKiungo kinafanya kazi mara moja na kinaisha baada ya siku 7. Kama hukutarajia ujumbe huu, unaweza kuupuuza.",
             "Pesaroll: {inviter} amekualika ujiunge na {organization} kama {role}. Kubali ndani ya siku 7: {link}"),
+        // WF-01: approvals. Only what and where; the reason for a decline and any figures stay in Pesaroll.
+        [("approval_waiting", "en")] = new(
+            "Waiting for your approval: {kind} at {company}",
+            "Hi {firstName},\n\n{sender} sent a request ({kind}) at {company} for your approval.\n\nOpen it in Pesaroll to approve or decline it: {link}",
+            "Pesaroll: {sender} sent a request ({kind}) at {company} for your approval. {link}"),
+        [("approval_waiting", "sw")] = new(
+            "Inasubiri idhini yako: {kind} katika {company}",
+            "Habari {firstName},\n\n{sender} ametuma ombi ({kind}) katika {company} lisubiri idhini yako.\n\nLifungue katika Pesaroll uliidhinishe au ulikatae: {link}",
+            "Pesaroll: {sender} ametuma ombi ({kind}) katika {company} lisubiri idhini yako. {link}"),
+        [("approval_approved", "en")] = new(
+            "Approved: your request ({kind}) at {company}",
+            "Hi {firstName},\n\n{decider} approved your request ({kind}) at {company}.\n\nOpen it in Pesaroll: {link}",
+            "Pesaroll: {decider} approved your request ({kind}) at {company}. {link}"),
+        [("approval_approved", "sw")] = new(
+            "Limeidhinishwa: ombi lako ({kind}) katika {company}",
+            "Habari {firstName},\n\n{decider} ameidhinisha ombi lako ({kind}) katika {company}.\n\nLifungue katika Pesaroll: {link}",
+            "Pesaroll: {decider} ameidhinisha ombi lako ({kind}) katika {company}. {link}"),
+        [("approval_declined", "en")] = new(
+            "Declined: your request ({kind}) at {company}",
+            "Hi {firstName},\n\n{decider} declined your request ({kind}) at {company}.\n\nOpen it in Pesaroll to see why: {link}",
+            "Pesaroll: {decider} declined your request ({kind}) at {company}. See why: {link}"),
+        [("approval_declined", "sw")] = new(
+            "Limekataliwa: ombi lako ({kind}) katika {company}",
+            "Habari {firstName},\n\n{decider} amekataa ombi lako ({kind}) katika {company}.\n\nLifungue katika Pesaroll uone sababu: {link}",
+            "Pesaroll: {decider} amekataa ombi lako ({kind}) katika {company}. Ona sababu: {link}"),
     };
 
     public static bool Exists(string key) => All.ContainsKey((key, "en"));

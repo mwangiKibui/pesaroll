@@ -25,18 +25,21 @@ create table employees (
     sha_no             text,
     hire_date          date not null,
     exit_date          date,
+    membership_id      uuid,                          -- their sign-in, when they have one (WF-02: line managers approve)
     created_at         timestamptz not null default now(),
     updated_at         timestamptz not null default now(),
     unique (organization_id, id),
     unique (company_id, id),
     unique (company_id, staff_no),
     foreign key (organization_id, company_id) references companies (organization_id, id) on delete cascade,
+    foreign key (organization_id, membership_id) references memberships (organization_id, id) on delete set null (membership_id),
     check (exit_date is null or exit_date >= hire_date),
     check ((national_id_enc is null) = (national_id_lookup is null) or national_id_enc is null),
     check ((kra_pin_enc is null) = (kra_pin_lookup is null) or kra_pin_enc is null)
 );
 
 -- No two current employees in an organization share an ID number or KRA PIN.
+create unique index employees_one_sign_in on employees (membership_id) where membership_id is not null;
 create unique index employees_one_national_id on employees (organization_id, national_id_lookup) where national_id_lookup is not null and exit_date is null;
 create unique index employees_one_kra_pin on employees (organization_id, kra_pin_lookup) where kra_pin_lookup is not null and exit_date is null;
 -- Nor an email address, phone number, NSSF or SHA number (stored normalized: lower case, +254…, upper case), so a re-import is caught.

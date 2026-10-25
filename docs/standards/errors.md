@@ -127,6 +127,15 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | PAY-2002 | {employee}'s pay is below the minimum wage for {location}. | Customer | Confirm pay and location; the run can't be approved below the minimum. |
 | PAY-2010 | We don't have the statutory rules for {country} on {date} yet, so pay can't be worked out. | Support | No published rule pack covers that country and pay date (rule_packs). Publish the pack for the period in database/rule-packs/. |
 | PAY-2011 | A published rule pack can't be changed. | Engineering | Someone tried to update, delete or re-seed a published rule pack with different rules. Add a new version with its own start date instead. |
+| WF-5001 | You can't decide this request. | Customer | The person isn't an approver of the request's current step, or no longer holds that step's permission for the company. |
+| WF-5002 | Give a reason for declining, so the sender knows what to fix. | Customer | Declining needs a reason (1 to 500 characters). |
+| WF-5003 | This request has already been decided or cancelled. | Customer | Approved, declined and cancelled requests never change; send a new one. |
+| WF-5004 | Nobody else can approve this. Add an approver to the workflow, or allow the person who sends it to approve it. | Customer | Every step must find at least one approver who isn't the sender, unless the workflow allows self-approval. Check the workflow's steps and fallback, and the groups that hold the permission. |
+| WF-5005 | Choose who approves {kind} for {company} first. | Customer | No active workflow for that kind covers the company. An administrator sets one up under Workflows. |
+| WF-5006 | Approval history can't be changed. | Engineering | Something tried to update approval_actions; history is append-only. |
+| WF-5007 | We couldn't find that request. It may be at a company you can't see. | Customer | The approval request doesn't exist in this organization, or belongs to a company outside the person's scope. |
+| WF-5008 | We couldn't find that workflow. It may have been changed or switched off. | Customer | The workflow doesn't exist, isn't active, or is for a company outside the person's scope. |
+| WF-5009 | Some workflow details don't look right. Check the fields marked. | Customer | Steps in order (1 to 5), each finding approvers by a permission, named members or the line manager, with a known permission or fallback; the company must be in the organization. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |
 | PLAT-9002 | This request came from another website and was blocked. | Engineering | Check App:AllowedOrigins includes the app's address; otherwise a cross-site request was stopped. |
 | PLAT-9001 | Something went wrong on our side. Quote reference {reference} to support. | Engineering | Look up the reference; escalate with the request id. |

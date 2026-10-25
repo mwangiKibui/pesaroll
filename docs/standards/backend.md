@@ -47,6 +47,14 @@ Status: draft for review.
 - **Never edit a published pack.** The database refuses changes and deletes (PAY-2011), and editing a published file fails the deploy. A change in the law is a new file with a new version and start date, a new `publish_rule_pack` line in post-deploy, and golden cases for it.
 - Monthly pay only for now; weekly, fortnightly and daily come with PAY-04.
 
+## Approvals (WF-01..03)
+
+- One engine (`Pesaroll.Workflows`) approves everything: pay runs first, then leave and later kinds. What can be approved is reference data (`workflow_kinds`, post-deploy `0017_workflow_kinds.sql`): its names, whether it is **required** (can't be sent until set up, WF-5005) and the **suggested setup** the Workflows page pre-fills.
+- Each organization sets up its own workflows (`POST /api/workflows`, Approval workflows Manage): for every company or one (a company's own replaces the organization's there), with steps approved in order. A step finds approvers by a **permission** for the company, **named people**, or the employee's **line manager** (by their sign-in, `employees.membership_id`), with a **fallback** permission when that finds nobody. Nothing is created for an organization: `GET /api/workflows/missing` tells setup and Home what still needs setting up.
+- The sender never approves their own request unless the workflow allows it (`allow_self_approval`, an admin's choice for small teams); such approvals are recorded as `self_approved`. Changing a workflow makes a new one and switches the old off, so requests keep the steps they were sent with.
+- **Adding a kind:** a row in `0017_workflow_kinds.sql`; the feature calls `Approvals.SubmitAsync(kind, companyId, subjectId, employeeId)` after its own permission check, and registers an `IApprovalOutcome` for the kind to react when a request is approved, declined or cancelled. The outcome runs in the decision's transaction (`ApprovalTransaction`), so a failure undoes the decision.
+- Deciding (`/api/approvals/{id}/approve|decline|cancel`) is relationship-based: the request's approvers for its current step (fixed when the step starts), with the step's permission checked again; cancelling is the sender's. Every action goes into `approval_actions`, which nobody can change (WF-5006). Emails say what and where, never amounts or the reason for a decline.
+
 ## Background work
 
 - Hangfire, storing jobs in PostgreSQL. Long work (imports, pay runs, PDFs, notifications) is always a job, never inside a request.
