@@ -107,6 +107,8 @@ grant select, insert, update, delete on table employments to pesaroll_app;
 -- rate; it follows the payroll schedule unless said otherwise. One current row. A daily or hourly
 -- rate is paid for the days or hours worked in a run (PAY-11); usual_quantity is what they usually
 -- work in a pay period (6 days a week, 26 a month), paid when nothing is entered for a run.
+-- A change can start on an earlier date (PAY-04): it then runs until the next change, says who made
+-- it and why, and the row it interrupts ends the day before. Rows are never rewritten otherwise.
 create table compensations (
     id               uuid primary key,
     organization_id  uuid not null,
@@ -118,6 +120,8 @@ create table compensations (
     pay_basis        text not null check (pay_basis in ('monthly', 'weekly', 'fortnightly', 'daily', 'hourly')),
     currency         char(3) not null,
     usual_quantity   numeric(6, 2) check (usual_quantity > 0 and usual_quantity <= 744),
+    changed_by       uuid references users (id),                     -- who made the change (PAY-04; empty on older rows)
+    reason           text check (length(btrim(reason)) between 1 and 500), -- why: required for a backdated change
     created_at       timestamptz not null default now(),
     foreign key (company_id, employee_id) references employees (company_id, id) on delete cascade,
     check (valid_to is null or valid_to >= valid_from),

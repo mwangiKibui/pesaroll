@@ -210,7 +210,7 @@ public sealed class PayRunCalculatorTests
     }
 
     [Fact]
-    public void Joiners_and_leavers_are_paid_the_month_and_flagged()
+    public void Joiners_and_leavers_are_paid_their_days_and_flagged()
     {
         var joiner = Person(hired: new DateOnly(2026, 10, 12));
         // Left on the 20th; their pay rose on the 25th, after they left, so the old pay counts.
@@ -226,11 +226,11 @@ public sealed class PayRunCalculatorTests
         var people = PayRunCalculator.Work(Setup(), [joiner, leaver]);
 
         var joined = people.Single(p => p.EmployeeId == joiner.EmployeeId);
-        Assert.Equal(["joined"], joined.Notes);
-        Assert.Equal(100_000m, Line(joined, "BASIC"));
+        Assert.Equal(["joined", "prorated"], joined.Notes);
+        Assert.Equal(64_516.13m, Line(joined, "BASIC"));                // 100,000 x 20 / 31
         var left = people.Single(p => p.EmployeeId == leaver.EmployeeId);
-        Assert.Equal(["left"], left.Notes);
-        Assert.Equal(80_000m, Line(left, "BASIC"));
+        Assert.Equal(["left", "prorated"], left.Notes);
+        Assert.Equal(51_612.90m, Line(left, "BASIC"));                  // 80,000 x 20 / 31
         Assert.Equal(leaver.Pay[0].Id, left.CompensationId);
     }
 

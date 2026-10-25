@@ -272,7 +272,7 @@ public static class EmployeesEndpoints
                 Id = Guid.CreateVersion7(), OrganizationId = organizationId, CompanyId = valid.Company.Id, FirstName = valid.FirstName, LastName = valid.LastName,
                 StaffNo = valid.StaffNo ?? await NextStaffNoAsync(db, valid.Company.Id, ct), CreatedAt = now,
             };
-            var added = Apply(employee, valid, encryptor, now, today: PayDates.TodayInKenya(now));
+            var added = Apply(employee, valid, encryptor, now, today: PayDates.TodayInKenya(now), by: userId);
             employee.Employments.AddRange(added.OfType<Employment>());
             employee.Compensations.AddRange(added.OfType<Compensation>());
             employee.Accounts.AddRange(added.OfType<EmployeePaymentAccount>());
@@ -296,7 +296,7 @@ public static class EmployeesEndpoints
             employee.LastName = valid.LastName;
             employee.StaffNo = valid.StaffNo ?? employee.StaffNo;
             var now = clock.GetUtcNow();
-            var added = Apply(employee, valid, encryptor, now, today: PayDates.TodayInKenya(now));
+            var added = Apply(employee, valid, encryptor, now, today: PayDates.TodayInKenya(now), by: userId);
             await RequireUniqueNumbersAsync(db, employee, ct);
             // Old rows are closed before new ones go in: one current job, pay and account at a time.
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -618,7 +618,7 @@ public static class EmployeesEndpoints
     /// Applies a checked employee. A job, pay or account change closes the current row (or drops
     /// one that hasn't started) and returns the new one, to add once the old is saved.
     /// </summary>
-    internal static List<object> Apply(Employee e, ValidEmployee v, FieldEncryptor encryptor, DateTimeOffset now, DateOnly today)
+    internal static List<object> Apply(Employee e, ValidEmployee v, FieldEncryptor encryptor, DateTimeOffset now, DateOnly today, Guid? by = null)
     {
         var added = new List<object>();
         e.MiddleName = v.MiddleName;
@@ -677,7 +677,7 @@ public static class EmployeesEndpoints
             added.Add(new Compensation
             {
                 Id = Guid.CreateVersion7(), OrganizationId = e.OrganizationId, CompanyId = e.CompanyId, EmployeeId = e.Id, ValidFrom = start,
-                BasicAmount = amount, PayBasis = basis, Currency = v.Company.Currency, UsualQuantity = usual, CreatedAt = now,
+                BasicAmount = amount, PayBasis = basis, Currency = v.Company.Currency, UsualQuantity = usual, ChangedBy = by, CreatedAt = now,
             });
         }
 

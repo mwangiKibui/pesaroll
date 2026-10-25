@@ -450,6 +450,9 @@ public sealed class Compensation
     public required string Currency { get; set; }
     /// <summary>Daily or hourly rates: the days or hours usually worked in a pay period (PAY-11).</summary>
     public decimal? UsualQuantity { get; set; }
+    /// <summary>Who made the change and why (PAY-04): a reason is required for a change from an earlier date.</summary>
+    public Guid? ChangedBy { get; set; }
+    public string? Reason { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 

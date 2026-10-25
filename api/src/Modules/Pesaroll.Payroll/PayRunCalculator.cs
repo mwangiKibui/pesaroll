@@ -120,8 +120,9 @@ public sealed record RunTotals(
 /// by the hour or day pay the hours entered at a multiple of the person's own rate (the wage
 /// order's hours turn a daily rate or a salary into an hourly one) or an amount a unit; the
 /// person's own terms win. A rate below the minimum wage for their wage area is flagged
-/// (below_minimum; no_wage_area when it isn't known). Joiners and leavers are paid the whole
-/// period and flagged until proration (PAY-04).
+/// (below_minimum; no_wage_area when it isn't known). A salary is paid for the calendar days the
+/// person was employed in the period, each part of a pay change at its own rate (PAY-04: prorated,
+/// pay_changed).
 /// Taxable earnings join basic pay as the cash pay the statutory lines are worked out on;
 /// before-tax deductions go to the engine as pension contributions; non-taxable earnings and the
 /// other deductions only change net pay; employer costs add to what the employer pays.
@@ -189,6 +190,38 @@ public static class PayRunCalculator
         return pay.Basis == "daily" && setup.Frequency == "daily" ? (1m, false) : null;
     }
 
+    /// <summary>
+    /// A salary for the calendar days of the period the person was employed (PAY-04): each pay row on
+    /// the same basis as the one in force pays its own amount for its own days, so a joiner, a leaver or
+    /// a change inside the period is paid each part. Days on another basis are not guessed (basis_changed).
+    /// A single row keeps its full amount as the base and the share of the period as the rate.
+    /// </summary>
+    private static (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes) Salary(RunSetup setup, Candidate person, BasicPayRow inForce)
+    {
+        var period = setup.Period;
+        var start = person.HireDate > period.Start ? person.HireDate : period.Start;
+        var end = person.ExitDate is { } exit && exit < period.End ? exit : period.End;
+        var periodDays = period.End.DayNumber - period.Start.DayNumber + 1;
+        var rows = person.Pay.Where(p => p.From <= end && (p.To is null || p.To >= start)).ToList();
+        var parts = rows.Where(p => p.Basis == inForce.Basis && p.Currency == inForce.Currency)
+            .Select(p => (Row: p, Days: Min(p.To ?? end, end).DayNumber - Max(p.From, start).DayNumber + 1)).ToList();
+        var days = parts.Sum(p => p.Days);
+
+        var notes = new List<string>();
+        if (days < periodDays) notes.Add("prorated");
+        if (parts.Count > 1) notes.Add("pay_changed");
+        if (rows.Count > parts.Count) notes.Add("basis_changed");
+        if (days == periodDays && parts.Count == 1) return (inForce.Amount, null, null, notes);
+        var amount = setup.Pack.Round(parts.Sum(p => p.Row.Amount * p.Days / periodDays));
+        return parts.Count == 1
+            ? (amount, parts[0].Row.Amount, Math.Round((decimal)days / periodDays, 6), notes)
+            : (amount, null, null, notes);
+    }
+
+    private static DateOnly Min(DateOnly a, DateOnly b) => a < b ? a : b;
+
+    private static DateOnly Max(DateOnly a, DateOnly b) => a > b ? a : b;
+
     /// <summary>A person's own hourly or daily rate: as it is, or from a daily rate or a salary through the wage order's hours.</summary>
     private static decimal? OwnRate(BasicPayRow pay, string unit, WageOrder? order)
     {
@@ -240,7 +273,8 @@ public static class PayRunCalculator
     private static WorkedPerson Pay(RunSetup setup, Candidate person, JobRow job, BasicPayRow basicPay, (decimal Quantity, bool Usual)? units)
     {
         var (period, pack) = (setup.Period, setup.Pack);
-        var basic = units is var (quantity, _) ? pack.Round(quantity * basicPay.Amount) : basicPay.Amount;
+        (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes)? salary = units is null ? Salary(setup, person, basicPay) : null;
+        var basic = units is var (quantity, _) ? pack.Round(quantity * basicPay.Amount) : salary!.Value.Amount;
         var own = new List<WorkedLine>();
         foreach (var item in setup.Items.Where(i => i.Status == "active" && i.CalcMethod is "fixed" or "percent_of_basic").OrderBy(i => i.Code, StringComparer.Ordinal))
         {
@@ -290,7 +324,7 @@ public static class PayRunCalculator
         var name = setup.Names.GetValueOrDefault("basic") ?? new LineName("BASIC", "Basic pay", null);
         var lines = new List<WorkedLine>
         {
-            new("earning", name.Code, name.Name, name.PayItemId, null, true, false, null, null, basic,
+            new("earning", name.Code, name.Name, name.PayItemId, null, true, false, salary?.Base, salary?.Rate, basic,
                 Quantity: units?.Quantity, UnitRate: units is null ? null : basicPay.Amount),
         };
         lines.AddRange(earnings);
@@ -305,6 +339,7 @@ public static class PayRunCalculator
         var notes = new List<string>();
         if (person.HireDate >= period.Start) notes.Add("joined");
         if (person.ExitDate is { } exit && exit <= period.End) notes.Add("left");
+        if (salary is { } paid) notes.AddRange(paid.Notes);
         if (net < 0) notes.Add("negative_net");
         if (choice.Makes.Count == 0) notes.Add("no_deductions");
         else if (choice.Makes.Count < StatutoryChoice.Groups.Count) notes.Add("some_deductions");
