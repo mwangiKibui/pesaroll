@@ -134,14 +134,9 @@ public static class EmployeesEndpoints
             // What payroll still needs (the readiness keys), anything (any) or nothing (none); anything else is no filter.
             query = missing switch
             {
-                "kra_pin" => query.Where(e => e.KraPinEnc == null),
-                "national_id" => query.Where(e => e.NationalIdEnc == null),
-                "basic_pay" => query.Where(e => !e.Compensations.Any(c => c.ValidTo == null)),
-                "payment_account" => query.Where(e => !e.Accounts.Any(a => a.ValidTo == null)),
-                "any" => query.Where(e => e.KraPinEnc == null || e.NationalIdEnc == null
-                    || !e.Compensations.Any(c => c.ValidTo == null) || !e.Accounts.Any(a => a.ValidTo == null)),
-                "none" => query.Where(e => e.KraPinEnc != null && e.NationalIdEnc != null
-                    && e.Compensations.Any(c => c.ValidTo == null) && e.Accounts.Any(a => a.ValidTo == null)),
+                "any" => query.Where(EmployeeReadiness.NotReady),
+                "none" => query.Where(EmployeeReadiness.Ready),
+                _ when EmployeeReadiness.Rules.FirstOrDefault(r => r.Item.Key == missing) is { } rule => query.Where(rule.IsMissing),
                 _ => query,
             };
 
@@ -723,21 +718,8 @@ public static class EmployeesEndpoints
         return from;
     }
 
-    private static readonly MissingItem KraPinMissing = new("employee", "kra_pin", new LocalizedText("KRA PIN", "PIN ya KRA"), "PAY-2001");
-    private static readonly MissingItem NationalIdMissing = new("employee", "national_id", new LocalizedText("ID number", "Nambari ya kitambulisho"));
-    private static readonly MissingItem PayMissing = new("employee", "basic_pay", new LocalizedText("Basic pay", "Mshahara wa msingi"));
-    private static readonly MissingItem AccountMissing = new("employee", "payment_account", new LocalizedText("Where to pay them", "Mahali pa kuwalipa"));
-
-    /// <summary>What payroll still needs for this person (PAY-03 enforces it).</summary>
-    internal static ReadinessResponse Readiness(Employee e)
-    {
-        var missing = new List<MissingItem>();
-        if (e.KraPinEnc is null) missing.Add(KraPinMissing);
-        if (e.NationalIdEnc is null) missing.Add(NationalIdMissing);
-        if (!e.Compensations.Any(c => c.ValidTo == null)) missing.Add(PayMissing);
-        if (!e.Accounts.Any(a => a.ValidTo == null)) missing.Add(AccountMissing);
-        return new ReadinessResponse(missing.Count == 0, missing);
-    }
+    /// <summary>What payroll still needs for this person (PAY-03 enforces it); the rules are shared with Home.</summary>
+    internal static ReadinessResponse Readiness(Employee e) => EmployeeReadiness.For(e);
 
     private static async Task<Employee> LoadAsync(OrganizationsDbContext db, Guid id, CancellationToken ct, bool tracked)
     {

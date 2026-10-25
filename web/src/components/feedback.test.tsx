@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import { expectNoA11yViolations } from '../test/a11y'
-import { EmptyState, FormErrorBanner, Loading, Tag, ToastProvider } from './feedback'
+import { EmptyState, FormErrorBanner, Loading, ProgressBar, Tag, ToastProvider } from './feedback'
 import { useToast } from './toast'
 import { Button } from './Button'
 
@@ -47,4 +47,15 @@ it('a toast is announced and goes away by itself', async () => {
   act(() => vi.advanceTimersByTime(6000))
   expect(screen.queryByText('Location added')).not.toBeInTheDocument()
   vi.useRealTimers()
+})
+
+it('a progress bar reads out how far along it is, and an empty one is at nothing', async () => {
+  const { container, rerender } = render(<ProgressBar label="Ready for payroll" value={37} max={40} />)
+  const bar = screen.getByRole('progressbar', { name: 'Ready for payroll' })
+  expect([bar.getAttribute('aria-valuenow'), bar.getAttribute('aria-valuemax')]).toEqual(['37', '40'])
+  expect((bar.firstElementChild as HTMLElement).style.width).toBe('93%')
+  await expectNoA11yViolations(container)
+
+  rerender(<ProgressBar label="Ready for payroll" value={0} max={0} />)
+  expect((screen.getByRole('progressbar').firstElementChild as HTMLElement).style.width).toBe('0%')
 })

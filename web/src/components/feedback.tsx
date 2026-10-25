@@ -50,6 +50,17 @@ export function EmptyState({ title, children, action }: { title: string; childre
   )
 }
 
+/** How far along something is ("37 of 40 ready"): a brand bar on a raised track, its numbers read out. */
+export function ProgressBar({ value, max, label }: { value: number; max: number; label: string }) {
+  const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
+  return (
+    <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}
+      className="h-2 w-full overflow-hidden rounded-full bg-raised">
+      <div className="h-full rounded-full bg-brand" style={{ width: `${percent}%` }} />
+    </div>
+  )
+}
+
 /** Placeholder shapes while data loads (no spinners); announced once to screen readers. */
 export function Loading({ rows = 3 }: { rows?: number }) {
   const { t } = useTranslation()

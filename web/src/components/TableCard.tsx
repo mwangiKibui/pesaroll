@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 
-/** A white panel with an optional heading. highlight: the one card that matters most (this month's payslip). */
+/** A white panel with an optional heading (which names it for screen readers). highlight: the one card that matters most (this month's payslip). */
 export function Card({ title, highlight, children, className = '' }: { title?: string; highlight?: boolean; children: ReactNode; className?: string }) {
+  const id = useId()
   return (
-    <section className={`flex flex-col gap-3 rounded-card bg-card p-5 ${highlight ? 'border-2 border-brand' : 'border border-line'} ${className}`}>
-      {title && <h2 className="m-0 text-body font-semibold text-ink">{title}</h2>}
+    <section aria-labelledby={title ? id : undefined} className={`flex flex-col gap-3 rounded-card bg-card p-5 ${highlight ? 'border-2 border-brand' : 'border border-line'} ${className}`}>
+      {title && <h2 id={id} className="m-0 text-body font-semibold text-ink">{title}</h2>}
       {children}
     </section>
   )

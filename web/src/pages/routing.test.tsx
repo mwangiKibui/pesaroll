@@ -26,7 +26,7 @@ it('with a live session and an organization, a reload stays signed in and sign-i
   fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
   renderApp('/signin')
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toBeInTheDocument()
 })
 
 it('without an organization, every signed-in page leads to the organization step', async () => {
@@ -40,15 +40,14 @@ it('with an organization, the old welcome page leads home', async () => {
   fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
   renderApp('/welcome')
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toBeInTheDocument()
 })
 
-it('home names the next setup step, Setup is in the top bar, and signing out ends the session', async () => {
+it('home keeps setup one click away in the top bar, and signing out ends the session', async () => {
   const calls = fakeApi({ 'POST /api/auth/refresh': () => orgToken() })
   renderApp('/')
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
-  expect(await screen.findByText('Next: Companies')).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toBeInTheDocument()
   expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Setup' })).toHaveAttribute('href', '/setup/organization')
 
   // Sign out is in the person menu, at the bottom of the sidebar (OP-01).
@@ -65,7 +64,7 @@ it.each(['//evil.example/phish', 'https://evil.example/phish'])('after sign-in, 
 
   await signIn()
 
-  expect(await screen.findByRole('heading', { name: /Karibu, Wanjiru/ })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Home', level: 1 })).toBeInTheDocument()
   expect(services.auth.status()).toBe('signedIn')
 })
 

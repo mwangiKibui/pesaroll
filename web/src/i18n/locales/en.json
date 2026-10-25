@@ -262,8 +262,38 @@
     "saved": "Organization name saved"
   },
   "home": {
-    "title": "Karibu, {{name}}",
-    "next": "Next: {{step}}"
+    "title": "Home",
+    "addEmployee": "Add employee",
+    "comingSoon": "Coming soon.",
+    "people": {
+      "employees": "Employees",
+      "joined": "Joined this month"
+    },
+    "ready": {
+      "title": "Ready for payroll",
+      "summary": "{{ready}} of {{total}} ready for the {{date}} pay run",
+      "summaryNoDate": "{{ready}} of {{total}} ready for the next pay run",
+      "everyone": "Everyone can be paid",
+      "noPeople": "Add your people to see who can be paid.",
+      "fix": "Fix them",
+      "fixLabel": "Fix them: {{what}}",
+      "missing": {
+        "kra_pin": "{{count}} without a KRA PIN",
+        "national_id": "{{count}} without an ID number",
+        "basic_pay": "{{count}} without basic pay",
+        "payment_account": "{{count}} without a way to pay them",
+        "other": "{{count}} without {{label}}"
+      }
+    },
+    "cards": {
+      "waitingForYou": "Waiting for you",
+      "offToday": "Off today",
+      "whosOffThisWeek": "Who's off this week",
+      "joinerChecklists": "Joiner checklists",
+      "midYearReviews": "Mid-year reviews",
+      "announcements": "Announcements and surveys",
+      "belowMinimumWage": "Pay below the minimum wage"
+    }
   },
   "devices": {
     "title": "Where you're signed in",
