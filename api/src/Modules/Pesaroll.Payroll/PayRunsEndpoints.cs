@@ -13,7 +13,8 @@ using Pesaroll.Workflows;
 
 namespace Pesaroll.Payroll;
 
-public sealed record CreatePayRunRequest(Guid CompanyId, Guid PayScheduleId, string? Month);
+/// <summary>Monthly schedules are run by month (2026-10); weekly, fortnightly and daily ones by pay date.</summary>
+public sealed record CreatePayRunRequest(Guid CompanyId, Guid PayScheduleId, string? Month, DateOnly? PayDate = null);
 
 public sealed record CorrectPayRunRequest(Guid[]? EmployeeIds);
 
@@ -31,10 +32,10 @@ public sealed record PayRunTotals(
 
 public sealed record PersonRef(Guid EmployeeId, string StaffNo, string Name);
 
-/// <summary>Someone the run didn't pay: no_pay, not_monthly, other_currency or not_in_period.</summary>
+/// <summary>Someone the run didn't pay: no_pay, other_basis, other_currency or not_in_period.</summary>
 public sealed record LeftOutPerson(Guid EmployeeId, string StaffNo, string Name, string Reason);
 
-/// <summary>Someone to check before sending: joined, left, negative_net.</summary>
+/// <summary>Someone to check before sending: joined, left, negative_net, no_deductions, some_deductions, refund.</summary>
 public sealed record FlaggedPerson(Guid EmployeeId, string StaffNo, string Name, IReadOnlyList<string> Notes);
 
 /// <summary>What changed since the company's last approved regular run on the schedule.</summary>
@@ -51,8 +52,12 @@ public sealed record PayRunDetail(
     Guid? ApprovalRequestId, PayRunTotals Totals, IReadOnlyList<LeftOutPerson> LeftOut, IReadOnlyList<FlaggedPerson> Flagged, PayRunChanges? Changes,
     DateTimeOffset CreatedAt, DateTimeOffset? CalculatedAt, DateTimeOffset? SentAt, DateTimeOffset? ApprovedAt, DateTimeOffset? CancelledAt, bool CanManage);
 
-/// <summary>A line of someone's pay. Rate is a fraction (0.06 is 6%).</summary>
-public sealed record PayRunLineResponse(string Kind, string Code, string Name, string? StatutoryKey, decimal? Base, decimal? Rate, decimal Amount);
+/// <summary>
+/// A line of someone's pay. Rate is a fraction (0.06 is 6%). Statutory lines also give the tax
+/// month's total and what earlier runs in the month took (PAY-10).
+/// </summary>
+public sealed record PayRunLineResponse(
+    string Kind, string Code, string Name, string? StatutoryKey, decimal? Base, decimal? Rate, decimal Amount, decimal? MonthToDate = null, decimal Earlier = 0);
 
 /// <summary>For a correction: what was last approved for the person in the period, and how net pay changes.</summary>
 public sealed record ApprovedBefore(Guid PayRunId, decimal GrossPay, decimal Paye, decimal TotalDeductions, decimal NetPay, decimal NetPayChange);
@@ -60,12 +65,13 @@ public sealed record ApprovedBefore(Guid PayRunId, decimal GrossPay, decimal Pay
 public sealed record PayRunPersonResponse(
     Guid EmployeeId, string StaffNo, string Name, IReadOnlyList<string> Notes, decimal BasicPay, decimal GrossPay, decimal TaxablePay, decimal Paye,
     decimal NssfEmployee, decimal Shif, decimal HousingLevyEmployee, decimal TotalDeductions, decimal NetPay, decimal EmployerCosts,
-    IReadOnlyList<PayRunLineResponse> Lines, ApprovedBefore? ApprovedBefore);
+    IReadOnlyList<PayRunLineResponse> Lines, ApprovedBefore? ApprovedBefore, IReadOnlyList<string>? DeductionsMade = null, Guid? DeductionsChosenBy = null);
 
 public sealed record PayRunPeoplePage(IReadOnlyList<PayRunPersonResponse> Items, int Total, int Page, int PageSize);
 
 /// <summary>
-/// Pay runs (PAY-03), per company: Payroll starts one for a company, monthly schedule and month,
+/// Pay runs (PAY-03, PAY-10), per company: Payroll starts one for a company, schedule and month (or
+/// pay date, for weekly, fortnightly and daily schedules),
 /// has it worked out (a job), checks it and sends it for approval through the organization's
 /// pay_run workflow (WF-01..03); approved, it never changes, and mistakes are corrected with a new
 /// run for the people concerned. Payroll needs pay_runs.manage (pay_runs.view to look); approvers
@@ -93,21 +99,39 @@ public static class PayRunsEndpoints
                 .SingleOrDefaultAsync(s => s.Id == request.PayScheduleId && s.Status == "active", ct);
             if (schedule is null || !(schedule.AllCompanies || schedule.Companies.Any(c => c.CompanyId == request.CompanyId)))
                 fields["payScheduleId"] = "Choose a payroll schedule the company uses.";
-            if (!DateOnly.TryParseExact($"{request.Month}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
+            var monthly = schedule?.Frequency is null or "monthly";
+            var start = default(DateOnly);
+            if (monthly && !DateOnly.TryParseExact($"{request.Month}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out start))
                 fields["month"] = "Choose the month, like 2026-10.";
+            if (!monthly && request.PayDate is null) fields["payDate"] = "Choose the pay date.";
             if (fields.Count > 0) throw PayRunErrors.Invalid(fields);
-            if (schedule!.Frequency != "monthly") throw PayRunErrors.MonthlyOnly();
 
-            var month = start.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
-            if (await db.PayRuns.AnyAsync(r => r.CompanyId == company!.Id && r.PayScheduleId == schedule.Id && r.PeriodStart == start
+            RunPeriod period;
+            DateOnly payDate;
+            string label;
+            if (monthly)
+            {
+                (period, payDate) = (new RunPeriod(start, start.AddMonths(1).AddDays(-1)), PayDates.In(start.Year, start.Month, schedule!.PayDayRule!, schedule.PayDay));
+                label = start.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                payDate = request.PayDate!.Value;
+                label = payDate.ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
+                if (!RunPeriods.IsPayDate(new ScheduleDates(schedule!.Frequency, schedule.PayWeekday, schedule.FirstPayDate), payDate))
+                    throw PayRunErrors.NotAPayDate(schedule.Name, label);
+                period = RunPeriods.Ending(schedule.Frequency, payDate);
+                label = $"the run paid on {label}";
+            }
+
+            if (await db.PayRuns.AnyAsync(r => r.CompanyId == company!.Id && r.PayScheduleId == schedule.Id && r.PeriodStart == period.Start
                                                && r.Kind == "regular" && r.Status != "cancelled", ct))
-                throw PayRunErrors.AlreadyExists(schedule.Name, month, company!.LegalName);
+                throw PayRunErrors.AlreadyExists(schedule.Name, label, company!.LegalName);
 
             var run = new PayRun
             {
                 Id = Guid.CreateVersion7(), OrganizationId = organizationId, CompanyId = company!.Id, PayScheduleId = schedule.Id,
-                PeriodStart = start, PeriodEnd = start.AddMonths(1).AddDays(-1), PayDate = PayDates.In(start.Year, start.Month, schedule.PayDayRule!, schedule.PayDay),
-                CreatedBy = userId, CreatedAt = clock.GetUtcNow(),
+                PeriodStart = period.Start, PeriodEnd = period.End, PayDate = payDate, CreatedBy = userId, CreatedAt = clock.GetUtcNow(),
             };
             db.PayRuns.Add(run);
             try
@@ -116,13 +140,13 @@ public static class PayRunsEndpoints
             }
             catch (DbUpdateException error) when (error.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
             {
-                throw PayRunErrors.AlreadyExists(schedule.Name, month, company.LegalName);   // started at the same moment
+                throw PayRunErrors.AlreadyExists(schedule.Name, label, company.LegalName);   // started at the same moment
             }
 
             return Results.Created($"/api/pay-runs/{run.Id}", await DescribeAsync(db, org, tenant, run, ct));
         }).Produces<PayRunDetail>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status409Conflict)
-          .Produces<ErrorResponse>(StatusCodes.Status422UnprocessableEntity).RequirePermission(Permissions.PayRuns);
+          .RequirePermission(Permissions.PayRuns);
 
         // The company's runs, newest month first.
         runs.MapGet("/", async (Guid companyId, int? page, int? pageSize, PayrollDbContext db, OrganizationsDbContext org, TenantContext tenant,
@@ -167,8 +191,9 @@ public static class PayRunsEndpoints
             return Results.Ok(new PayRunPeoplePage(people.Select(p => new PayRunPersonResponse(p.EmployeeId, p.StaffNo, p.FullName, p.Notes,
                 p.BasicPay!.Value, p.GrossPay!.Value, p.TaxablePay!.Value, p.Paye!.Value, Statutory(p, "nssf_employee"), Statutory(p, "shif"),
                 Statutory(p, "ahl_employee"), p.TotalDeductions!.Value, p.NetPay!.Value, p.EmployerCosts!.Value,
-                p.Lines.Select(l => new PayRunLineResponse(l.Kind, l.Code, l.Name, l.StatutoryKey, l.Base, l.Rate, l.Amount)).ToList(),
-                before.GetValueOrDefault(p.EmployeeId) is { } b ? b with { NetPayChange = p.NetPay!.Value - b.NetPay } : null)).ToList(), total, number, size));
+                p.Lines.Select(l => new PayRunLineResponse(l.Kind, l.Code, l.Name, l.StatutoryKey, l.Base, l.Rate, l.Amount, l.MonthToDate, l.Earlier)).ToList(),
+                before.GetValueOrDefault(p.EmployeeId) is { } b ? b with { NetPayChange = p.NetPay!.Value - b.NetPay } : null,
+                p.DeductionsMade, p.DeductionsChosenBy)).ToList(), total, number, size));
         }).Produces<PayRunPeoplePage>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .SignedIn();   // as above
 
@@ -180,6 +205,13 @@ public static class PayRunsEndpoints
             var run = await ManageableAsync(db, tenant, id, ct);
             if (run.Status == "awaiting_approval") throw PayRunErrors.WaitingForApproval();
             if (!Open.Contains(run.Status)) throw PayRunErrors.Final(run.Status);
+            // Each run takes what earlier ones in its tax month didn't, so those come first (PAY-10).
+            var (monthStart, _) = RunPeriods.TaxMonth(run.PayDate);
+            var waiting = await db.PayRuns.AsNoTracking()
+                .Where(r => r.CompanyId == run.CompanyId && r.PayScheduleId == run.PayScheduleId && r.Id != run.Id && r.PayDate >= monthStart
+                            && r.PayDate < run.PayDate && r.Status != "approved" && r.Status != "cancelled")
+                .OrderBy(r => r.PayDate).FirstOrDefaultAsync(ct);
+            if (waiting is not null) throw PayRunErrors.EarlierNotApproved(waiting.PayDate.ToString("d MMMM yyyy", CultureInfo.InvariantCulture));
             run.Status = "calculating";
             run.CalculationError = null;
             await db.SaveChangesAsync(ct);
@@ -266,7 +298,7 @@ public static class PayRunsEndpoints
         return app;
     }
 
-    private static (Guid User, Guid Organization) Who(TenantContext tenant, HttpContext http)
+    internal static (Guid User, Guid Organization) Who(TenantContext tenant, HttpContext http)
     {
         if (tenant.UserId is not Guid user) throw SessionService.RequireSignedIn(http);
         if (tenant.OrganizationId is not Guid organization) throw AccessErrors.NoPermission();

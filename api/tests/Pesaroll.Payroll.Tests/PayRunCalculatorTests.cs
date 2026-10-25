@@ -178,8 +178,8 @@ public sealed class PayRunCalculatorTests
     }
 
     [Theory]
-    [InlineData("weekly", "KES", "not_monthly")]
-    [InlineData("daily", "KES", "not_monthly")]
+    [InlineData("weekly", "KES", "other_basis")]
+    [InlineData("daily", "KES", "other_basis")]
     [InlineData("monthly", "USD", "other_currency")]
     public void People_the_run_cant_pay_are_left_out_with_the_reason(string basis, string currency, string reason)
     {

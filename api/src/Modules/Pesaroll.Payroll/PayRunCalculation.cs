@@ -12,6 +12,10 @@ namespace Pesaroll.Payroll;
 /// runs inside the run's organization and company under row-level security, loads the company's
 /// people and items, works out each person (<see cref="PayRunCalculator"/>) with the rule pack in
 /// force on the pay date, and replaces the run's people, lines and totals in one transaction.
+/// Weekly, fortnightly and daily runs (PAY-10) make the statutory deductions chosen for the schedule
+/// or the person on the pay date, and take what each person's approved runs earlier in the tax month
+/// didn't: for each schedule and period, the run approved last (a correction replaces what it
+/// corrects), leaving out this run's own period, which this run replaces.
 /// Running it twice gives the same result; a run that is no longer calculating (cancelled since) is
 /// left alone. No rule pack for the pay date leaves the run a draft with PAY-2010 on it.
 /// </summary>
@@ -38,8 +42,65 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
             return;
         }
 
-        var people = PayRunCalculator.Work(await SetupAsync(run, company.CountryCode, pack, ct), await CandidatesAsync(run, ct));
-        await SaveAsync(run.Id, people, pack.Version, userId, ct);
+        var frequency = await org.PaySchedules.AsNoTracking().Where(s => s.Id == run.PayScheduleId).Select(s => s.Frequency).SingleAsync(ct);
+        var candidates = await CandidatesAsync(run, ct);
+        var choices = await ChoicesAsync(run, frequency, candidates.Select(c => c.EmployeeId).ToArray(), ct);
+        var earlier = await EarlierAsync(run, candidates.Select(c => c.EmployeeId).ToArray(), ct);
+        candidates = candidates.Select(c => c with { Choice = choices.People.GetValueOrDefault(c.EmployeeId)?.Choice, Earlier = earlier.GetValueOrDefault(c.EmployeeId) })
+            .ToList();
+        var setup = await SetupAsync(run, company.CountryCode, pack, ct) with { Frequency = frequency, Choice = choices.Schedule?.Choice ?? StatutoryChoice.All };
+        var people = PayRunCalculator.Work(setup, candidates);
+        await SaveAsync(run.Id, people, id => choices.People.GetValueOrDefault(id) ?? choices.Schedule, pack.Version, userId, ct);
+    }
+
+    /// <summary>A choice of statutory deductions and who made it, when.</summary>
+    private sealed record Chosen(StatutoryChoice Choice, Guid By, DateTimeOffset At);
+
+    /// <summary>
+    /// The statutory deductions in force on the pay date: the schedule's for everyone (null: every one,
+    /// as monthly payroll makes) and each person's own, or theirs as one of the schedule's chosen people.
+    /// A weekly, fortnightly or daily schedule nobody has set makes none.
+    /// </summary>
+    private async Task<(Chosen? Schedule, Dictionary<Guid, Chosen> People)> ChoicesAsync(PayRun run, string frequency, Guid[] employees, CancellationToken ct)
+    {
+        var people = new Dictionary<Guid, Chosen>();
+        if (frequency == "monthly") return (null, people);
+        var none = new StatutoryChoice([]);
+        var row = await db.ScheduleDeductions.AsNoTracking().Where(d => d.PayScheduleId == run.PayScheduleId && d.StartsOn <= run.PayDate)
+            .OrderByDescending(d => d.StartsOn).ThenByDescending(d => d.SetAt).FirstOrDefaultAsync(ct);
+        Chosen? schedule = row is null ? new Chosen(none, Guid.Empty, default)
+            : new Chosen(row.MakesDeductions && row.AppliesTo == "everyone" ? new StatutoryChoice(row.Items) : none, row.SetBy, row.SetAt);
+        if (row is { AppliesTo: "chosen" })
+            foreach (var id in row.EmployeeIds!.Intersect(employees))
+                people[id] = new Chosen(new StatutoryChoice(row.Items), row.SetBy, row.SetAt);
+
+        var own = await db.EmployeeDeductions.AsNoTracking().Where(d => employees.Contains(d.EmployeeId) && d.StartsOn <= run.PayDate).ToListAsync(ct);
+        foreach (var latest in own.GroupBy(d => d.EmployeeId).Select(g => g.OrderByDescending(d => d.StartsOn).ThenByDescending(d => d.SetAt).First()))
+        {
+            if (latest.Items is null) people.Remove(latest.EmployeeId);   // back to the schedule's
+            else people[latest.EmployeeId] = new Chosen(new StatutoryChoice(latest.Items), latest.SetBy, latest.SetAt);
+        }
+        return (row is null ? schedule with { By = Guid.Empty } : schedule, people);
+    }
+
+    /// <summary>What each person's approved runs paid earlier in the run's tax month (the last approved run for each schedule and period).</summary>
+    private async Task<Dictionary<Guid, MonthToDate>> EarlierAsync(PayRun run, Guid[] employees, CancellationToken ct)
+    {
+        var (start, end) = RunPeriods.TaxMonth(run.PayDate);
+        var rows = await (from p in db.People.AsNoTracking()
+                          join r in db.PayRuns.AsNoTracking() on p.PayRunId equals r.Id
+                          where r.CompanyId == run.CompanyId && r.Status == "approved" && r.PayDate >= start && r.PayDate <= end && r.Id != run.Id
+                                && !(r.PayScheduleId == run.PayScheduleId && r.PeriodStart == run.PeriodStart) && p.Included && employees.Contains(p.EmployeeId)
+                          select new { p.Id, p.EmployeeId, r.PayScheduleId, r.PeriodStart, r.ApprovedAt }).ToListAsync(ct);
+        var counted = rows.GroupBy(r => (r.EmployeeId, r.PayScheduleId, r.PeriodStart)).Select(g => g.OrderByDescending(r => r.ApprovedAt).First()).ToList();
+        var ids = counted.Select(r => r.Id).ToArray();
+        var lines = await db.Lines.AsNoTracking().Where(l => ids.Contains(l.PersonId)).ToListAsync(ct);
+        return counted.GroupBy(r => r.EmployeeId).ToDictionary(g => g.Key, g =>
+        {
+            var mine = g.Select(r => r.Id).ToHashSet();
+            return MonthToDate.From(lines.Where(l => mine.Contains(l.PersonId)).Select(l =>
+                new WorkedLine(l.Kind, l.Code, l.Name, l.PayItemId, l.StatutoryKey, l.Taxable, l.BeforeTax, l.Base, l.Rate, l.Amount)));
+        });
     }
 
     private async Task<RunSetup> SetupAsync(PayRun run, string country, RulePack pack, CancellationToken ct)
@@ -70,7 +131,8 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
 
     private static string FullName(Employee e) => string.Join(' ', new[] { e.FirstName, e.MiddleName, e.LastName }.Where(n => !string.IsNullOrWhiteSpace(n)));
 
-    private async Task SaveAsync(Guid payRunId, IReadOnlyList<WorkedPerson> people, string packVersion, Guid userId, CancellationToken ct)
+    private async Task SaveAsync(Guid payRunId, IReadOnlyList<WorkedPerson> people, Func<Guid, Chosen?> chosen, string packVersion, Guid userId,
+        CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var run = await db.PayRuns.FromSql($"select * from pay_runs where id = {payRunId} for update").SingleAsync(ct);
@@ -87,12 +149,15 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
                 BasicPay = worked.Totals?.BasicPay, GrossPay = worked.Totals?.GrossPay, TaxablePay = worked.Totals?.TaxablePay,
                 TaxBeforeRelief = worked.Totals?.TaxBeforeRelief, PersonalRelief = worked.Totals?.PersonalRelief, Paye = worked.Totals?.Paye,
                 TotalDeductions = worked.Totals?.TotalDeductions, NetPay = worked.Totals?.NetPay, EmployerCosts = worked.Totals?.EmployerCosts,
+                DeductionsMade = worked.Deductions is { } made ? StatutoryChoice.Groups.Where(made.Contains).ToArray() : null,
             };
+            if (worked.Included && chosen(worked.EmployeeId) is { By: var by, At: var at } && by != Guid.Empty)
+                (person.DeductionsChosenBy, person.DeductionsChosenAt) = (by, at);
             person.Lines = worked.Lines.Select((l, i) => new PayRunLine
             {
                 Id = Guid.CreateVersion7(), OrganizationId = run.OrganizationId, CompanyId = run.CompanyId, PayRunId = run.Id, PersonId = person.Id,
                 Kind = l.Kind, Code = l.Code, Name = l.Name, PayItemId = l.PayItemId, StatutoryKey = l.StatutoryKey, Taxable = l.Taxable,
-                BeforeTax = l.BeforeTax, Base = l.Base, Rate = l.Rate, Amount = l.Amount, Position = i + 1,
+                BeforeTax = l.BeforeTax, Base = l.Base, Rate = l.Rate, Amount = l.Amount, MonthToDate = l.MonthToDate, Earlier = l.Earlier, Position = i + 1,
             }).ToList();
             db.People.Add(person);
         }

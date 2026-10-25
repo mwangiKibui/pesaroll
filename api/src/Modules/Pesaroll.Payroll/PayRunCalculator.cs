@@ -2,7 +2,7 @@ using Pesaroll.Payroll.Engine;
 
 namespace Pesaroll.Payroll;
 
-/// <summary>A pay run's period: a calendar month for now (PAY-10 adds weeks and days).</summary>
+/// <summary>A pay run's period: a calendar month, or the week, fortnight or day up to the pay date (PAY-10).</summary>
 public sealed record RunPeriod(DateOnly Start, DateOnly End);
 
 /// <summary>An employment row: when it applied and the schedule it pays on.</summary>
@@ -11,9 +11,34 @@ public sealed record JobRow(Guid Id, DateOnly From, DateOnly? To, Guid PaySchedu
 /// <summary>A compensation row: basic pay, how often it is paid, and when it applied.</summary>
 public sealed record BasicPayRow(Guid Id, DateOnly From, DateOnly? To, decimal Amount, string Basis, string Currency);
 
-/// <summary>An employee of the run's company, with their jobs and pay over time.</summary>
+/// <summary>
+/// An employee of the run's company, with their jobs and pay over time, their own choice of statutory
+/// deductions if they have one (it replaces the schedule's), and what their approved runs paid earlier
+/// in the run's tax month.
+/// </summary>
 public sealed record Candidate(
-    Guid EmployeeId, string StaffNo, string FullName, DateOnly HireDate, DateOnly? ExitDate, IReadOnlyList<JobRow> Jobs, IReadOnlyList<BasicPayRow> Pay);
+    Guid EmployeeId, string StaffNo, string FullName, DateOnly HireDate, DateOnly? ExitDate, IReadOnlyList<JobRow> Jobs, IReadOnlyList<BasicPayRow> Pay,
+    StatutoryChoice? Choice = null, MonthToDate? Earlier = null);
+
+/// <summary>
+/// What a person's approved runs paid earlier in a tax month: taxable cash pay, before-tax deductions
+/// (pension) and each statutory line, read back from their lines.
+/// </summary>
+public sealed record MonthToDate(decimal Pay, decimal Pension, IReadOnlyDictionary<string, decimal> Statutory)
+{
+    public static readonly MonthToDate None = new(0, 0, new Dictionary<string, decimal>());
+
+    public static MonthToDate From(IEnumerable<WorkedLine> lines)
+    {
+        var all = lines.ToList();
+        return new MonthToDate(
+            all.Where(l => l.Kind == "earning" && l.Taxable).Sum(l => l.Amount),
+            all.Where(l => l.Kind == "deduction" && l.BeforeTax && l.StatutoryKey is null).Sum(l => l.Amount),
+            all.Where(l => l.StatutoryKey is not null).GroupBy(l => l.StatutoryKey!).ToDictionary(g => g.Key, g => g.Sum(l => l.Amount)));
+    }
+
+    public decimal Took(string key) => Statutory.GetValueOrDefault(key);
+}
 
 /// <summary>An earning, deduction or employer cost the organization set up (pay_items).</summary>
 public sealed record ItemDefinition(
@@ -28,24 +53,33 @@ public sealed record LineName(string Code, string Name, Guid? PayItemId);
 
 /// <summary>
 /// What a run works with: its period and schedule, the people a correction is for (null: a regular
-/// run), the rule pack in force on the pay date, line names, and the company's items.
+/// run), the rule pack in force on the pay date, line names, the company's items, how often the
+/// schedule pays and the statutory deductions it makes (every one, unless set otherwise).
 /// </summary>
 public sealed record RunSetup(
     RunPeriod Period, Guid PayScheduleId, IReadOnlyCollection<Guid>? Only, RulePack Pack, IReadOnlyDictionary<string, LineName> Names,
-    IReadOnlyList<ItemDefinition> Items, IReadOnlyList<ItemAssignment> Assignments);
+    IReadOnlyList<ItemDefinition> Items, IReadOnlyList<ItemAssignment> Assignments, string Frequency = "monthly", StatutoryChoice? Choice = null);
 
-/// <summary>One line of a person's pay. Rates are fractions (0.06 is 6%).</summary>
+/// <summary>
+/// One line of a person's pay. Rates are fractions (0.06 is 6%). A statutory line also keeps the
+/// month to date it was worked out on and what earlier runs in the month took (its amount is the
+/// difference); its base is the month to date's.
+/// </summary>
 public sealed record WorkedLine(
-    string Kind, string Code, string Name, Guid? PayItemId, string? StatutoryKey, bool Taxable, bool BeforeTax, decimal? Base, decimal? Rate, decimal Amount);
+    string Kind, string Code, string Name, Guid? PayItemId, string? StatutoryKey, bool Taxable, bool BeforeTax, decimal? Base, decimal? Rate, decimal Amount,
+    decimal? MonthToDate = null, decimal Earlier = 0);
 
 public sealed record PersonTotals(
     decimal BasicPay, decimal GrossPay, decimal TaxablePay, decimal TaxBeforeRelief, decimal PersonalRelief, decimal Paye, decimal TotalDeductions,
     decimal NetPay, decimal EmployerCosts);
 
-/// <summary>A person as the run worked them out, or why they were left out (no lines, no totals).</summary>
+/// <summary>
+/// A person as the run worked them out, with the statutory items made for them, or why they were
+/// left out (no lines, no totals).
+/// </summary>
 public sealed record WorkedPerson(
     Guid EmployeeId, string StaffNo, string FullName, string? ExcludedReason, IReadOnlyList<string> Notes, Guid? EmploymentId, Guid? CompensationId,
-    IReadOnlyList<WorkedLine> Lines, PersonTotals? Totals)
+    IReadOnlyList<WorkedLine> Lines, PersonTotals? Totals, IReadOnlyCollection<string>? Deductions = null)
 {
     public bool Included => ExcludedReason is null;
 }
@@ -55,15 +89,20 @@ public sealed record RunTotals(
     decimal NssfEmployer, decimal AhlEmployer, decimal Nita, decimal OtherEmployerCosts);
 
 /// <summary>
-/// Works out each person's pay in a run (PAY-03): a pure function of the run's setup and its people,
-/// like the engine it uses. Who is in: for a regular run, the company's people whose job on the
-/// month's last day (or their last day, if they left) pays on the run's schedule and who were
-/// employed in the month; for a correction, the people chosen (anyone it can't pay is listed with
-/// <c>not_in_period</c>). Their basic pay is the compensation in force on that day, monthly only;
-/// joiners and leavers are paid the whole month and flagged until proration (PAY-04).
+/// Works out each person's pay in a run (PAY-03, PAY-10): a pure function of the run's setup and its
+/// people, like the engine it uses. Who is in: for a regular run, the company's people whose job on
+/// the period's last day (or their last day, if they left) pays on the run's schedule and who were
+/// employed in the period; for a correction, the people chosen (anyone it can't pay is listed with
+/// <c>not_in_period</c>). Their basic pay is the compensation in force on that day, paid as it is
+/// when its basis is the schedule's frequency (<c>other_basis</c> otherwise); joiners and leavers
+/// are paid the whole period and flagged until proration (PAY-04).
 /// Taxable earnings join basic pay as the cash pay the statutory lines are worked out on;
 /// before-tax deductions go to the engine as pension contributions; non-taxable earnings and the
 /// other deductions only change net pay; employer costs add to what the employer pays.
+/// Statutory lines are worked out on the month to date (this run plus what the person's approved
+/// runs paid earlier in the tax month) and each takes what earlier runs didn't, so a month of
+/// weekly runs adds up to a monthly payroll. Only the deductions chosen are made (the person's own
+/// choice over the schedule's); a line below zero (a pension added later in the month) is flagged.
 /// </summary>
 public static class PayRunCalculator
 {
@@ -87,7 +126,7 @@ public static class PayRunCalculator
             people.Add(pay switch
             {
                 null => Left(person, "no_pay", job.Id, null),
-                { Basis: not "monthly" } => Left(person, "not_monthly", job.Id, pay.Id),
+                _ when pay.Basis != setup.Frequency => Left(person, "other_basis", job.Id, pay.Id),
                 _ when pay.Currency != setup.Pack.Currency => Left(person, "other_currency", job.Id, pay.Id),
                 _ => Pay(setup, person, job, pay),
             });
@@ -107,7 +146,7 @@ public static class PayRunCalculator
             lines.Where(l => l.Kind == "employer_cost" && l.StatutoryKey is null).Sum(l => l.Amount));
     }
 
-    /// <summary>The day the run reads someone's job and pay: the month's last day, or their last day if they left in it.</summary>
+    /// <summary>The day the run reads someone's job and pay: the period's last day, or their last day if they left in it.</summary>
     private static DateOnly PaidOn(Candidate person, RunPeriod period) =>
         person.ExitDate is { } exit && exit < period.End ? exit : period.End;
 
@@ -137,39 +176,52 @@ public static class PayRunCalculator
         var earnings = own.Where(l => l.Kind == "earning").ToList();
         var deductions = own.Where(l => l.Kind == "deduction").ToList();
         var employerCosts = own.Where(l => l.Kind == "employer_cost").ToList();
+        var choice = person.Choice ?? setup.Choice ?? StatutoryChoice.All;
+        var earlier = person.Earlier ?? MonthToDate.None;
         var result = PayCalculator.Calculate(new PayInputs
         {
-            GrossCashPay = basic + earnings.Where(l => l.Taxable).Sum(l => l.Amount),
-            PensionContributions = deductions.Where(l => l.BeforeTax).Sum(l => l.Amount),
-        }, pack);
+            GrossCashPay = earlier.Pay + basic + earnings.Where(l => l.Taxable).Sum(l => l.Amount),
+            PensionContributions = earlier.Pension + deductions.Where(l => l.BeforeTax).Sum(l => l.Amount),
+        }, pack, choice);
+        var statutoryDeductions = Made(setup, "deduction", result.Deductions, choice, earlier);
+        var statutoryCosts = Made(setup, "employer_cost", result.EmployerCosts, choice, earlier);
 
         var name = setup.Names.GetValueOrDefault("basic") ?? new LineName("BASIC", "Basic pay", null);
         var lines = new List<WorkedLine> { new("earning", name.Code, name.Name, name.PayItemId, null, true, false, null, null, basic) };
         lines.AddRange(earnings);
-        lines.AddRange(result.Deductions.Select(l => Statutory(setup, "deduction", l)));
+        lines.AddRange(statutoryDeductions);
         lines.AddRange(deductions);
-        lines.AddRange(result.EmployerCosts.Select(l => Statutory(setup, "employer_cost", l)));
+        lines.AddRange(statutoryCosts);
         lines.AddRange(employerCosts);
 
         var gross = basic + earnings.Sum(l => l.Amount);
-        var totalDeductions = result.Deductions.Sum(l => l.Amount) + deductions.Sum(l => l.Amount);
+        var totalDeductions = statutoryDeductions.Sum(l => l.Amount) + deductions.Sum(l => l.Amount);
         var net = gross - totalDeductions;
         var notes = new List<string>();
         if (person.HireDate >= period.Start) notes.Add("joined");
         if (person.ExitDate is { } exit && exit <= period.End) notes.Add("left");
         if (net < 0) notes.Add("negative_net");
+        if (choice.Makes.Count == 0) notes.Add("no_deductions");
+        else if (choice.Makes.Count < StatutoryChoice.Groups.Count) notes.Add("some_deductions");
+        if (statutoryDeductions.Concat(statutoryCosts).Any(l => l.Amount < 0)) notes.Add("refund");
 
+        // Taxable pay, tax before relief and relief are the month to date's; PAYE is this run's share.
         return new WorkedPerson(person.EmployeeId, person.StaffNo, person.FullName, null, notes, job.Id, basicPay.Id, lines,
-            new PersonTotals(basic, gross, result.TaxablePay, result.TaxBeforeRelief, result.PersonalRelief, result.Amount("paye"), totalDeductions, net,
-                result.EmployerCosts.Sum(l => l.Amount) + employerCosts.Sum(l => l.Amount)));
+            new PersonTotals(basic, gross, result.TaxablePay, result.TaxBeforeRelief, result.PersonalRelief,
+                statutoryDeductions.Where(l => l.StatutoryKey == "paye").Sum(l => l.Amount), totalDeductions, net,
+                statutoryCosts.Sum(l => l.Amount) + employerCosts.Sum(l => l.Amount)), choice.Makes);
     }
 
     private static (decimal Amount, decimal? Base, decimal? Rate) Percent(decimal basic, decimal rate, RulePack pack) =>
         (pack.Round(basic * rate), basic, rate);
 
-    private static WorkedLine Statutory(RunSetup setup, string kind, StatutoryLine line)
+    /// <summary>The statutory lines of the groups made, each taking what earlier runs in the month didn't.</summary>
+    private static List<WorkedLine> Made(RunSetup setup, string kind, IEnumerable<StatutoryLine> lines, StatutoryChoice choice, MonthToDate earlier) =>
+        lines.Where(l => choice.Made(StatutoryChoice.GroupOf(l.Key))).Select(l => Statutory(setup, kind, l, earlier.Took(l.Key))).ToList();
+
+    private static WorkedLine Statutory(RunSetup setup, string kind, StatutoryLine line, decimal earlier)
     {
         var name = setup.Names.GetValueOrDefault(line.Key) ?? new LineName(line.Key.ToUpperInvariant(), line.Key, null);
-        return new WorkedLine(kind, name.Code, name.Name, name.PayItemId, line.Key, false, false, line.Base, line.Rate, line.Amount);
+        return new WorkedLine(kind, name.Code, name.Name, name.PayItemId, line.Key, false, false, line.Base, line.Rate, line.Amount - earlier, line.Amount, earlier);
     }
 }
