@@ -211,18 +211,23 @@ as $$
 $$;
 
 -- The sign-in of an employee's line manager on a date, if the manager is an active member (WF-02).
+-- PL/pgSQL, not SQL: its body is checked when it runs, not when it is created, because pgschema
+-- creates functions before adding columns (employees.membership_id) on an existing database.
 create or replace function line_manager_user(p_employee_id uuid, p_on date)
 returns uuid
-language sql stable security definer set search_path = public
+language plpgsql stable security definer set search_path = public
 as $$
-    select m.user_id
-    from employments e
-    join employees mgr on mgr.id = e.line_manager_id and mgr.organization_id = e.organization_id
-    join memberships m on m.id = mgr.membership_id and m.organization_id = mgr.organization_id and m.status = 'active'
-    where e.employee_id = p_employee_id and e.organization_id = app_org_id()
-      and e.valid_from <= p_on and (e.valid_to is null or e.valid_to >= p_on)
-    order by e.valid_from desc
-    limit 1
+begin
+    return (
+        select m.user_id
+        from employments e
+        join employees mgr on mgr.id = e.line_manager_id and mgr.organization_id = e.organization_id
+        join memberships m on m.id = mgr.membership_id and m.organization_id = mgr.organization_id and m.status = 'active'
+        where e.employee_id = p_employee_id and e.organization_id = app_org_id()
+          and e.valid_from <= p_on and (e.valid_to is null or e.valid_to >= p_on)
+        order by e.valid_from desc
+        limit 1);
+end
 $$;
 
 revoke all on function members_with_permission(uuid, text) from public;
