@@ -8,6 +8,7 @@
     <Project Path="src/Modules/Pesaroll.Identity/Pesaroll.Identity.csproj" />
     <Project Path="src/Modules/Pesaroll.Notifications/Pesaroll.Notifications.csproj" />
     <Project Path="src/Modules/Pesaroll.Organizations/Pesaroll.Organizations.csproj" />
+    <Project Path="src/Modules/Pesaroll.Payroll/Pesaroll.Payroll.csproj" />
     <Project Path="src/Modules/Pesaroll.Payroll.Engine/Pesaroll.Payroll.Engine.csproj" />
     <Project Path="src/Modules/Pesaroll.Workflows/Pesaroll.Workflows.csproj" />
   </Folder>
@@ -16,6 +17,7 @@
     <Project Path="tests/Pesaroll.Notifications.Tests/Pesaroll.Notifications.Tests.csproj" />
     <Project Path="tests/Pesaroll.Organizations.Tests/Pesaroll.Organizations.Tests.csproj" />
     <Project Path="tests/Pesaroll.Payroll.Engine.Tests/Pesaroll.Payroll.Engine.Tests.csproj" />
+    <Project Path="tests/Pesaroll.Payroll.Tests/Pesaroll.Payroll.Tests.csproj" />
     <Project Path="tests/Pesaroll.Shared.Tests/Pesaroll.Shared.Tests.csproj" />
     <Project Path="tests/Pesaroll.Workflows.Tests/Pesaroll.Workflows.Tests.csproj" />
   </Folder>

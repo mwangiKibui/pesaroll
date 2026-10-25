@@ -49,7 +49,7 @@ begin
   end if;
   if (select array_agg(permission_key order by permission_key) from role_permissions rp join roles r on r.id = rp.role_id
       where r.key = 'payroll' and r.organization_id is null) is distinct from
-     array['employees.manage', 'leave.view', 'locations.view', 'pay_items.manage', 'pay.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.view', 'workflows.view'] then
+     array['employees.manage', 'leave.view', 'locations.view', 'pay_items.manage', 'pay.manage', 'payment_accounts.manage', 'payroll_history.manage', 'pay_runs.manage', 'schedules.manage', 'structure.view', 'workflows.view'] then
     raise exception 'the standard Payroll role was changed';
   end if;
 

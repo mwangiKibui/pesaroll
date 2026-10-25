@@ -67,7 +67,7 @@ begin
     raise exception 'Mary does not see exactly Westlands';
   end if;
   if (select array_agg(permission_key order by permission_key) from member_grants(mary, org) where permission_key like '%.manage')
-     is distinct from array['employees.manage', 'leave.manage', 'locations.manage', 'pay_items.manage', 'pay.manage', 'payment_accounts.manage', 'payroll_history.manage', 'schedules.manage', 'structure.manage'] then
+     is distinct from array['employees.manage', 'leave.manage', 'locations.manage', 'pay_items.manage', 'pay.manage', 'payment_accounts.manage', 'payroll_history.manage', 'pay_runs.manage', 'schedules.manage', 'structure.manage'] then
     raise exception 'Mary is not HR and Payroll: %', (select array_agg(permission_key order by permission_key) from member_grants(mary, org));
   end if;
   if (select count(*) from security_groups where organization_id = org and name in ('HR · Westlands Ltd', 'Payroll · Westlands Ltd') and not all_companies) <> 2 then

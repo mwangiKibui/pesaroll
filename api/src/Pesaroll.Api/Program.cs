@@ -3,6 +3,7 @@ using Microsoft.OpenApi;
 using Pesaroll.Identity;
 using Pesaroll.Notifications;
 using Pesaroll.Organizations;
+using Pesaroll.Payroll;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Jobs;
 using Pesaroll.Shared.Security;
@@ -38,6 +39,7 @@ builder.Services.AddFieldEncryption(builder.Configuration);
 builder.Services.AddPesarollJobs(connectionString, runJobs: false);
 // Email and SMS (NTF-01): queued here, sent by the worker.
 builder.Services.AddWorkflowsModule(connectionString);
+builder.Services.AddPayrollModule(connectionString);
 builder.Services.AddNotificationsModule(connectionString, builder.Configuration, builder.Environment.IsProduction());
 
 // The API only runs behind Caddy, which sets the client's address and scheme.
@@ -93,6 +95,7 @@ app.MapPayrollHistoryEndpoints();
 app.MapTeamEndpoints();
 app.MapHomeEndpoints();
 app.MapWorkflowsEndpoints();
+app.MapPayRunsEndpoints();
 
 app.Run();
 

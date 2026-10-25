@@ -45,7 +45,7 @@ Status: draft for review.
 - A country's statutory rates, bands, caps and rounding are a **rule pack**: a JSON file in `database/rule-packs/` (e.g. `KE-2026.02.json`), published by `post-deploy/0016_rule_packs.sql` into the `rule_packs` table with the first pay date it applies to. A pack applies until the next one for its country starts. Every figure carries its `source`.
 - The engine (`Pesaroll.Payroll.Engine`) reads a pack into `RulePack`, refusing a malformed one, and `PayCalculator.Calculate(inputs, pack)` gives every statutory line. `RulePacks.InForceAsync(country, payDate)` (Organizations) picks the pack for a pay date; none gives PAY-2010.
 - **Never edit a published pack.** The database refuses changes and deletes (PAY-2011), and editing a published file fails the deploy. A change in the law is a new file with a new version and start date, a new `publish_rule_pack` line in post-deploy, and golden cases for it.
-- Monthly pay only for now; weekly, fortnightly and daily come with PAY-04.
+- Monthly pay only for now; weekly, fortnightly and daily come with PAY-10.
 
 ## Approvals (WF-01..03)
 
@@ -54,6 +54,14 @@ Status: draft for review.
 - The sender never approves their own request unless the workflow allows it (`allow_self_approval`, an admin's choice for small teams); such approvals are recorded as `self_approved`. Changing a workflow makes a new one and switches the old off, so requests keep the steps they were sent with.
 - **Adding a kind:** a row in `0017_workflow_kinds.sql`; the feature calls `Approvals.SubmitAsync(kind, companyId, subjectId, employeeId)` after its own permission check, and registers an `IApprovalOutcome` for the kind to react when a request is approved, declined or cancelled. The outcome runs in the decision's transaction (`ApprovalTransaction`), so a failure undoes the decision.
 - Deciding (`/api/approvals/{id}/approve|decline|cancel`) is relationship-based: the request's approvers for its current step (fixed when the step starts), with the step's permission checked again; cancelling is the sender's. Every action goes into `approval_actions`, which nobody can change (WF-5006). Emails say what and where, never amounts or the reason for a decline.
+
+## Pay runs (PAY-03)
+
+- A pay run (`Pesaroll.Payroll`, `/api/pay-runs`) is one company's pay for one schedule and period: monthly schedules only for now (PAY-2013; weekly, fortnightly and daily come with PAY-10). One regular run per company, schedule and month that isn't cancelled (PAY-2012).
+- It moves forward only: `draft` → `calculating` (the `PayRunCalculation` job in the worker) → `calculated` → `awaiting_approval` (`Approvals.SubmitAsync("pay_run", …)`) → `approved`. A declined or cancelled request sends it back to `calculated` with the reason; a run that isn't sent can be cancelled.
+- Working out pay is a pure function (`PayRunCalculator`) over the company's people, their job and pay in force on the month's last day (or the day they left), the organization's items for the month (a person's own row over the everyone row), and the engine. Taxable earnings join basic pay; before-tax deductions go to the engine as pension; non-taxable earnings and other deductions change net pay only; employer costs add to the employer's cost. Anyone left out is listed with the reason; joiners, leavers and pay below zero are flagged, and pay below zero can't be sent (PAY-2019).
+- **What locks:** once sent, a run's people and lines can't change, and an approved or cancelled run never changes; the database refuses it too (PAY-2014). Item codes and names, the rule pack version and every statutory base and rate are copied into the run. A mistake is a **correction**: a new run for the chosen people and the same month, showing what each person's pay was last approved at.
+- Access: `pay_runs.manage` to start, calculate, send, cancel and correct, `pay_runs.view` to look; approvers see a run that waits for them or that they approved, through its request, never a draft. Every look at people's pay (`/people`) is recorded in `sensitive_views`.
 
 ## Background work
 

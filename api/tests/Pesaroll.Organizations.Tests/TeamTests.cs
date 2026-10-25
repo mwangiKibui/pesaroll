@@ -149,14 +149,14 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         var (owner, _, _) = await Organization();
         var groups = (await owner.GetFromJsonAsync<Groups>("/api/team/groups"))!;
 
-        Assert.Equal(["companies", "employees", "pay", "locations", "structure", "leave", "schedules", "pay_items", "payment_accounts", "payroll_history", "team", "workflows", "pay_run_approvals"],
+        Assert.Equal(["companies", "employees", "pay", "locations", "structure", "leave", "schedules", "pay_items", "payment_accounts", "payroll_history", "team", "workflows", "pay_run_approvals", "pay_runs"],
             groups.Areas.Select(a => a.Key));
         Assert.Equal("Employees", groups.Areas[1].Name.En);
         Assert.Equal(["administrators", "hr", "payroll", "approvers"], groups.Items.Select(g => g.Key));
         var hr = groups.Items.Single(g => g.Key == "hr");
         Assert.True(hr.Standard);
         Assert.Equal(["companies:none", "employees:manage", "pay:none", "locations:manage", "structure:manage", "leave:manage", "schedules:view", "pay_items:none",
-            "payment_accounts:none", "payroll_history:none", "team:none", "workflows:none", "pay_run_approvals:none"], hr.Areas.Select(a => $"{a.Area}:{a.Level}"));
+            "payment_accounts:none", "payroll_history:none", "team:none", "workflows:none", "pay_run_approvals:none", "pay_runs:none"], hr.Areas.Select(a => $"{a.Area}:{a.Level}"));
         Assert.All(groups.Items.Single(g => g.Key == "administrators").Areas, a => Assert.Equal("manage", a.Level));
         Assert.Equal(1, groups.Items.Single(g => g.Key == "administrators").People);
     }

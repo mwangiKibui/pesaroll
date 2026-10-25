@@ -118,7 +118,7 @@ public sealed class AccessTests(OnboardingTests.Api api) : IClassFixture<Onboard
         var me = (await owner.GetFromJsonAsync<Me>("/api/auth/me"))!;
         Assert.Equal(orgId, me.OrganizationId);
         Assert.Equal(["companies.manage", "companies.view", "employees.manage", "employees.view", "leave.manage", "leave.view", "locations.manage", "locations.view",
-            "pay_items.manage", "pay_items.view", "pay_run_approvals.manage", "pay_run_approvals.view", "pay.manage", "pay.view", "payment_accounts.manage", "payment_accounts.view",
+            "pay_items.manage", "pay_items.view", "pay_run_approvals.manage", "pay_run_approvals.view", "pay_runs.manage", "pay_runs.view", "pay.manage", "pay.view", "payment_accounts.manage", "payment_accounts.view",
             "payroll_history.manage", "payroll_history.view", "schedules.manage", "schedules.view", "structure.manage", "structure.view", "team.manage", "team.view",
             "workflows.manage", "workflows.view"], me.Permissions.Select(p => p.Permission).Order());
         Assert.All(me.Permissions, p => Assert.True(p.AllCompanies));
@@ -152,7 +152,7 @@ public sealed class AccessTests(OnboardingTests.Api api) : IClassFixture<Onboard
         var otieno = await Colleague(orgId, "payroll");
 
         Assert.Equal(2, (await otieno.GetFromJsonAsync<List<Company>>("/api/companies"))!.Count);
-        Assert.Equal(["employees.manage", "employees.view", "leave.view", "locations.view", "pay_items.manage", "pay_items.view", "pay.manage", "pay.view", "payment_accounts.manage",
+        Assert.Equal(["employees.manage", "employees.view", "leave.view", "locations.view", "pay_items.manage", "pay_items.view", "pay_runs.manage", "pay_runs.view", "pay.manage", "pay.view", "payment_accounts.manage",
             "payment_accounts.view", "payroll_history.manage", "payroll_history.view", "schedules.manage", "schedules.view", "structure.view", "workflows.view"],
             (await otieno.GetFromJsonAsync<Me>("/api/auth/me"))!.Permissions.Select(p => p.Permission).Order());
         Assert.Equal(HttpStatusCode.Created, (await otieno.PostAsJsonAsync("/api/pay-items",
