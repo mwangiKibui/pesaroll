@@ -42,13 +42,14 @@ function HomeCards() {
       <h1 className="sr-only">{t('home.title')}</h1>
       {shows('addEmployee') && <div className="flex justify-end"><Button onClick={() => setAdding(true)}>{t('home.addEmployee')}</Button></div>}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* One row on wide screens: Employees and Joined this month a quarter each, Ready for payroll half. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {cards.map(c => {
           switch (c.key) {
             case 'addEmployee': return null
             case 'employees': return <EmployeesCard key={c.key} people={people.data} />
             case 'joinedThisMonth': return <JoinedThisMonthCard key={c.key} people={people.data} />
-            case 'readyForPayroll': return <div key={c.key} className="md:col-span-2"><ReadyForPayrollCard people={people.data} /></div>
+            case 'readyForPayroll': return <div key={c.key} className="grid md:col-span-2"><ReadyForPayrollCard people={people.data} /></div>
             default: return <ComingCard key={c.key} cardKey={c.key} />
           }
         })}
