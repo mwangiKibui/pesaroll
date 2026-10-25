@@ -2,7 +2,8 @@
 -- hired later too) or one person, with their amount (fixed items; null: the item's default) or
 -- rate (% of basic; null: the item's rate) and the dates it applies (ends_on: a loan's last
 -- month). Basic pay and the law's items need none: they apply to everyone. Payroll (PAY-03/04)
--- reads these; items entered each payroll (overtime) just say who can have them.
+-- reads these; items entered each payroll (overtime) just say who can have them. Items paid by the
+-- hour or day (PAY-11) take a person's own amount a unit or multiplier (null: the item's).
 create table employee_pay_items (
     id               uuid primary key,
     organization_id  uuid not null,
@@ -11,6 +12,7 @@ create table employee_pay_items (
     employee_id      uuid,                                                -- null: everyone at the company
     amount           numeric(18, 2) check (amount >= 0),
     rate             numeric(9, 4) check (rate > 0 and rate <= 100),
+    multiplier       numeric(6, 4) check (multiplier > 0 and multiplier <= 10),
     starts_on        date not null,
     ends_on          date,
     reference        text check (char_length(btrim(reference)) between 1 and 40),   -- their member or account number with the payee
@@ -20,7 +22,8 @@ create table employee_pay_items (
     foreign key (organization_id, company_id) references companies (organization_id, id) on delete cascade,
     foreign key (company_id, employee_id) references employees (company_id, id) on delete cascade,
     check (ends_on is null or ends_on >= starts_on),
-    check (amount is null or rate is null)
+    check (amount is null or rate is null),
+    check (multiplier is null or (amount is null and rate is null))
 );
 
 -- One "everyone" per item and company; one row per item and person.
@@ -39,8 +42,9 @@ create policy employee_pay_items_scope on employee_pay_items as restrictive
 grant select, insert, update, delete on table employee_pay_items to pesaroll_app;
 
 -- What the item allows: not one set by law (ONB-3545), only at companies it serves (ONB-3546), and
--- an amount only for fixed items, a rate only for percentage ones, neither for items entered each
--- payroll (ONB-3547). Runs as its owner, so the checks see the item whatever the session's scope.
+-- an amount only for fixed items or a unit's pay, a rate only for percentage ones, a multiplier only
+-- for items paid by the hour or day, none for items entered each payroll (ONB-3547). Runs as its
+-- owner, so the checks see the item whatever the session's scope.
 create or replace function employee_pay_items_fit()
 returns trigger
 language plpgsql
@@ -58,7 +62,8 @@ begin
         select 1 from pay_item_companies pc where pc.pay_item_id = item.id and pc.company_id = new.company_id) then
         raise exception 'ONB-3546';
     end if;
-    if (new.amount is not null and item.calc_method <> 'fixed') or (new.rate is not null and item.calc_method <> 'percent_of_basic') then
+    if (new.amount is not null and item.calc_method not in ('fixed', 'per_unit')) or (new.rate is not null and item.calc_method <> 'percent_of_basic')
+       or (new.multiplier is not null and item.calc_method <> 'per_unit') then
         raise exception 'ONB-3547';
     end if;
     return new;

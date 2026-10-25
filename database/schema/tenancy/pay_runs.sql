@@ -87,13 +87,17 @@ create trigger pay_runs_keep_final before update on pay_runs
 
 -- Each person a run worked out, with what it used and their totals, or why they were left out:
 --   no_pay        no basic pay in force
---   other_basis   paid on another basis than the schedule's frequency (hourly: PAY-11)
+--   other_basis   a salary or wage for another frequency than the schedule's (a daily or hourly rate
+--                 is paid on any schedule, PAY-11)
+--   no_time       a daily or hourly rate with no days or hours entered and none usual (PAY-11)
 --   other_currency  paid in a currency other than the rule pack's
 --   not_in_period   (corrections) not employed on this schedule in the period
 -- Their name and staff number are copied in, as on the payslip. notes flag what Payroll should
 -- check before sending: joined or left in the period (paid the whole period until PAY-04),
 -- negative_net (blocks sending, PAY-2019), no_deductions or some_deductions (the statutory items
--- chosen for them, PAY-10), refund (a statutory line below zero). deductions_made lists the
+-- chosen for them, PAY-10), refund (a statutory line below zero), usual_time (paid their usual days
+-- or hours, nothing entered), below_minimum (a rate below the minimum wage for their place of work:
+-- blocks sending, PAY-2002), no_wage_area (no wage area to check it against). deductions_made lists the
 -- statutory items made for them and deductions_chosen_by/at who chose that (null: every item, as
 -- monthly payroll always makes). Taxable pay, tax before relief and relief are the month to date's.
 create table pay_run_people (
@@ -105,7 +109,7 @@ create table pay_run_people (
     staff_no          text not null,
     full_name         text not null,
     included          boolean not null,
-    excluded_reason   text check (excluded_reason in ('no_pay', 'other_basis', 'other_currency', 'not_in_period')),
+    excluded_reason   text check (excluded_reason in ('no_pay', 'other_basis', 'other_currency', 'not_in_period', 'no_time')),
     notes             text[] not null default '{}',
     employment_id     uuid,
     compensation_id   uuid,
@@ -147,6 +151,7 @@ grant select, insert, delete on table pay_run_people to pesaroll_app;
 -- The code and name are copied in, so a run never changes when items do. Statutory lines are worked
 -- out on the month to date (PAY-10): month_to_date is the line's total for the tax month and earlier
 -- what the person's earlier approved runs in the month took, so amount = month_to_date - earlier.
+-- A line paid by the day or hour (PAY-11) keeps its quantity and unit_rate: amount = quantity x unit_rate.
 create table pay_run_lines (
     id               uuid primary key default uuidv7(),
     organization_id  uuid not null,
@@ -165,9 +170,12 @@ create table pay_run_lines (
     amount           numeric(18, 2) not null,
     month_to_date    numeric(18, 2),
     earlier          numeric(18, 2) not null default 0,
+    quantity         numeric(9, 2),
+    unit_rate        numeric(18, 2),
     position         int not null,
     foreign key (organization_id, person_id) references pay_run_people (organization_id, id) on delete cascade,
-    foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade
+    foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade,
+    check ((quantity is null) = (unit_rate is null))
 );
 
 create index pay_run_lines_person on pay_run_lines (person_id, position);
@@ -182,7 +190,39 @@ create policy pay_run_lines_scope on pay_run_lines as restrictive
 
 grant select, insert, delete on table pay_run_lines to pesaroll_app;
 
--- A run's people and lines change only while it is being worked out (recalculating replaces them).
+-- Days and hours worked in a run (PAY-11), per person: for basic pay (pay_item_id null: a daily or
+-- hourly rate) or an item paid by the hour or day (overtime). Entered, or copied from the last
+-- approved run on the schedule (source), with who did it and when. Changing them sends a worked-out
+-- run back to draft. PAY-04 adds one-off amounts here.
+create table pay_run_inputs (
+    id               uuid primary key,
+    organization_id  uuid not null,
+    company_id       uuid not null,
+    pay_run_id       uuid not null,
+    employee_id      uuid not null,
+    pay_item_id      uuid,
+    quantity         numeric(9, 2) not null check (quantity >= 0 and quantity <= 744),
+    source           text not null check (source in ('entered', 'copied')),
+    entered_by       uuid not null references users (id),
+    entered_at       timestamptz not null default now(),
+    foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade,
+    foreign key (company_id, employee_id) references employees (company_id, id),
+    foreign key (organization_id, pay_item_id) references pay_items (organization_id, id)
+);
+
+create unique index pay_run_inputs_one on pay_run_inputs (pay_run_id, employee_id, pay_item_id) nulls not distinct;
+
+alter table pay_run_inputs enable row level security;
+
+create policy pay_run_inputs_tenant on pay_run_inputs
+    using (organization_id = app_org_id());
+
+create policy pay_run_inputs_scope on pay_run_inputs as restrictive
+    using (company_id = any (app_company_ids()));
+
+grant select, insert, update, delete on table pay_run_inputs to pesaroll_app;
+
+-- A run's people, lines and inputs change only before it is sent (recalculating replaces people and lines).
 -- Deleting a run's company still cascades: deploys and cleanup run as other roles.
 create or replace function pay_run_figures_keep()
 returns trigger
@@ -207,4 +247,7 @@ create trigger pay_run_people_keep before insert or update or delete on pay_run_
     for each row execute function pay_run_figures_keep();
 
 create trigger pay_run_lines_keep before insert or update or delete on pay_run_lines
+    for each row execute function pay_run_figures_keep();
+
+create trigger pay_run_inputs_keep before insert or update or delete on pay_run_inputs
     for each row execute function pay_run_figures_keep();

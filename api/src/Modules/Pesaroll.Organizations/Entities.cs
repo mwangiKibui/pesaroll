@@ -285,6 +285,8 @@ public sealed class EmployeePayItem
     public Guid? EmployeeId { get; set; }
     public decimal? Amount { get; set; }
     public decimal? Rate { get; set; }
+    /// <summary>Items paid by the hour or day: their own multiplier of their hourly or daily rate (PAY-11).</summary>
+    public decimal? Multiplier { get; set; }
     public DateOnly StartsOn { get; set; }
     public DateOnly? EndsOn { get; set; }
     /// <summary>Their member or account number with the item's payee.</summary>
@@ -303,10 +305,14 @@ public sealed class PayItem
     public required string Kind { get; set; }
     public bool Taxable { get; set; }
     public bool BeforeTax { get; set; }
-    /// <summary>fixed, percent_of_basic, each_run or by_law.</summary>
+    /// <summary>fixed, percent_of_basic, each_run, by_law or per_unit (PAY-11).</summary>
     public required string CalcMethod { get; set; }
     public decimal? DefaultAmount { get; set; }
     public decimal? Rate { get; set; }
+    /// <summary>per_unit items: hour or day.</summary>
+    public string? Unit { get; set; }
+    /// <summary>per_unit items: times the person's own hourly or daily rate (or <see cref="DefaultAmount"/> a unit).</summary>
+    public decimal? Multiplier { get; set; }
     public string? LockedKey { get; set; }
     public string? CountryCode { get; set; }
     public bool AllCompanies { get; set; }
@@ -434,6 +440,8 @@ public sealed class Compensation
     public decimal BasicAmount { get; set; }
     public required string PayBasis { get; set; }
     public required string Currency { get; set; }
+    /// <summary>Daily or hourly rates: the days or hours usually worked in a pay period (PAY-11).</summary>
+    public decimal? UsualQuantity { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 

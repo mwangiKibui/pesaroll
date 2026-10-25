@@ -97,7 +97,7 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
 
     /// <summary>An employee at the company on its default schedule (or the one given), paid this basic pay since 2024.</summary>
     private static async Task<Guid> Employee(World world, Company company, decimal basic, string name = "Brian Mwangi", string basis = "monthly",
-        DateOnly? hired = null, Guid? schedule = null)
+        DateOnly? hired = null, Guid? schedule = null, decimal? usual = null)
     {
         var id = Guid.CreateVersion7();
         var parts = name.Split(' ');
@@ -107,11 +107,11 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
             values (@id, @org, @co, @staff, @first, @last, @from);
             insert into employments (id, organization_id, company_id, employee_id, valid_from, pay_schedule_id, leave_plan_id, employment_type)
             select uuidv7(), @org, @co, @id, @from, coalesce(@schedule, c.default_pay_schedule_id), c.default_leave_plan_id, 'permanent' from companies c where c.id = @co;
-            insert into compensations (id, organization_id, company_id, employee_id, valid_from, basic_amount, pay_basis, currency)
-            values (uuidv7(), @org, @co, @id, @from, @basic, @basis, 'KES');
+            insert into compensations (id, organization_id, company_id, employee_id, valid_from, basic_amount, pay_basis, currency, usual_quantity)
+            values (uuidv7(), @org, @co, @id, @from, @basic, @basis, 'KES', @usual);
             """, ("id", id), ("org", world.OrgId), ("co", company.Id), ("staff", $"E{Random.Shared.Next(10000, 99999)}"), ("first", parts[0]),
             ("last", parts[1]), ("from", from), ("basic", basic), ("basis", basis),
-            ("schedule", schedule is Guid s ? s : DBNull.Value));
+            ("schedule", schedule is Guid s ? s : DBNull.Value), ("usual", usual is decimal u ? u : DBNull.Value));
         return id;
     }
 
@@ -293,12 +293,14 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         await Employee(world, world.Westlands, 100_000);
         await Employee(world, world.Westlands, 1_000, name: "Peter Kamau", basis: "daily");
         await Employee(world, world.Westlands, 100_000, name: "Grace Njeri", hired: new DateOnly(2026, 10, 19));
+        await Employee(world, world.Westlands, 25_000, name: "John Otieno", basis: "weekly");
         var run = await Start(world);
 
         var worked = await Calculate(world, run.Id);
 
         Assert.Equal(2, worked.Totals.People);
-        Assert.Equal("other_basis", Assert.Single(worked.LeftOut).Reason);
+        Assert.Equal("no_time", worked.LeftOut.Single(l => l.Name == "Peter Kamau").Reason);    // a daily rate with no days entered
+        Assert.Equal("other_basis", worked.LeftOut.Single(l => l.Name == "John Otieno").Reason);
         Assert.Equal(["joined"], worked.Flagged.Single(f => f.Name == "Grace Njeri").Notes);
     }
 
@@ -361,7 +363,9 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         {
             Assert.Equal(HttpStatusCode.NotFound, (await person.Client.GetAsync($"/api/pay-runs/{run.Id}")).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await person.Client.GetAsync($"/api/pay-runs/{run.Id}/people")).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await person.Client.GetAsync($"/api/pay-runs/{run.Id}/inputs")).StatusCode);
         }
+        Assert.Equal(HttpStatusCode.NotFound, (await mombasaPayroll.Client.PutAsJsonAsync($"/api/pay-runs/{run.Id}/inputs", new { entries = Array.Empty<object>() })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await mombasaPayroll.Client.GetAsync($"/api/pay-runs?companyId={world.Westlands.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await approver.Client.PostAsJsonAsync("/api/pay-runs",
             new { companyId = world.Westlands.Id, payScheduleId = world.Schedule, month = "2026-11" })).StatusCode);
@@ -396,6 +400,10 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
         return (await res.Content.ReadFromJsonAsync<PayRunDetail>())!;
     }
+
+    /// <summary>Moves the company's main location to a wage area (companies here start in Nairobi, a city).</summary>
+    private static Task WorksIn(Company company, string area) => Execute(
+        "update locations set wage_area_code = @a where id = (select main_location_id from companies where id = @c)", ("a", area), ("c", company.Id));
 
     private static Task<HttpResponseMessage> SetDeductions(Person by, Guid schedule, object choice) =>
         by.Client.PostAsJsonAsync($"/api/pay-schedules/{schedule}/deductions", choice);
@@ -453,6 +461,7 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
     public async Task A_daily_schedule_makes_no_deductions_until_switched_on_and_a_person_can_differ()
     {
         var world = await Organization();
+        await WorksIn(world.Westlands, "other");   // 450 a day is above the minimum wage there, not in a city
         var daily = await Schedule(world, "daily");
         var peter = await Employee(world, world.Westlands, 450, name: "Peter Kamau", basis: "daily", schedule: daily);
         var mary = await Employee(world, world.Westlands, 450, name: "Mary Akinyi", basis: "daily", schedule: daily);
@@ -612,4 +621,144 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         Assert.Equal(1_500m, line.Earlier);
         Assert.Equal(1_800m, line.Amount);
     }
+
+    // PAY-11: pay rates, days and hours.
+
+    private static Task<HttpResponseMessage> EnterTime(Person by, Guid run, params object[] entries) =>
+        by.Client.PutAsJsonAsync($"/api/pay-runs/{run}/inputs", new { entries });
+
+    private static async Task<RunTimeResponse> Time(Person by, Guid run) => (await by.Client.GetFromJsonAsync<RunTimeResponse>($"/api/pay-runs/{run}/inputs"))!;
+
+    private static PayRunPersonResponse Paid(PayRunPeoplePage page, Guid employee) => page.Items.Single(p => p.EmployeeId == employee);
+
+    [Fact]
+    public async Task Days_and_hours_are_entered_paid_at_each_persons_rate_and_fixed_once_sent()
+    {
+        var world = await Organization();
+        await WorksIn(world.Westlands, "other");
+        var weekly = await Schedule(world, "weekly");
+        var peter = await Employee(world, world.Westlands, 800, name: "Peter Kamau", basis: "daily", schedule: weekly);
+        var mary = await Employee(world, world.Westlands, 150, name: "Mary Akinyi", basis: "hourly", schedule: weekly, usual: 40);
+        var john = await Employee(world, world.Westlands, 25_000, name: "John Otieno", basis: "weekly", schedule: weekly);
+        var run = await Started(await StartOn(world, weekly, "2026-10-02"));
+
+        // Who the run pays and what can be entered: the usual rates come with the organization.
+        var time = await Time(world.Owner, run.Id);
+        Assert.Equal(["day", "hour", null], new[] { peter, mary, john }.Select(id => time.People.Single(p => p.EmployeeId == id).Unit));
+        Assert.Equal(40m, time.People.Single(p => p.EmployeeId == mary).UsualQuantity);
+        var overtime = time.Items.Single(i => i.Code == "OVERTIME");
+        Assert.Equal("hour", overtime.Unit);
+        Assert.Contains(time.Items, i => i.Code == "REST-DAY");
+
+        // A salary has no days; a quantity is 0 to 744; the item must be paid by the hour or day.
+        var bad = await EnterTime(world.Owner, run.Id, new { employeeId = john, payItemId = (Guid?)null, quantity = 5 },
+            new { employeeId = peter, payItemId = (Guid?)null, quantity = -1 }, new { employeeId = peter, payItemId = Guid.NewGuid(), quantity = 2 });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        var error = (await bad.Content.ReadFromJsonAsync<Error>())!;
+        Assert.Equal("PAY-2025", error.Code);
+        Assert.Equal(["entries[0].payItemId", "entries[1].quantity", "entries[2].payItemId"], error.Fields!.Keys.Order());
+
+        Assert.Equal(HttpStatusCode.OK, (await EnterTime(world.Owner, run.Id, new { employeeId = peter, payItemId = (Guid?)null, quantity = 5 },
+            new { employeeId = peter, payItemId = overtime.PayItemId, quantity = 4 })).StatusCode);
+        await Calculate(world, run.Id);
+        var people = await People(world.Owner, run.Id);
+        var p = Paid(people, peter);
+        var basic = p.Lines.Single(l => l.Code == "BASIC");
+        Assert.Equal((5m, 800m, 4_000m), (basic.Quantity, basic.UnitRate, basic.Amount));
+        var ot = p.Lines.Single(l => l.Code == "OVERTIME");
+        Assert.Equal((4m, 150m, 600m), (ot.Quantity, ot.UnitRate, ot.Amount));   // 800 a day / 8 hours x 1.5
+        Assert.Equal(4_600m, p.GrossPay);
+        Assert.Equal(6_000m, Paid(people, mary).BasicPay);                        // her usual 40 hours
+        Assert.Contains("usual_time", Paid(people, mary).Notes);
+        Assert.Equal(25_000m, Paid(people, john).BasicPay);
+
+        // A change after it was worked out sends it back to be worked out again.
+        await EnterTime(world.Owner, run.Id, new { employeeId = mary, payItemId = (Guid?)null, quantity = 38.5 });
+        Assert.Equal("draft", (await Get(world.Owner, run.Id)).Status);
+        Assert.Equal("PAY-2015", await Code(await Submit(world.Owner, run.Id)));
+        var entered = (await Time(world.Owner, run.Id)).People.Single(x => x.EmployeeId == mary).Entries.Single();
+        Assert.Equal(("entered", world.Owner.UserId), (entered.Source, entered.EnteredBy));
+        await Calculate(world, run.Id);
+        Assert.Equal(5_775m, Paid(await People(world.Owner, run.Id), mary).BasicPay);
+
+        // Sent: fixed. Approved: fixed for good.
+        var approver = await Colleague(world.OrgId, "approver");
+        await SetUpApprovals(world);
+        var sent = (await (await Submit(world.Owner, run.Id)).Content.ReadFromJsonAsync<PayRunDetail>())!;
+        Assert.Equal("PAY-2021", await Code(await EnterTime(world.Owner, run.Id, new { employeeId = mary, payItemId = (Guid?)null, quantity = 40 })));
+        Assert.Equal(HttpStatusCode.OK, (await approver.Client.GetAsync($"/api/pay-runs/{run.Id}/inputs")).StatusCode);   // what they approve
+        Assert.Equal(HttpStatusCode.Forbidden, (await approver.Client.PutAsJsonAsync($"/api/pay-runs/{run.Id}/inputs", new { entries = Array.Empty<object>() })).StatusCode);
+        await approver.Client.PostAsync($"/api/approvals/{sent.ApprovalRequestId}/approve", null);
+        Assert.Equal("PAY-2014", await Code(await EnterTime(world.Owner, run.Id, new { employeeId = mary, payItemId = (Guid?)null, quantity = 40 })));
+        Assert.Equal(38.5m, await Scalar<decimal>("select quantity from pay_run_inputs where pay_run_id = @r and employee_id = @e", ("r", run.Id), ("e", mary)));
+    }
+
+    [Fact]
+    public async Task Last_runs_days_and_hours_can_be_copied_for_whoever_has_none_yet()
+    {
+        var world = await Organization();
+        await WorksIn(world.Westlands, "other");
+        var approver = await Colleague(world.OrgId, "approver");
+        await SetUpApprovals(world);
+        var weekly = await Schedule(world, "weekly");
+        var peter = await Employee(world, world.Westlands, 800, name: "Peter Kamau", basis: "daily", schedule: weekly);
+        var mary = await Employee(world, world.Westlands, 800, name: "Mary Akinyi", basis: "daily", schedule: weekly);
+        var first = await Started(await StartOn(world, weekly, "2026-10-02"));
+        Assert.Equal("PAY-2026", await Code(await world.Owner.Client.PostAsync($"/api/pay-runs/{first.Id}/inputs/copy-previous", null)));
+
+        await EnterTime(world.Owner, first.Id, new { employeeId = peter, payItemId = (Guid?)null, quantity = 6 },
+            new { employeeId = mary, payItemId = (Guid?)null, quantity = 3 });
+        await Calculate(world, first.Id);
+        var sent = (await (await Submit(world.Owner, first.Id)).Content.ReadFromJsonAsync<PayRunDetail>())!;
+        await approver.Client.PostAsync($"/api/approvals/{sent.ApprovalRequestId}/approve", null);
+
+        var second = await Started(await StartOn(world, weekly, "2026-10-09"));
+        await EnterTime(world.Owner, second.Id, new { employeeId = mary, payItemId = (Guid?)null, quantity = 5 });
+        var copied = await world.Owner.Client.PostAsync($"/api/pay-runs/{second.Id}/inputs/copy-previous", null);
+        Assert.Equal(HttpStatusCode.OK, copied.StatusCode);
+        var time = (await copied.Content.ReadFromJsonAsync<RunTimeResponse>())!;
+        var peters = time.People.Single(x => x.EmployeeId == peter).Entries.Single();
+        Assert.Equal((6m, "copied"), (peters.Quantity, peters.Source));
+        var marys = time.People.Single(x => x.EmployeeId == mary).Entries.Single();
+        Assert.Equal((5m, "entered"), (marys.Quantity, marys.Source));     // what was entered stays
+    }
+
+    [Fact]
+    public async Task A_rate_below_the_minimum_wage_where_someone_works_stops_the_run_being_sent()
+    {
+        var world = await Organization();   // Westlands' main location is in Nairobi: a city, 775.39 a day
+        await Colleague(world.OrgId, "approver");
+        await SetUpApprovals(world);
+        var daily = await Schedule(world, "daily");
+        var peter = await Employee(world, world.Westlands, 450, name: "Peter Kamau", basis: "daily", schedule: daily);
+        var run = await Calculate(world, (await Started(await StartOn(world, daily, "2026-10-01"))).Id);
+
+        Assert.Contains("below_minimum", run.Flagged.Single().Notes);
+        Assert.Equal("PAY-2002", await Code(await Submit(world.Owner, run.Id)));
+
+        // Where they work decides it: in "all other areas" the minimum is 435.66 a day.
+        await WorksIn(world.Westlands, "other");
+        run = await Calculate(world, run.Id);
+        Assert.DoesNotContain(run.Flagged, f => f.Notes.Contains("below_minimum"));
+        Assert.Equal(HttpStatusCode.OK, (await Submit(world.Owner, run.Id)).StatusCode);
+        Assert.Equal(peter, Assert.Single((await People(world.Owner, run.Id)).Items).EmployeeId);
+    }
+
+    [Fact]
+    public async Task Items_paid_by_the_hour_or_day_are_set_up_with_a_unit_and_a_multiplier_or_an_amount()
+    {
+        var world = await Organization();
+        async Task<HttpResponseMessage> Add(object item) => await world.Owner.Client.PostAsJsonAsync("/api/pay-items", item);
+
+        var night = await Add(new { name = "Night shift", kind = "earning", taxable = true, calcMethod = "per_unit", unit = "hour", defaultAmount = 200, allCompanies = true });
+        Assert.Equal(HttpStatusCode.Created, night.StatusCode);
+        var created = (await night.Content.ReadFromJsonAsync<PayItemShape>())!;
+        Assert.Equal(("hour", (decimal?)200m, (decimal?)null), (created.Unit, created.DefaultAmount, created.Multiplier));
+
+        var refused = await Add(new { name = "Docked", kind = "deduction", calcMethod = "per_unit", unit = "week", multiplier = 1.5, defaultAmount = 100, allCompanies = true });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal(["kind", "multiplier", "unit"], (await refused.Content.ReadFromJsonAsync<Error>())!.Fields!.Keys.Order());
+    }
+
+    private sealed record PayItemShape(Guid Id, string Code, string CalcMethod, decimal? DefaultAmount, string? Unit, decimal? Multiplier);
 }

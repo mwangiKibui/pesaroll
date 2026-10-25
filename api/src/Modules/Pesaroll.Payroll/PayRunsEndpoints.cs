@@ -54,10 +54,12 @@ public sealed record PayRunDetail(
 
 /// <summary>
 /// A line of someone's pay. Rate is a fraction (0.06 is 6%). Statutory lines also give the tax
-/// month's total and what earlier runs in the month took (PAY-10).
+/// month's total and what earlier runs in the month took (PAY-10); lines paid by the day or hour
+/// their quantity and unit rate (PAY-11: 5 days x 450.00).
 /// </summary>
 public sealed record PayRunLineResponse(
-    string Kind, string Code, string Name, string? StatutoryKey, decimal? Base, decimal? Rate, decimal Amount, decimal? MonthToDate = null, decimal Earlier = 0);
+    string Kind, string Code, string Name, string? StatutoryKey, decimal? Base, decimal? Rate, decimal Amount, decimal? MonthToDate = null, decimal Earlier = 0,
+    decimal? Quantity = null, decimal? UnitRate = null);
 
 /// <summary>For a correction: what was last approved for the person in the period, and how net pay changes.</summary>
 public sealed record ApprovedBefore(Guid PayRunId, decimal GrossPay, decimal Paye, decimal TotalDeductions, decimal NetPay, decimal NetPayChange);
@@ -191,7 +193,8 @@ public static class PayRunsEndpoints
             return Results.Ok(new PayRunPeoplePage(people.Select(p => new PayRunPersonResponse(p.EmployeeId, p.StaffNo, p.FullName, p.Notes,
                 p.BasicPay!.Value, p.GrossPay!.Value, p.TaxablePay!.Value, p.Paye!.Value, Statutory(p, "nssf_employee"), Statutory(p, "shif"),
                 Statutory(p, "ahl_employee"), p.TotalDeductions!.Value, p.NetPay!.Value, p.EmployerCosts!.Value,
-                p.Lines.Select(l => new PayRunLineResponse(l.Kind, l.Code, l.Name, l.StatutoryKey, l.Base, l.Rate, l.Amount, l.MonthToDate, l.Earlier)).ToList(),
+                p.Lines.Select(l => new PayRunLineResponse(l.Kind, l.Code, l.Name, l.StatutoryKey, l.Base, l.Rate, l.Amount, l.MonthToDate, l.Earlier,
+                    l.Quantity, l.UnitRate)).ToList(),
                 before.GetValueOrDefault(p.EmployeeId) is { } b ? b with { NetPayChange = p.NetPay!.Value - b.NetPay } : null,
                 p.DeductionsMade, p.DeductionsChosenBy)).ToList(), total, number, size));
         }).Produces<PayRunPeoplePage>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
@@ -232,6 +235,9 @@ public static class PayRunsEndpoints
             if (run.People == 0) throw PayRunErrors.NobodyPaid();
             var belowZero = await db.People.CountAsync(p => p.PayRunId == run.Id && p.Notes.Contains("negative_net"), ct);
             if (belowZero > 0) throw PayRunErrors.BelowZero(belowZero);
+            // Nobody is paid below the minimum wage where they work (PAY-11).
+            var belowMinimum = await db.People.CountAsync(p => p.PayRunId == run.Id && p.Included && p.Notes.Contains("below_minimum"), ct);
+            if (belowMinimum > 0) throw PayRunErrors.BelowMinimumWage(belowMinimum);
 
             // Marked first, so its figures are fixed before anyone can approve them; put back if sending fails.
             var sent = await db.PayRuns.Where(r => r.Id == run.Id && r.Status == "calculated").ExecuteUpdateAsync(s => s
@@ -306,7 +312,7 @@ public static class PayRunsEndpoints
     }
 
     /// <summary>A run this person may change: pay_runs.manage at its company (one they can't see is not found).</summary>
-    private static async Task<PayRun> ManageableAsync(PayrollDbContext db, TenantContext tenant, Guid id, CancellationToken ct)
+    internal static async Task<PayRun> ManageableAsync(PayrollDbContext db, TenantContext tenant, Guid id, CancellationToken ct)
     {
         var run = await db.PayRuns.SingleOrDefaultAsync(r => r.Id == id, ct);
         if (run is null || !tenant.Can(Permissions.PayRunsView, run.CompanyId)) throw PayRunErrors.NotFound();
@@ -319,7 +325,7 @@ public static class PayRunsEndpoints
     /// waiting on or was approved with. Anyone else, and approvers of a run back in Payroll's hands,
     /// get not found.
     /// </summary>
-    private static async Task<PayRun> ReadableAsync(PayrollDbContext db, TenantContext tenant, HttpContext http, Guid id, CancellationToken ct)
+    internal static async Task<PayRun> ReadableAsync(PayrollDbContext db, TenantContext tenant, HttpContext http, Guid id, CancellationToken ct)
     {
         var (user, _) = Who(tenant, http);
         var run = await db.PayRuns.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, ct) ?? throw PayRunErrors.NotFound();

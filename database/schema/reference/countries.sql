@@ -50,7 +50,7 @@ create table industries (
 
 -- Minimum-wage areas (ONB-04): wage orders set rates by area, not county (Nakuru county has a city
 -- and rural areas), so a location records its area. Towns listed here suggest the area; the
--- rates themselves live in the country's rule packs (PAY-01).
+-- rates themselves live in minimum_wages (PAY-11).
 create table country_wage_areas (
     country_code    char(2) not null references countries (code),
     code            text not null check (code ~ '^[a-z][a-z0-9_]*$'),

@@ -2,7 +2,7 @@ using Pesaroll.Shared.Errors;
 
 namespace Pesaroll.Payroll;
 
-/// <summary>Pay run errors (PAY-2012 to PAY-2024, docs/standards/errors.md; PAY-2013 is retired).</summary>
+/// <summary>Pay run errors (PAY-2002, PAY-2012 to PAY-2026, docs/standards/errors.md; PAY-2013 is retired).</summary>
 public static class PayRunErrors
 {
     public static AppException AlreadyExists(string schedule, string period, string company) =>
@@ -37,6 +37,15 @@ public static class PayRunErrors
     public static AppException ScheduleNotFound() => new("ONB-3526", "We couldn't find that schedule. It may have been deleted.", 404);
 
     public static AppException EmployeeNotFound() => new("ONB-3539", "We couldn't find that employee. They may have been deleted.", 404);
+
+    public static AppException BelowMinimumWage(int people) =>
+        new("PAY-2002", $"{people} {(people == 1 ? "person is" : "people are")} paid below the minimum wage where they work. Check their rates, then recalculate.", 409);
+
+    public static AppException InputsInvalid(IReadOnlyDictionary<string, string> fields) =>
+        new("PAY-2025", "Some days or hours don't look right. Check the fields marked.") { Fields = fields };
+
+    public static AppException NothingToCopy() =>
+        new("PAY-2026", "There's no approved pay run on this schedule before this one to copy days and hours from.", 409);
 
     public static AppException DeductionsInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("PAY-2024", "Some deduction details don't look right. Check the fields marked.") { Fields = fields };

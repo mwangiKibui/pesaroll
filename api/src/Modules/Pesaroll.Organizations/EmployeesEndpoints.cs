@@ -18,7 +18,8 @@ public sealed record JobRequest(
     Guid? PositionId, Guid? DepartmentId, Guid? UnitId, Guid? LocationId, Guid? LineManagerId, Guid? PayScheduleId, Guid? LeavePlanId,
     string? EmploymentType, DateOnly? ContractEnd);
 
-public sealed record PayRequest(decimal? BasicAmount, string? PayBasis);
+/// <summary>Basic pay. A daily or hourly rate can say the days or hours usually worked in a pay period (PAY-11).</summary>
+public sealed record PayRequest(decimal? BasicAmount, string? PayBasis, decimal? UsualQuantity = null);
 
 /// <summary>Where pay goes. On an edit, leaving the number out keeps the current one (same method).</summary>
 public sealed record AccountRequest(string? Method, string? BankCode, string? BranchCode, string? AccountNumber, string? MpesaPhone);
@@ -36,7 +37,7 @@ public sealed record JobResponse(
     Guid? PositionId, Guid? DepartmentId, Guid? UnitId, Guid? LocationId, Guid? LineManagerId, Guid PayScheduleId, Guid LeavePlanId,
     string EmploymentType, DateOnly? ContractEnd);
 
-public sealed record PayResponse(decimal BasicAmount, string PayBasis, string Currency);
+public sealed record PayResponse(decimal BasicAmount, string PayBasis, string Currency, decimal? UsualQuantity = null);
 
 public sealed record AccountResponse(string Method, string? BankCode, string? BranchCode, string? AccountMasked, string? MpesaMasked);
 
@@ -342,7 +343,7 @@ public static class EmployeesEndpoints
     /// <summary>A checked employee: numbers as stored (null kept, "" removed on an edit), job with defaults filled in.</summary>
     internal sealed record ValidEmployee(Company Company, string? StaffNo, string FirstName, string? MiddleName, string LastName, DateOnly? DateOfBirth,
         string? Phone, string? Email, string? Address, string? NationalId, string? KraPin, string? NssfNo, string? ShaNo, DateOnly HireDate, DateOnly? ExitDate,
-        ValidJob Job, (decimal Amount, string Basis)? Pay, ValidAccount? Account);
+        ValidJob Job, (decimal Amount, string Basis, decimal? Usual)? Pay, ValidAccount? Account);
 
     /// <summary>ACC-05: pay and the account they are paid into are set only with Manage on pay for the company.</summary>
     private static void RequirePayAccess(TenantContext tenant, EmployeeRequest request, Guid companyId)
@@ -439,7 +440,7 @@ public static class EmployeesEndpoints
         }
 
         var job = await JobAsync(request.Job, company, existing, db, errors, ct);
-        (decimal, string)? pay = null;
+        (decimal, string, decimal?)? pay = null;
         if (request.Pay is { } p)
         {
             if (p.BasicAmount is not > 0)
@@ -454,7 +455,18 @@ public static class EmployeesEndpoints
                 errors["pay.payBasis"] = "Choose monthly, weekly, every two weeks, daily or hourly.";
             }
 
-            pay = (p.BasicAmount ?? 0, basis);
+            // Usual days or hours: only for a daily or hourly rate, up to a month's hours.
+            var usual = basis is "daily" or "hourly" ? p.UsualQuantity : null;
+            if (p.UsualQuantity is not null && basis is not ("daily" or "hourly"))
+            {
+                errors["pay.usualQuantity"] = "Only a daily or hourly rate has usual days or hours.";
+            }
+            else if (usual is not null and not (> 0 and <= 744))
+            {
+                errors["pay.usualQuantity"] = "Enter the days or hours usually worked in a pay period, more than 0.";
+            }
+
+            pay = (p.BasicAmount ?? 0, basis, usual);
         }
 
         var account = await AccountAsync(request.Account, company, existing, db, errors, ct);
@@ -654,7 +666,7 @@ public static class EmployeesEndpoints
         }
 
         var pay = e.Compensations.FirstOrDefault(x => x.ValidTo == null);
-        if (v.Pay is var (amount, basis) && (pay is null || pay.BasicAmount != amount || pay.PayBasis != basis))
+        if (v.Pay is var (amount, basis, usual) && (pay is null || pay.BasicAmount != amount || pay.PayBasis != basis || pay.UsualQuantity != usual))
         {
             var start = Close(pay, from, x => x.ValidFrom, (x, to) => x.ValidTo = to) ?? v.HireDate;
             if (pay is not null && pay.ValidFrom >= start)
@@ -665,7 +677,7 @@ public static class EmployeesEndpoints
             added.Add(new Compensation
             {
                 Id = Guid.CreateVersion7(), OrganizationId = e.OrganizationId, CompanyId = e.CompanyId, EmployeeId = e.Id, ValidFrom = start,
-                BasicAmount = amount, PayBasis = basis, Currency = v.Company.Currency, CreatedAt = now,
+                BasicAmount = amount, PayBasis = basis, Currency = v.Company.Currency, UsualQuantity = usual, CreatedAt = now,
             });
         }
 
@@ -792,7 +804,7 @@ public static class EmployeesEndpoints
             e.NationalIdLast4 is null ? null : $"•••• {e.NationalIdLast4}", e.KraPinLast4 is null ? null : $"•••• {e.KraPinLast4}", e.NssfNo, e.ShaNo,
             e.HireDate, e.ExitDate,
             new JobResponse(job.PositionId, job.DepartmentId, job.UnitId, job.LocationId, job.LineManagerId, job.PayScheduleId, job.LeavePlanId, job.EmploymentType, job.ContractEnd),
-            pay is null ? null : new PayResponse(pay.BasicAmount, pay.PayBasis, pay.Currency),
+            pay is null ? null : new PayResponse(pay.BasicAmount, pay.PayBasis, pay.Currency, pay.UsualQuantity),
             account is null ? null : new AccountResponse(account.Method, account.BankCode, account.BranchCode,
                 account.AccountLast4 is null ? null : $"•••• {account.AccountLast4}", account.MpesaLast4 is null ? null : $"•••• {account.MpesaLast4}"),
             Readiness(e), !shows);
