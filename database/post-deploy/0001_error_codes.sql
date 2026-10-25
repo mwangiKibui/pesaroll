@@ -91,6 +91,8 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('NTF-0503',  'NTF',  'error',   'We couldn''t deliver an SMS to {recipient}.', 'support', 'Africa''s Talking kept refusing it (5 attempts); notification_deliveries.error has its status (blacklisted, invalid number, low balance). Check the number, or the account balance.'),
   ('PAY-2001',  'PAY',  'error',   '{employee} has no KRA PIN, so PAYE can''t be filed.', 'customer', 'Add the KRA PIN on the employee''s profile, then rerun.'),
   ('PAY-2002',  'PAY',  'error',   '{employee}''s pay is below the minimum wage for {location}.', 'customer', 'Confirm pay and location; the run can''t be approved below the minimum.'),
+  ('PAY-2010',  'PAY',  'error',   'We don''t have the statutory rules for {country} on {date} yet, so pay can''t be worked out.', 'support', 'No published rule pack covers that country and pay date (rule_packs). Publish the pack for the period in database/rule-packs/.'),
+  ('PAY-2011',  'PAY',  'critical', 'A published rule pack can''t be changed.', 'engineering', 'Someone tried to update, delete or re-seed a published rule pack with different rules. Add a new version with its own start date instead.'),
   ('BILL-6001', 'BILL', 'warning', 'This company has more than {limit} active employees. Choose a plan to approve this pay run.', 'customer', 'Explain the plans; check for complimentary access first.'),
   ('PLAT-9001', 'PLAT', 'critical', 'Something went wrong on our side. Quote reference {reference} to support.', 'engineering', 'Look up the reference; escalate with the request id.')
 on conflict (code) do update set
