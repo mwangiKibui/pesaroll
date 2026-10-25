@@ -28,6 +28,7 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
     public DbSet<PaySchedule> PaySchedules => Set<PaySchedule>();
     public DbSet<PayScheduleCompany> PayScheduleCompanies => Set<PayScheduleCompany>();
     public DbSet<StatutoryItem> StatutoryItems => Set<StatutoryItem>();
+    public DbSet<RulePackRecord> RulePacks => Set<RulePackRecord>();
     public DbSet<PayItem> PayItems => Set<PayItem>();
     public DbSet<PayItemCompany> PayItemCompanies => Set<PayItemCompany>();
     public DbSet<EmployeePayItem> EmployeePayItems => Set<EmployeePayItem>();
@@ -101,6 +102,9 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         model.Entity<PayScheduleCompany>().HasKey(c => new { c.PayScheduleId, c.CompanyId });
         model.Entity<StatutoryItem>().HasKey(s => new { s.CountryCode, s.Key });
         model.Entity<StatutoryItem>().Property(s => s.CountryCode).HasColumnType("char(2)");
+        model.Entity<RulePackRecord>().ToTable("rule_packs").HasKey(r => r.Version);
+        model.Entity<RulePackRecord>().Property(r => r.CountryCode).HasColumnType("char(2)");
+        model.Entity<RulePackRecord>().Property(r => r.Rules).HasColumnType("jsonb");
         model.Entity<PayItem>().Property(p => p.CountryCode).HasColumnType("char(2)");
         model.Entity<PayItem>().HasMany(p => p.Companies).WithOne().HasForeignKey(c => c.PayItemId);
         model.Entity<PayItemCompany>().HasKey(c => new { c.PayItemId, c.CompanyId });

@@ -40,6 +40,13 @@ Status: draft for review.
 - `decimal` for every amount and rate. Rounding is defined per country and pay item in the rule pack, applied in one place.
 - Dates are `DateOnly`; timestamps are `DateTimeOffset` in UTC. Pay periods are date ranges.
 
+## Rule packs (PAY-01)
+
+- A country's statutory rates, bands, caps and rounding are a **rule pack**: a JSON file in `database/rule-packs/` (e.g. `KE-2026.02.json`), published by `post-deploy/0016_rule_packs.sql` into the `rule_packs` table with the first pay date it applies to. A pack applies until the next one for its country starts. Every figure carries its `source`.
+- The engine (`Pesaroll.Payroll.Engine`) reads a pack into `RulePack`, refusing a malformed one, and `PayCalculator.Calculate(inputs, pack)` gives every statutory line. `RulePacks.InForceAsync(country, payDate)` (Organizations) picks the pack for a pay date; none gives PAY-2010.
+- **Never edit a published pack.** The database refuses changes and deletes (PAY-2011), and editing a published file fails the deploy. A change in the law is a new file with a new version and start date, a new `publish_rule_pack` line in post-deploy, and golden cases for it.
+- Monthly pay only for now; weekly, fortnightly and daily come with PAY-04.
+
 ## Background work
 
 - Hangfire, storing jobs in PostgreSQL. Long work (imports, pay runs, PDFs, notifications) is always a job, never inside a request.
@@ -47,7 +54,7 @@ Status: draft for review.
 
 ## Testing
 
-- xUnit. The golden payroll suite (worked examples reviewed by a Kenyan payroll accountant) runs on every change and must pass 100%.
+- xUnit. The golden payroll suite (`api/tests/Pesaroll.Payroll.Engine.Tests/Golden/`, worked examples reviewed by a Kenyan payroll accountant) runs on every change and must pass 100%. It reads the same rule pack files the database publishes.
 - Tenancy tests run against a real PostgreSQL (Testcontainers) and prove one organization can't read another's rows.
 
 ## Logging
