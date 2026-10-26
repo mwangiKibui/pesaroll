@@ -93,6 +93,7 @@ app.MapStructureEndpoints();
 app.MapStructureImportEndpoints();
 app.MapPayrollHistoryEndpoints();
 app.MapTeamEndpoints();
+app.MapAuditLogEndpoints();
 app.MapHomeEndpoints();
 app.MapWorkflowsEndpoints();
 app.MapPayRunsEndpoints();

@@ -274,6 +274,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workflow-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["KindResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/signup-roles": {
         parameters: {
             query?: never;
@@ -7417,6 +7470,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: string;
+                    kind?: string;
+                    action?: string;
+                    userId?: string;
+                    subjectId?: string;
+                    from?: string;
+                    to?: string;
+                    page?: number | string;
+                    pageSize?: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditPage"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit-log/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: string;
+                    kind?: string;
+                    action?: string;
+                    userId?: string;
+                    subjectId?: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditSummary"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit-log/records/{table}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    table: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditEntry"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/home/people": {
         parameters: {
             query?: never;
@@ -7463,6 +7696,1833 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    companyId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CompanyWorkflows"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["WorkflowInput"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkflowResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workflows/missing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    companyId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MissingWorkflows"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workflows/{id}/switch-off": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    companyId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WaitingRequest"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeclineRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/approvals/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    companyId: string;
+                    page?: number | string;
+                    pageSize?: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunPage"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreatePayRunRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunDetail"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunDetail"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number | string;
+                    pageSize?: number | string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunPeoplePage"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunDetail"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunDetail"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunDetail"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CorrectPayRunRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayRunDetail"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-schedules/{id}/deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScheduleDeductionsResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ScheduleDeductionsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScheduleDeductionsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-schedules/deductions-example": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeductionsExampleRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeductionsExample"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/{companyId}/employees/{employeeId}/deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyId: string;
+                    employeeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EmployeeDeductionsResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyId: string;
+                    employeeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmployeeDeductionsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EmployeeDeductionsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunTimeResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RunTimeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunTimeResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/people/{employeeId}/deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    employeeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RunDeductionsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunTimeResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay-runs/{id}/inputs/copy-previous": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RunTimeResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/{companyId}/working-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkingHoursResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["WorkingHoursRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkingHoursResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/{companyId}/employees/{employeeId}/pay-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyId: string;
+                    employeeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayChangeRow"][];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    companyId: string;
+                    employeeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PayChangeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayChangeResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7475,6 +9535,7 @@ export interface components {
         AccessArea: {
             key: string;
             name: components["schemas"]["AreaName"];
+            levels: string[];
         };
         AccessGrant: {
             permission: string;
@@ -7500,6 +9561,29 @@ export interface components {
             accountMasked: null | string;
             mpesaMasked: null | string;
         };
+        ActionResponse: {
+            action: string;
+            /** Format: int32 */
+            step: null | number | string;
+            by: string;
+            /** Format: date-time */
+            at: string;
+            reason: null | string;
+        };
+        ApprovedBefore: {
+            /** Format: uuid */
+            payRunId: string;
+            /** Format: double */
+            grossPay: number | string;
+            /** Format: double */
+            paye: number | string;
+            /** Format: double */
+            totalDeductions: number | string;
+            /** Format: double */
+            netPay: number | string;
+            /** Format: double */
+            netPayChange: number | string;
+        };
         AreaLevel: {
             area: string;
             level: string;
@@ -7524,6 +9608,8 @@ export interface components {
             reference: null | string;
             shownReference: null | string;
             fromProfile: boolean;
+            /** Format: double */
+            multiplier?: null | number | string;
         };
         AssignmentPersonRequest: {
             /** Format: uuid */
@@ -7537,6 +9623,8 @@ export interface components {
             /** Format: date */
             endsOn: null | string;
             reference?: null | string;
+            /** Format: double */
+            multiplier?: null | number | string;
         };
         AssignmentRequest: {
             /** Format: uuid */
@@ -7551,11 +9639,54 @@ export interface components {
             /** Format: date */
             endsOn: null | string;
             people: null | components["schemas"]["AssignmentPersonRequest"][];
+            /** Format: double */
+            multiplier?: null | number | string;
         };
         AssignmentSummary: {
             /** Format: uuid */
             companyId: string;
             everyone: boolean;
+            /** Format: int32 */
+            people: number | string;
+        };
+        AuditEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            at: string;
+            kind: string;
+            action: string;
+            /** Format: uuid */
+            companyId: null | string;
+            /** Format: uuid */
+            userId: null | string;
+            userName: null | string;
+            subjectType: null | string;
+            /** Format: uuid */
+            subjectId: null | string;
+            subjectName: null | string;
+            details: null | components["schemas"]["JsonElement"];
+            tableName: null | string;
+            /** Format: uuid */
+            recordId: null | string;
+            changed: null | string[];
+            oldValues: null | components["schemas"]["JsonElement"];
+            newValues: null | components["schemas"]["JsonElement"];
+            requestRef: null | string;
+            source: string;
+        };
+        AuditPage: {
+            items: components["schemas"]["AuditEntry"][];
+            /** Format: int32 */
+            total: number | string;
+            /** Format: int32 */
+            pageNumber: number | string;
+            /** Format: int32 */
+            pageSize: number | string;
+        };
+        AuditSummary: {
+            /** Format: int32 */
+            entries: number | string;
             /** Format: int32 */
             people: number | string;
         };
@@ -7586,6 +9717,8 @@ export interface components {
             endsOn: null | string;
             people: components["schemas"]["AssignedPersonResponse"][];
             missing: components["schemas"]["MissingPersonResponse"][];
+            /** Format: double */
+            multiplier?: null | number | string;
         };
         CompanyFieldResponse: {
             key: string;
@@ -7631,6 +9764,14 @@ export interface components {
             };
             readiness: components["schemas"]["ReadinessResponse"];
         };
+        CompanyWorkflows: {
+            /** Format: uuid */
+            companyId: string;
+            kinds: components["schemas"]["KindWorkflow"][];
+        };
+        CorrectPayRunRequest: {
+            employeeIds: null | string[];
+        };
         CountryResponse: {
             code: string;
             name: components["schemas"]["LocalizedText"];
@@ -7646,6 +9787,52 @@ export interface components {
         CreateOrganizationResponse: {
             organization: components["schemas"]["OrganizationResponse"];
             token: components["schemas"]["TokenResponse"];
+        };
+        CreatePayRunRequest: {
+            /** Format: uuid */
+            companyId: string;
+            /** Format: uuid */
+            payScheduleId: string;
+            month: null | string;
+            /** Format: date */
+            payDate?: null | string;
+        };
+        DeclineRequest: {
+            reason: null | string;
+        };
+        DeductionChoiceResponse: {
+            makesDeductions: boolean;
+            items: string[];
+            appliesTo: string;
+            employeeIds: string[];
+            /** Format: date */
+            startsOn: null | string;
+            /** Format: uuid */
+            setBy: null | string;
+            /** Format: date-time */
+            setAt: null | string;
+        };
+        DeductionsExample: {
+            frequency: string;
+            /** Format: double */
+            wage: number | string;
+            /** Format: int32 */
+            runs: number | string;
+            rulePackVersion: string;
+            eachRun: components["schemas"]["ExampleRun"][];
+            /** Format: double */
+            pay: number | string;
+            deductions: components["schemas"]["ExampleLine"][];
+            /** Format: double */
+            takeHome: number | string;
+            employerCosts: components["schemas"]["ExampleLine"][];
+        };
+        DeductionsExampleRequest: {
+            frequency: null | string;
+            /** Format: double */
+            wage: null | number | string;
+            items: null | string[];
+            countryCode: null | string;
         };
         DepartmentRequest: {
             code: null | string;
@@ -7691,6 +9878,25 @@ export interface components {
             /** Format: uuid */
             departmentId: null | string;
         };
+        EmployeeDeductionChoice: {
+            items: null | string[];
+            /** Format: date */
+            startsOn: string;
+            /** Format: uuid */
+            setBy: string;
+            /** Format: date-time */
+            setAt: string;
+        };
+        EmployeeDeductionsRequest: {
+            items: null | string[];
+            /** Format: date */
+            startsOn: null | string;
+        };
+        EmployeeDeductionsResponse: {
+            /** Format: uuid */
+            employeeId: string;
+            history: components["schemas"]["EmployeeDeductionChoice"][];
+        };
         EmployeePage: {
             items: components["schemas"]["EmployeeRow"][];
             /** Format: int32 */
@@ -7718,6 +9924,9 @@ export interface components {
             everyone: boolean;
             reference: null | string;
             payeeName: null | string;
+            unit?: null | string;
+            /** Format: double */
+            multiplier?: null | number | string;
         };
         EmployeeRequest: {
             /** Format: uuid */
@@ -7800,6 +10009,28 @@ export interface components {
             fields?: null | {
                 [key: string]: string;
             };
+        };
+        ExampleLine: {
+            key: string;
+            /** Format: double */
+            amount: number | string;
+        };
+        ExampleRun: {
+            /** Format: int32 */
+            number: number | string;
+            /** Format: double */
+            pay: number | string;
+            deductions: components["schemas"]["ExampleLine"][];
+            /** Format: double */
+            takeHome: number | string;
+            employerCosts: components["schemas"]["ExampleLine"][];
+        };
+        FlaggedPerson: {
+            /** Format: uuid */
+            employeeId: string;
+            staffNo: string;
+            name: string;
+            notes: string[];
         };
         GroupAccessRequest: {
             areas: null | {
@@ -7959,6 +10190,23 @@ export interface components {
             /** Format: date */
             contractEnd: null | string;
         };
+        JsonElement: unknown;
+        KindName: {
+            en: string;
+            sw: string;
+        };
+        KindResponse: {
+            key: string;
+            name: components["schemas"]["KindName"];
+            required: boolean;
+            suggestedSteps: components["schemas"]["JsonElement"];
+        };
+        KindWorkflow: {
+            kind: string;
+            name: components["schemas"]["KindName"];
+            required: boolean;
+            workflow: null | components["schemas"]["WorkflowResponse"];
+        };
         LeavePlanRequest: {
             name: null | string;
             leaveYear: null | string;
@@ -8043,6 +10291,13 @@ export interface components {
             /** Format: int32 */
             minWaitingMonths: null | number | string;
         };
+        LeftOutPerson: {
+            /** Format: uuid */
+            employeeId: string;
+            staffNo: string;
+            name: string;
+            reason: string;
+        };
         LocalizedText: {
             en: string;
             sw: string;
@@ -8104,11 +10359,20 @@ export interface components {
             label: components["schemas"]["LocalizedText"];
             code?: null | string;
         };
+        MissingKind: {
+            kind: string;
+            name: components["schemas"]["KindName"];
+        };
         MissingPersonResponse: {
             /** Format: uuid */
             employeeId: string;
             name: string;
             staffNo: string;
+        };
+        MissingWorkflows: {
+            /** Format: uuid */
+            companyId: string;
+            missing: components["schemas"]["MissingKind"][];
         };
         NewGroupRequest: {
             name: null | string;
@@ -8123,6 +10387,43 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        PayChangeRequest: {
+            /** Format: double */
+            amount: null | number | string;
+            basis: null | string;
+            /** Format: double */
+            usualQuantity: null | number | string;
+            /** Format: date */
+            effectiveFrom: null | string;
+            reason: null | string;
+        };
+        PayChangeResponse: {
+            change: components["schemas"]["PayChangeRow"];
+            sentBackToDraft: string[];
+            needCorrection: components["schemas"]["RunToCorrect"][];
+        };
+        PayChangeRow: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            validFrom: string;
+            /** Format: date */
+            validTo: null | string;
+            /** Format: double */
+            amount: number | string;
+            basis: string;
+            /** Format: double */
+            usualQuantity: null | number | string;
+            reason: null | string;
+            /** Format: uuid */
+            changedBy: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            replacedBy?: null | string;
+            /** Format: date-time */
+            replacedAt?: null | string;
         };
         PayeeRequest: {
             name: null | string;
@@ -8177,6 +10478,9 @@ export interface components {
             companyIds: null | string[];
             /** Format: uuid */
             payeeId?: null | string;
+            unit?: null | string;
+            /** Format: double */
+            multiplier?: null | number | string;
         };
         PayItemResponse: {
             /** Format: uuid */
@@ -8198,6 +10502,9 @@ export interface components {
             assignments: components["schemas"]["AssignmentSummary"][];
             /** Format: uuid */
             payeeId: null | string;
+            unit?: null | string;
+            /** Format: double */
+            multiplier?: null | number | string;
         };
         PaymentAccountRequest: {
             method: null | string;
@@ -8227,12 +10534,16 @@ export interface components {
             /** Format: double */
             basicAmount: null | number | string;
             payBasis: null | string;
+            /** Format: double */
+            usualQuantity?: null | number | string;
         };
         PayResponse: {
             /** Format: double */
             basicAmount: number | string;
             payBasis: string;
             currency: string;
+            /** Format: double */
+            usualQuantity?: null | number | string;
         };
         PayrollHistoryBatchResponse: {
             /** Format: uuid */
@@ -8310,6 +10621,193 @@ export interface components {
             nita: null | number | string;
             notes: null | string;
         };
+        PayRunChanges: {
+            /** Format: uuid */
+            previousPayRunId: string;
+            /** Format: date */
+            previousPeriodStart: string;
+            added: components["schemas"]["PersonRef"][];
+            gone: components["schemas"]["PersonRef"][];
+            /** Format: double */
+            grossPayChange: number | string;
+            /** Format: double */
+            netPayChange: number | string;
+        };
+        PayRunDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            companyId: string;
+            /** Format: uuid */
+            payScheduleId: string;
+            scheduleName: string;
+            kind: string;
+            /** Format: uuid */
+            correctsPayRunId: null | string;
+            employeeIds: null | string[];
+            /** Format: date */
+            periodStart: string;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            payDate: string;
+            status: string;
+            rulePackVersion: null | string;
+            calculationError: null | string;
+            declineReason: null | string;
+            /** Format: uuid */
+            approvalRequestId: null | string;
+            totals: components["schemas"]["PayRunTotals"];
+            leftOut: components["schemas"]["LeftOutPerson"][];
+            flagged: components["schemas"]["FlaggedPerson"][];
+            changes: null | components["schemas"]["PayRunChanges"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            calculatedAt: null | string;
+            /** Format: date-time */
+            sentAt: null | string;
+            /** Format: date-time */
+            approvedAt: null | string;
+            /** Format: date-time */
+            cancelledAt: null | string;
+            canManage: boolean;
+            /** Format: date */
+            cutoffOn?: null | string;
+        };
+        PayRunLineResponse: {
+            kind: string;
+            code: string;
+            name: string;
+            statutoryKey: null | string;
+            /** Format: double */
+            base: null | number | string;
+            /** Format: double */
+            rate: null | number | string;
+            /** Format: double */
+            amount: number | string;
+            /** Format: double */
+            monthToDate?: null | number | string;
+            /**
+             * Format: double
+             * @default 0
+             */
+            earlier: number | string;
+            /** Format: double */
+            quantity?: null | number | string;
+            /** Format: double */
+            unitRate?: null | number | string;
+            reason?: null | string;
+            /** Format: date */
+            owedFrom?: null | string;
+            /** Format: date */
+            owedTo?: null | string;
+        };
+        PayRunPage: {
+            items: components["schemas"]["PayRunSummary"][];
+            /** Format: int32 */
+            total: number | string;
+            /** Format: int32 */
+            page: number | string;
+            /** Format: int32 */
+            pageSize: number | string;
+        };
+        PayRunPeoplePage: {
+            items: components["schemas"]["PayRunPersonResponse"][];
+            /** Format: int32 */
+            total: number | string;
+            /** Format: int32 */
+            page: number | string;
+            /** Format: int32 */
+            pageSize: number | string;
+        };
+        PayRunPersonResponse: {
+            /** Format: uuid */
+            employeeId: string;
+            staffNo: string;
+            name: string;
+            notes: string[];
+            /** Format: double */
+            basicPay: number | string;
+            /** Format: double */
+            grossPay: number | string;
+            /** Format: double */
+            taxablePay: number | string;
+            /** Format: double */
+            paye: number | string;
+            /** Format: double */
+            nssfEmployee: number | string;
+            /** Format: double */
+            shif: number | string;
+            /** Format: double */
+            housingLevyEmployee: number | string;
+            /** Format: double */
+            totalDeductions: number | string;
+            /** Format: double */
+            netPay: number | string;
+            /** Format: double */
+            employerCosts: number | string;
+            lines: components["schemas"]["PayRunLineResponse"][];
+            approvedBefore: null | components["schemas"]["ApprovedBefore"];
+            deductionsMade?: null | string[];
+            /** Format: uuid */
+            deductionsChosenBy?: null | string;
+        };
+        PayRunSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            companyId: string;
+            /** Format: uuid */
+            payScheduleId: string;
+            scheduleName: string;
+            kind: string;
+            /** Format: uuid */
+            correctsPayRunId: null | string;
+            /** Format: date */
+            periodStart: string;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            payDate: string;
+            status: string;
+            /** Format: int32 */
+            people: number | string;
+            /** Format: double */
+            grossPay: number | string;
+            /** Format: double */
+            netPay: number | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PayRunTotals: {
+            /** Format: int32 */
+            people: number | string;
+            /** Format: double */
+            grossPay: number | string;
+            /** Format: double */
+            paye: number | string;
+            /** Format: double */
+            nssfEmployee: number | string;
+            /** Format: double */
+            shif: number | string;
+            /** Format: double */
+            housingLevyEmployee: number | string;
+            /** Format: double */
+            otherDeductions: number | string;
+            /** Format: double */
+            netPay: number | string;
+            /** Format: double */
+            nssfEmployer: number | string;
+            /** Format: double */
+            housingLevyEmployer: number | string;
+            /** Format: double */
+            nita: number | string;
+            /** Format: double */
+            otherEmployerCosts: number | string;
+            /** Format: double */
+            employerCost: number | string;
+        };
         PayScheduleRequest: {
             name: null | string;
             frequency: null | string;
@@ -8359,6 +10857,17 @@ export interface components {
             nextPayDates: string[];
             reminders: components["schemas"]["ReminderResponse"][];
         };
+        PersonRef: {
+            /** Format: uuid */
+            employeeId: string;
+            staffNo: string;
+            name: string;
+        };
+        PersonResponse: {
+            /** Format: uuid */
+            membershipId: string;
+            name: string;
+        };
         PositionRequest: {
             code: null | string;
             title: null | string;
@@ -8405,10 +10914,108 @@ export interface components {
         RenameOrganizationRequest: {
             name: null | string;
         };
+        RequestResponse: {
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            kindName: components["schemas"]["KindName"];
+            /** Format: uuid */
+            companyId: string;
+            company: string;
+            /** Format: uuid */
+            subjectId: string;
+            status: string;
+            /** Format: int32 */
+            currentStep: number | string;
+            /** Format: int32 */
+            steps: number | string;
+            sentBy: string;
+            /** Format: date-time */
+            sentAt: string;
+            declineReason: null | string;
+            canDecide: boolean;
+            canCancel: boolean;
+            waitingFor: string[];
+            history: components["schemas"]["ActionResponse"][];
+        };
+        RunAmountItem: {
+            /** Format: uuid */
+            payItemId: string;
+            code: string;
+            name: string;
+            kind: string;
+            calcMethod: string;
+            statutoryKey: null | string;
+        };
+        RunDeductionsRequest: {
+            deductions: null | string[];
+            reason: null | string;
+        };
+        RunDeductionsResponse: {
+            deductions: string[];
+            reason: string;
+            /** Format: uuid */
+            setBy: string;
+            /** Format: date-time */
+            setAt: string;
+        };
+        RunTimeItem: {
+            /** Format: uuid */
+            payItemId: string;
+            code: string;
+            name: string;
+            unit: string;
+        };
+        RunTimePerson: {
+            /** Format: uuid */
+            employeeId: string;
+            staffNo: string;
+            name: string;
+            unit: null | string;
+            /** Format: double */
+            usualQuantity: null | number | string;
+            entries: components["schemas"]["TimeEntryResponse"][];
+            deductions?: null | components["schemas"]["RunDeductionsResponse"];
+        };
+        RunTimeRequest: {
+            entries: null | components["schemas"]["TimeEntryRequest"][];
+        };
+        RunTimeResponse: {
+            /** Format: uuid */
+            payRunId: string;
+            people: components["schemas"]["RunTimePerson"][];
+            items: components["schemas"]["RunTimeItem"][];
+            amountItems?: null | components["schemas"]["RunAmountItem"][];
+        };
+        RunToCorrect: {
+            /** Format: uuid */
+            payRunId: string;
+            /** Format: date */
+            periodStart: string;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            payDate: string;
+        };
         SaccoResponse: {
             code: string;
             name: string;
             branches: components["schemas"]["BranchResponse"][];
+        };
+        ScheduleDeductionsRequest: {
+            makesDeductions: boolean;
+            items: null | string[];
+            appliesTo: null | string;
+            employeeIds: null | string[];
+            /** Format: date */
+            startsOn: null | string;
+        };
+        ScheduleDeductionsResponse: {
+            /** Format: uuid */
+            payScheduleId: string;
+            frequency: string;
+            current: components["schemas"]["DeductionChoiceResponse"];
+            history: components["schemas"]["DeductionChoiceResponse"][];
         };
         SessionResponse: {
             /** Format: uuid */
@@ -8449,6 +11056,20 @@ export interface components {
             description: components["schemas"]["LocalizedText"];
             isOther: boolean;
         };
+        StepInput: {
+            approvers: null | string;
+            permission: null | string;
+            people: null | string[];
+            fallback: null | string;
+        };
+        StepResponse: {
+            /** Format: int32 */
+            position: number | string;
+            approvers: string;
+            permission: null | string;
+            people: components["schemas"]["PersonResponse"][];
+            fallback: null | string;
+        };
         TeamGroup: {
             key: string;
             name: string;
@@ -8479,6 +11100,33 @@ export interface components {
             isYou: boolean;
             groups: components["schemas"]["MemberAccess"][];
         };
+        TimeEntryRequest: {
+            /** Format: uuid */
+            employeeId: string;
+            /** Format: uuid */
+            payItemId: null | string;
+            /** Format: double */
+            quantity: null | number | string;
+            /** Format: double */
+            amount?: null | number | string;
+            reason?: null | string;
+        };
+        TimeEntryResponse: {
+            /** Format: uuid */
+            payItemId: null | string;
+            /** Format: double */
+            quantity: null | number | string;
+            source: string;
+            /** Format: uuid */
+            enteredBy: string;
+            /** Format: date-time */
+            enteredAt: string;
+            /** Format: double */
+            amount?: null | number | string;
+            reason?: null | string;
+            /** @default false */
+            afterCutoff: boolean;
+        };
         TokenResponse: {
             accessToken: string;
             tokenType: string;
@@ -8508,6 +11156,65 @@ export interface components {
             name: components["schemas"]["LocalizedText"];
             description: components["schemas"]["LocalizedText"];
             towns: string[];
+        };
+        WaitingRequest: {
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            kindName: components["schemas"]["KindName"];
+            /** Format: uuid */
+            companyId: string;
+            company: string;
+            /** Format: uuid */
+            subjectId: string;
+            sentBy: string;
+            /** Format: date-time */
+            sentAt: string;
+            /** Format: int32 */
+            step: number | string;
+            /** Format: int32 */
+            steps: number | string;
+        };
+        WorkflowInput: {
+            kind: null | string;
+            /** Format: uuid */
+            companyId: null | string;
+            allowSelfApproval: boolean;
+            steps: null | components["schemas"]["StepInput"][];
+        };
+        WorkflowResponse: {
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            /** Format: uuid */
+            companyId: null | string;
+            allowSelfApproval: boolean;
+            setUpBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            steps: components["schemas"]["StepResponse"][];
+        };
+        WorkingHoursRequest: {
+            /** Format: double */
+            hoursPerDay: null | number | string;
+            /** Format: double */
+            hoursPerMonth: null | number | string;
+        };
+        WorkingHoursResponse: {
+            /** Format: uuid */
+            companyId: string;
+            /** Format: double */
+            hoursPerDay: null | number | string;
+            /** Format: double */
+            hoursPerMonth: null | number | string;
+            /** Format: double */
+            usedPerDay: null | number | string;
+            /** Format: double */
+            usedPerMonth: null | number | string;
+            /** Format: uuid */
+            setBy: null | string;
+            /** Format: date-time */
+            setAt: null | string;
         };
     };
     responses: never;

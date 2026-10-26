@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
@@ -94,7 +95,11 @@ public static class PaySchedulesEndpoints
             Apply(schedule, valid, now);
             db.PaySchedules.Add(schedule);
             await SetDefaultsAsync(db, schedule, valid.DefaultFor, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await SaveAsync(db, ct);
+            await RecordAsync(db, AuditActions.PayScheduleAdded, schedule, ct);
+            if (schedule.UsesCutoff) await RecordAsync(db, AuditActions.PayScheduleCutoffOn, schedule, ct);
+            await transaction.CommitAsync(ct);
             return Results.Created($"/api/pay-schedules/{schedule.Id}",
                 ToResponse(schedule, await DefaultsAsync(db, ct), PayDates.TodayInKenya(now)));
         }).Produces<PayScheduleResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -119,6 +124,7 @@ public static class PaySchedulesEndpoints
             }
 
             var now = clock.GetUtcNow();
+            var usedCutoff = schedule.UsesCutoff;
             schedule.Name = valid.Name;
             var dropped = schedule.Companies.Where(c => !valid.CompanyIds.Contains(c.CompanyId)).ToList();
             db.PayScheduleReminders.RemoveRange(schedule.Reminders.Where(r => !valid.Reminders.Any(v => v.Id == r.Id)));
@@ -131,6 +137,9 @@ public static class PaySchedulesEndpoints
             await SaveAsync(db, ct);
             db.PayScheduleCompanies.RemoveRange(dropped);
             await SaveAsync(db, ct);
+            await RecordAsync(db, AuditActions.PayScheduleChanged, schedule, ct);
+            if (schedule.UsesCutoff != usedCutoff)
+                await RecordAsync(db, schedule.UsesCutoff ? AuditActions.PayScheduleCutoffOn : AuditActions.PayScheduleCutoffOff, schedule, ct);
             await transaction.CommitAsync(ct);
             var saved = await db.PaySchedules.AsNoTracking().Include(s => s.Companies).Include(s => s.Reminders).SingleAsync(s => s.Id == id, ct);
             return Results.Ok(ToResponse(saved, await DefaultsAsync(db, ct), PayDates.TodayInKenya(now)));
@@ -152,7 +161,10 @@ public static class PaySchedulesEndpoints
             }
 
             db.PaySchedules.Remove(schedule);   // its company links go with it (on delete cascade)
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await db.SaveChangesAsync(ct);
+            await RecordAsync(db, AuditActions.PayScheduleRemoved, schedule, ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
@@ -440,6 +452,11 @@ public static class PaySchedulesEndpoints
             company.DefaultPayScheduleId = schedule.Id;
         }
     }
+
+    /// <summary>Records something done to a schedule in the audit log (PLAT-03); it belongs to no one company.</summary>
+    private static Task RecordAsync(OrganizationsDbContext db, string action, PaySchedule schedule, CancellationToken ct) =>
+        Audit.RecordAsync(db, action, null, new AuditSubject("pay_schedule", schedule.Id, schedule.Name),
+            new Dictionary<string, object?> { ["frequency"] = schedule.Frequency }, ct);
 
     private static async Task SaveAsync(OrganizationsDbContext db, CancellationToken ct)
     {

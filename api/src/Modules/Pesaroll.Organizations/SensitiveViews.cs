@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Organizations;
@@ -20,9 +21,15 @@ public static class SensitiveViews
         }
 
         var subjects = whose.Distinct().ToArray();
+        var id = Guid.CreateVersion7();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlAsync($"""
             insert into sensitive_views (id, organization_id, user_id, kind, subject_ids, reference)
-            values ({Guid.CreateVersion7()}, {organizationId}, {userId}, {kind}, {subjects}, {http.TraceIdentifier})
+            values ({id}, {organizationId}, {userId}, {kind}, {subjects}, {http.TraceIdentifier})
             """, ct);
+        // In the audit log as pay.viewed (PLAT-03): how many people, never whose pay or what it is; whose is in sensitive_views.
+        await Audit.RecordAsync(db, AuditActions.PayViewed, null, new AuditSubject("sensitive_view", id, null),
+            new Dictionary<string, object?> { ["people"] = subjects.Length }, ct);
+        await transaction.CommitAsync(ct);
     }
 }

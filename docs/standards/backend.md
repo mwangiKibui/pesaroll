@@ -85,7 +85,8 @@ Status: draft for review.
 - `TenantSessionInterceptor` sets `app.request_ref` from `TenantContext.Reference`: the request's TraceIdentifier (`UseSessions`), or a job's own (`pay-run-calculation:{id}`). A job sets its user and reference before it writes.
 - Values of masked columns (`audit_masked()`: one person's pay, ID numbers, KRA PINs, NSSF and SHA numbers, bank and M-Pesa accounts, secrets) read `masked`; their history is in the dated tables. Left out (`audit_left_out()`): a run's people and lines (replaced on every calculation), an import's rows, sessions, delivery records, `sensitive_views` and the log itself.
 - The app can only read it; nobody can change or delete an entry (PLAT-9003). An entry with a company is seen with that company; one without only by someone who sees all the organization's companies. Kept 7 years (the Tax Procedures Act's 5, with margin); the purge job comes when anything is that old (2033).
-- Named actions (who worked out a payroll, how many people did something), reading the log and the summary come in PLAT-03's second part (#368).
+- Named actions (who worked out a payroll, who changed a bank account) are recorded with `Audit.RecordAsync` in the same transaction as what they did. The catalogue, its rules and the endpoints for reading the log are in `audit.md`; a new feature adds its actions there.
+- New tables with `organization_id` get the trigger in `audit_triggers.sql`, or go on `audit_left_out()` with the reason.
 
 ## Logging
 

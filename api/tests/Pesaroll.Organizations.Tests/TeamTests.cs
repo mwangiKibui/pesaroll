@@ -24,7 +24,7 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
     private sealed record Me(Guid? OrganizationId, List<Grant> Permissions);
 
     private sealed record AreaName(string En, string Sw);
-    private sealed record Area(string Key, AreaName Name);
+    private sealed record Area(string Key, AreaName Name, List<string> Levels);
     private sealed record AreaLevel(string Area, string Level);
     private sealed record Group(string Key, string Name, string? Description, bool Standard, bool Custom, bool AllCompanies, List<Guid> CompanyIds, int People, List<AreaLevel> Areas);
     private sealed record Groups(List<Area> Areas, List<Group> Items);
@@ -149,15 +149,18 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
         var (owner, _, _) = await Organization();
         var groups = (await owner.GetFromJsonAsync<Groups>("/api/team/groups"))!;
 
-        Assert.Equal(["companies", "employees", "pay", "locations", "structure", "leave", "schedules", "pay_items", "payment_accounts", "payroll_history", "team", "workflows", "pay_run_approvals", "pay_runs"],
+        Assert.Equal(["companies", "employees", "pay", "locations", "structure", "leave", "schedules", "pay_items", "payment_accounts", "payroll_history", "team", "workflows", "pay_run_approvals", "pay_runs", "audit_log"],
             groups.Areas.Select(a => a.Key));
+        // Each area has View and Manage, except the audit log (PLAT-03): there is nothing in it to manage.
+        Assert.All(groups.Areas.SkipLast(1), a => Assert.Equal(["view", "manage"], a.Levels));
+        Assert.Equal(["view"], groups.Areas[^1].Levels);
         Assert.Equal("Employees", groups.Areas[1].Name.En);
         Assert.Equal(["administrators", "hr", "payroll", "approvers"], groups.Items.Select(g => g.Key));
         var hr = groups.Items.Single(g => g.Key == "hr");
         Assert.True(hr.Standard);
         Assert.Equal(["companies:none", "employees:manage", "pay:none", "locations:manage", "structure:manage", "leave:manage", "schedules:view", "pay_items:none",
-            "payment_accounts:none", "payroll_history:none", "team:none", "workflows:none", "pay_run_approvals:none", "pay_runs:none"], hr.Areas.Select(a => $"{a.Area}:{a.Level}"));
-        Assert.All(groups.Items.Single(g => g.Key == "administrators").Areas, a => Assert.Equal("manage", a.Level));
+            "payment_accounts:none", "payroll_history:none", "team:none", "workflows:none", "pay_run_approvals:none", "pay_runs:none", "audit_log:none"], hr.Areas.Select(a => $"{a.Area}:{a.Level}"));
+        Assert.All(groups.Items.Single(g => g.Key == "administrators").Areas, a => Assert.Equal(a.Area == "audit_log" ? "view" : "manage", a.Level));
         Assert.Equal(1, groups.Items.Single(g => g.Key == "administrators").People);
     }
 
@@ -197,6 +200,7 @@ public sealed class TeamTests(OnboardingTests.Api api) : IClassFixture<Onboardin
 
         Assert.Equal("ACC-8010", await Code(await owner.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["employees"] = "edit" } })));
         Assert.Equal("ACC-8010", await Code(await owner.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["kitchen"] = "view" } })));
+        Assert.Equal("ACC-8010", await Code(await owner.PutAsJsonAsync("/api/team/groups/hr/access", new { areas = new Dictionary<string, string> { ["audit_log"] = "manage" } })));   // only View
         Assert.Equal("ACC-8010", await Code(await owner.PutAsJsonAsync("/api/team/groups/cooks/access", new { areas = new Dictionary<string, string>() })));
         var lockedOut = await owner.PutAsJsonAsync("/api/team/groups/administrators/access", new { areas = new Dictionary<string, string> { ["employees"] = "manage" } });
         Assert.Equal((HttpStatusCode.Conflict, "ACC-8007"), (lockedOut.StatusCode, await Code(lockedOut)));

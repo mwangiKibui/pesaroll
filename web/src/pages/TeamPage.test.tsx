@@ -22,15 +22,18 @@ const otieno = {
   companyIds: [mombasa.id], status: 'open', expiresAt: '2026-10-20T09:00:00Z', sentAt: '2026-10-13T09:00:00Z', sendCount: 1,
 }
 
-const areaKeys = ['companies', 'employees', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team']
+const areaKeys = ['companies', 'employees', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'audit_log']
 const areaNames: Record<string, string> = { companies: 'Companies', employees: 'Employees', locations: 'Locations', structure: 'Org structure', leave: 'Leave types and plans',
-  schedules: 'Payroll schedules', pay_items: 'Earnings, deductions and payees', payment_accounts: 'Paying accounts', payroll_history: 'Payroll history', team: 'Team access' }
+  schedules: 'Payroll schedules', pay_items: 'Earnings, deductions and payees', payment_accounts: 'Paying accounts', payroll_history: 'Payroll history', team: 'Team access',
+  audit_log: 'Audit log' }
+// The audit log (PLAT-03) has only View.
+const topLevel = (key: string) => key === 'audit_log' ? 'view' : 'manage'
 const levels = (set: Record<string, string>) => areaKeys.map(area => ({ area, level: set[area] ?? 'none' }))
 const group = (key: string, name: string, people: number, set: Record<string, string>, standard = true) => ({ key, name, description: null as string | null, standard, custom: false, allCompanies: true, companyIds: [] as string[], people, areas: levels(set) })
 const branchManagers = { ...group('branch_managers', 'Branch managers', 1, { employees: 'manage', leave: 'view' }, false), custom: true, description: 'Run a branch' }
 const teamGroups = (hr = group('hr', 'HR', 1, { employees: 'manage', locations: 'manage', structure: 'manage', leave: 'manage', schedules: 'view' })) => ({
-  areas: areaKeys.map(key => ({ key, name: { en: areaNames[key], sw: areaNames[key] } })),
-  items: [group('administrators', 'Administrators', 1, Object.fromEntries(areaKeys.map(k => [k, 'manage']))), hr,
+  areas: areaKeys.map(key => ({ key, name: { en: areaNames[key], sw: areaNames[key] }, levels: topLevel(key) === 'view' ? ['view'] : ['view', 'manage'] })),
+  items: [group('administrators', 'Administrators', 1, Object.fromEntries(areaKeys.map(k => [k, topLevel(k)]))), hr,
     group('payroll', 'Payroll', 0, { employees: 'manage', schedules: 'manage', pay_items: 'manage', payment_accounts: 'manage', payroll_history: 'manage', locations: 'view', structure: 'view', leave: 'view' }),
     group('approvers', 'Approvers', 0, {})],
 })
@@ -217,9 +220,22 @@ it('the Groups tab shows what each group can do; a group\'s drawer changes it, o
   await userEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
   await vi.waitFor(() => expect(calls.find(c => c.method === 'PUT' && c.path === '/api/team/groups/hr/access')?.body).toEqual({
     areas: { companies: 'none', employees: 'manage', locations: 'manage', structure: 'manage', leave: 'manage', schedules: 'view', pay_items: 'none',
-      payment_accounts: 'none', payroll_history: 'view', team: 'none' },
+      payment_accounts: 'none', payroll_history: 'view', team: 'none', audit_log: 'none' },
   }))
   expect(await screen.findByText("HR's access is updated")).toBeInTheDocument()
+})
+
+it('an area with only View (the audit log) offers no Manage, and a group with the most of every area can do everything', async () => {
+  withTeam()
+  renderApp('/setup/team')
+  await within(await screen.findByRole('region', { name: 'Team' })).findByText('Mary Wanjiku')
+  await userEvent.click(screen.getByRole('tab', { name: 'Groups' }))
+  const groupsTable = await screen.findByRole('region', { name: 'Groups' })
+  expect(within(groupsTable).getByText('Administrators').closest('tr')).toHaveTextContent('Everything, including team access')
+
+  await userEvent.click(within(groupsTable).getByRole('button', { name: 'Change what HR can do' }))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'What HR can do' })).getByRole('combobox', { name: 'Audit log' }))
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['No access', 'View'])
 })
 
 it('Back to standard puts a changed group back, and a change that would lock everyone out shows its code', async () => {
@@ -293,7 +309,7 @@ it('Add group asks for a name and what the group can do, and adds it', async () 
   await vi.waitFor(() => expect(calls.find(c => c.method === 'POST' && c.path === '/api/team/groups')?.body).toEqual({
     name: 'Branch managers', description: 'Run a branch', allCompanies: true, companyIds: [],
     areas: { companies: 'none', employees: 'manage', locations: 'none', structure: 'none', leave: 'view', schedules: 'none', pay_items: 'none',
-      payment_accounts: 'none', payroll_history: 'none', team: 'none' },
+      payment_accounts: 'none', payroll_history: 'none', team: 'none', audit_log: 'none' },
   }))
   expect(await screen.findByText('Branch managers is added')).toBeInTheDocument()
 })

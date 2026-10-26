@@ -2,7 +2,7 @@
 -- Keys match Pesaroll.Shared.Access.Permissions in the API. Role ids are fixed, the same in every
 -- environment. A permission or grant taken off these lists is removed.
 
--- ACC-04: areas, each with View and Manage. Removing an area removes its permissions and grants.
+-- ACC-04: areas, each with View and Manage (the audit log, PLAT-03, only View). Removing an area removes its permissions and grants.
 insert into permission_areas (key, name_en, name_sw, sort_order) values
   ('companies',        'Companies',                        'Kampuni',                 1),
   ('employees',        'Employees',                        'Wafanyakazi',             2),
@@ -17,10 +17,11 @@ insert into permission_areas (key, name_en, name_sw, sort_order) values
   ('team',             'Team access',                      'Ufikiaji wa timu',        11),
   ('workflows',        'Approval workflows',               'Mitiririko ya idhini',    12),
   ('pay_run_approvals','Pay run approvals',                'Idhini za mishahara',     13),
-  ('pay_runs',         'Pay runs',                         'Malipo ya mishahara',     14)
+  ('pay_runs',         'Pay runs',                         'Malipo ya mishahara',     14),
+  ('audit_log',        'Audit log',                        'Kumbukumbu za ukaguzi',   15)
 on conflict (key) do update set name_en = excluded.name_en, name_sw = excluded.name_sw, sort_order = excluded.sort_order;
 
-delete from permission_areas where key not in ('companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'workflows', 'pay_run_approvals', 'pay_runs');
+delete from permission_areas where key not in ('companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'workflows', 'pay_run_approvals', 'pay_runs', 'audit_log');
 
 insert into permissions (key, description, area, level) values
   ('companies.view',          'See companies'' registration and statutory details. Every member sees the company names they work with.', 'companies', 'view'),
@@ -50,7 +51,8 @@ insert into permissions (key, description, area, level) values
   ('pay_run_approvals.view',  'See pay runs waiting for approval.', 'pay_run_approvals', 'view'),
   ('pay_run_approvals.manage','Approve or decline pay runs.', 'pay_run_approvals', 'manage'),
   ('pay_runs.view',           'See pay runs and the pay worked out in them. Every view of people''s pay is recorded.', 'pay_runs', 'view'),
-  ('pay_runs.manage',         'Start, work out, send for approval, cancel and correct pay runs.', 'pay_runs', 'manage')
+  ('pay_runs.manage',         'Start, work out, send for approval, cancel and correct pay runs.', 'pay_runs', 'manage'),
+  ('audit_log.view',          'See who did what and when (the audit log), for their companies. Never shows pay, ID numbers or bank details.', 'audit_log', 'view')
 on conflict (key) do update set description = excluded.description, area = excluded.area, level = excluded.level;
 
 delete from permissions p where not exists (select 1 from (values
@@ -59,7 +61,7 @@ delete from permissions p where not exists (select 1 from (values
   ('pay_items.view'), ('pay_items.manage'), ('payment_accounts.view'), ('payment_accounts.manage'),
   ('payroll_history.view'), ('payroll_history.manage'), ('team.view'), ('team.manage'),
   ('workflows.view'), ('workflows.manage'), ('pay_run_approvals.view'), ('pay_run_approvals.manage'),
-  ('pay_runs.view'), ('pay_runs.manage')) k (key) where k.key = p.key);
+  ('pay_runs.view'), ('pay_runs.manage'), ('audit_log.view')) k (key) where k.key = p.key);
 
 insert into roles (id, organization_id, key, name_en, name_sw) values
   ('0199c0de-acc0-7000-8000-000000000001', null, 'admin',    'Administrator', 'Msimamizi'),
@@ -73,7 +75,7 @@ insert into wanted values
   ('admin', 'companies.manage'), ('admin', 'payment_accounts.manage'), ('admin', 'locations.manage'), ('admin', 'structure.manage'),
   ('admin', 'leave.manage'), ('admin', 'schedules.manage'), ('admin', 'pay_items.manage'), ('admin', 'employees.manage'),
   ('admin', 'payroll_history.manage'), ('admin', 'team.manage'), ('admin', 'pay.manage'),
-  ('admin', 'workflows.manage'), ('admin', 'pay_run_approvals.manage'), ('admin', 'pay_runs.manage'),
+  ('admin', 'workflows.manage'), ('admin', 'pay_run_approvals.manage'), ('admin', 'pay_runs.manage'), ('admin', 'audit_log.view'),
   ('hr', 'locations.manage'), ('hr', 'structure.manage'), ('hr', 'leave.manage'), ('hr', 'employees.manage'),
   -- The employee form picks a payroll schedule (HR), and a department, position, location and leave plan (Payroll).
   ('hr', 'schedules.view'),

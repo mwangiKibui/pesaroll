@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Pesaroll.Organizations;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
@@ -90,6 +91,7 @@ public static class PayChangesEndpoints
             await org.SaveChangesAsync(ct);
             org.Compensations.Add(change);
             await org.SaveChangesAsync(ct);
+            await EmployeesEndpoints.RecordAsync(org, AuditActions.EmployeePayChanged, employee, ct, ("validFrom", from));
             await transaction.CommitAsync(ct);
 
             return Results.Ok(new PayChangeResponse(Row(change), sentBack.Select(r => r.Id).ToList(),

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Pesaroll.Identity;
 using Pesaroll.Notifications;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
@@ -30,8 +31,8 @@ public sealed record MemberAccess(string? Group, string Name, bool AllCompanies,
 public sealed record TeamMember(Guid MembershipId, Guid UserId, string FirstName, string LastName, string? Email, string? Phone, DateTimeOffset JoinedAt,
     bool IsYou, IReadOnlyList<MemberAccess> Groups);
 
-/// <summary>An access area (ACC-04): Employees, Locations, ...; each has View and Manage.</summary>
-public sealed record AccessArea(string Key, AreaName Name);
+/// <summary>An access area (ACC-04): Employees, Locations, ...; the levels it has: View and Manage, or only View (the audit log).</summary>
+public sealed record AccessArea(string Key, AreaName Name, IReadOnlyList<string> Levels);
 
 public sealed record AreaName(string En, string Sw);
 
@@ -381,8 +382,11 @@ public static class TeamEndpoints
             CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Team);
             var (groups, companyIds) = await ValidAccessAsync(request, db, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await TeamChangeAsync(() => db.Database.ExecuteSqlAsync(
                 $"select set_member_access({id}, {groups}, {request.AllCompanies}, {(request.AllCompanies ? null : companyIds)})", ct));
+            await RecordAsync(db, AuditActions.TeamAccessChanged, id, new Dictionary<string, object?> { ["groups"] = groups, ["allCompanies"] = request.AllCompanies }, ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -393,7 +397,11 @@ public static class TeamEndpoints
         {
             CompaniesEndpoints.RequireOrganization(tenant, http);
             Access.Require(tenant, Permissions.Team);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var removed = await PersonAsync(db, id, ct);
             await TeamChangeAsync(() => db.Database.ExecuteSqlAsync($"select remove_member({id})", ct));
+            await Audit.RecordAsync(db, AuditActions.TeamMemberRemoved, null, removed, null, ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
@@ -401,6 +409,22 @@ public static class TeamEndpoints
 
         return app;
     }
+
+    /// <summary>Records a change to someone's access in the audit log (PLAT-03); the subject is the person, by name.</summary>
+    private static async Task RecordAsync(OrganizationsDbContext db, string action, Guid membershipId, Dictionary<string, object?>? details, CancellationToken ct) =>
+        await Audit.RecordAsync(db, action, null, await PersonAsync(db, membershipId, ct), details, ct);
+
+    /// <summary>The person a membership is, as an audit subject (unknown membership: ACC-8008, as the change itself would say).</summary>
+    private static async Task<AuditSubject> PersonAsync(OrganizationsDbContext db, Guid membershipId, CancellationToken ct)
+    {
+        var person = await db.Database.SqlQuery<PersonRow>($"""
+            select u.id, nullif(trim(concat(u.first_name, ' ', u.last_name)), '') as name
+            from memberships m join users u on u.id = m.user_id where m.id = {membershipId}
+            """).SingleOrDefaultAsync(ct) ?? throw OnboardingErrors.MemberNotFound();
+        return new AuditSubject("user", person.Id, person.Name);
+    }
+
+    private sealed record PersonRow(Guid Id, string? Name);
 
     /// <summary>A row of the team query: a person and one of their groups (none: nulls).</summary>
     private sealed record MemberRow(Guid MembershipId, Guid UserId, string FirstName, string LastName, string? Email, string? Phone, DateTimeOffset JoinedAt,
@@ -412,16 +436,17 @@ public static class TeamEndpoints
         "admin" => "administrators", "approver" => "approvers", null => null, _ => roleKey,
     };
 
-    private sealed record AreaRow(string Key, string NameEn, string NameSw);
+    private sealed record AreaRow(string Key, string NameEn, string NameSw, string[] Levels);
     private sealed record GroupPermissionRow(string GroupKey, string? PermissionKey, bool Standard);
     private sealed record GroupRow(string GroupKey, string Name, string? Description, bool Custom, Guid[] CompanyIds, int People);
 
-    /// <summary>A level per area as permission keys (none: nothing; view or manage: that key), or ACC-8010.</summary>
+    /// <summary>A level per area as permission keys (none: nothing; view or manage: that key, if the area has it), or ACC-8010.</summary>
     private static async Task<string[]> PermissionKeysAsync(Dictionary<string, string>? levels, OrganizationsDbContext db, CancellationToken ct)
     {
         var areas = await db.Database.SqlQuery<string>($"select key as \"Value\" from permission_areas").ToListAsync(ct);
+        var keys = await db.Database.SqlQuery<string>($"select key as \"Value\" from permissions").ToListAsync(ct);
         var asked = levels ?? [];
-        return asked.Any(a => !areas.Contains(a.Key) || a.Value is not ("none" or "view" or "manage"))
+        return asked.Any(a => !areas.Contains(a.Key) || !(a.Value == "none" || keys.Contains($"{a.Key}.{a.Value}")))
             ? throw OnboardingErrors.AreaLevelInvalid()
             : asked.Where(a => a.Value != "none").Select(a => $"{a.Key}.{a.Value}").ToArray();
     }
@@ -443,7 +468,10 @@ public static class TeamEndpoints
     /// <summary>The areas, and each group's level per area as this organization has it (row-level security keeps it to this organization).</summary>
     private static async Task<TeamGroups> GroupsAsync(OrganizationsDbContext db, CancellationToken ct)
     {
-        var areas = await db.Database.SqlQuery<AreaRow>($"select key, name_en, name_sw from permission_areas order by sort_order").ToListAsync(ct);
+        var areas = await db.Database.SqlQuery<AreaRow>($"""
+            select a.key, a.name_en, a.name_sw, array(select p.level from permissions p where p.area = a.key order by p.level = 'manage', p.level) as levels
+            from permission_areas a order by a.sort_order
+            """).ToListAsync(ct);
         var permissions = await db.Database.SqlQueryRaw<GroupPermissionRow>(GroupsCte + """
             select x.group_key, k.permission_key, rc.role_id is null as standard
             from x
@@ -469,7 +497,7 @@ public static class TeamEndpoints
         }
 
         return new TeamGroups(
-            areas.Select(a => new AccessArea(a.Key, new AreaName(a.NameEn, a.NameSw))).ToList(),
+            areas.Select(a => new AccessArea(a.Key, new AreaName(a.NameEn, a.NameSw), a.Levels)).ToList(),
             rows.Select(r => new TeamGroup(r.GroupKey, r.Name, r.Description,
                 !r.Custom && permissions.Where(p => p.GroupKey == r.GroupKey).All(p => p.Standard), r.Custom, r.CompanyIds.Length == 0, r.CompanyIds, r.People,
                 areas.Select(a => new AreaLevel(a.Key, Level(r.GroupKey, a.Key))).ToList())).ToList());
