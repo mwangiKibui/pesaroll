@@ -356,7 +356,7 @@ public sealed class PaySchedule
     /// <summary>Monthly: the day of the month (1 to 28) for a fixed day; empty otherwise.</summary>
     public int? PayDay { get; set; }
     /// <summary>Monthly: the day of the month (1 to 28) after which changes go into next month.</summary>
-    public int? CutoffDay { get; set; } = 25;
+    public int? CutoffDay { get; set; }
     /// <summary>Weekly and fortnightly: the weekday paid, Monday 1 to Friday 5.</summary>
     public int? PayWeekday { get; set; }
     /// <summary>Fortnightly: the first pay date, from which every other week counts.</summary>
@@ -365,10 +365,10 @@ public sealed class PaySchedule
     public int? CutoffDaysBefore { get; set; }
     /// <summary>Daily: when in the day people are paid (reminders count hours back from it).</summary>
     public TimeOnly? PayTime { get; set; }
-    /// <summary>Whether changes after a cut-off wait for the next payroll; daily pay has none.</summary>
-    public bool UsesCutoff { get; set; } = true;
+    /// <summary>Whether changes after a cut-off wait for the next payroll: off until chosen; daily pay has none.</summary>
+    public bool UsesCutoff { get; set; }
     /// <summary>What the cut-off covers: <see cref="PaySchedulesEndpoints.CutoffItems"/> keys or the organization's own items.</summary>
-    public List<string> CutoffAppliesTo { get; set; } = [.. PaySchedulesEndpoints.CutoffItems];
+    public List<string> CutoffAppliesTo { get; set; } = [];
     public bool AllCompanies { get; set; }
     public string Status { get; set; } = "active";
     public DateTimeOffset CreatedAt { get; set; }

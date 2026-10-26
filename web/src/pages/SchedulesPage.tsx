@@ -239,7 +239,7 @@ function ScheduleDrawer({ schedule, companies, schedules, defaultApplies, onClos
       firstPayDate: schedule?.firstPayDate ?? '',
       cutoffDaysBefore: String(schedule?.cutoffDaysBefore ?? 2),
       payTime: schedule?.payTime?.slice(0, 5) ?? '17:00',
-      usesCutoff: schedule ? schedule.usesCutoff : true,
+      usesCutoff: schedule ? schedule.usesCutoff : false,
       cutoffAppliesTo: schedule?.usesCutoff ? schedule.cutoffAppliesTo : [...cutoffItems],
       reminders: (schedule?.reminders ?? []).map(r => ({ key: r.id, id: r.id, amount: Number(r.amount), channel: r.channel as 'email' | 'sms', recipient: r.recipient })),
       applies: schedule ? { all: schedule.allCompanies, ids: schedule.allCompanies ? companies.map(c => c.id) : schedule.companyIds } : defaultApplies,
