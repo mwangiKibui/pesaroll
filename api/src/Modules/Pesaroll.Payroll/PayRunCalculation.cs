@@ -18,7 +18,9 @@ namespace Pesaroll.Payroll;
 /// corrects), leaving out this run's own period, which this run replaces. Daily and hourly rates are
 /// paid for the days and hours entered for the run (PAY-11), and each rate is checked against the
 /// minimum wage of the wage order in force on the pay date, for the wage area of the person's place
-/// of work (their job's location, else the company's main location).
+/// of work (their job's location, else the company's main location). Amounts entered for the run and
+/// the accountant's edits in review (PAY-04) go in as they were entered; a person's statutory
+/// deductions chosen for the run replace theirs and the schedule's.
 /// Running it twice gives the same result; a run that is no longer calculating (cancelled since) is
 /// left alone. No rule pack for the pay date leaves the run a draft with PAY-2010 on it.
 /// </summary>
@@ -49,14 +51,19 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         var candidates = await CandidatesAsync(run, company, ct);
         var choices = await ChoicesAsync(run, frequency, candidates.Select(c => c.EmployeeId).ToArray(), ct);
         var earlier = await EarlierAsync(run, candidates.Select(c => c.EmployeeId).ToArray(), ct);
-        candidates = candidates.Select(c => c with { Choice = choices.People.GetValueOrDefault(c.EmployeeId)?.Choice, Earlier = earlier.GetValueOrDefault(c.EmployeeId) })
-            .ToList();
+        var forRun = (await db.RunDeductions.AsNoTracking().Where(d => d.PayRunId == run.Id).ToListAsync(ct))
+            .ToDictionary(d => d.EmployeeId, d => new Chosen(new StatutoryChoice(d.Deductions), d.SetBy, d.SetAt));
+        candidates = candidates.Select(c => c with
+        {
+            Choice = choices.People.GetValueOrDefault(c.EmployeeId)?.Choice, Earlier = earlier.GetValueOrDefault(c.EmployeeId),
+            RunChoice = forRun.GetValueOrDefault(c.EmployeeId)?.Choice,
+        }).ToList();
         var setup = await SetupAsync(run, company.CountryCode, pack, ct) with
         {
             Frequency = frequency, Choice = choices.Schedule?.Choice ?? StatutoryChoice.All, Wages = await WageOrderAsync(company, run.PayDate, ct),
         };
         var people = PayRunCalculator.Work(setup, candidates);
-        await SaveAsync(run.Id, people, id => choices.People.GetValueOrDefault(id) ?? choices.Schedule, pack.Version, userId, ct);
+        await SaveAsync(run.Id, people, id => forRun.GetValueOrDefault(id) ?? choices.People.GetValueOrDefault(id) ?? choices.Schedule, pack.Version, userId, ct);
     }
 
     /// <summary>A choice of statutory deductions and who made it, when.</summary>
@@ -144,8 +151,9 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
             ? query.Where(e => chosen.Contains(e.Id))
             : query.Where(e => e.HireDate <= run.PeriodEnd && (e.ExitDate == null || e.ExitDate >= run.PeriodStart));
         var employees = await query.OrderBy(e => e.StaffNo).ToListAsync(ct);
-        var time = (await db.Inputs.AsNoTracking().Where(i => i.PayRunId == run.Id).ToListAsync(ct))
-            .ToLookup(i => i.EmployeeId, i => new TimeEntry(i.PayItemId, i.Quantity));
+        var inputs = await db.Inputs.AsNoTracking().Where(i => i.PayRunId == run.Id).ToListAsync(ct);
+        var time = inputs.Where(i => i.Quantity is not null).ToLookup(i => i.EmployeeId, i => new TimeEntry(i.PayItemId, i.Quantity!.Value));
+        var amounts = inputs.Where(i => i.Amount is not null).ToLookup(i => i.EmployeeId, i => new RunAmount(i.PayItemId, i.Amount!.Value, i.Reason));
         var areas = await org.Locations.AsNoTracking().Where(l => l.WageAreaCode != null).ToDictionaryAsync(l => l.Id, l => l.WageAreaCode!, ct);
 
         // Their place of work: the location of the job they hold at the period's end (their last, if none), else the company's main one.
@@ -159,7 +167,7 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         return employees.Select(e => new Candidate(e.Id, e.StaffNo, FullName(e), e.HireDate, e.ExitDate,
             e.Employments.Select(j => new JobRow(j.Id, j.ValidFrom, j.ValidTo, j.PayScheduleId)).ToList(),
             e.Compensations.Select(c => new BasicPayRow(c.Id, c.ValidFrom, c.ValidTo, c.BasicAmount, c.PayBasis, c.Currency, c.UsualQuantity)).ToList(),
-            Time: time[e.Id].ToList(), WageArea: WageArea(e))).ToList();
+            Time: time[e.Id].ToList(), WageArea: WageArea(e), Amounts: amounts[e.Id].ToList())).ToList();
     }
 
     private static string FullName(Employee e) => string.Join(' ', new[] { e.FirstName, e.MiddleName, e.LastName }.Where(n => !string.IsNullOrWhiteSpace(n)));
@@ -191,7 +199,7 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
                 Id = Guid.CreateVersion7(), OrganizationId = run.OrganizationId, CompanyId = run.CompanyId, PayRunId = run.Id, PersonId = person.Id,
                 Kind = l.Kind, Code = l.Code, Name = l.Name, PayItemId = l.PayItemId, StatutoryKey = l.StatutoryKey, Taxable = l.Taxable,
                 BeforeTax = l.BeforeTax, Base = l.Base, Rate = l.Rate, Amount = l.Amount, MonthToDate = l.MonthToDate, Earlier = l.Earlier,
-                Quantity = l.Quantity, UnitRate = l.UnitRate, Position = i + 1,
+                Quantity = l.Quantity, UnitRate = l.UnitRate, Reason = l.Reason, Position = i + 1,
             }).ToList();
             db.People.Add(person);
         }

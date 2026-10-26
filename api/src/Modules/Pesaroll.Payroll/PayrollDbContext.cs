@@ -101,10 +101,15 @@ public sealed class PayRunLine
     /// <summary>Lines paid by the day or hour (PAY-11): amount = quantity x unit rate.</summary>
     public decimal? Quantity { get; set; }
     public decimal? UnitRate { get; set; }
+    /// <summary>Why a line was set by hand for the run (PAY-04).</summary>
+    public string? Reason { get; set; }
     public int Position { get; set; }
 }
 
-/// <summary>Days or hours worked in a run (PAY-11), for basic pay (no item) or an item paid by the hour or day.</summary>
+/// <summary>
+/// What is entered for a person in a run: days or hours (PAY-11) for basic pay (no item) or an item
+/// paid by the hour or day, or an amount (PAY-04) for an item, basic pay or a statutory line, with why.
+/// </summary>
 public sealed class PayRunInput
 {
     public Guid Id { get; set; }
@@ -113,7 +118,9 @@ public sealed class PayRunInput
     public Guid PayRunId { get; set; }
     public Guid EmployeeId { get; set; }
     public Guid? PayItemId { get; set; }
-    public decimal Quantity { get; set; }
+    public decimal? Quantity { get; set; }
+    public decimal? Amount { get; set; }
+    public string? Reason { get; set; }
     /// <summary>entered, or copied from the last approved run on the schedule.</summary>
     public string Source { get; set; } = "entered";
     public Guid EnteredBy { get; set; }
@@ -170,6 +177,20 @@ public sealed class EmployeeDeductions
     public DateTimeOffset SetAt { get; set; }
 }
 
+/// <summary>The statutory deductions made for a person in one run (PAY-04), replacing theirs and their schedule's.</summary>
+public sealed class PayRunDeductionChoice
+{
+    public Guid Id { get; set; }
+    public Guid OrganizationId { get; set; }
+    public Guid CompanyId { get; set; }
+    public Guid PayRunId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public string[] Deductions { get; set; } = [];
+    public required string Reason { get; set; }
+    public Guid SetBy { get; set; }
+    public DateTimeOffset SetAt { get; set; }
+}
+
 /// <summary>
 /// Pay runs (PAY-03), statutory deduction choices (PAY-10), days and hours worked and wage orders (PAY-11). Reads and writes data only: the schema lives in database/schema, never here.
 /// Employees, their pay and the organization's items are read through the Organizations context.
@@ -182,6 +203,7 @@ public sealed class PayrollDbContext(DbContextOptions<PayrollDbContext> options)
     public DbSet<ScheduleDeductions> ScheduleDeductions => Set<ScheduleDeductions>();
     public DbSet<EmployeeDeductions> EmployeeDeductions => Set<EmployeeDeductions>();
     public DbSet<PayRunInput> Inputs => Set<PayRunInput>();
+    public DbSet<PayRunDeductionChoice> RunDeductions => Set<PayRunDeductionChoice>();
     public DbSet<WageOrderRow> WageOrders => Set<WageOrderRow>();
     public DbSet<MinimumWageRow> MinimumWages => Set<MinimumWageRow>();
 
@@ -194,6 +216,7 @@ public sealed class PayrollDbContext(DbContextOptions<PayrollDbContext> options)
         model.Entity<ScheduleDeductions>().ToTable("pay_schedule_deductions");
         model.Entity<EmployeeDeductions>().ToTable("employee_statutory_deductions");
         model.Entity<PayRunInput>().ToTable("pay_run_inputs");
+        model.Entity<PayRunDeductionChoice>().ToTable("pay_run_deduction_choices");
         model.Entity<WageOrderRow>().ToTable("wage_orders").HasKey(w => new { w.CountryCode, w.EffectiveFrom });
         model.Entity<WageOrderRow>().Property(w => w.CountryCode).HasColumnType("char(2)");
         model.Entity<MinimumWageRow>().ToTable("minimum_wages").HasKey(m => new { m.CountryCode, m.EffectiveFrom, m.WageAreaCode });

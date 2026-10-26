@@ -152,6 +152,7 @@ grant select, insert, delete on table pay_run_people to pesaroll_app;
 -- out on the month to date (PAY-10): month_to_date is the line's total for the tax month and earlier
 -- what the person's earlier approved runs in the month took, so amount = month_to_date - earlier.
 -- A line paid by the day or hour (PAY-11) keeps its quantity and unit_rate: amount = quantity x unit_rate.
+-- A line set by hand for the run (PAY-04: an accountant's edit in review) keeps why (reason).
 create table pay_run_lines (
     id               uuid primary key default uuidv7(),
     organization_id  uuid not null,
@@ -172,6 +173,7 @@ create table pay_run_lines (
     earlier          numeric(18, 2) not null default 0,
     quantity         numeric(9, 2),
     unit_rate        numeric(18, 2),
+    reason           text,
     position         int not null,
     foreign key (organization_id, person_id) references pay_run_people (organization_id, id) on delete cascade,
     foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade,
@@ -190,10 +192,13 @@ create policy pay_run_lines_scope on pay_run_lines as restrictive
 
 grant select, insert, delete on table pay_run_lines to pesaroll_app;
 
--- Days and hours worked in a run (PAY-11), per person: for basic pay (pay_item_id null: a daily or
--- hourly rate) or an item paid by the hour or day (overtime). Entered, or copied from the last
--- approved run on the schedule (source), with who did it and when. Changing them sends a worked-out
--- run back to draft. PAY-04 adds one-off amounts here.
+-- What is entered for a person in a run. Days and hours (quantity, PAY-11): for basic pay
+-- (pay_item_id null: a daily or hourly rate) or an item paid by the hour or day (overtime); entered,
+-- or copied from the last approved run on the schedule (source). Amounts (PAY-04): for an item
+-- entered each run (commission), or an accountant's edit in review: a person's item for the run (0
+-- removes it), an item added for the run, basic pay (pay_item_id null) or a statutory amount (its
+-- locked item); edits say why (reason). Who entered it and when. Changing them sends a worked-out
+-- run back to draft.
 create table pay_run_inputs (
     id               uuid primary key,
     organization_id  uuid not null,
@@ -201,13 +206,16 @@ create table pay_run_inputs (
     pay_run_id       uuid not null,
     employee_id      uuid not null,
     pay_item_id      uuid,
-    quantity         numeric(9, 2) not null check (quantity >= 0 and quantity <= 744),
+    quantity         numeric(9, 2) check (quantity >= 0 and quantity <= 744),
+    amount           numeric(18, 2) check (amount >= 0),
+    reason           text check (length(btrim(reason)) between 1 and 500),
     source           text not null check (source in ('entered', 'copied')),
     entered_by       uuid not null references users (id),
     entered_at       timestamptz not null default now(),
     foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade,
     foreign key (company_id, employee_id) references employees (company_id, id),
-    foreign key (organization_id, pay_item_id) references pay_items (organization_id, id)
+    foreign key (organization_id, pay_item_id) references pay_items (organization_id, id),
+    check (quantity is not null or amount is not null)
 );
 
 create unique index pay_run_inputs_one on pay_run_inputs (pay_run_id, employee_id, pay_item_id) nulls not distinct;
@@ -221,6 +229,33 @@ create policy pay_run_inputs_scope on pay_run_inputs as restrictive
     using (company_id = any (app_company_ids()));
 
 grant select, insert, update, delete on table pay_run_inputs to pesaroll_app;
+
+-- The statutory deductions made for a person in one run (PAY-04: an accountant's edit in review),
+-- replacing theirs and their schedule's for that run only, with why, who and when.
+create table pay_run_deduction_choices (
+    id               uuid primary key,
+    organization_id  uuid not null,
+    company_id       uuid not null,
+    pay_run_id       uuid not null,
+    employee_id      uuid not null,
+    deductions       text[] not null check (deductions <@ array['paye', 'shif', 'nssf', 'housing_levy', 'nita']),
+    reason           text not null check (length(btrim(reason)) between 1 and 500),
+    set_by           uuid not null references users (id),
+    set_at           timestamptz not null default now(),
+    unique (pay_run_id, employee_id),
+    foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade,
+    foreign key (company_id, employee_id) references employees (company_id, id)
+);
+
+alter table pay_run_deduction_choices enable row level security;
+
+create policy pay_run_deduction_choices_tenant on pay_run_deduction_choices
+    using (organization_id = app_org_id());
+
+create policy pay_run_deduction_choices_scope on pay_run_deduction_choices as restrictive
+    using (company_id = any (app_company_ids()));
+
+grant select, insert, update, delete on table pay_run_deduction_choices to pesaroll_app;
 
 -- A run's people, lines and inputs change only before it is sent (recalculating replaces people and lines).
 -- Deleting a run's company still cascades: deploys and cleanup run as other roles.
@@ -250,4 +285,7 @@ create trigger pay_run_lines_keep before insert or update or delete on pay_run_l
     for each row execute function pay_run_figures_keep();
 
 create trigger pay_run_inputs_keep before insert or update or delete on pay_run_inputs
+    for each row execute function pay_run_figures_keep();
+
+create trigger pay_run_deduction_choices_keep before insert or update or delete on pay_run_deduction_choices
     for each row execute function pay_run_figures_keep();

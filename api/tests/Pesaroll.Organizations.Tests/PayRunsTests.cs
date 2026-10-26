@@ -656,7 +656,7 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
         var error = (await bad.Content.ReadFromJsonAsync<Error>())!;
         Assert.Equal("PAY-2025", error.Code);
-        Assert.Equal(["entries[0].payItemId", "entries[1].quantity", "entries[2].payItemId"], error.Fields!.Keys.Order());
+        Assert.Equal(["entries[0].quantity", "entries[1].quantity", "entries[2].payItemId"], error.Fields!.Keys.Order());
 
         Assert.Equal(HttpStatusCode.OK, (await EnterTime(world.Owner, run.Id, new { employeeId = peter, payItemId = (Guid?)null, quantity = 5 },
             new { employeeId = peter, payItemId = overtime.PayItemId, quantity = 4 })).StatusCode);
@@ -706,8 +706,9 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         var first = await Started(await StartOn(world, weekly, "2026-10-02"));
         Assert.Equal("PAY-2026", await Code(await world.Owner.Client.PostAsync($"/api/pay-runs/{first.Id}/inputs/copy-previous", null)));
 
+        var bonus = await EachRunItem(world, "BONUS", "earning");
         await EnterTime(world.Owner, first.Id, new { employeeId = peter, payItemId = (Guid?)null, quantity = 6 },
-            new { employeeId = mary, payItemId = (Guid?)null, quantity = 3 });
+            new { employeeId = mary, payItemId = (Guid?)null, quantity = 3 }, new { employeeId = peter, payItemId = (Guid?)bonus, amount = 1_000 });
         await Calculate(world, first.Id);
         var sent = (await (await Submit(world.Owner, first.Id)).Content.ReadFromJsonAsync<PayRunDetail>())!;
         await approver.Client.PostAsync($"/api/approvals/{sent.ApprovalRequestId}/approve", null);
@@ -717,10 +718,10 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         var copied = await world.Owner.Client.PostAsync($"/api/pay-runs/{second.Id}/inputs/copy-previous", null);
         Assert.Equal(HttpStatusCode.OK, copied.StatusCode);
         var time = (await copied.Content.ReadFromJsonAsync<RunTimeResponse>())!;
-        var peters = time.People.Single(x => x.EmployeeId == peter).Entries.Single();
-        Assert.Equal((6m, "copied"), (peters.Quantity, peters.Source));
+        var peters = time.People.Single(x => x.EmployeeId == peter).Entries.Single();   // days only: last week's bonus isn't this week's
+        Assert.Equal(((decimal?)6m, "copied"), (peters.Quantity, peters.Source));
         var marys = time.People.Single(x => x.EmployeeId == mary).Entries.Single();
-        Assert.Equal((5m, "entered"), (marys.Quantity, marys.Source));     // what was entered stays
+        Assert.Equal(((decimal?)5m, "entered"), (marys.Quantity, marys.Source));     // what was entered stays
     }
 
     [Fact]
@@ -918,5 +919,100 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
             new { amount = 1, basis = "monthly", effectiveFrom = "2026-09-01", reason = "No say" })).StatusCode);
         Assert.Equal("ONB-3539", await Code(await ChangePay(world.Owner, world.Mombasa, brian,
             new { amount = 1, basis = "monthly", effectiveFrom = "2026-09-01", reason = "Wrong company" })));
+    }
+
+    // PAY-04: amounts entered for a run and the accountant's edits in review.
+
+    /// <summary>An item the organization enters each run (commission, an advance), for all its companies.</summary>
+    private static Task<Guid> EachRunItem(World world, string code, string kind) => Scalar<Guid>("""
+        insert into pay_items (id, organization_id, code, name, kind, taxable, calc_method, all_companies)
+        values (uuidv7(), @org, @code, @code, @kind, @kind = 'earning', 'each_run', true) returning id
+        """, ("org", world.OrgId), ("code", code), ("kind", kind));
+
+    private static Task<Guid> LockedItem(World world, string key) =>
+        Scalar<Guid>("select id from pay_items where organization_id = @org and locked_key = @key", ("org", world.OrgId), ("key", key));
+
+    private static Task<HttpResponseMessage> RunDeductions(Person by, Guid run, Guid employee, object choice) =>
+        by.Client.PutAsJsonAsync($"/api/pay-runs/{run}/people/{employee}/deductions", choice);
+
+    [Fact]
+    public async Task Amounts_and_review_edits_are_entered_for_a_run_and_edits_say_why()
+    {
+        var world = await Organization();
+        var brian = await Employee(world, world.Westlands, 100_000);
+        await Deduction(world, world.Westlands, brian, 3_000);
+        var commission = await EachRunItem(world, "COMM", "earning");
+        var loan = await Scalar<Guid>("select pay_item_id from employee_pay_items where employee_id = @e", ("e", brian));
+        var shif = await LockedItem(world, "shif");
+        var run = await Calculate(world, (await Start(world)).Id);
+
+        var items = (await Time(world.Owner, run.Id)).AmountItems;
+        Assert.Contains(items, i => i.PayItemId == commission && i.CalcMethod == "each_run");
+        Assert.Contains(items, i => i.PayItemId == shif && i.StatutoryKey == "shif");
+        Assert.DoesNotContain(items, i => i.CalcMethod == "per_unit");   // those take hours
+
+        var bad = await EnterTime(world.Owner, run.Id, new { employeeId = brian, payItemId = (Guid?)loan, amount = 1_500 },
+            new { employeeId = brian, payItemId = (Guid?)commission, quantity = 2 }, new { employeeId = brian, payItemId = (Guid?)null, amount = -1, reason = "x" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        var error = (await bad.Content.ReadFromJsonAsync<Error>())!;
+        Assert.Equal("PAY-2025", error.Code);
+        Assert.Equal(["entries[0].reason", "entries[1].quantity", "entries[2].amount"], error.Fields!.Keys.Order());
+
+        Assert.Equal(HttpStatusCode.OK, (await EnterTime(world.Owner, run.Id,
+            new { employeeId = brian, payItemId = (Guid?)commission, amount = 5_000 },
+            new { employeeId = brian, payItemId = (Guid?)loan, amount = 1_500, reason = "Agreed to halve it this month" },
+            new { employeeId = brian, payItemId = (Guid?)shif, amount = 150, reason = "Agreed with the employee" })).StatusCode);
+        Assert.Equal("draft", (await Get(world.Owner, run.Id)).Status);
+
+        await Calculate(world, run.Id);
+        var paid = Paid(await People(world.Owner, run.Id), brian);
+        Assert.Equal((5_000m, (string?)null), (paid.Lines.Single(l => l.Code == "COMM").Amount, paid.Lines.Single(l => l.Code == "COMM").Reason));
+        Assert.Equal((1_500m, "Agreed to halve it this month"), (paid.Lines.Single(l => l.Code.StartsWith("LOAN")).Amount, paid.Lines.Single(l => l.Code.StartsWith("LOAN")).Reason));
+        Assert.Equal((150m, "Agreed with the employee"), (paid.Shif, paid.Lines.Single(l => l.StatutoryKey == "shif").Reason));
+        Assert.Contains("adjusted", paid.Notes);
+        var entries = (await Time(world.Owner, run.Id)).People.Single(p => p.EmployeeId == brian).Entries;
+        Assert.Equal(3, entries.Count);
+        Assert.All(entries, e => Assert.Equal(world.Owner.UserId, e.EnteredBy));
+    }
+
+    [Fact]
+    public async Task Statutory_deductions_can_be_chosen_for_one_person_in_one_run_with_a_reason()
+    {
+        var world = await Organization();
+        var brian = await Employee(world, world.Westlands, 100_000);
+        var grace = await Employee(world, world.Westlands, 100_000, name: "Grace Njeri");
+        var run = await Calculate(world, (await Start(world)).Id);
+
+        var bad = await RunDeductions(world.Owner, run.Id, brian, new { deductions = new[] { "paye", "tips" }, reason = " " });
+        Assert.Equal("PAY-2024", (await bad.Content.ReadFromJsonAsync<Error>())!.Code);
+        Assert.Equal(HttpStatusCode.OK, (await RunDeductions(world.Owner, run.Id, brian,
+            new { deductions = new[] { "paye" }, reason = "Contributes through another employer this month" })).StatusCode);
+        Assert.Equal("draft", (await Get(world.Owner, run.Id)).Status);
+        var chosen = (await Time(world.Owner, run.Id)).People.Single(p => p.EmployeeId == brian).Deductions!;
+        Assert.Equal(["paye"], chosen.Deductions);
+        Assert.Equal(("Contributes through another employer this month", world.Owner.UserId), (chosen.Reason, chosen.SetBy));
+
+        await Calculate(world, run.Id);
+        var people = await People(world.Owner, run.Id);
+        Assert.Equal((0m, 0m, (Guid?)world.Owner.UserId), (Paid(people, brian).NssfEmployee, Paid(people, brian).Shif, Paid(people, brian).DeductionsChosenBy));
+        Assert.Contains("adjusted", Paid(people, brian).Notes);
+        Assert.Equal(6_000m, Paid(people, grace).NssfEmployee);            // nobody else changes
+
+        // Back to theirs; someone without a say over runs can't choose.
+        Assert.Equal(HttpStatusCode.OK, (await RunDeductions(world.Owner, run.Id, brian, new { deductions = (string[]?)null })).StatusCode);
+        Assert.Null((await Time(world.Owner, run.Id)).People.Single(p => p.EmployeeId == brian).Deductions);
+        var approver = await Colleague(world.OrgId, "approver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await RunDeductions(approver, run.Id, brian, new { deductions = new[] { "paye" }, reason = "No" })).StatusCode);
+        Assert.Equal("ONB-3539", await Code(await RunDeductions(world.Owner, run.Id, Guid.CreateVersion7(), new { deductions = new[] { "paye" }, reason = "Nobody" })));
+    }
+
+    [Fact]
+    public async Task Nothing_entered_for_a_run_changes_once_it_is_sent()
+    {
+        var (world, _, run, brian) = await Sent();
+        var commission = await EachRunItem(world, "COMM", "earning");
+
+        Assert.Equal("PAY-2021", await Code(await EnterTime(world.Owner, run.Id, new { employeeId = brian, payItemId = (Guid?)commission, amount = 5_000 })));
+        Assert.Equal("PAY-2021", await Code(await RunDeductions(world.Owner, run.Id, brian, new { deductions = new[] { "paye" }, reason = "Too late" })));
     }
 }

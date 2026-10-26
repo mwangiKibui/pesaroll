@@ -3,42 +3,65 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Pesaroll.Organizations;
+using Pesaroll.Payroll.Engine;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
 namespace Pesaroll.Payroll;
 
 /// <summary>
-/// Days or hours for one person in a run: for basic pay (no item: a daily or hourly rate) or an item
-/// paid by the hour or day. An empty quantity removes what was entered.
+/// What is entered for one person in a run, for basic pay (no item) or an item. Days or hours
+/// (quantity): basic pay at a daily or hourly rate, or an item paid by the hour or day. An amount
+/// (PAY-04): an item entered each run (commission), or an edit in review, which says why: a
+/// person's item for the run (0 removes it), an item added for the run, basic pay or a statutory
+/// amount. Nothing in either removes what was entered.
 /// </summary>
-public sealed record TimeEntryRequest(Guid EmployeeId, Guid? PayItemId, decimal? Quantity);
+public sealed record TimeEntryRequest(Guid EmployeeId, Guid? PayItemId, decimal? Quantity, decimal? Amount = null, string? Reason = null);
 
 public sealed record RunTimeRequest(IReadOnlyList<TimeEntryRequest>? Entries);
 
 /// <summary>What was entered, where it came from (entered, or copied from the last approved run), who did it and when.</summary>
-public sealed record TimeEntryResponse(Guid? PayItemId, decimal Quantity, string Source, Guid EnteredBy, DateTimeOffset EnteredAt);
+public sealed record TimeEntryResponse(Guid? PayItemId, decimal? Quantity, string Source, Guid EnteredBy, DateTimeOffset EnteredAt, decimal? Amount = null,
+    string? Reason = null);
+
+/// <summary>The statutory deductions chosen for a person in this run alone, why, who and when.</summary>
+public sealed record RunDeductionsResponse(IReadOnlyList<string> Deductions, string Reason, Guid SetBy, DateTimeOffset SetAt);
 
 /// <summary>
 /// Someone the run pays: Unit is day or hour for a daily or hourly rate (null for a salary or wage,
-/// paid as it is), with the days or hours they usually work (paid when nothing is entered).
+/// paid as it is), with the days or hours they usually work (paid when nothing is entered), and the
+/// statutory deductions chosen for them in this run (null: theirs or the schedule's).
 /// </summary>
-public sealed record RunTimePerson(Guid EmployeeId, string StaffNo, string Name, string? Unit, decimal? UsualQuantity, IReadOnlyList<TimeEntryResponse> Entries);
+public sealed record RunTimePerson(Guid EmployeeId, string StaffNo, string Name, string? Unit, decimal? UsualQuantity, IReadOnlyList<TimeEntryResponse> Entries,
+    RunDeductionsResponse? Deductions = null);
 
 /// <summary>An item paid by the hour or day that can be entered for the run's company.</summary>
 public sealed record RunTimeItem(Guid PayItemId, string Code, string Name, string Unit);
 
-public sealed record RunTimeResponse(Guid PayRunId, IReadOnlyList<RunTimePerson> People, IReadOnlyList<RunTimeItem> Items);
+/// <summary>
+/// An item an amount can be entered for: the organization's own (each_run, fixed, percent_of_basic)
+/// at the run's company, or a statutory line (StatutoryKey). Anything but each_run is an edit and says why.
+/// </summary>
+public sealed record RunAmountItem(Guid PayItemId, string Code, string Name, string Kind, string CalcMethod, string? StatutoryKey);
+
+public sealed record RunTimeResponse(Guid PayRunId, IReadOnlyList<RunTimePerson> People, IReadOnlyList<RunTimeItem> Items,
+    IReadOnlyList<RunAmountItem>? AmountItems = null);
+
+/// <summary>Statutory deductions for one person in one run (null: back to theirs or the schedule's), and why.</summary>
+public sealed record RunDeductionsRequest(IReadOnlyList<string>? Deductions, string? Reason);
 
 /// <summary>
-/// Days and hours worked in a pay run (PAY-11): entered by Payroll, or copied from the last approved
-/// run on the schedule so a small business doesn't type the same week again. They can change until
-/// the run is sent for approval; a change sends a worked-out run back to draft, to be worked out
-/// again. Reading needs pay_runs.view, changing pay_runs.manage, at the run's company.
+/// What is entered for a pay run. Days and hours worked (PAY-11): entered by Payroll, or copied from
+/// the last approved run on the schedule so a small business doesn't type the same week again.
+/// Amounts and the accountant's edits in review (PAY-04): amounts for items entered each run, and a
+/// person's item, basic pay, statutory amount or statutory deductions for this run, each saying why.
+/// They can change until the run is sent for approval; a change sends a worked-out run back to
+/// draft, to be worked out again. Reading needs pay_runs.view, changing pay_runs.manage, at the run's company.
 /// </summary>
 public static class PayRunInputsEndpoints
 {
     private const decimal MostInAPeriod = 744;   // hours in a 31-day month
+    private const decimal MostAnAmount = 9_999_999_999_999_999.99m;
 
     public static IEndpointRouteBuilder MapPayRunInputsEndpoints(this IEndpointRouteBuilder app)
     {
@@ -59,32 +82,46 @@ public static class PayRunInputsEndpoints
             var run = await ChangeableAsync(db, tenant, id, ct);
             var people = (await PeopleAsync(org, run, ct)).ToDictionary(p => p.Id);
             var items = (await ItemsAsync(org, run, ct)).ToDictionary(i => i.Id);
+            var amountItems = (await AmountItemsAsync(org, run, ct)).ToDictionary(i => i.PayItemId);
             var entries = request.Entries ?? [];
             var errors = new Dictionary<string, string>();
             var seen = new HashSet<(Guid, Guid?)>();
             for (var i = 0; i < entries.Count; i++)
             {
-                var (employee, item, quantity) = entries[i];
+                var (employee, item, quantity, amount, reason) = entries[i];
                 var at = $"entries[{i}].";
+                var timed = item is { } t ? items.ContainsKey(t) : people.GetValueOrDefault(employee)?.Unit is not null;
                 if (!people.TryGetValue(employee, out var person))
                     errors[$"{at}employeeId"] = "Choose someone this pay run pays.";
-                else if (item is null && person.Unit is null)
-                    errors[$"{at}payItemId"] = $"{person.Name} is paid a salary or wage, not by the day or hour.";
                 else if (!seen.Add((employee, item)))
                     errors[$"{at}employeeId"] = $"{person.Name} is on the list twice for the same pay.";
-                if (item is { } itemId && !items.ContainsKey(itemId))
-                    errors[$"{at}payItemId"] = "Choose an item paid by the hour or day at this company.";
-                if (quantity is not null and (< 0 or > MostInAPeriod) || quantity is { } q && decimal.Round(q, 2) != q)
+                else if (item is null && quantity is not null && person.Unit is null)
+                    errors[$"{at}quantity"] = $"{person.Name} is paid a salary or wage, not by the day or hour.";
+                if (item is { } itemId && !items.ContainsKey(itemId) && !amountItems.ContainsKey(itemId))
+                    errors[$"{at}payItemId"] = "Choose an item at this company.";
+                else if (quantity is not null && item is not null && !timed)
+                    errors[$"{at}quantity"] = "This item is an amount, not days or hours.";
+                else if (quantity is not null and (< 0 or > MostInAPeriod) || quantity is { } q && decimal.Round(q, 2) != q)
                     errors[$"{at}quantity"] = "Enter the days or hours worked, from 0 to 744, with up to two decimals.";
+                if (amount is not null && item is { } paidByTime && items.ContainsKey(paidByTime))
+                    errors[$"{at}amount"] = "This item is paid by the hour or day: enter the hours or days.";
+                else if (amount is not null and (< 0 or > MostAnAmount) || amount is { } a && decimal.Round(a, 2) != a)
+                    errors[$"{at}amount"] = "Enter an amount of 0 or more, with up to two decimals.";
+                // An edit beyond an item entered each run says why.
+                var routine = item is { } r && amountItems.GetValueOrDefault(r)?.CalcMethod == "each_run";
+                if (reason is { } why && why.Trim().Length > 500)
+                    errors[$"{at}reason"] = "Say why in up to 500 characters.";
+                else if (amount is not null && !routine && string.IsNullOrWhiteSpace(reason))
+                    errors[$"{at}reason"] = "Say why this is changed for this pay run.";
             }
             if (errors.Count > 0) throw PayRunErrors.InputsInvalid(errors);
 
             var now = clock.GetUtcNow();
             var existing = await db.Inputs.Where(x => x.PayRunId == run.Id).ToListAsync(ct);
-            foreach (var (employee, item, quantity) in entries)
+            foreach (var (employee, item, quantity, amount, reason) in entries)
             {
                 var row = existing.FirstOrDefault(x => x.EmployeeId == employee && x.PayItemId == item);
-                if (quantity is not { } value)
+                if (quantity is null && amount is null)
                 {
                     if (row is not null) db.Inputs.Remove(row);
                     continue;
@@ -98,7 +135,8 @@ public static class PayRunInputsEndpoints
                     };
                     db.Inputs.Add(row);
                 }
-                (row.Quantity, row.Source, row.EnteredBy, row.EnteredAt) = (value, "entered", userId, now);
+                (row.Quantity, row.Amount, row.Reason, row.Source, row.EnteredBy, row.EnteredAt) =
+                    (quantity, amount, string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(), "entered", userId, now);
             }
             if (entries.Count > 0) BackToDraft(run);
             await db.SaveChangesAsync(ct);
@@ -106,7 +144,45 @@ public static class PayRunInputsEndpoints
         }).Produces<RunTimeResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayRuns);
 
-        // Last time's days and hours, for whoever has nothing entered for that pay yet; what was entered stays.
+        // A person's statutory deductions for this run alone, with why; none goes back to theirs or the schedule's.
+        runs.MapPut("/{id:guid}/people/{employeeId:guid}/deductions", async (Guid id, Guid employeeId, RunDeductionsRequest request, PayrollDbContext db,
+            OrganizationsDbContext org, TenantContext tenant, HttpContext http, TimeProvider clock, CancellationToken ct) =>
+        {
+            var (userId, _) = PayRunsEndpoints.Who(tenant, http);
+            var run = await ChangeableAsync(db, tenant, id, ct);
+            if (!(await PeopleAsync(org, run, ct)).Any(p => p.Id == employeeId)) throw PayRunErrors.EmployeeNotFound();
+            var row = await db.RunDeductions.SingleOrDefaultAsync(d => d.PayRunId == run.Id && d.EmployeeId == employeeId, ct);
+            if (request.Deductions is not { } chosen)
+            {
+                if (row is not null) db.RunDeductions.Remove(row);
+            }
+            else
+            {
+                var fields = new Dictionary<string, string>();
+                if (chosen.Any(g => !StatutoryChoice.Groups.Contains(g)))
+                    fields["deductions"] = $"Choose from {string.Join(", ", StatutoryChoice.Groups)}.";
+                if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 500)
+                    fields["reason"] = "Say why, in up to 500 characters, these deductions are made for this pay run.";
+                if (fields.Count > 0) throw PayRunErrors.DeductionsInvalid(fields);
+                if (row is null)
+                {
+                    row = new PayRunDeductionChoice
+                    {
+                        Id = Guid.CreateVersion7(), OrganizationId = run.OrganizationId, CompanyId = run.CompanyId, PayRunId = run.Id, EmployeeId = employeeId,
+                        Reason = "",
+                    };
+                    db.RunDeductions.Add(row);
+                }
+                (row.Deductions, row.Reason, row.SetBy, row.SetAt) =
+                    (StatutoryChoice.Groups.Where(chosen.Contains).ToArray(), request.Reason!.Trim(), userId, clock.GetUtcNow());
+            }
+            BackToDraft(run);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(await DescribeAsync(db, org, run, ct));
+        }).Produces<RunTimeResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+          .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayRuns);
+
+        // Last time's days and hours, for whoever has nothing entered for that pay yet; what was entered stays (amounts are this run's alone).
         runs.MapPost("/{id:guid}/inputs/copy-previous", async (Guid id, PayrollDbContext db, OrganizationsDbContext org, TenantContext tenant,
             HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
@@ -123,7 +199,7 @@ public static class PayRunInputsEndpoints
                 .Select(x => (x.EmployeeId, x.PayItemId)).ToHashSet();
             var now = clock.GetUtcNow();
             var copied = 0;
-            foreach (var old in await db.Inputs.AsNoTracking().Where(x => x.PayRunId == previous.Id).ToListAsync(ct))
+            foreach (var old in await db.Inputs.AsNoTracking().Where(x => x.PayRunId == previous.Id && x.Quantity != null).ToListAsync(ct))
             {
                 // Only what still fits: someone this run pays, by rate for basic pay, and an item still paid by the hour or day.
                 if (!people.TryGetValue(old.EmployeeId, out var person) || have.Contains((old.EmployeeId, old.PayItemId))) continue;
@@ -192,14 +268,32 @@ public static class PayRunInputsEndpoints
             .Where(i => i.Status == "active" && i.CalcMethod == "per_unit" && (i.AllCompanies || i.Companies.Any(c => c.CompanyId == run.CompanyId)))
             .OrderBy(i => i.Code).Select(i => new Item(i.Id, i.Code, i.Name, i.Unit!)).ToListAsync(ct);
 
+    /// <summary>
+    /// What an amount can be entered for at the run's company: the organization's own active items
+    /// (each_run, fixed, percent_of_basic) and the statutory lines (their locked items) of its country.
+    /// </summary>
+    private static async Task<List<RunAmountItem>> AmountItemsAsync(OrganizationsDbContext org, PayRun run, CancellationToken ct)
+    {
+        var country = await org.Companies.AsNoTracking().Where(c => c.Id == run.CompanyId).Select(c => c.CountryCode).SingleAsync(ct);
+        return await org.PayItems.AsNoTracking()
+            .Where(i => i.Status == "active" && (i.AllCompanies || i.Companies.Any(c => c.CompanyId == run.CompanyId))
+                && (i.LockedKey == null ? i.CalcMethod == "each_run" || i.CalcMethod == "fixed" || i.CalcMethod == "percent_of_basic"
+                    : i.CalcMethod == "by_law" && (i.CountryCode == null || i.CountryCode == country)))
+            .OrderBy(i => i.LockedKey != null).ThenBy(i => i.Code)
+            .Select(i => new RunAmountItem(i.Id, i.Code, i.Name, i.Kind, i.CalcMethod, i.LockedKey)).ToListAsync(ct);
+    }
+
     private static async Task<RunTimeResponse> DescribeAsync(PayrollDbContext db, OrganizationsDbContext org, PayRun run, CancellationToken ct)
     {
         var entries = (await db.Inputs.AsNoTracking().Where(x => x.PayRunId == run.Id).ToListAsync(ct)).ToLookup(x => x.EmployeeId);
+        var chosen = await db.RunDeductions.AsNoTracking().Where(d => d.PayRunId == run.Id).ToDictionaryAsync(d => d.EmployeeId, ct);
         var people = await PeopleAsync(org, run, ct);
         return new RunTimeResponse(run.Id,
             people.Select(p => new RunTimePerson(p.Id, p.StaffNo, p.Name, p.Unit, p.Usual, entries[p.Id]
                 .OrderBy(x => x.PayItemId is not null).ThenBy(x => x.PayItemId)
-                .Select(x => new TimeEntryResponse(x.PayItemId, x.Quantity, x.Source, x.EnteredBy, x.EnteredAt)).ToList())).ToList(),
-            (await ItemsAsync(org, run, ct)).Select(i => new RunTimeItem(i.Id, i.Code, i.Name, i.Unit)).ToList());
+                .Select(x => new TimeEntryResponse(x.PayItemId, x.Quantity, x.Source, x.EnteredBy, x.EnteredAt, x.Amount, x.Reason)).ToList(),
+                chosen.GetValueOrDefault(p.Id) is { } d ? new RunDeductionsResponse(d.Deductions, d.Reason, d.SetBy, d.SetAt) : null)).ToList(),
+            (await ItemsAsync(org, run, ct)).Select(i => new RunTimeItem(i.Id, i.Code, i.Name, i.Unit)).ToList(),
+            await AmountItemsAsync(org, run, ct));
     }
 }
