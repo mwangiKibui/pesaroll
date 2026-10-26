@@ -120,6 +120,8 @@ public sealed class OrganizationsDbContext(DbContextOptions<OrganizationsDbConte
         // Employees: the app makes every id, so rows added to an employee are new, not updates.
         model.Entity<Employee>().HasMany(e => e.Employments).WithOne().HasForeignKey(x => x.EmployeeId);
         model.Entity<Employee>().HasMany(e => e.Compensations).WithOne().HasForeignKey(x => x.EmployeeId);
+        // A replaced rate is history only: never paid or shown as current (the pay change history ignores this).
+        model.Entity<Compensation>().HasQueryFilter(c => c.ReplacedAt == null);
         model.Entity<Employee>().HasMany(e => e.Accounts).WithOne().HasForeignKey(x => x.EmployeeId);
         model.Entity<Employment>().Property(x => x.Id).ValueGeneratedNever();
         // A job's references, so EF writes a new department or position (from an upload) before the job.

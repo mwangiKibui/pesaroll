@@ -99,6 +99,7 @@ app.MapPayRunsEndpoints();
 app.MapStatutoryDeductionsEndpoints();
 app.MapPayRunInputsEndpoints();
 app.MapWorkingHoursEndpoints();
+app.MapPayChangesEndpoints();
 
 app.Run();
 

@@ -301,7 +301,7 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         Assert.Equal(2, worked.Totals.People);
         Assert.Equal("no_time", worked.LeftOut.Single(l => l.Name == "Peter Kamau").Reason);    // a daily rate with no days entered
         Assert.Equal("other_basis", worked.LeftOut.Single(l => l.Name == "John Otieno").Reason);
-        Assert.Equal(["joined"], worked.Flagged.Single(f => f.Name == "Grace Njeri").Notes);
+        Assert.Equal(["joined", "prorated"], worked.Flagged.Single(f => f.Name == "Grace Njeri").Notes);
     }
 
     [Fact]
@@ -801,4 +801,122 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
     }
 
     private sealed record PayItemShape(Guid Id, string Code, string CalcMethod, decimal? DefaultAmount, string? Unit, decimal? Multiplier);
+
+    // PAY-04: pay changed from an earlier date.
+
+    private static Task<HttpResponseMessage> ChangePay(Person by, Company company, Guid employee, object change) =>
+        by.Client.PostAsJsonAsync($"/api/companies/{company.Id}/employees/{employee}/pay-changes", change);
+
+    private static async Task<List<PayChangeRow>> PayHistory(Person by, Company company, Guid employee) =>
+        (await by.Client.GetFromJsonAsync<List<PayChangeRow>>($"/api/companies/{company.Id}/employees/{employee}/pay-changes"))!;
+
+    [Fact]
+    public async Task Pay_changed_from_an_earlier_date_fixes_a_run_not_yet_sent()
+    {
+        var world = await Organization();   // Nairobi: 775.39 a day at the least
+        await Colleague(world.OrgId, "approver");
+        await SetUpApprovals(world);
+        var daily = await Schedule(world, "daily");
+        var peter = await Employee(world, world.Westlands, 450, name: "Peter Kamau", basis: "daily", schedule: daily);
+        var run = await Calculate(world, (await Started(await StartOn(world, daily, "2026-10-01"))).Id);
+        Assert.Equal("PAY-2002", await Code(await Submit(world.Owner, run.Id)));
+
+        var res = await ChangePay(world.Owner, world.Westlands, peter,
+            new { amount = 800, basis = "daily", effectiveFrom = "2026-10-01", reason = "Raised to the minimum wage from October" });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var change = (await res.Content.ReadFromJsonAsync<PayChangeResponse>())!;
+        Assert.Equal([run.Id], change.SentBackToDraft);
+        Assert.Empty(change.NeedCorrection);
+        Assert.Equal("draft", (await Get(world.Owner, run.Id)).Status);
+
+        run = await Calculate(world, run.Id);
+        Assert.Equal(HttpStatusCode.OK, (await Submit(world.Owner, run.Id)).StatusCode);
+        Assert.Equal(800m, Paid(await People(world.Owner, run.Id), peter).Lines.Single(l => l.Code == "BASIC").Amount);
+
+        // Nothing is rewritten: the old rate ends the day before, the new one says who and why. Looking is recorded.
+        const string Looks = "select count(*) from sensitive_views where user_id = @u and kind = 'employee_pay' and subject_ids = array[@e]";
+        var looked = await Scalar<long>(Looks, ("u", world.Owner.UserId), ("e", peter));
+        var history = await PayHistory(world.Owner, world.Westlands, peter);
+        Assert.Equal([(new DateOnly(2026, 10, 1), (DateOnly?)null, 800m), (new DateOnly(2024, 1, 15), new DateOnly(2026, 9, 30), 450m)],
+            history.Select(h => (h.ValidFrom, h.ValidTo, h.Amount)));
+        Assert.Equal(("Raised to the minimum wage from October", (Guid?)world.Owner.UserId), (history[0].Reason, history[0].ChangedBy));
+        Assert.Equal(looked + 1, await Scalar<long>(Looks, ("u", world.Owner.UserId), ("e", peter)));
+    }
+
+    [Fact]
+    public async Task Approved_runs_are_never_changed_by_an_earlier_pay_change_only_listed_for_a_correction()
+    {
+        var (world, approver, run, brian) = await Sent();
+        var raise = new { amount = 120_000, basis = "monthly", effectiveFrom = "2026-10-01", reason = "Promotion agreed in September" };
+
+        // Waiting for approval: its figures must not move under the approver.
+        Assert.Equal("PAY-2021", await Code(await ChangePay(world.Owner, world.Westlands, brian, raise)));
+        await approver.Client.PostAsync($"/api/approvals/{run.ApprovalRequestId}/approve", null);
+
+        var change = (await (await ChangePay(world.Owner, world.Westlands, brian, raise)).Content.ReadFromJsonAsync<PayChangeResponse>())!;
+        Assert.Equal(run.Id, Assert.Single(change.NeedCorrection).PayRunId);
+        Assert.Equal(("approved", 100_000m), ((await Get(world.Owner, run.Id)).Status, (await Get(world.Owner, run.Id)).Totals.GrossPay));
+
+        // A change between two others runs until the next one.
+        var june = await ChangePay(world.Owner, world.Westlands, brian, new { amount = 110_000, basis = "monthly", effectiveFrom = "2026-06-01", reason = "Annual review" });
+        Assert.Equal(HttpStatusCode.OK, june.StatusCode);
+        Assert.Equal(new DateOnly(2026, 9, 30), (await june.Content.ReadFromJsonAsync<PayChangeResponse>())!.Change.ValidTo);
+        Assert.Equal([new DateOnly(2026, 10, 1), new DateOnly(2026, 6, 1), new DateOnly(2024, 1, 15)],
+            (await PayHistory(world.Owner, world.Westlands, brian)).Select(h => h.ValidFrom));
+    }
+
+    [Fact]
+    public async Task A_wrong_starting_rate_is_replaced_and_the_old_one_kept()
+    {
+        var world = await Organization();
+        var grace = await Employee(world, world.Westlands, 100_000, name: "Grace Njeri", hired: new DateOnly(2026, 10, 12));
+        var run = await Calculate(world, (await Start(world)).Id);
+        Assert.Equal(64_516.13m, Paid(await People(world.Owner, run.Id), grace).BasicPay);       // 100,000 x 20 / 31
+
+        var res = await ChangePay(world.Owner, world.Westlands, grace,
+            new { amount = 120_000, basis = "monthly", effectiveFrom = "2026-10-12", reason = "Her offer letter says 120,000" });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        Assert.Equal([run.Id], (await res.Content.ReadFromJsonAsync<PayChangeResponse>())!.SentBackToDraft);
+        await Calculate(world, run.Id);
+        Assert.Equal(77_419.35m, Paid(await People(world.Owner, run.Id), grace).BasicPay);       // 120,000 x 20 / 31
+
+        // The wrong rate is kept, marked replaced by whom and when; only the new one is paid or shown as current.
+        var history = await PayHistory(world.Owner, world.Westlands, grace);
+        Assert.Equal([(120_000m, (Guid?)null), (100_000m, world.Owner.UserId)], history.Select(h => (h.Amount, h.ReplacedBy)));
+        Assert.NotNull(history[1].ReplacedAt);
+        Assert.Equal(new DateOnly(2026, 10, 12), history[1].ValidFrom);
+        Assert.Equal(120_000m, (await world.Owner.Client.GetFromJsonAsync<EmployeePay>($"/api/employees/{grace}?includePay=true"))!.Pay!.BasicAmount);
+    }
+
+    private sealed record EmployeePayShape(decimal BasicAmount);
+    private sealed record EmployeePay(EmployeePayShape? Pay);
+
+    [Fact]
+    public async Task An_earlier_pay_change_is_checked_and_needs_a_say_over_pay()
+    {
+        var world = await Organization();
+        var brian = await Employee(world, world.Westlands, 100_000);
+        await ChangePay(world.Owner, world.Westlands, brian, new { amount = 105_000, basis = "monthly", effectiveFrom = "2026-08-01", reason = "Review" });
+
+        async Task<string[]> Fields(object change)
+        {
+            var res = await ChangePay(world.Owner, world.Westlands, brian, change);
+            Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+            var error = (await res.Content.ReadFromJsonAsync<Error>())!;
+            Assert.Equal("PAY-2028", error.Code);
+            return [.. error.Fields!.Keys.Order()];
+        }
+
+        Assert.Equal(["amount", "basis", "effectiveFrom", "reason"], await Fields(new { amount = 0, basis = "yearly", reason = " " }));
+        Assert.Equal(["effectiveFrom"], await Fields(new { amount = 1, basis = "monthly", effectiveFrom = "2023-12-31", reason = "Before they started" }));
+        Assert.Equal(["effectiveFrom"], await Fields(new { amount = 1, basis = "monthly",
+            effectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30), reason = "In the future" }));
+        Assert.Equal(["usualQuantity"], await Fields(new { amount = 1, basis = "monthly", usualQuantity = 5, effectiveFrom = "2026-09-01", reason = "Days on a salary" }));
+
+        var approver = await Colleague(world.OrgId, "approver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await ChangePay(approver, world.Westlands, brian,
+            new { amount = 1, basis = "monthly", effectiveFrom = "2026-09-01", reason = "No say" })).StatusCode);
+        Assert.Equal("ONB-3539", await Code(await ChangePay(world.Owner, world.Mombasa, brian,
+            new { amount = 1, basis = "monthly", effectiveFrom = "2026-09-01", reason = "Wrong company" })));
+    }
 }

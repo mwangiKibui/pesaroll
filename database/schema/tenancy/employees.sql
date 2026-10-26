@@ -107,6 +107,9 @@ grant select, insert, update, delete on table employments to pesaroll_app;
 -- rate; it follows the payroll schedule unless said otherwise. One current row. A daily or hourly
 -- rate is paid for the days or hours worked in a run (PAY-11); usual_quantity is what they usually
 -- work in a pay period (6 days a week, 26 a month), paid when nothing is entered for a run.
+-- A change can start on an earlier date (PAY-04): it then runs until the next change, says who made
+-- it and why, and the row it interrupts ends the day before. A change on the same date as a row
+-- replaces it: the old row is kept, marked replaced, and never paid. Rows are never rewritten otherwise.
 create table compensations (
     id               uuid primary key,
     organization_id  uuid not null,
@@ -118,13 +121,19 @@ create table compensations (
     pay_basis        text not null check (pay_basis in ('monthly', 'weekly', 'fortnightly', 'daily', 'hourly')),
     currency         char(3) not null,
     usual_quantity   numeric(6, 2) check (usual_quantity > 0 and usual_quantity <= 744),
+    changed_by       uuid references users (id),                     -- who made the change (PAY-04; empty on older rows)
+    reason           text check (length(btrim(reason)) between 1 and 500), -- why: required for a backdated change
+    replaced_by      uuid references users (id),                     -- a wrong rate replaced by a change on the same date (PAY-04):
+    replaced_at      timestamptz,                                    -- kept, never paid; the live row with its valid_from replaces it
     created_at       timestamptz not null default now(),
     foreign key (company_id, employee_id) references employees (company_id, id) on delete cascade,
     check (valid_to is null or valid_to >= valid_from),
-    check (usual_quantity is null or pay_basis in ('daily', 'hourly'))
+    check (usual_quantity is null or pay_basis in ('daily', 'hourly')),
+    check ((replaced_by is null) = (replaced_at is null))
 );
 
-create unique index compensations_one_current on compensations (employee_id) where valid_to is null;
+create unique index compensations_one_current on compensations (employee_id) where valid_to is null and replaced_at is null;
+create unique index compensations_one_start on compensations (employee_id, valid_from) where replaced_at is null;
 
 alter table compensations enable row level security;
 
