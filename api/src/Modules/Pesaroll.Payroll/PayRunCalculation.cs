@@ -20,7 +20,10 @@ namespace Pesaroll.Payroll;
 /// minimum wage of the wage order in force on the pay date, for the wage area of the person's place
 /// of work (their job's location, else the company's main location). Amounts entered for the run and
 /// the accountant's edits in review (PAY-04) go in as they were entered; a person's statutory
-/// deductions chosen for the run replace theirs and the schedule's.
+/// deductions chosen for the run replace theirs and the schedule's. A regular run follows its
+/// schedule's cut-off (PAY-04, <see cref="RunCutoffs"/>), recorded on the run, and pays what the
+/// schedule's last approved run held back by its own, unless a correction of that run has paid the
+/// person since; leavers it paid to its cut-off are paid the rest.
 /// Running it twice gives the same result; a run that is no longer calculating (cancelled since) is
 /// left alone. No rule pack for the pay date leaves the run a draft with PAY-2010 on it.
 /// </summary>
@@ -48,6 +51,7 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         }
 
         var frequency = await org.PaySchedules.AsNoTracking().Where(s => s.Id == run.PayScheduleId).Select(s => s.Frequency).SingleAsync(ct);
+        var cutoff = await RunCutoffs.ForAsync(org, run, ct);
         var candidates = await CandidatesAsync(run, company, ct);
         var choices = await ChoicesAsync(run, frequency, candidates.Select(c => c.EmployeeId).ToArray(), ct);
         var earlier = await EarlierAsync(run, candidates.Select(c => c.EmployeeId).ToArray(), ct);
@@ -61,9 +65,40 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         var setup = await SetupAsync(run, company.CountryCode, pack, ct) with
         {
             Frequency = frequency, Choice = choices.Schedule?.Choice ?? StatutoryChoice.All, Wages = await WageOrderAsync(company, run.PayDate, ct),
+            Cutoff = cutoff,
         };
+        if (run.EmployeeIds is null && await RunCutoffs.LastAsync(db, run, ct) is { CutoffOn: { } on } last)
+        {
+            setup = setup with { Last = new LastRun(new RunPeriod(last.PeriodStart, last.PeriodEnd), new RunCutoff(on, last.CutoffAppliesTo ?? [])) };
+            var held = await HeldBackAsync(last, setup.Names.GetValueOrDefault("basic")?.PayItemId, ct);
+            candidates = candidates.Select(c => c with { Last = held.GetValueOrDefault(c.EmployeeId) }).ToList();
+        }
         var people = PayRunCalculator.Work(setup, candidates);
-        await SaveAsync(run.Id, people, id => forRun.GetValueOrDefault(id) ?? choices.People.GetValueOrDefault(id) ?? choices.Schedule, pack.Version, userId, ct);
+        await SaveAsync(run.Id, people, id => forRun.GetValueOrDefault(id) ?? choices.People.GetValueOrDefault(id) ?? choices.Schedule, pack.Version, cutoff,
+            userId, ct);
+    }
+
+    /// <summary>
+    /// How the last run left each person it held something back for (PAY-04): left out after its cut-off,
+    /// or with a cut-off note. Someone an approved correction of it has paid since is left alone.
+    /// </summary>
+    private async Task<Dictionary<Guid, LastPaid>> HeldBackAsync(PayRun last, Guid? basicItem, CancellationToken ct)
+    {
+        string[] held = ["paid_to_cutoff", "pay_change_next_run", "next_run"];
+        var people = await db.People.AsNoTracking().Include(p => p.Lines)
+            .Where(p => p.PayRunId == last.Id && (p.ExcludedReason == "after_cutoff" || p.Notes.Any(n => held.Contains(n)))).ToListAsync(ct);
+        var corrected = await (from p in db.People.AsNoTracking()
+                               join r in db.PayRuns.AsNoTracking() on p.PayRunId equals r.Id
+                               where r.CorrectsPayRunId == last.Id && r.Status == "approved" && p.Included
+                               select p.EmployeeId).ToListAsync(ct);
+        var inputs = (await db.Inputs.AsNoTracking().Where(i => i.PayRunId == last.Id).ToListAsync(ct)).ToLookup(i => i.EmployeeId);
+        return people.Where(p => !corrected.Contains(p.EmployeeId)).ToDictionary(p => p.EmployeeId, p =>
+        {
+            var basic = p.Lines.FirstOrDefault(l => l.StatutoryKey is null && l.OwedFrom is null && (basicItem is { } id ? l.PayItemId == id : l.Code == "BASIC"));
+            return new LastPaid(p.ExcludedReason, p.Notes, basic?.Amount, basic?.Quantity, basic?.UnitRate, basic?.Reason is not null,
+                inputs[p.EmployeeId].Where(i => i.Quantity is not null).Select(i => new TimeEntry(i.PayItemId, i.Quantity!.Value, RunCutoffs.Day(i.EnteredAt))).ToList(),
+                inputs[p.EmployeeId].Where(i => i.Amount is not null).Select(i => new RunAmount(i.PayItemId, i.Amount!.Value, i.Reason, RunCutoffs.Day(i.EnteredAt))).ToList());
+        });
     }
 
     /// <summary>A choice of statutory deductions and who made it, when.</summary>
@@ -147,13 +182,16 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         var query = org.Employees.AsNoTracking().Include(e => e.Employments).Include(e => e.Compensations).AsSplitQuery()
             .Where(e => e.CompanyId == run.CompanyId);
         // A correction lists everyone chosen, saying who it can't pay; a regular run only those employed in the period.
+        var leavers = await RunCutoffs.LeaversOwedAsync(db, run, ct);
         query = run.EmployeeIds is { } chosen
             ? query.Where(e => chosen.Contains(e.Id))
-            : query.Where(e => e.HireDate <= run.PeriodEnd && (e.ExitDate == null || e.ExitDate >= run.PeriodStart));
+            : query.Where(e => (e.HireDate <= run.PeriodEnd && (e.ExitDate == null || e.ExitDate >= run.PeriodStart)) || leavers.Contains(e.Id));
         var employees = await query.OrderBy(e => e.StaffNo).ToListAsync(ct);
         var inputs = await db.Inputs.AsNoTracking().Where(i => i.PayRunId == run.Id).ToListAsync(ct);
-        var time = inputs.Where(i => i.Quantity is not null).ToLookup(i => i.EmployeeId, i => new TimeEntry(i.PayItemId, i.Quantity!.Value));
-        var amounts = inputs.Where(i => i.Amount is not null).ToLookup(i => i.EmployeeId, i => new RunAmount(i.PayItemId, i.Amount!.Value, i.Reason));
+        var time = inputs.Where(i => i.Quantity is not null)
+            .ToLookup(i => i.EmployeeId, i => new TimeEntry(i.PayItemId, i.Quantity!.Value, RunCutoffs.Day(i.EnteredAt)));
+        var amounts = inputs.Where(i => i.Amount is not null)
+            .ToLookup(i => i.EmployeeId, i => new RunAmount(i.PayItemId, i.Amount!.Value, i.Reason, RunCutoffs.Day(i.EnteredAt)));
         var areas = await org.Locations.AsNoTracking().Where(l => l.WageAreaCode != null).ToDictionaryAsync(l => l.Id, l => l.WageAreaCode!, ct);
 
         // Their place of work: the location of the job they hold at the period's end (their last, if none), else the company's main one.
@@ -172,8 +210,8 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
 
     private static string FullName(Employee e) => string.Join(' ', new[] { e.FirstName, e.MiddleName, e.LastName }.Where(n => !string.IsNullOrWhiteSpace(n)));
 
-    private async Task SaveAsync(Guid payRunId, IReadOnlyList<WorkedPerson> people, Func<Guid, Chosen?> chosen, string packVersion, Guid userId,
-        CancellationToken ct)
+    private async Task SaveAsync(Guid payRunId, IReadOnlyList<WorkedPerson> people, Func<Guid, Chosen?> chosen, string packVersion, RunCutoff? cutoff,
+        Guid userId, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var run = await db.PayRuns.FromSql($"select * from pay_runs where id = {payRunId} for update").SingleAsync(ct);
@@ -199,7 +237,7 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
                 Id = Guid.CreateVersion7(), OrganizationId = run.OrganizationId, CompanyId = run.CompanyId, PayRunId = run.Id, PersonId = person.Id,
                 Kind = l.Kind, Code = l.Code, Name = l.Name, PayItemId = l.PayItemId, StatutoryKey = l.StatutoryKey, Taxable = l.Taxable,
                 BeforeTax = l.BeforeTax, Base = l.Base, Rate = l.Rate, Amount = l.Amount, MonthToDate = l.MonthToDate, Earlier = l.Earlier,
-                Quantity = l.Quantity, UnitRate = l.UnitRate, Reason = l.Reason, Position = i + 1,
+                Quantity = l.Quantity, UnitRate = l.UnitRate, Reason = l.Reason, OwedFrom = l.Owed?.Start, OwedTo = l.Owed?.End, Position = i + 1,
             }).ToList();
             db.People.Add(person);
         }
@@ -218,6 +256,8 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         run.Nita = totals.Nita;
         run.OtherEmployerCosts = totals.OtherEmployerCosts;
         run.RulePackVersion = packVersion;
+        run.CutoffOn = cutoff?.On;
+        run.CutoffAppliesTo = cutoff?.AppliesTo.ToArray();
         run.CalculationError = null;
         run.Status = "calculated";
         run.CalculatedBy = userId;

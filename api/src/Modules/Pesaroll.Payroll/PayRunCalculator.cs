@@ -14,15 +14,19 @@ public sealed record JobRow(Guid Id, DateOnly From, DateOnly? To, Guid PaySchedu
 /// </summary>
 public sealed record BasicPayRow(Guid Id, DateOnly From, DateOnly? To, decimal Amount, string Basis, string Currency, decimal? UsualQuantity = null);
 
-/// <summary>Days or hours worked in a run (PAY-11): for basic pay (no item) or an item paid by the hour or day.</summary>
-public sealed record TimeEntry(Guid? PayItemId, decimal Quantity);
+/// <summary>
+/// Days or hours worked in a run (PAY-11): for basic pay (no item) or an item paid by the hour or day,
+/// and the day they were entered (PAY-04: overtime entered after a cut-off waits for the next run).
+/// </summary>
+public sealed record TimeEntry(Guid? PayItemId, decimal Quantity, DateOnly? EnteredOn = null);
 
 /// <summary>
 /// An amount entered for one run (PAY-04): for an item entered each run (commission), a person's item
 /// changed for the run (0 removes it), an item added for the run, basic pay (no item) or a statutory
-/// line (its locked item). Edits beyond items entered each run say why.
+/// line (its locked item). Edits beyond items entered each run say why. The day it was entered: an
+/// amount for an item entered each run that comes after a cut-off waits for the next run.
 /// </summary>
-public sealed record RunAmount(Guid? PayItemId, decimal Amount, string? Reason = null);
+public sealed record RunAmount(Guid? PayItemId, decimal Amount, string? Reason = null, DateOnly? EnteredOn = null);
 
 /// <summary>The lowest minimum wage in a wage area: a month (without housing allowance), a day and an hour.</summary>
 public sealed record MinimumWage(decimal Monthly, decimal Daily, decimal Hourly);
@@ -38,12 +42,36 @@ public sealed record WageOrder(decimal HoursPerDay, decimal HoursPerMonth, IRead
 /// deductions if they have one (it replaces the schedule's), what their approved runs paid earlier
 /// in the run's tax month, the days and hours entered for them in the run, the wage area of
 /// their place of work (null: none known), the amounts entered for them in the run and the
-/// statutory deductions chosen for them in this run alone (it replaces theirs and the schedule's).
+/// statutory deductions chosen for them in this run alone (it replaces theirs and the schedule's), and
+/// how the schedule's last run left them when it held something back for this one (PAY-04).
 /// </summary>
 public sealed record Candidate(
     Guid EmployeeId, string StaffNo, string FullName, DateOnly HireDate, DateOnly? ExitDate, IReadOnlyList<JobRow> Jobs, IReadOnlyList<BasicPayRow> Pay,
     StatutoryChoice? Choice = null, MonthToDate? Earlier = null, IReadOnlyList<TimeEntry>? Time = null, string? WageArea = null,
-    IReadOnlyList<RunAmount>? Amounts = null, StatutoryChoice? RunChoice = null);
+    IReadOnlyList<RunAmount>? Amounts = null, StatutoryChoice? RunChoice = null, LastPaid? Last = null);
+
+/// <summary>
+/// A schedule's cut-off for a run (PAY-04): its day, and what it applies to (new_employees, leavers,
+/// pay_changes, overtime, one_off; unpaid_leave and the organization's own words are kept but do nothing yet).
+/// </summary>
+public sealed record RunCutoff(DateOnly On, IReadOnlyCollection<string> AppliesTo)
+{
+    public bool Covers(string what) => AppliesTo.Contains(what);
+
+    /// <summary>Entered after the cut-off day; an entry with no day is the cut-off's.</summary>
+    public bool After(DateOnly? entered) => entered > On;
+}
+
+/// <summary>The schedule's last approved run before this one: its period and the cut-off it used (null: none).</summary>
+public sealed record LastRun(RunPeriod Period, RunCutoff? Cutoff);
+
+/// <summary>
+/// How the last run left a person (PAY-04): why it left them out and its notes, its basic pay line
+/// (days or hours and the rate for a daily or hourly rate; set says it was set by hand) and what was
+/// entered for them in it.
+/// </summary>
+public sealed record LastPaid(string? ExcludedReason, IReadOnlyList<string> Notes, decimal? Basic = null, decimal? Quantity = null, decimal? UnitRate = null,
+    bool BasicSet = false, IReadOnlyList<TimeEntry>? Time = null, IReadOnlyList<RunAmount>? Amounts = null);
 
 /// <summary>
 /// What a person's approved runs paid earlier in a tax month: taxable cash pay, before-tax deductions
@@ -81,22 +109,24 @@ public sealed record LineName(string Code, string Name, Guid? PayItemId);
 /// What a run works with: its period and schedule, the people a correction is for (null: a regular
 /// run), the rule pack in force on the pay date, line names, the company's items, how often the
 /// schedule pays, the statutory deductions it makes (every one, unless set otherwise) and the wage
-/// order in force (null: none for the country, so nothing is checked against a minimum).
+/// order in force (null: none for the country, so nothing is checked against a minimum), the
+/// schedule's cut-off for the run and its last approved run (PAY-04; null: none).
 /// </summary>
 public sealed record RunSetup(
     RunPeriod Period, Guid PayScheduleId, IReadOnlyCollection<Guid>? Only, RulePack Pack, IReadOnlyDictionary<string, LineName> Names,
     IReadOnlyList<ItemDefinition> Items, IReadOnlyList<ItemAssignment> Assignments, string Frequency = "monthly", StatutoryChoice? Choice = null,
-    WageOrder? Wages = null);
+    WageOrder? Wages = null, RunCutoff? Cutoff = null, LastRun? Last = null);
 
 /// <summary>
 /// One line of a person's pay. Rates are fractions (0.06 is 6%). A statutory line also keeps the
 /// month to date it was worked out on and what earlier runs in the month took (its amount is the
 /// difference); its base is the month to date's. A line paid by the day or hour keeps its quantity
-/// and unit rate (amount = quantity x unit rate). A line set by hand for the run keeps why (PAY-04).
+/// and unit rate (amount = quantity x unit rate). A line set by hand for the run keeps why (PAY-04),
+/// and a line owed from the last period (held back by its cut-off) says which period.
 /// </summary>
 public sealed record WorkedLine(
     string Kind, string Code, string Name, Guid? PayItemId, string? StatutoryKey, bool Taxable, bool BeforeTax, decimal? Base, decimal? Rate, decimal Amount,
-    decimal? MonthToDate = null, decimal Earlier = 0, decimal? Quantity = null, decimal? UnitRate = null, string? Reason = null);
+    decimal? MonthToDate = null, decimal Earlier = 0, decimal? Quantity = null, decimal? UnitRate = null, string? Reason = null, RunPeriod? Owed = null);
 
 public sealed record PersonTotals(
     decimal BasicPay, decimal GrossPay, decimal TaxablePay, decimal TaxBeforeRelief, decimal PersonalRelief, decimal Paye, decimal TotalDeductions,
@@ -147,16 +177,29 @@ public static class PayRunCalculator
     public static IReadOnlyList<WorkedPerson> Work(RunSetup setup, IEnumerable<Candidate> candidates)
     {
         var people = new List<WorkedPerson>();
-        foreach (var person in candidates)
+        var cutoff = setup.Only is null ? setup.Cutoff : null;
+        foreach (var candidate in candidates)
         {
-            var chosen = setup.Only is null || setup.Only.Contains(person.EmployeeId);
+            var chosen = setup.Only is null || setup.Only.Contains(candidate.EmployeeId);
             if (!chosen) continue;
+            var (person, held) = Hold(setup, cutoff, candidate);
             var on = PaidOn(person, setup.Period);
             var job = InForce(person.Jobs, on, j => j.From, j => j.To);
             var employed = person.HireDate <= setup.Period.End && (person.ExitDate is null || person.ExitDate >= setup.Period.Start);
+            if (!employed && job?.PayScheduleId == setup.PayScheduleId && LeftAfterLastCutoff(setup, person)
+                && InForce(person.Pay, on, p => p.From, p => p.To) is { } last && Owed(setup, person, last) is { Count: > 0 } owed)
+            {
+                people.Add(Pay(setup, person, job, last, null, held, owed, owedOnly: true));
+                continue;
+            }
             if (!employed || job?.PayScheduleId != setup.PayScheduleId)
             {
                 if (setup.Only is not null) people.Add(Left(person, "not_in_period", job?.Id, null));
+                continue;
+            }
+            if (cutoff?.Covers("new_employees") == true && person.HireDate > cutoff.On)
+            {
+                people.Add(Left(person, "after_cutoff", job.Id, null));
                 continue;
             }
 
@@ -169,7 +212,7 @@ public static class PayRunCalculator
                 _ when !ByRate(pay) && pay.Basis != setup.Frequency => Left(person, "other_basis", job.Id, pay.Id),
                 _ when pay.Currency != setup.Pack.Currency => Left(person, "other_currency", job.Id, pay.Id),
                 _ when ByRate(pay) && units is not { Quantity: > 0 } && basicSet is null => Left(person, "no_time", job.Id, pay.Id),
-                _ => Pay(setup, person, job, pay, units),
+                _ => Pay(setup, person, job, pay, units, held, Owed(setup, person, pay)),
             });
         }
         return people;
@@ -208,11 +251,12 @@ public static class PayRunCalculator
     /// a change inside the period is paid each part. Days on another basis are not guessed (basis_changed).
     /// A single row keeps its full amount as the base and the share of the period as the rate.
     /// </summary>
-    private static (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes) Salary(RunSetup setup, Candidate person, BasicPayRow inForce)
+    private static (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes) Salary(RunPeriod period, RulePack pack, Candidate person, BasicPayRow inForce,
+        DateOnly? paidTo = null)
     {
-        var period = setup.Period;
         var start = person.HireDate > period.Start ? person.HireDate : period.Start;
         var end = person.ExitDate is { } exit && exit < period.End ? exit : period.End;
+        if (paidTo < end) end = paidTo.Value;
         var periodDays = period.End.DayNumber - period.Start.DayNumber + 1;
         var rows = person.Pay.Where(p => p.From <= end && (p.To is null || p.To >= start)).ToList();
         var parts = rows.Where(p => p.Basis == inForce.Basis && p.Currency == inForce.Currency)
@@ -224,7 +268,7 @@ public static class PayRunCalculator
         if (parts.Count > 1) notes.Add("pay_changed");
         if (rows.Count > parts.Count) notes.Add("basis_changed");
         if (days == periodDays && parts.Count == 1) return (inForce.Amount, null, null, notes);
-        var amount = setup.Pack.Round(parts.Sum(p => p.Row.Amount * p.Days / periodDays));
+        var amount = pack.Round(parts.Sum(p => p.Row.Amount * p.Days / periodDays));
         return parts.Count == 1
             ? (amount, parts[0].Row.Amount, Math.Round((decimal)days / periodDays, 6), notes)
             : (amount, null, null, notes);
@@ -282,14 +326,19 @@ public static class PayRunCalculator
     private static WorkedPerson Left(Candidate person, string reason, Guid? job, Guid? pay) =>
         new(person.EmployeeId, person.StaffNo, person.FullName, reason, [], job, pay, [], null);
 
-    private static WorkedPerson Pay(RunSetup setup, Candidate person, JobRow job, BasicPayRow basicPay, (decimal Quantity, bool Usual)? units)
+    private static WorkedPerson Pay(RunSetup setup, Candidate person, JobRow job, BasicPayRow basicPay, (decimal Quantity, bool Usual)? units,
+        IReadOnlyList<string> held, IReadOnlyList<WorkedLine> owed, bool owedOnly = false)
     {
         var (period, pack) = (setup.Period, setup.Pack);
+        // A leaver after the cut-off is paid to it; the next run pays the rest.
+        var cutoff = setup.Only is null ? setup.Cutoff : null;
+        DateOnly? paidTo = cutoff?.Covers("leavers") == true && person.ExitDate is { } exit && exit > cutoff.On && exit <= period.End ? cutoff.On : null;
         // Basic pay set for the run replaces what it would be, by days or hours or for the days employed.
-        var basicSet = person.Amounts?.FirstOrDefault(a => a.PayItemId is null);
+        var basicSet = owedOnly ? null : person.Amounts?.FirstOrDefault(a => a.PayItemId is null);
         if (basicSet is not null) units = null;
-        (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes)? salary = units is null && basicSet is null ? Salary(setup, person, basicPay) : null;
-        var basic = basicSet?.Amount ?? (units is var (quantity, _) ? pack.Round(quantity * basicPay.Amount) : salary!.Value.Amount);
+        (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes)? salary = units is null && basicSet is null && !owedOnly
+            ? Salary(period, pack, person, basicPay, paidTo) : null;
+        var basic = owedOnly ? 0 : basicSet?.Amount ?? (units is var (quantity, _) ? pack.Round(quantity * basicPay.Amount) : salary!.Value.Amount);
         RunAmount? Set(Guid item) => person.Amounts?.FirstOrDefault(a => a.PayItemId == item);
         var own = new List<WorkedLine>();
         foreach (var item in setup.Items.Where(i => i.Status == "active" && i.CalcMethod is "fixed" or "percent_of_basic" or "each_run")
@@ -302,7 +351,8 @@ public static class PayRunCalculator
                     own.Add(new WorkedLine(item.Kind, item.Code, item.Name, item.Id, null, item.Taxable, item.BeforeTax, null, null, set.Amount, Reason: set.Reason));
                 continue;
             }
-            if (item.CalcMethod == "each_run") continue;
+            // Someone paid only what they are owed (a leaver) gets only what is entered for them, such as final dues.
+            if (item.CalcMethod == "each_run" || owedOnly) continue;
             var applies = setup.Assignments.Where(a => a.PayItemId == item.Id && a.StartsOn <= period.End && (a.EndsOn is null || a.EndsOn >= period.Start)).ToList();
             var row = applies.FirstOrDefault(a => a.EmployeeId == person.EmployeeId) ?? applies.FirstOrDefault(a => a.EmployeeId is null);
             if (row is null) continue;
@@ -314,24 +364,12 @@ public static class PayRunCalculator
         }
 
         // Items paid by the hour or day: the hours entered, at their own amount a unit or multiple of their own rate, else the item's.
-        foreach (var item in setup.Items.Where(i => i.Status == "active" && i.CalcMethod == "per_unit").OrderBy(i => i.Code, StringComparer.Ordinal))
+        foreach (var item in setup.Items.Where(i => !owedOnly && i.Status == "active" && i.CalcMethod == "per_unit").OrderBy(i => i.Code, StringComparer.Ordinal))
         {
             var hours = person.Time?.FirstOrDefault(t => t.PayItemId == item.Id)?.Quantity ?? 0;
-            if (hours <= 0) continue;
-            var theirs = setup.Assignments.FirstOrDefault(a => a.PayItemId == item.Id && a.EmployeeId == person.EmployeeId && a.StartsOn <= period.End
-                && (a.EndsOn is null || a.EndsOn >= period.Start));
-            var everyone = setup.Assignments.FirstOrDefault(a => a.PayItemId == item.Id && a.EmployeeId is null && a.StartsOn <= period.End
-                && (a.EndsOn is null || a.EndsOn >= period.Start));
-            var terms = (theirs is { Amount: not null } or { Multiplier: not null } ? theirs : null)
-                ?? (everyone is { Amount: not null } or { Multiplier: not null } ? everyone : null);
-            var unitRate = terms is { Amount: { } flat } ? flat
-                : (terms?.Multiplier ?? item.Multiplier) is { } times ? OwnRate(basicPay, item.Unit!, setup.Wages) * times
-                : item.DefaultAmount;
-            if (unitRate is not { } rate) continue;
-            rate = pack.Round(rate);
-            own.Add(new WorkedLine("earning", item.Code, item.Name, item.Id, null, item.Taxable, false, null, null, pack.Round(hours * rate),
-                Quantity: hours, UnitRate: rate));
+            if (PerUnit(setup, person, basicPay, item, hours) is { } line) own.Add(line);
         }
+        own.AddRange(owed);
 
         var earnings = own.Where(l => l.Kind == "earning").ToList();
         var deductions = own.Where(l => l.Kind == "deduction").ToList();
@@ -351,11 +389,10 @@ public static class PayRunCalculator
         var statutoryCosts = Made(setup, "employer_cost", result.EmployerCosts, choice, earlier, statutory);
 
         var name = setup.Names.GetValueOrDefault("basic") ?? new LineName("BASIC", "Basic pay", null);
-        var lines = new List<WorkedLine>
-        {
-            new("earning", name.Code, name.Name, name.PayItemId, null, true, false, salary?.Base, salary?.Rate, basic,
-                Quantity: units?.Quantity, UnitRate: units is null ? null : basicPay.Amount, Reason: basicSet?.Reason),
-        };
+        var lines = new List<WorkedLine>();
+        if (!owedOnly)
+            lines.Add(new("earning", name.Code, name.Name, name.PayItemId, null, true, false, salary?.Base, salary?.Rate, basic,
+                Quantity: units?.Quantity, UnitRate: units is null ? null : basicPay.Amount, Reason: basicSet?.Reason));
         lines.AddRange(earnings);
         lines.AddRange(statutoryDeductions);
         lines.AddRange(deductions);
@@ -367,14 +404,17 @@ public static class PayRunCalculator
         var net = gross - totalDeductions;
         var notes = new List<string>();
         if (person.HireDate >= period.Start) notes.Add("joined");
-        if (person.ExitDate is { } exit && exit <= period.End) notes.Add("left");
+        if (person.ExitDate is { } left && left >= period.Start && left <= period.End) notes.Add("left");
         if (salary is { } paid) notes.AddRange(paid.Notes);
+        if (paidTo is not null && salary is not null) notes.Add("paid_to_cutoff");
+        notes.AddRange(held);
+        if (owed.Count > 0) notes.Add("owed");
         if (net < 0) notes.Add("negative_net");
         if (choice.Makes.Count == 0) notes.Add("no_deductions");
         else if (choice.Makes.Count < StatutoryChoice.Groups.Count) notes.Add("some_deductions");
         if (statutoryDeductions.Concat(statutoryCosts).Any(l => l.Amount < 0)) notes.Add("refund");
         if (units is { Usual: true }) notes.Add("usual_time");
-        if (MinimumWageNote(setup, person, basicPay) is { } minimum) notes.Add(minimum);
+        if (!owedOnly && MinimumWageNote(setup, person, basicPay) is { } minimum) notes.Add(minimum);
         if (person.RunChoice is not null
             || (person.Amounts ?? []).Any(a => a.PayItemId is not { } id || setup.Items.FirstOrDefault(i => i.Id == id)?.CalcMethod != "each_run"))
             notes.Add("adjusted");
@@ -384,6 +424,135 @@ public static class PayRunCalculator
             new PersonTotals(basic, gross, result.TaxablePay, result.TaxBeforeRelief, result.PersonalRelief,
                 statutoryDeductions.Where(l => l.StatutoryKey == "paye").Sum(l => l.Amount), totalDeductions, net,
                 statutoryCosts.Sum(l => l.Amount) + employerCosts.Sum(l => l.Amount)), choice.Makes);
+    }
+
+    /// <summary>
+    /// An item paid by the hour or day for the hours given: at the person's own amount a unit or multiple of
+    /// their own rate, else the item's (null: no hours, or no rate to pay them at).
+    /// </summary>
+    private static WorkedLine? PerUnit(RunSetup setup, Candidate person, BasicPayRow basicPay, ItemDefinition item, decimal hours, RunPeriod? owed = null)
+    {
+        if (hours <= 0) return null;
+        var period = setup.Period;
+        var theirs = setup.Assignments.FirstOrDefault(a => a.PayItemId == item.Id && a.EmployeeId == person.EmployeeId && a.StartsOn <= period.End
+            && (a.EndsOn is null || a.EndsOn >= period.Start));
+        var everyone = setup.Assignments.FirstOrDefault(a => a.PayItemId == item.Id && a.EmployeeId is null && a.StartsOn <= period.End
+            && (a.EndsOn is null || a.EndsOn >= period.Start));
+        var terms = (theirs is { Amount: not null } or { Multiplier: not null } ? theirs : null)
+            ?? (everyone is { Amount: not null } or { Multiplier: not null } ? everyone : null);
+        var unitRate = terms is { Amount: { } flat } ? flat
+            : (terms?.Multiplier ?? item.Multiplier) is { } times ? OwnRate(basicPay, item.Unit!, setup.Wages) * times
+            : item.DefaultAmount;
+        if (unitRate is not { } rate) return null;
+        rate = setup.Pack.Round(rate);
+        return new WorkedLine("earning", item.Code, item.Name, item.Id, null, item.Taxable, false, null, null, setup.Pack.Round(hours * rate),
+            Quantity: hours, UnitRate: rate, Owed: owed);
+    }
+
+    /// <summary>
+    /// What the cut-off holds back for the next run (PAY-04), as the person this run pays and its notes:
+    /// a pay change starting after it keeps the rate before it for the whole period (pay_change_next_run),
+    /// and overtime and amounts for items entered each run that were entered after it aren't paid
+    /// (next_run). Review edits are never held back.
+    /// </summary>
+    private static (Candidate Person, List<string> Notes) Hold(RunSetup setup, RunCutoff? cutoff, Candidate person)
+    {
+        var notes = new List<string>();
+        if (cutoff is null) return (person, notes);
+        if (cutoff.Covers("pay_changes"))
+        {
+            var rows = person.Pay.OrderBy(p => p.From).ToList();
+            var later = rows.Where((p, i) => i > 0 && p.From > cutoff.On && p.From <= setup.Period.End).ToList();
+            if (later.Count > 0)
+            {
+                // The rate before a change held back runs on until the next change kept (or as long as the changes held back ran).
+                var kept = rows.Except(later).ToList();
+                person = person with
+                {
+                    Pay = kept.Select((p, i) => !later.Any(l => p.To?.AddDays(1) == l.From) ? p
+                        : p with { To = i + 1 < kept.Count ? kept[i + 1].From.AddDays(-1) : rows[^1].To }).ToList(),
+                };
+                notes.Add("pay_change_next_run");
+            }
+        }
+        bool Late(Guid? item, string method, string what, DateOnly? entered) =>
+            item is { } id && setup.Items.FirstOrDefault(i => i.Id == id)?.CalcMethod == method && cutoff.Covers(what) && cutoff.After(entered);
+        var time = person.Time?.Where(t => !Late(t.PayItemId, "per_unit", "overtime", t.EnteredOn)).ToList();
+        var amounts = person.Amounts?.Where(a => !Late(a.PayItemId, "each_run", "one_off", a.EnteredOn)).ToList();
+        if (time?.Count != person.Time?.Count || amounts?.Count != person.Amounts?.Count)
+        {
+            person = person with { Time = time, Amounts = amounts };
+            notes.Add("next_run");
+        }
+        return (person, notes);
+    }
+
+    /// <summary>Someone the last run paid to its cut-off, who left in its period: this run pays them the rest.</summary>
+    private static bool LeftAfterLastCutoff(RunSetup setup, Candidate person) =>
+        setup is { Only: null, Last: { Cutoff: not null } last } && person.Last?.Notes.Contains("paid_to_cutoff") == true
+        && person.ExitDate >= last.Period.Start && person.ExitDate <= last.Period.End;
+
+    /// <summary>
+    /// What the last run held back for this one (PAY-04), as lines owed from its period: basic pay as the
+    /// period turned out less what the last run paid (someone it left out, a leaver it paid to its
+    /// cut-off, a pay change it didn't use; never basic pay set by hand), allowances on basic pay on that,
+    /// and what was entered for the person in it that it didn't pay (everything, for someone it left out;
+    /// overtime and amounts for items entered each run entered after its cut-off). Daily and hourly
+    /// rates are paid at the rate in force at the period's end for the days or hours it paid.
+    /// </summary>
+    private static List<WorkedLine> Owed(RunSetup setup, Candidate person, BasicPayRow pay)
+    {
+        var lines = new List<WorkedLine>();
+        if (setup is not { Only: null, Last: { Cutoff: { } cutoff, Period: var period } } || person.Last is not { } was) return lines;
+        var pack = setup.Pack;
+        var heldOut = was.ExcludedReason == "after_cutoff";
+        var name = setup.Names.GetValueOrDefault("basic") ?? new LineName("BASIC", "Basic pay", null);
+
+        decimal owedBasic = 0;
+        if (!was.BasicSet && (heldOut || was.Notes.Contains("paid_to_cutoff") || was.Notes.Contains("pay_change_next_run"))
+            && InForce(person.Pay, PaidOn(person, period), p => p.From, p => p.To) is { } then)
+        {
+            if (ByRate(then))
+            {
+                var quantity = heldOut ? was.Time?.FirstOrDefault(t => t.PayItemId is null)?.Quantity : was.Quantity;
+                var unitRate = then.Amount - (heldOut ? 0 : was.UnitRate ?? then.Amount);
+                if (quantity is > 0 && unitRate != 0)
+                {
+                    owedBasic = pack.Round(quantity.Value * unitRate);
+                    lines.Add(new WorkedLine("earning", name.Code, name.Name, name.PayItemId, null, true, false, null, null, owedBasic,
+                        Quantity: quantity, UnitRate: unitRate, Owed: period));
+                }
+            }
+            else
+            {
+                owedBasic = Salary(period, pack, person, then).Amount - (heldOut ? 0 : was.Basic ?? 0);
+                if (owedBasic != 0)
+                    lines.Add(new WorkedLine("earning", name.Code, name.Name, name.PayItemId, null, true, false, null, null, owedBasic, Owed: period));
+            }
+        }
+
+        if (owedBasic != 0)
+            foreach (var item in setup.Items.Where(i => i.CalcMethod == "percent_of_basic").OrderBy(i => i.Code, StringComparer.Ordinal))
+            {
+                var applies = setup.Assignments.Where(a => a.PayItemId == item.Id && a.StartsOn <= period.End && (a.EndsOn is null || a.EndsOn >= period.Start)).ToList();
+                var row = applies.FirstOrDefault(a => a.EmployeeId == person.EmployeeId) ?? applies.FirstOrDefault(a => a.EmployeeId is null);
+                if (row is null) continue;
+                var (amount, @base, rate) = Percent(owedBasic, (row.Rate ?? item.Rate!.Value) / 100, pack);
+                if (amount != 0)
+                    lines.Add(new WorkedLine(item.Kind, item.Code, item.Name, item.Id, null, item.Taxable, item.BeforeTax, @base, rate, amount, Owed: period));
+            }
+
+        bool HeldBack(string what, DateOnly? entered) => heldOut || (cutoff.Covers(what) && cutoff.After(entered));
+        foreach (var entry in was.Time ?? [])
+            if (setup.Items.FirstOrDefault(i => i.Id == entry.PayItemId && i.CalcMethod == "per_unit") is { } item && HeldBack("overtime", entry.EnteredOn)
+                && PerUnit(setup, person, pay, item, entry.Quantity, period) is { } line)
+                lines.Add(line);
+        foreach (var entry in was.Amounts ?? [])
+            if (setup.Items.FirstOrDefault(i => i.Id == entry.PayItemId && i.CalcMethod == "each_run") is { } item && entry.Amount > 0
+                && HeldBack("one_off", entry.EnteredOn))
+                lines.Add(new WorkedLine(item.Kind, item.Code, item.Name, item.Id, null, item.Taxable, item.BeforeTax, null, null, entry.Amount,
+                    Reason: entry.Reason, Owed: period));
+        return lines;
     }
 
     private static (decimal Amount, decimal? Base, decimal? Rate) Percent(decimal basic, decimal rate, RulePack pack) =>

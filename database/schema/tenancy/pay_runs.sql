@@ -21,6 +21,8 @@ create table pay_runs (
                          check (status in ('draft', 'calculating', 'calculated', 'awaiting_approval', 'approved', 'cancelled')),
     rule_pack_version    text references rule_packs (version),
     calculation_error    text,                                   -- the error code when the last calculation failed (PAY-2010)
+    cutoff_on            date,                                   -- the schedule's cut-off the last calculation used (PAY-04; null: none)
+    cutoff_applies_to    text[],                                 -- and what it applied to
     decline_reason       text,                                   -- why the last approval request was declined
     people               int not null default 0,                 -- paid in the run
     gross_pay            numeric(18, 2) not null default 0,
@@ -53,7 +55,8 @@ create table pay_runs (
     check ((kind = 'correction') = (corrects_pay_run_id is not null)),
     check ((kind = 'correction') = (employee_ids is not null and cardinality(employee_ids) > 0)),
     check ((status = 'approved') = (approved_at is not null)),
-    check ((status = 'cancelled') = (cancelled_at is not null))
+    check ((status = 'cancelled') = (cancelled_at is not null)),
+    check ((cutoff_on is null) = (cutoff_applies_to is null))
 );
 
 -- One regular run per company, schedule and period that isn't cancelled.
@@ -92,12 +95,16 @@ create trigger pay_runs_keep_final before update on pay_runs
 --   no_time       a daily or hourly rate with no days or hours entered and none usual (PAY-11)
 --   other_currency  paid in a currency other than the rule pack's
 --   not_in_period   (corrections) not employed on this schedule in the period
+--   after_cutoff  (PAY-04) joined after the schedule's cut-off: the next run pays the days owed
 -- Their name and staff number are copied in, as on the payslip. notes flag what Payroll should
--- check before sending: joined or left in the period (paid the whole period until PAY-04),
+-- check before sending: joined or left in the period (a salary paid for their days, PAY-04),
 -- negative_net (blocks sending, PAY-2019), no_deductions or some_deductions (the statutory items
 -- chosen for them, PAY-10), refund (a statutory line below zero), usual_time (paid their usual days
 -- or hours, nothing entered), below_minimum (a rate below the minimum wage for their place of work:
--- blocks sending, PAY-2002), no_wage_area (no wage area to check it against). deductions_made lists the
+-- blocks sending, PAY-2002), no_wage_area (no wage area to check it against), and with a cut-off
+-- (PAY-04) paid_to_cutoff (left after it: paid to it), pay_change_next_run (a pay change from after
+-- it: the rate before it this run), next_run (overtime or one-off amounts entered after it wait) and
+-- owed (pay held back by the last run's cut-off, on lines owed from its period). deductions_made lists the
 -- statutory items made for them and deductions_chosen_by/at who chose that (null: every item, as
 -- monthly payroll always makes). Taxable pay, tax before relief and relief are the month to date's.
 create table pay_run_people (
@@ -109,7 +116,7 @@ create table pay_run_people (
     staff_no          text not null,
     full_name         text not null,
     included          boolean not null,
-    excluded_reason   text check (excluded_reason in ('no_pay', 'other_basis', 'other_currency', 'not_in_period', 'no_time')),
+    excluded_reason   text check (excluded_reason in ('no_pay', 'other_basis', 'other_currency', 'not_in_period', 'no_time', 'after_cutoff')),
     notes             text[] not null default '{}',
     employment_id     uuid,
     compensation_id   uuid,
@@ -174,10 +181,14 @@ create table pay_run_lines (
     quantity         numeric(9, 2),
     unit_rate        numeric(18, 2),
     reason           text,
+    owed_from        date,                                       -- owed from the last period (PAY-04): its days
+    owed_to          date,
     position         int not null,
     foreign key (organization_id, person_id) references pay_run_people (organization_id, id) on delete cascade,
     foreign key (company_id, pay_run_id) references pay_runs (company_id, id) on delete cascade,
-    check ((quantity is null) = (unit_rate is null))
+    check ((quantity is null) = (unit_rate is null)),
+    check ((owed_from is null) = (owed_to is null)),
+    check (owed_to >= owed_from)
 );
 
 create index pay_run_lines_person on pay_run_lines (person_id, position);
