@@ -58,10 +58,11 @@ public static class IdentityModule
         return services;
     }
 
-    /// <summary>Resumes the session on every request, so <see cref="TenantContext"/> is filled.</summary>
+    /// <summary>Resumes the session on every request, so <see cref="TenantContext"/> is filled, with the request's reference.</summary>
     public static IApplicationBuilder UseSessions(this IApplicationBuilder app) =>
         app.Use(async (http, next) =>
         {
+            http.RequestServices.GetRequiredService<TenantContext>().SetReference(http.TraceIdentifier);
             await http.RequestServices.GetRequiredService<SessionService>().ResumeAsync(http, http.RequestAborted);
             await next(http);
         });

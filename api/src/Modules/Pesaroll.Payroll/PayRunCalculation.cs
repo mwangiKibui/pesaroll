@@ -34,6 +34,7 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
     {
         tenant.SetUser(userId);
         tenant.Set(organizationId, [companyId]);
+        tenant.SetReference($"pay-run-calculation:{payRunId}");
         var run = await db.PayRuns.AsNoTracking().SingleOrDefaultAsync(r => r.Id == payRunId, ct);
         if (run is not { Status: "calculating" }) return;
 

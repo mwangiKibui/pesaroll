@@ -46,3 +46,5 @@
 \i tenancy/approvals.sql
 \i tenancy/statutory_deductions.sql
 \i tenancy/pay_runs.sql
+\i platform/audit_log.sql
+\i platform/audit_triggers.sql

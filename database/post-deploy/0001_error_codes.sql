@@ -120,6 +120,7 @@ insert into error_codes (code, module, severity, message_en, fixable_by, playboo
   ('WF-5008',  'WF',   'warning', 'We couldn''t find that workflow. It may have been changed or switched off.', 'customer', 'The workflow doesn''t exist, isn''t active, or is for a company outside the person''s scope.'),
   ('WF-5009',  'WF',   'warning', 'Some workflow details don''t look right. Check the fields marked.', 'customer', 'Steps in order (1 to 5), each finding approvers by a permission, named members or the line manager, with a known permission or fallback; the company must be in the organization.'),
   ('BILL-6001', 'BILL', 'warning', 'This company has more than {limit} active employees. Choose a plan to approve this pay run.', 'customer', 'Explain the plans; check for complimentary access first.'),
+  ('PLAT-9003', 'PLAT', 'critical', 'The audit log can''t be changed.', 'engineering', 'Entries in the audit log are never changed or deleted, by anyone. Something tried to: find out what from the reference and the database logs.'),
   ('PLAT-9001', 'PLAT', 'critical', 'Something went wrong on our side. Quote reference {reference} to support.', 'engineering', 'Look up the reference; escalate with the request id.')
 on conflict (code) do update set
   module = excluded.module, severity = excluded.severity, message_en = excluded.message_en,

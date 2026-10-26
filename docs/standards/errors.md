@@ -154,6 +154,7 @@ Each entry also lives in the `error_codes` table (loaded by a post-deploy script
 | WF-5008 | We couldn't find that workflow. It may have been changed or switched off. | Customer | The workflow doesn't exist, isn't active, or is for a company outside the person's scope. |
 | WF-5009 | Some workflow details don't look right. Check the fields marked. | Customer | Steps in order (1 to 5), each finding approvers by a permission, named members or the line manager, with a known permission or fallback; the company must be in the organization. |
 | BILL-6001 | This company has more than {limit} active employees. Choose a plan to approve this pay run. | Customer | Explain the plans; check for complimentary access first. |
+| PLAT-9003 | The audit log can't be changed. | Engineering | Entries in the audit log are never changed or deleted, by anyone. Something tried to: find out what from the reference and the database logs. |
 | PLAT-9002 | This request came from another website and was blocked. | Engineering | Check App:AllowedOrigins includes the app's address; otherwise a cross-site request was stopped. |
 | PLAT-9001 | Something went wrong on our side. Quote reference {reference} to support. | Engineering | Look up the reference; escalate with the request id. |
 
