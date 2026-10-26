@@ -64,6 +64,27 @@ begin
     raise exception 'an organization-wide change was given a company';
   end if;
 
+  -- An action, by name, through audit_record: by whom, for which request, about what.
+  perform audit_record('pay_run.calculated', ke1, 'pay_run', pay1, 'Monthly', '{"people": 12}');
+  select * into strict entry from audit_log where kind = 'action' and subject_id = pay1;
+  if (entry.action, entry.company_id, entry.user_id, entry.request_ref, entry.source, entry.subject_type, entry.subject_name, entry.details->>'people', entry.table_name)
+     is distinct from ('pay_run.calculated', ke1, owner1, 'REQ-AUDIT-1', 'app', 'pay_run', 'Monthly', '12', null::text) then
+    raise exception 'action recorded as %', row(entry.action, entry.company_id, entry.user_id, entry.request_ref, entry.source, entry.subject_type, entry.details);
+  end if;
+  perform audit_record('pay_schedule.cutoff_on', null, 'pay_schedule', sched, 'Audit test monthly', null);
+  -- Only for the person's own companies, and only named actions.
+  begin
+    perform audit_record('pay_run.calculated', '00000000-0000-7000-8000-0000000000b1', 'pay_run', pay1, 'Monthly', null);
+    raise exception 'an action was recorded for another organization''s company';
+  exception when raise_exception then
+    if sqlerrm not like '%one of the person''s companies%' then raise; end if;
+  end;
+  begin
+    perform audit_record('insert', ke1, 'pay_run', pay1, 'Monthly', null);
+    raise exception 'an action without a name was recorded';
+  exception when check_violation then null;
+  end;
+
   -- The app may read the log, never change it.
   begin
     update audit_log set action = 'delete' where record_id = wanjiku;
@@ -83,7 +104,7 @@ begin
 
   -- Someone who may only see Uganda sees neither Kenya's entries nor the organization's.
   perform set_config('app.company_ids', ug1::text, true);
-  select count(*) into seen from audit_log where record_id in (wanjiku, pay1, sched);
+  select count(*) into seen from audit_log where record_id in (wanjiku, pay1, sched) or subject_id in (pay1, sched);
   if seen <> 0 then raise exception 'company scope: saw % entries', seen; end if;
   -- Another organization sees nothing.
   perform set_config('app.org_id', '00000000-0000-7000-8000-000000000002', true);

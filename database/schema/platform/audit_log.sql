@@ -1,4 +1,6 @@
--- PLAT-03: the audit log. Every change to an organization's data is recorded by the database itself
+-- PLAT-03: the audit log. Two kinds of entry. Actions: what someone did, by name (pay_run.calculated,
+-- employee.bank_changed; the catalogue is docs/standards/audit.md), recorded by the app through
+-- audit_record, with the subject and safe details. Changes: every change to an organization's data, recorded by the database itself
 -- (the trigger audit_change on each table, below), so writes from EF, bulk updates, SQL functions and
 -- jobs are all caught: the table and row, insert, update or delete, the columns an update changed,
 -- the values before and after, who (app.user_id), the request (app.request_ref: the reference errors
@@ -13,21 +15,30 @@ create table audit_log (
     id               uuid primary key default uuidv7(),
     organization_id  uuid not null,                     -- no foreign key: entries outlive what they record
     company_id       uuid,
-    kind             text not null check (kind in ('change')),
-    action           text not null check (action in ('insert', 'update', 'delete')),
-    table_name       text not null,
-    record_id        uuid,                              -- null for a link table without an id (its keys are in the values)
+    kind             text not null check (kind in ('change', 'action')),
+    action           text not null,                     -- a change: insert, update or delete; an action: its key
+    table_name       text,                              -- a change: the table
+    record_id        uuid,                              -- a change: the row (null for a link table without an id: its keys are in the values)
+    subject_type     text,                              -- an action: what it was done to (pay_run, employee, pay_schedule…)
+    subject_id       uuid,
+    subject_name     text,                              -- its name then, kept when it is renamed or deleted
+    details          jsonb,                             -- an action: safe details from its catalogue entry, never personal data
     changed          text[],                            -- an update: the columns it changed
     old_values       jsonb,                             -- an update: the changed columns before; a delete: the row
     new_values       jsonb,                             -- an update: the changed columns after; an insert: the row
     user_id          uuid,
     request_ref      text,
     source           text not null check (source in ('app', 'database')),
-    at               timestamptz not null default now()
+    at               timestamptz not null default now(),
+    constraint audit_log_kind_shape check (case kind
+        when 'change' then action in ('insert', 'update', 'delete') and table_name is not null
+        else action ~ '^[a-z_]+\.[a-z_]+$' and table_name is null end)
 );
 
 create index audit_log_by_time on audit_log (organization_id, at desc);
 create index audit_log_by_record on audit_log (table_name, record_id);
+create index audit_log_by_action on audit_log (organization_id, action, at);
+create index audit_log_by_subject on audit_log (subject_id) where subject_id is not null;
 
 alter table audit_log enable row level security;
 
@@ -137,3 +148,26 @@ begin
     return null;
 end
 $$;
+
+-- Records an action (kind 'action') in the person's organization (app.org_id), by them (app.user_id),
+-- for a request (app.request_ref): the app can't write the log any other way. The company must be one
+-- of theirs, or null for something organization-wide.
+create or replace function audit_record(p_action text, p_company_id uuid, p_subject_type text, p_subject_id uuid, p_subject_name text, p_details jsonb)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+    if app_org_id() is null then
+        raise exception 'an action is recorded in an organization';
+    end if;
+    if p_company_id is not null and not (p_company_id = any (app_company_ids())
+                                         and exists (select 1 from companies c where c.id = p_company_id and c.organization_id = app_org_id())) then
+        raise exception 'an action is recorded for one of the person''s companies';
+    end if;
+    insert into audit_log (organization_id, company_id, kind, action, subject_type, subject_id, subject_name, details, user_id, request_ref, source)
+    values (app_org_id(), p_company_id, 'action', p_action, p_subject_type, p_subject_id, p_subject_name, p_details,
+        nullif(current_setting('app.user_id', true), '')::uuid, nullif(current_setting('app.request_ref', true), ''), 'app');
+end
+$$;
+
+grant execute on function audit_record(text, uuid, text, uuid, text, jsonb) to pesaroll_app;

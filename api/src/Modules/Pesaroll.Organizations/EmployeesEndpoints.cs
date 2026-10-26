@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Pesaroll.Identity;
 using Pesaroll.Notifications;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Security;
 using Pesaroll.Shared.Tenancy;
@@ -278,7 +279,10 @@ public static class EmployeesEndpoints
             employee.Accounts.AddRange(added.OfType<EmployeePaymentAccount>());
             await RequireUniqueNumbersAsync(db, employee, ct);
             db.Employees.Add(employee);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await SaveAsync(db, ct);
+            await RecordAsync(db, AuditActions.EmployeeAdded, employee, ct);
+            await transaction.CommitAsync(ct);
             return Results.Created($"/api/employees/{employee.Id}", ToResponse(employee, shows: false));
         }).Produces<EmployeeResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
@@ -303,6 +307,10 @@ public static class EmployeesEndpoints
             await SaveAsync(db, ct);
             db.AddRange(added);
             await SaveAsync(db, ct);
+            if (added.OfType<Compensation>().FirstOrDefault() is { } pay)
+                await RecordAsync(db, AuditActions.EmployeePayChanged, employee, ct, ("validFrom", pay.ValidFrom));
+            if (added.OfType<EmployeePaymentAccount>().FirstOrDefault() is { } account)
+                await RecordAsync(db, AuditActions.EmployeeBankChanged, employee, ct, ("method", account.Method));
             await transaction.CommitAsync(ct);
             return Results.Ok(ToResponse(await LoadAsync(db, id, ct, tracked: false), shows: false));
         }).Produces<EmployeeResponse>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -317,12 +325,24 @@ public static class EmployeesEndpoints
             // People who reported to them lose their line manager (on delete set null); their job, pay
             // and accounts go with them. Once payroll has run for someone (PAY-03), they're ended, not deleted.
             db.Employees.Remove(employee);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await db.SaveChangesAsync(ct);
+            await RecordAsync(db, AuditActions.EmployeeRemoved, employee, ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.Employees);
 
         return app;
+    }
+
+    /// <summary>Records something done to an employee in the audit log (PLAT-03), by name and staff number, never their pay or numbers.</summary>
+    public static Task RecordAsync(DbContext db, string action, Employee employee, CancellationToken ct, params (string Key, object? Value)[] more)
+    {
+        var details = new Dictionary<string, object?> { ["staffNo"] = employee.StaffNo };
+        foreach (var (key, value) in more) details[key] = value;
+        return Audit.RecordAsync(db, action, employee.CompanyId, new AuditSubject("employee", employee.Id, $"{employee.FirstName} {employee.LastName}"),
+            details, ct);
     }
 
     /// <summary>Refuses to delete something employees' jobs use (a department, location, schedule, leave plan).</summary>

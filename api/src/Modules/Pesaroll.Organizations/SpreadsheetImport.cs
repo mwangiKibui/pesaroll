@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
@@ -161,18 +162,22 @@ public static class SpreadsheetImport
             var rows = Clean(request.Rows, spec);
             await RequireForRowsAsync(spec, rows, db, tenant, ct);
             var (valid, problems, _) = await CheckAsync(spec, rows, db, http.RequestServices, ct);
-            if (spec.SavesWhatPasses)
-            {
-                var saved = valid.Count > 0 ? await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct) : 0;
-                return Results.Ok(new ImportResult(saved, problems));
-            }
-
-            if (problems.Count > 0)
+            if (!spec.SavesWhatPasses && problems.Count > 0)
             {
                 throw RowsNeedFixing(problems);
             }
 
-            return Results.Ok(new ImportResult(await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct)));
+            // Saved with its entry in the audit log (PLAT-03), or not at all.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var saved = valid.Count > 0 ? await spec.Save(valid, request, organizationId, db, clock.GetUtcNow(), http.RequestServices, ct) : 0;
+            if (saved > 0)
+            {
+                await Audit.RecordAsync(db, AuditActions.RecordsImported, null, new AuditSubject("organization", organizationId, null),
+                    new Dictionary<string, object?> { ["things"] = spec.Things, ["rows"] = saved }, ct);
+            }
+
+            await transaction.CommitAsync(ct);
+            return Results.Ok(spec.SavesWhatPasses ? new ImportResult(saved, problems) : new ImportResult(saved));
         }).Produces<ImportResult>().Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status403Forbidden).RequirePermission(spec.Permission);
     }

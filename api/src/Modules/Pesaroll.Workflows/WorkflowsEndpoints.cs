@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Pesaroll.Identity;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
@@ -140,6 +141,7 @@ public static class WorkflowsEndpoints
             }).ToList();
             db.Workflows.Add(workflow);
             await db.SaveChangesAsync(ct);
+            await RecordAsync(db, AuditActions.WorkflowSaved, workflow, ct);
             await transaction.CommitAsync(ct);
             return Results.Created($"/api/workflows/{workflow.Id}", await DescribeAsync(db, workflow, ct));
         }).Produces<WorkflowResponse>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -154,7 +156,10 @@ public static class WorkflowsEndpoints
             else if (!tenant.Can(Permissions.Workflows)) throw AccessErrors.NoPermission();
             workflow.Active = false;
             workflow.SwitchedOffAt = clock.GetUtcNow();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await db.SaveChangesAsync(ct);
+            await RecordAsync(db, AuditActions.WorkflowSwitchedOff, workflow, ct);
+            await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).Produces(StatusCodes.Status204NoContent).Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
@@ -214,6 +219,14 @@ public static class WorkflowsEndpoints
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).Produces<ErrorResponse>(StatusCodes.Status409Conflict).SignedIn();
 
         return app;
+    }
+
+    /// <summary>Records a workflow set up or switched off in the audit log (PLAT-03), named by its kind.</summary>
+    private static async Task RecordAsync(WorkflowsDbContext db, string action, Workflow workflow, CancellationToken ct)
+    {
+        var name = await db.Kinds.Where(k => k.Key == workflow.Kind).Select(k => k.NameEn).SingleOrDefaultAsync(ct);
+        await Audit.RecordAsync(db, action, workflow.CompanyId, new AuditSubject("workflow", workflow.Id, name ?? workflow.Kind),
+            new Dictionary<string, object?> { ["kind"] = workflow.Kind }, ct);
     }
 
     private static void Require(TenantContext tenant, string permission, Guid companyId)

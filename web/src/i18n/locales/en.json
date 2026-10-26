@@ -1704,5 +1704,46 @@
     "groupsLabel": "Groups",
     "groupsHint": "Choose one or more. They get everything each group allows, for the companies below.",
     "selfApproval": "They could approve pay runs they prepare. Where you can, let someone else approve them: Pesaroll will stop it unless your settings allow it."
+  },
+  "audit": {
+    "actions": {
+      "pay_run": {
+        "started": "{{who}} started the {{subject}} payroll for {{period}}",
+        "calculated": "{{who}} worked out the {{subject}} payroll for {{period}}",
+        "sent": "{{who}} sent the {{subject}} payroll for {{period}} for approval",
+        "approved": "{{who}} approved the {{subject}} payroll for {{period}}",
+        "declined": "{{who}} declined the {{subject}} payroll for {{period}}",
+        "withdrawn": "{{who}} took back the {{subject}} payroll for {{period}} from approval",
+        "cancelled": "{{who}} cancelled the {{subject}} payroll for {{period}}",
+        "corrected": "{{who}} started a correction of the {{subject}} payroll for {{period}}"
+      },
+      "employee": {
+        "added": "{{who}} added {{subject}}",
+        "removed": "{{who}} deleted {{subject}}",
+        "pay_changed": "{{who}} changed {{subject}}'s pay",
+        "bank_changed": "{{who}} changed the account {{subject}} is paid into"
+      },
+      "records": {
+        "imported": "{{who}} uploaded {{count}} {{things}}"
+      },
+      "pay_schedule": {
+        "added": "{{who}} added the {{subject}} payroll schedule",
+        "changed": "{{who}} changed the {{subject}} payroll schedule",
+        "removed": "{{who}} deleted the {{subject}} payroll schedule",
+        "cutoff_on": "{{who}} switched on the cut-off for the {{subject}} payroll schedule",
+        "cutoff_off": "{{who}} switched off the cut-off for the {{subject}} payroll schedule"
+      },
+      "workflow": {
+        "saved": "{{who}} set up who approves {{subject}}",
+        "switched_off": "{{who}} switched off approvals for {{subject}}"
+      },
+      "team": {
+        "access_changed": "{{who}} changed what {{subject}} can do",
+        "member_removed": "{{who}} removed {{subject}} from the organization"
+      },
+      "pay": {
+        "viewed": "{{who}} looked at the pay of {{count}} people"
+      }
+    }
   }
 }

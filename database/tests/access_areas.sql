@@ -1,4 +1,4 @@
--- ACC-04: permissions are grouped in areas, each with View and Manage; Manage brings View. The
+-- ACC-04: permissions are grouped in areas, each with View and Manage (the audit log, PLAT-03, only View); Manage brings View. The
 -- standard roles carry Manage on their areas; a person gets View wherever they have Manage, for the
 -- same companies.
 begin;
@@ -14,16 +14,17 @@ declare
   mary_membership uuid := uuidv7();
   grants record;
 begin
-  -- The catalogue: every permission is an area's View or Manage, and every area has both.
+  -- The catalogue: every permission is an area's View or Manage; every area has both, except the audit log, which has only View.
   if exists (select 1 from permissions p where p.key <> p.area || '.' || p.level) then
     raise exception 'a permission key is not <area>.<view|manage>';
   end if;
   if exists (select 1 from permission_areas a
-             where (select count(*) from permissions p where p.area = a.key) <> 2) then
-    raise exception 'an area does not have exactly View and Manage';
+             where (select array_agg(p.level order by p.level) from permissions p where p.area = a.key)
+                   is distinct from case when a.key = 'audit_log' then array['view'] else array['manage', 'view'] end) then
+    raise exception 'an area does not have exactly View and Manage (the audit log: only View)';
   end if;
   if (select array_agg(key order by sort_order) from permission_areas)
-     is distinct from array['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'workflows', 'pay_run_approvals', 'pay_runs'] then
+     is distinct from array['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'workflows', 'pay_run_approvals', 'pay_runs', 'audit_log'] then
     raise exception 'the areas are not the ones planned, in order';
   end if;
 

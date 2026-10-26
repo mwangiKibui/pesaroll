@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Pesaroll.Identity;
 using Pesaroll.Organizations;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 using Pesaroll.Workflows;
@@ -138,6 +139,7 @@ public static class PayRunsEndpoints
                 PeriodStart = period.Start, PeriodEnd = period.End, PayDate = payDate, CreatedBy = userId, CreatedAt = clock.GetUtcNow(),
             };
             db.PayRuns.Add(run);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             try
             {
                 await db.SaveChangesAsync(ct);
@@ -146,6 +148,9 @@ public static class PayRunsEndpoints
             {
                 throw PayRunErrors.AlreadyExists(schedule.Name, label, company.LegalName);   // started at the same moment
             }
+
+            await RecordAsync(db, org, AuditActions.PayRunStarted, run, ct);
+            await transaction.CommitAsync(ct);
 
             return Results.Created($"/api/pay-runs/{run.Id}", await DescribeAsync(db, org, tenant, run, ct));
         }).Produces<PayRunDetail>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -257,6 +262,7 @@ public static class PayRunsEndpoints
                 throw;
             }
 
+            await RecordAsync(db, org, AuditActions.PayRunSent, run, ct, ("people", run.People));
             return Results.Ok(await DescribeAsync(db, org, tenant, await db.PayRuns.AsNoTracking().SingleAsync(r => r.Id == run.Id, ct), ct));
         }).Produces<PayRunDetail>().Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayRuns);
@@ -272,7 +278,10 @@ public static class PayRunsEndpoints
             run.Status = "cancelled";
             run.CancelledBy = userId;
             run.CancelledAt = clock.GetUtcNow();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await db.SaveChangesAsync(ct);
+            await RecordAsync(db, org, AuditActions.PayRunCancelled, run, ct);
+            await transaction.CommitAsync(ct);
             return Results.Ok(await DescribeAsync(db, org, tenant, run, ct));
         }).Produces<PayRunDetail>().Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayRuns);
@@ -297,13 +306,36 @@ public static class PayRunsEndpoints
                 PeriodEnd = original.PeriodEnd, PayDate = original.PayDate, CreatedBy = userId, CreatedAt = clock.GetUtcNow(),
             };
             db.PayRuns.Add(run);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await db.SaveChangesAsync(ct);
+            await RecordAsync(db, org, AuditActions.PayRunCorrected, original, ct, ("correctionId", run.Id), ("people", chosen.Length));
+            await transaction.CommitAsync(ct);
             return Results.Created($"/api/pay-runs/{run.Id}", await DescribeAsync(db, org, tenant, run, ct));
         }).Produces<PayRunDetail>(StatusCodes.Status201Created).Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
           .Produces<ErrorResponse>(StatusCodes.Status403Forbidden).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
           .Produces<ErrorResponse>(StatusCodes.Status409Conflict).RequirePermission(Permissions.PayRuns);
 
         return app;
+    }
+
+    /// <summary>Records something done to a run in the audit log (PLAT-03): named by its schedule, with its period, never its amounts.</summary>
+    internal static async Task RecordAsync(PayrollDbContext db, OrganizationsDbContext org, string action, PayRun run, CancellationToken ct,
+        params (string Key, object? Value)[] more)
+    {
+        var names = await ScheduleNamesAsync(org, [run.PayScheduleId], ct);
+        await Audit.RecordAsync(db, action, run.CompanyId, new AuditSubject("pay_run", run.Id, names[run.PayScheduleId]),
+            AuditDetails(run, more), ct);
+    }
+
+    /// <summary>A run's details for the audit log: its kind and period.</summary>
+    internal static Dictionary<string, object?> AuditDetails(PayRun run, params (string Key, object? Value)[] more)
+    {
+        var details = new Dictionary<string, object?>
+        {
+            ["kind"] = run.Kind, ["periodStart"] = run.PeriodStart, ["periodEnd"] = run.PeriodEnd, ["payDate"] = run.PayDate,
+        };
+        foreach (var (key, value) in more) details[key] = value;
+        return details;
     }
 
     internal static (Guid User, Guid Organization) Who(TenantContext tenant, HttpContext http)

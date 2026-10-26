@@ -3,7 +3,7 @@ namespace Pesaroll.Shared.Tenancy;
 /// <summary>
 /// The actions the app checks (ACC-01), by key; the same keys are listed in the permissions table
 /// (post-deploy/0014_access_roles.sql), where roles bundle them. Code checks these keys, never role names.
-/// Each is an area's View or Manage (ACC-04).
+/// Each is an area's View or Manage (ACC-04); the audit log has only View.
 /// </summary>
 public static class Permissions
 {
@@ -39,9 +39,12 @@ public static class Permissions
     public const string PayRunApprovalsView = "pay_run_approvals.view";
     public const string PayRunsView = "pay_runs.view";
 
+    // View only: an area with nothing to manage.
+    public const string AuditLogView = "audit_log.view";
+
     public static readonly IReadOnlyList<string> All =
         [Companies, PaymentAccounts, Locations, Structure, Leave, Schedules, PayItems, Employees, PayrollHistory, Team, Pay, Workflows, PayRunApprovals, PayRuns,
-         CompaniesView, PaymentAccountsView, LocationsView, StructureView, LeaveView, SchedulesView, PayItemsView, EmployeesView, PayrollHistoryView, TeamView, PayView, WorkflowsView, PayRunApprovalsView, PayRunsView];
+         CompaniesView, PaymentAccountsView, LocationsView, StructureView, LeaveView, SchedulesView, PayItemsView, EmployeesView, PayrollHistoryView, TeamView, PayView, WorkflowsView, PayRunApprovalsView, PayRunsView, AuditLogView];
 }
 
 /// <summary>A permission a person has from their groups: for all companies, or for these.</summary>

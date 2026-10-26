@@ -2,6 +2,7 @@ using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Pesaroll.Organizations;
 using Pesaroll.Payroll.Engine;
+using Pesaroll.Shared.Audit;
 using Pesaroll.Shared.Errors;
 using Pesaroll.Shared.Tenancy;
 
@@ -264,6 +265,7 @@ public sealed class PayRunCalculation(PayrollDbContext db, OrganizationsDbContex
         run.CalculatedBy = userId;
         run.CalculatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(ct);
+        await PayRunsEndpoints.RecordAsync(db, org, AuditActions.PayRunCalculated, run, ct, ("people", run.People));
         await transaction.CommitAsync(ct);
     }
 }

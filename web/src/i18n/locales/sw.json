@@ -1704,5 +1704,46 @@
     "groupsLabel": "Vikundi",
     "groupsHint": "Chagua kimoja au zaidi. Wanapata kila kitu ambacho kila kikundi kinaruhusu, kwa kampuni zilizo hapa chini.",
     "selfApproval": "Wanaweza kuidhinisha mishahara wanayoiandaa. Ikiwezekana, mtu mwingine aidhinishe: Pesaroll itazuia hili isipokuwa mipangilio yako inaruhusu."
+  },
+  "audit": {
+    "actions": {
+      "pay_run": {
+        "started": "{{who}} alianza mishahara ya {{subject}} ya {{period}}",
+        "calculated": "{{who}} alikokotoa mishahara ya {{subject}} ya {{period}}",
+        "sent": "{{who}} alituma mishahara ya {{subject}} ya {{period}} iidhinishwe",
+        "approved": "{{who}} aliidhinisha mishahara ya {{subject}} ya {{period}}",
+        "declined": "{{who}} alikataa mishahara ya {{subject}} ya {{period}}",
+        "withdrawn": "{{who}} alirudisha mishahara ya {{subject}} ya {{period}} kutoka kwa idhini",
+        "cancelled": "{{who}} alighairi mishahara ya {{subject}} ya {{period}}",
+        "corrected": "{{who}} alianza marekebisho ya mishahara ya {{subject}} ya {{period}}"
+      },
+      "employee": {
+        "added": "{{who}} alimwongeza {{subject}}",
+        "removed": "{{who}} alimfuta {{subject}}",
+        "pay_changed": "{{who}} alibadilisha mshahara wa {{subject}}",
+        "bank_changed": "{{who}} alibadilisha akaunti anayolipwa {{subject}}"
+      },
+      "records": {
+        "imported": "{{who}} alipakia {{things}} {{count}}"
+      },
+      "pay_schedule": {
+        "added": "{{who}} aliongeza ratiba ya mishahara ya {{subject}}",
+        "changed": "{{who}} alibadilisha ratiba ya mishahara ya {{subject}}",
+        "removed": "{{who}} alifuta ratiba ya mishahara ya {{subject}}",
+        "cutoff_on": "{{who}} aliwasha tarehe ya mwisho ya ratiba ya mishahara ya {{subject}}",
+        "cutoff_off": "{{who}} alizima tarehe ya mwisho ya ratiba ya mishahara ya {{subject}}"
+      },
+      "workflow": {
+        "saved": "{{who}} aliweka wanaoidhinisha {{subject}}",
+        "switched_off": "{{who}} alizima idhini za {{subject}}"
+      },
+      "team": {
+        "access_changed": "{{who}} alibadilisha anachoweza kufanya {{subject}}",
+        "member_removed": "{{who}} alimwondoa {{subject}} kwenye shirika"
+      },
+      "pay": {
+        "viewed": "{{who}} aliangalia mishahara ya watu {{count}}"
+      }
+    }
   }
 }

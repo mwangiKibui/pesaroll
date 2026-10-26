@@ -75,7 +75,9 @@ function useDescribe() {
     }
     const at = (level: string) => group.areas.filter(a => a.level === level).map(a => name(a.area))
     const manage = at('manage'), view = at('view')
-    if (manage.length === group.areas.length) return t('team.access.everything')
+    // Everything: the most of every area (Manage, or View where that is all an area has, like the audit log).
+    const most = (area: string) => groups.areas.find(a => a.key === area)?.levels.at(-1) ?? 'manage'
+    if (group.areas.every(a => a.level === most(a.area))) return t('team.access.everything')
     const parts = [manage.length ? t('team.access.manage', { areas: manage.join(', ') }) : null, view.length ? t('team.access.view', { areas: view.join(', ') }) : null]
     return parts.filter(Boolean).join(' · ') || t('team.access.nothing')
   }
@@ -553,7 +555,8 @@ function GroupAccessDrawer({ groups, group, companies, onClose }: { groups: Team
   const scopeChanged = !!group && (scope.all !== group.allCompanies || (!scope.all && scope.ids.join() !== group.companyIds.join()))
   const [busy, setBusy] = useState(false)
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
-  const options = (['none', 'view', 'manage'] as const).map(value => ({ value, label: t(`team.levels.${value}`) }))
+  // The levels each area has: No access, then View and Manage, or only View (the audit log).
+  const options = (levels: string[]) => ['none', ...levels].map(value => ({ value, label: t(`team.levels.${value}`) }))
 
   const send = async (work: () => Promise<{ error?: unknown; response: Response }>, done: string) => {
     setBusy(true)
@@ -611,7 +614,7 @@ function GroupAccessDrawer({ groups, group, companies, onClose }: { groups: Team
         </>}
         <div className="grid gap-4 sm:grid-cols-2">
           {groups.areas.map(a => (
-            <SelectField key={a.key} label={i18n.language === 'sw' ? a.name.sw : a.name.en} placeholder={t('team.levelPlaceholder')} options={options}
+            <SelectField key={a.key} label={i18n.language === 'sw' ? a.name.sw : a.name.en} placeholder={t('team.levelPlaceholder')} options={options(a.levels)}
               value={levels[a.key] ?? 'none'} onChange={v => setLevels(l => ({ ...l, [a.key]: v }))} />
           ))}
         </div>
