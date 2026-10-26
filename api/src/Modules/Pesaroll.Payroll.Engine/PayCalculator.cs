@@ -84,12 +84,21 @@ public sealed record StatutoryChoice
 /// <summary>
 /// The payroll engine (PAY-01): a pure function of a month's pay and a rule pack. No database, clock or
 /// settings: the same inputs and pack always give the same result. Monthly pay only for now.
+/// Statutory amounts can be set (PAY-04: an accountant's edit for one run, by line key): an amount
+/// set replaces the rules' and is made whatever the choice, and PAYE is worked out on it.
 /// </summary>
 public static class PayCalculator
 {
-    public static PayResult Calculate(PayInputs pay, RulePack pack, StatutoryChoice? choice = null)
+    public static PayResult Calculate(PayInputs pay, RulePack pack, StatutoryChoice? choice = null, IReadOnlyDictionary<string, decimal>? set = null)
     {
         choice ??= StatutoryChoice.All;
+        set ??= new Dictionary<string, decimal>();
+        foreach (var (key, amount) in set)
+        {
+            StatutoryChoice.GroupOf(key);   // a statutory line, or ArgumentException
+            ArgumentOutOfRangeException.ThrowIfNegative(amount, key);
+        }
+        decimal Or(string key, decimal rules) => set.TryGetValue(key, out var amount) ? amount : rules;
         foreach (var (name, value) in new[]
                  {
                      (nameof(pay.GrossCashPay), pay.GrossCashPay), (nameof(pay.NonCashBenefits), pay.NonCashBenefits),
@@ -105,11 +114,11 @@ public static class PayCalculator
         var pensionable = Math.Min(gross, nssf.UpperLimit);
         var makesNssf = choice.Made("nssf");
         var makesAhl = choice.Made("housing_levy");
-        var nssfEmployee = makesNssf ? NssfOn(gross, nssf.EmployeeRate, nssf, pack) : 0;
-        var nssfEmployer = makesNssf ? NssfOn(gross, nssf.EmployerRate, nssf, pack) : 0;
-        var shif = gross == 0 || !choice.Made("shif") ? 0 : pack.Round(Math.Max(gross * pack.Shif.Rate, pack.Shif.Minimum), pack.Shif.Rounding);
-        var ahlEmployee = makesAhl ? pack.Round(gross * pack.Ahl.EmployeeRate, pack.Ahl.Rounding) : 0;
-        var ahlEmployer = makesAhl ? pack.Round(gross * pack.Ahl.EmployerRate, pack.Ahl.Rounding) : 0;
+        var nssfEmployee = Or("nssf_employee", makesNssf ? NssfOn(gross, nssf.EmployeeRate, nssf, pack) : 0);
+        var nssfEmployer = Or("nssf_employer", makesNssf ? NssfOn(gross, nssf.EmployerRate, nssf, pack) : 0);
+        var shif = Or("shif", gross == 0 || !choice.Made("shif") ? 0 : pack.Round(Math.Max(gross * pack.Shif.Rate, pack.Shif.Minimum), pack.Shif.Rounding));
+        var ahlEmployee = Or("ahl_employee", makesAhl ? pack.Round(gross * pack.Ahl.EmployeeRate, pack.Ahl.Rounding) : 0);
+        var ahlEmployer = Or("ahl_employer", makesAhl ? pack.Round(gross * pack.Ahl.EmployerRate, pack.Ahl.Rounding) : 0);
 
         var taxableBenefits = pay.NonCashBenefits > pack.Benefits.NonCashExemption ? pay.NonCashBenefits : 0;
 
@@ -127,7 +136,7 @@ public static class PayCalculator
         var tax = TaxOn(taxablePay, pack);
         var insuranceRelief = pack.Round(Math.Min(pay.InsurancePremiums * pack.Reliefs.Insurance.Rate, pack.Reliefs.Insurance.Cap));
         var personalRelief = Math.Min(pack.Paye.PersonalRelief, tax);
-        var paye = choice.Made("paye") ? pack.Round(Math.Max(0, tax - pack.Paye.PersonalRelief - insuranceRelief), pack.Paye.Rounding) : 0;
+        var paye = Or("paye", choice.Made("paye") ? pack.Round(Math.Max(0, tax - pack.Paye.PersonalRelief - insuranceRelief), pack.Paye.Rounding) : 0);
 
         StatutoryLine[] deductions =
         [
@@ -140,7 +149,7 @@ public static class PayCalculator
         [
             new("nssf_employer", pensionable, nssf.EmployerRate, nssfEmployer),
             new("ahl_employer", gross, pack.Ahl.EmployerRate, ahlEmployer),
-            new("nita", 1, null, choice.Made("nita") ? pack.Nita.EmployerAmount : 0),
+            new("nita", 1, null, Or("nita", choice.Made("nita") ? pack.Nita.EmployerAmount : 0)),
         ];
 
         return new PayResult(

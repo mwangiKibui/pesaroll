@@ -17,6 +17,13 @@ public sealed record BasicPayRow(Guid Id, DateOnly From, DateOnly? To, decimal A
 /// <summary>Days or hours worked in a run (PAY-11): for basic pay (no item) or an item paid by the hour or day.</summary>
 public sealed record TimeEntry(Guid? PayItemId, decimal Quantity);
 
+/// <summary>
+/// An amount entered for one run (PAY-04): for an item entered each run (commission), a person's item
+/// changed for the run (0 removes it), an item added for the run, basic pay (no item) or a statutory
+/// line (its locked item). Edits beyond items entered each run say why.
+/// </summary>
+public sealed record RunAmount(Guid? PayItemId, decimal Amount, string? Reason = null);
+
 /// <summary>The lowest minimum wage in a wage area: a month (without housing allowance), a day and an hour.</summary>
 public sealed record MinimumWage(decimal Monthly, decimal Daily, decimal Hourly);
 
@@ -29,12 +36,14 @@ public sealed record WageOrder(decimal HoursPerDay, decimal HoursPerMonth, IRead
 /// <summary>
 /// An employee of the run's company, with their jobs and pay over time, their own choice of statutory
 /// deductions if they have one (it replaces the schedule's), what their approved runs paid earlier
-/// in the run's tax month, the days and hours entered for them in the run and the wage area of
-/// their place of work (null: none known).
+/// in the run's tax month, the days and hours entered for them in the run, the wage area of
+/// their place of work (null: none known), the amounts entered for them in the run and the
+/// statutory deductions chosen for them in this run alone (it replaces theirs and the schedule's).
 /// </summary>
 public sealed record Candidate(
     Guid EmployeeId, string StaffNo, string FullName, DateOnly HireDate, DateOnly? ExitDate, IReadOnlyList<JobRow> Jobs, IReadOnlyList<BasicPayRow> Pay,
-    StatutoryChoice? Choice = null, MonthToDate? Earlier = null, IReadOnlyList<TimeEntry>? Time = null, string? WageArea = null);
+    StatutoryChoice? Choice = null, MonthToDate? Earlier = null, IReadOnlyList<TimeEntry>? Time = null, string? WageArea = null,
+    IReadOnlyList<RunAmount>? Amounts = null, StatutoryChoice? RunChoice = null);
 
 /// <summary>
 /// What a person's approved runs paid earlier in a tax month: taxable cash pay, before-tax deductions
@@ -83,11 +92,11 @@ public sealed record RunSetup(
 /// One line of a person's pay. Rates are fractions (0.06 is 6%). A statutory line also keeps the
 /// month to date it was worked out on and what earlier runs in the month took (its amount is the
 /// difference); its base is the month to date's. A line paid by the day or hour keeps its quantity
-/// and unit rate (amount = quantity x unit rate).
+/// and unit rate (amount = quantity x unit rate). A line set by hand for the run keeps why (PAY-04).
 /// </summary>
 public sealed record WorkedLine(
     string Kind, string Code, string Name, Guid? PayItemId, string? StatutoryKey, bool Taxable, bool BeforeTax, decimal? Base, decimal? Rate, decimal Amount,
-    decimal? MonthToDate = null, decimal Earlier = 0, decimal? Quantity = null, decimal? UnitRate = null);
+    decimal? MonthToDate = null, decimal Earlier = 0, decimal? Quantity = null, decimal? UnitRate = null, string? Reason = null);
 
 public sealed record PersonTotals(
     decimal BasicPay, decimal GrossPay, decimal TaxablePay, decimal TaxBeforeRelief, decimal PersonalRelief, decimal Paye, decimal TotalDeductions,
@@ -122,7 +131,9 @@ public sealed record RunTotals(
 /// person's own terms win. A rate below the minimum wage for their wage area is flagged
 /// (below_minimum; no_wage_area when it isn't known). A salary is paid for the calendar days the
 /// person was employed in the period, each part of a pay change at its own rate (PAY-04: prorated,
-/// pay_changed).
+/// pay_changed). Amounts entered for the run (PAY-04) pay items entered each run, and edits made in
+/// review set a person's item, basic pay or statutory amount for the run (PAYE follows a statutory
+/// amount set) or their statutory deductions; any edit beyond items entered each run flags adjusted.
 /// Taxable earnings join basic pay as the cash pay the statutory lines are worked out on;
 /// before-tax deductions go to the engine as pension contributions; non-taxable earnings and the
 /// other deductions only change net pay; employer costs add to what the employer pays.
@@ -151,12 +162,13 @@ public static class PayRunCalculator
 
             var pay = InForce(person.Pay, on, p => p.From, p => p.To);
             var units = pay is null ? null : Units(setup, person, pay);
+            var basicSet = person.Amounts?.FirstOrDefault(a => a.PayItemId is null);
             people.Add(pay switch
             {
                 null => Left(person, "no_pay", job.Id, null),
                 _ when !ByRate(pay) && pay.Basis != setup.Frequency => Left(person, "other_basis", job.Id, pay.Id),
                 _ when pay.Currency != setup.Pack.Currency => Left(person, "other_currency", job.Id, pay.Id),
-                _ when ByRate(pay) && units is not { Quantity: > 0 } => Left(person, "no_time", job.Id, pay.Id),
+                _ when ByRate(pay) && units is not { Quantity: > 0 } && basicSet is null => Left(person, "no_time", job.Id, pay.Id),
                 _ => Pay(setup, person, job, pay, units),
             });
         }
@@ -273,11 +285,24 @@ public static class PayRunCalculator
     private static WorkedPerson Pay(RunSetup setup, Candidate person, JobRow job, BasicPayRow basicPay, (decimal Quantity, bool Usual)? units)
     {
         var (period, pack) = (setup.Period, setup.Pack);
-        (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes)? salary = units is null ? Salary(setup, person, basicPay) : null;
-        var basic = units is var (quantity, _) ? pack.Round(quantity * basicPay.Amount) : salary!.Value.Amount;
+        // Basic pay set for the run replaces what it would be, by days or hours or for the days employed.
+        var basicSet = person.Amounts?.FirstOrDefault(a => a.PayItemId is null);
+        if (basicSet is not null) units = null;
+        (decimal Amount, decimal? Base, decimal? Rate, List<string> Notes)? salary = units is null && basicSet is null ? Salary(setup, person, basicPay) : null;
+        var basic = basicSet?.Amount ?? (units is var (quantity, _) ? pack.Round(quantity * basicPay.Amount) : salary!.Value.Amount);
+        RunAmount? Set(Guid item) => person.Amounts?.FirstOrDefault(a => a.PayItemId == item);
         var own = new List<WorkedLine>();
-        foreach (var item in setup.Items.Where(i => i.Status == "active" && i.CalcMethod is "fixed" or "percent_of_basic").OrderBy(i => i.Code, StringComparer.Ordinal))
+        foreach (var item in setup.Items.Where(i => i.Status == "active" && i.CalcMethod is "fixed" or "percent_of_basic" or "each_run")
+                     .OrderBy(i => i.Code, StringComparer.Ordinal))
         {
+            // Set for the run: entered each run, or an edit in review (0 removes it for the run).
+            if (Set(item.Id) is { } set)
+            {
+                if (set.Amount > 0)
+                    own.Add(new WorkedLine(item.Kind, item.Code, item.Name, item.Id, null, item.Taxable, item.BeforeTax, null, null, set.Amount, Reason: set.Reason));
+                continue;
+            }
+            if (item.CalcMethod == "each_run") continue;
             var applies = setup.Assignments.Where(a => a.PayItemId == item.Id && a.StartsOn <= period.End && (a.EndsOn is null || a.EndsOn >= period.Start)).ToList();
             var row = applies.FirstOrDefault(a => a.EmployeeId == person.EmployeeId) ?? applies.FirstOrDefault(a => a.EmployeeId is null);
             if (row is null) continue;
@@ -311,21 +336,25 @@ public static class PayRunCalculator
         var earnings = own.Where(l => l.Kind == "earning").ToList();
         var deductions = own.Where(l => l.Kind == "deduction").ToList();
         var employerCosts = own.Where(l => l.Kind == "employer_cost").ToList();
-        var choice = person.Choice ?? setup.Choice ?? StatutoryChoice.All;
+        var choice = person.RunChoice ?? person.Choice ?? setup.Choice ?? StatutoryChoice.All;
         var earlier = person.Earlier ?? MonthToDate.None;
+        // Statutory amounts set for the run (by their locked item): this run's share, on top of what earlier runs in the month took.
+        var statutory = (person.Amounts ?? []).Where(a => a.PayItemId is not null)
+            .Select(a => (Set: a, Key: setup.Names.FirstOrDefault(n => n.Key != "basic" && n.Value.PayItemId == a.PayItemId).Key))
+            .Where(x => x.Key is not null).ToDictionary(x => x.Key!, x => x.Set);
         var result = PayCalculator.Calculate(new PayInputs
         {
             GrossCashPay = earlier.Pay + basic + earnings.Where(l => l.Taxable).Sum(l => l.Amount),
             PensionContributions = earlier.Pension + deductions.Where(l => l.BeforeTax).Sum(l => l.Amount),
-        }, pack, choice);
-        var statutoryDeductions = Made(setup, "deduction", result.Deductions, choice, earlier);
-        var statutoryCosts = Made(setup, "employer_cost", result.EmployerCosts, choice, earlier);
+        }, pack, choice, statutory.ToDictionary(x => x.Key, x => earlier.Took(x.Key) + x.Value.Amount));
+        var statutoryDeductions = Made(setup, "deduction", result.Deductions, choice, earlier, statutory);
+        var statutoryCosts = Made(setup, "employer_cost", result.EmployerCosts, choice, earlier, statutory);
 
         var name = setup.Names.GetValueOrDefault("basic") ?? new LineName("BASIC", "Basic pay", null);
         var lines = new List<WorkedLine>
         {
             new("earning", name.Code, name.Name, name.PayItemId, null, true, false, salary?.Base, salary?.Rate, basic,
-                Quantity: units?.Quantity, UnitRate: units is null ? null : basicPay.Amount),
+                Quantity: units?.Quantity, UnitRate: units is null ? null : basicPay.Amount, Reason: basicSet?.Reason),
         };
         lines.AddRange(earnings);
         lines.AddRange(statutoryDeductions);
@@ -346,6 +375,9 @@ public static class PayRunCalculator
         if (statutoryDeductions.Concat(statutoryCosts).Any(l => l.Amount < 0)) notes.Add("refund");
         if (units is { Usual: true }) notes.Add("usual_time");
         if (MinimumWageNote(setup, person, basicPay) is { } minimum) notes.Add(minimum);
+        if (person.RunChoice is not null
+            || (person.Amounts ?? []).Any(a => a.PayItemId is not { } id || setup.Items.FirstOrDefault(i => i.Id == id)?.CalcMethod != "each_run"))
+            notes.Add("adjusted");
 
         // Taxable pay, tax before relief and relief are the month to date's; PAYE is this run's share.
         return new WorkedPerson(person.EmployeeId, person.StaffNo, person.FullName, null, notes, job.Id, basicPay.Id, lines,
@@ -357,13 +389,19 @@ public static class PayRunCalculator
     private static (decimal Amount, decimal? Base, decimal? Rate) Percent(decimal basic, decimal rate, RulePack pack) =>
         (pack.Round(basic * rate), basic, rate);
 
-    /// <summary>The statutory lines of the groups made, each taking what earlier runs in the month didn't.</summary>
-    private static List<WorkedLine> Made(RunSetup setup, string kind, IEnumerable<StatutoryLine> lines, StatutoryChoice choice, MonthToDate earlier) =>
-        lines.Where(l => choice.Made(StatutoryChoice.GroupOf(l.Key))).Select(l => Statutory(setup, kind, l, earlier.Took(l.Key))).ToList();
+    /// <summary>
+    /// The statutory lines of the groups made and those set for the run, each taking what earlier runs
+    /// in the month didn't; a line set keeps why.
+    /// </summary>
+    private static List<WorkedLine> Made(RunSetup setup, string kind, IEnumerable<StatutoryLine> lines, StatutoryChoice choice, MonthToDate earlier,
+        IReadOnlyDictionary<string, RunAmount> set) =>
+        lines.Where(l => choice.Made(StatutoryChoice.GroupOf(l.Key)) || set.ContainsKey(l.Key))
+            .Select(l => Statutory(setup, kind, l, earlier.Took(l.Key), set.GetValueOrDefault(l.Key)?.Reason)).ToList();
 
-    private static WorkedLine Statutory(RunSetup setup, string kind, StatutoryLine line, decimal earlier)
+    private static WorkedLine Statutory(RunSetup setup, string kind, StatutoryLine line, decimal earlier, string? reason)
     {
         var name = setup.Names.GetValueOrDefault(line.Key) ?? new LineName(line.Key.ToUpperInvariant(), line.Key, null);
-        return new WorkedLine(kind, name.Code, name.Name, name.PayItemId, line.Key, false, false, line.Base, line.Rate, line.Amount - earlier, line.Amount, earlier);
+        return new WorkedLine(kind, name.Code, name.Name, name.PayItemId, line.Key, false, false, line.Base, line.Rate, line.Amount - earlier, line.Amount, earlier,
+            Reason: reason);
     }
 }

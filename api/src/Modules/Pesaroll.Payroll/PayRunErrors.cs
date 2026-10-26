@@ -42,7 +42,7 @@ public static class PayRunErrors
         new("PAY-2002", $"{people} {(people == 1 ? "person is" : "people are")} paid below the minimum wage where they work. Check their rates, then recalculate.", 409);
 
     public static AppException InputsInvalid(IReadOnlyDictionary<string, string> fields) =>
-        new("PAY-2025", "Some days or hours don't look right. Check the fields marked.") { Fields = fields };
+        new("PAY-2025", "Some pay run entries don't look right. Check the fields marked.") { Fields = fields };
 
     public static AppException HoursInvalid(IReadOnlyDictionary<string, string> fields) =>
         new("PAY-2027", "Some working hours don't look right. Check the fields marked.") { Fields = fields };
