@@ -30,6 +30,20 @@ public sealed class RunPeriodsTests
         Assert.Equal(payDate, RunPeriods.IsPayDate(schedule, DateOnly.Parse(date)));
     }
 
+    [Theory]
+    [InlineData("monthly", "2026-10-30", 25, null, "2026-10-25")]       // its day in the period's month
+    [InlineData("weekly", "2026-10-09", null, 2, "2026-10-07")]         // days before the pay date
+    [InlineData("fortnightly", "2026-10-16", null, 0, "2026-10-16")]
+    [InlineData("daily", "2026-10-09", null, null, null)]
+    [InlineData("monthly", "2026-10-30", null, null, null)]             // none set
+    public void A_runs_cutoff_falls_on_the_schedules_day(string frequency, string payDate, int? day, int? daysBefore, string? expected)
+    {
+        var pay = DateOnly.Parse(payDate);
+        var period = frequency == "monthly" ? new RunPeriod(new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31)) : RunPeriods.Ending(frequency, pay);
+
+        Assert.Equal(expected is null ? null : DateOnly.Parse(expected), RunPeriods.CutoffOn(frequency, period, pay, day, daysBefore));
+    }
+
     [Fact]
     public void The_tax_month_is_the_pay_dates()
     {

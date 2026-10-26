@@ -50,16 +50,18 @@ public sealed record PayRunDetail(
     Guid Id, Guid CompanyId, Guid PayScheduleId, string ScheduleName, string Kind, Guid? CorrectsPayRunId, IReadOnlyList<Guid>? EmployeeIds,
     DateOnly PeriodStart, DateOnly PeriodEnd, DateOnly PayDate, string Status, string? RulePackVersion, string? CalculationError, string? DeclineReason,
     Guid? ApprovalRequestId, PayRunTotals Totals, IReadOnlyList<LeftOutPerson> LeftOut, IReadOnlyList<FlaggedPerson> Flagged, PayRunChanges? Changes,
-    DateTimeOffset CreatedAt, DateTimeOffset? CalculatedAt, DateTimeOffset? SentAt, DateTimeOffset? ApprovedAt, DateTimeOffset? CancelledAt, bool CanManage);
+    DateTimeOffset CreatedAt, DateTimeOffset? CalculatedAt, DateTimeOffset? SentAt, DateTimeOffset? ApprovedAt, DateTimeOffset? CancelledAt, bool CanManage,
+    DateOnly? CutoffOn = null);
 
 /// <summary>
 /// A line of someone's pay. Rate is a fraction (0.06 is 6%). Statutory lines also give the tax
 /// month's total and what earlier runs in the month took (PAY-10); lines paid by the day or hour
-/// their quantity and unit rate (PAY-11: 5 days x 450.00); lines set by hand for the run, why (PAY-04).
+/// their quantity and unit rate (PAY-11: 5 days x 450.00); lines set by hand for the run, why (PAY-04);
+/// lines owed from the last period, held back by its cut-off, that period (PAY-04).
 /// </summary>
 public sealed record PayRunLineResponse(
     string Kind, string Code, string Name, string? StatutoryKey, decimal? Base, decimal? Rate, decimal Amount, decimal? MonthToDate = null, decimal Earlier = 0,
-    decimal? Quantity = null, decimal? UnitRate = null, string? Reason = null);
+    decimal? Quantity = null, decimal? UnitRate = null, string? Reason = null, DateOnly? OwedFrom = null, DateOnly? OwedTo = null);
 
 /// <summary>For a correction: what was last approved for the person in the period, and how net pay changes.</summary>
 public sealed record ApprovedBefore(Guid PayRunId, decimal GrossPay, decimal Paye, decimal TotalDeductions, decimal NetPay, decimal NetPayChange);
@@ -194,7 +196,7 @@ public static class PayRunsEndpoints
                 p.BasicPay!.Value, p.GrossPay!.Value, p.TaxablePay!.Value, p.Paye!.Value, Statutory(p, "nssf_employee"), Statutory(p, "shif"),
                 Statutory(p, "ahl_employee"), p.TotalDeductions!.Value, p.NetPay!.Value, p.EmployerCosts!.Value,
                 p.Lines.Select(l => new PayRunLineResponse(l.Kind, l.Code, l.Name, l.StatutoryKey, l.Base, l.Rate, l.Amount, l.MonthToDate, l.Earlier,
-                    l.Quantity, l.UnitRate, l.Reason)).ToList(),
+                    l.Quantity, l.UnitRate, l.Reason, l.OwedFrom, l.OwedTo)).ToList(),
                 before.GetValueOrDefault(p.EmployeeId) is { } b ? b with { NetPayChange = p.NetPay!.Value - b.NetPay } : null,
                 p.DeductionsMade, p.DeductionsChosenBy)).ToList(), total, number, size));
         }).Produces<PayRunPeoplePage>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).Produces<ErrorResponse>(StatusCodes.Status404NotFound)
@@ -381,7 +383,8 @@ public static class PayRunsEndpoints
             run.PeriodStart, run.PeriodEnd, run.PayDate, run.Status, run.RulePackVersion, run.CalculationError, run.DeclineReason, requestId, totals,
             people.Where(p => !p.Included).Select(p => new LeftOutPerson(p.EmployeeId, p.StaffNo, p.FullName, p.ExcludedReason!)).ToList(),
             people.Where(p => p.Included && p.Notes.Length > 0).Select(p => new FlaggedPerson(p.EmployeeId, p.StaffNo, p.FullName, p.Notes)).ToList(),
-            changes, run.CreatedAt, run.CalculatedAt, run.SentAt, run.ApprovedAt, run.CancelledAt, tenant.Can(Permissions.PayRuns, run.CompanyId));
+            changes, run.CreatedAt, run.CalculatedAt, run.SentAt, run.ApprovedAt, run.CancelledAt, tenant.Can(Permissions.PayRuns, run.CompanyId),
+            run.CutoffOn);
     }
 
     /// <summary>For a correction: each person's figures in the last run approved for the period before it.</summary>

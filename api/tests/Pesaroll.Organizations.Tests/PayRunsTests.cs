@@ -383,8 +383,9 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
     private static Task<Guid> Schedule(World world, string frequency) => Scalar<Guid>(frequency switch
     {
         "weekly" => """
-            insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_weekday, cutoff_days_before, all_companies)
-            values (uuidv7(), @org, 'Weekly casuals', 'weekly', null, null, 5, 2, true) returning id
+            insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_weekday, cutoff_days_before, uses_cutoff,
+                cutoff_applies_to, all_companies)
+            values (uuidv7(), @org, 'Weekly casuals', 'weekly', null, null, 5, null, false, '{}', true) returning id
             """,
         _ => """
             insert into pay_schedules (id, organization_id, name, frequency, pay_day_rule, cutoff_day, pay_time, uses_cutoff, cutoff_applies_to, all_companies)
@@ -1014,5 +1015,88 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
 
         Assert.Equal("PAY-2021", await Code(await EnterTime(world.Owner, run.Id, new { employeeId = brian, payItemId = (Guid?)commission, amount = 5_000 })));
         Assert.Equal("PAY-2021", await Code(await RunDeductions(world.Owner, run.Id, brian, new { deductions = new[] { "paye" }, reason = "Too late" })));
+    }
+
+    // PAY-04: runs follow the schedule's cut-off.
+
+    /// <summary>Approves a run as its workflow would.</summary>
+    private static Task Approve(Guid run) =>
+        Execute("update pay_runs set status = 'approved', sent_at = now(), approved_at = now() where id = @r", ("r", run));
+
+    [Fact]
+    public async Task What_comes_after_the_cutoff_waits_for_the_next_run_which_pays_it_as_owed()
+    {
+        var world = await Organization();
+        await Execute("""
+            update pay_schedules set uses_cutoff = true, cutoff_day = 25,
+                cutoff_applies_to = '{overtime,new_employees,leavers,unpaid_leave,pay_changes,one_off}' where id = @s
+            """, ("s", world.Schedule));
+        var amina = await Employee(world, world.Westlands, 31_000, "Amina Otieno", hired: new DateOnly(2026, 10, 27));
+        var peter = await Employee(world, world.Westlands, 31_000, "Peter Kamau");
+        await Execute("update employees set exit_date = '2026-10-28' where id = @e", ("e", peter));
+        var grace = await Employee(world, world.Westlands, 31_000, "Grace Njeri");
+        await Execute("""
+            update compensations set valid_to = '2026-10-26' where employee_id = @e;
+            insert into compensations (id, organization_id, company_id, employee_id, valid_from, basic_amount, pay_basis, currency, reason)
+            select uuidv7(), organization_id, company_id, employee_id, '2026-10-27', 62000, 'monthly', 'KES', 'Promotion' from compensations where employee_id = @e
+            """, ("e", grace));
+        var brian = await Employee(world, world.Westlands, 100_000);
+        var commission = await EachRunItem(world, "COMM", "earning");
+
+        var october = await Start(world);
+        Assert.Equal(HttpStatusCode.OK, (await EnterTime(world.Owner, october.Id,
+            new { employeeId = brian, payItemId = (Guid?)commission, amount = 4_000 },
+            new { employeeId = grace, payItemId = (Guid?)commission, amount = 1_000 })).StatusCode);
+        await Execute("""
+            update pay_run_inputs set entered_at = case when employee_id = @b then timestamptz '2026-10-26 00:30+03' else timestamptz '2026-10-25 23:30+03' end
+            where pay_run_id = @r
+            """, ("r", october.Id), ("b", brian));
+
+        // October, cut off on the 25th: Amina joined after it, Peter left after it, Grace's rise and Brian's commission came after it.
+        var worked = await Calculate(world, october.Id);
+        Assert.Equal(new DateOnly(2026, 10, 25), worked.CutoffOn);
+        Assert.Equal("after_cutoff", worked.LeftOut.Single(p => p.EmployeeId == amina).Reason);
+        var paid = await People(world.Owner, october.Id);
+        Assert.Equal(25_000m, Paid(paid, peter).BasicPay);
+        Assert.Contains("paid_to_cutoff", Paid(paid, peter).Notes);
+        Assert.Equal(31_000m, Paid(paid, grace).BasicPay);
+        Assert.Contains("pay_change_next_run", Paid(paid, grace).Notes);
+        Assert.Equal(1_000m, Paid(paid, grace).Lines.Single(l => l.Code == "COMM").Amount);   // entered before midnight on the 25th
+        Assert.DoesNotContain(Paid(paid, brian).Lines, l => l.Code == "COMM");
+        Assert.Contains("next_run", Paid(paid, brian).Notes);
+        var entries = (await Time(world.Owner, october.Id)).People;
+        Assert.True(entries.Single(p => p.EmployeeId == brian).Entries.Single().AfterCutoff);
+        Assert.False(entries.Single(p => p.EmployeeId == grace).Entries.Single().AfterCutoff);
+        await Approve(october.Id);
+
+        // November pays what October held back, as owed from October.
+        var november = await Calculate(world, (await Start(world, month: "2026-11")).Id);
+        Assert.Empty(november.LeftOut);
+        paid = await People(world.Owner, november.Id);
+        WorkedOwed(Paid(paid, amina), "BASIC", 5_000m);
+        Assert.Equal(31_000m + 5_000m, Paid(paid, amina).GrossPay);
+        WorkedOwed(Paid(paid, peter), "BASIC", 3_000m);
+        Assert.Equal((0m, 3_000m), (Paid(paid, peter).BasicPay, Paid(paid, peter).GrossPay));
+        WorkedOwed(Paid(paid, grace), "BASIC", 5_000m);
+        Assert.Equal(62_000m, Paid(paid, grace).BasicPay);
+        WorkedOwed(Paid(paid, brian), "COMM", 4_000m);
+        Assert.All(new[] { amina, peter, grace, brian }, e => Assert.Contains("owed", Paid(paid, e).Notes));
+
+        static void WorkedOwed(PayRunPersonResponse person, string code, decimal amount)
+        {
+            var line = person.Lines.Single(l => l.Code == code && l.OwedFrom is not null);
+            Assert.Equal((amount, new DateOnly(2026, 10, 1), (DateOnly?)new DateOnly(2026, 10, 31)), (line.Amount, line.OwedFrom!.Value, line.OwedTo));
+        }
+    }
+
+    [Fact]
+    public async Task Without_a_cutoff_nothing_waits()
+    {
+        var world = await Organization();
+        var amina = await Employee(world, world.Westlands, 31_000, "Amina Otieno", hired: new DateOnly(2026, 10, 27));
+
+        var october = await Calculate(world, (await Start(world)).Id);
+        Assert.Null(october.CutoffOn);
+        Assert.Equal(5_000m, Paid(await People(world.Owner, october.Id), amina).BasicPay);
     }
 }

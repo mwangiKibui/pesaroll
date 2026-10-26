@@ -23,6 +23,17 @@ public static class RunPeriods
     public static bool IsPayDate(ScheduleDates schedule, DateOnly date) =>
         PayDates.For(schedule.Frequency, null, null, schedule.PayWeekday, schedule.FirstPayDate, date, 1)[0] == date;
 
+    /// <summary>
+    /// A run's cut-off day (PAY-04): a monthly schedule's day in the period's month, else the days set
+    /// before the pay date (null: the schedule doesn't use one, and a daily schedule never does).
+    /// </summary>
+    public static DateOnly? CutoffOn(string frequency, RunPeriod period, DateOnly payDate, int? cutoffDay, int? daysBefore) => frequency switch
+    {
+        "monthly" when cutoffDay is { } day => new DateOnly(period.End.Year, period.End.Month, Math.Min(day, DateTime.DaysInMonth(period.End.Year, period.End.Month))),
+        "weekly" or "fortnightly" when daysBefore is { } before => payDate.AddDays(-before),
+        _ => null,
+    };
+
     public static (DateOnly Start, DateOnly End) TaxMonth(DateOnly payDate)
     {
         var start = new DateOnly(payDate.Year, payDate.Month, 1);

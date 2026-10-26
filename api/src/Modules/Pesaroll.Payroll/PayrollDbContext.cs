@@ -20,6 +20,9 @@ public sealed class PayRun
     public string Status { get; set; } = "draft";
     public string? RulePackVersion { get; set; }
     public string? CalculationError { get; set; }
+    /// <summary>The schedule's cut-off the last calculation used and what it applied to (PAY-04; null: none).</summary>
+    public DateOnly? CutoffOn { get; set; }
+    public string[]? CutoffAppliesTo { get; set; }
     public string? DeclineReason { get; set; }
     public int People { get; set; }
     public decimal GrossPay { get; set; }
@@ -103,6 +106,9 @@ public sealed class PayRunLine
     public decimal? UnitRate { get; set; }
     /// <summary>Why a line was set by hand for the run (PAY-04).</summary>
     public string? Reason { get; set; }
+    /// <summary>A line owed from the last period, held back by its cut-off (PAY-04): that period's days.</summary>
+    public DateOnly? OwedFrom { get; set; }
+    public DateOnly? OwedTo { get; set; }
     public int Position { get; set; }
 }
 

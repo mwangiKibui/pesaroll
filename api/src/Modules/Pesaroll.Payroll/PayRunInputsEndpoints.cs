@@ -20,9 +20,12 @@ public sealed record TimeEntryRequest(Guid EmployeeId, Guid? PayItemId, decimal?
 
 public sealed record RunTimeRequest(IReadOnlyList<TimeEntryRequest>? Entries);
 
-/// <summary>What was entered, where it came from (entered, or copied from the last approved run), who did it and when.</summary>
+/// <summary>
+/// What was entered, where it came from (entered, or copied from the last approved run), who did it and
+/// when, and whether it came after the schedule's cut-off and so waits for the next run (PAY-04).
+/// </summary>
 public sealed record TimeEntryResponse(Guid? PayItemId, decimal? Quantity, string Source, Guid EnteredBy, DateTimeOffset EnteredAt, decimal? Amount = null,
-    string? Reason = null);
+    string? Reason = null, bool AfterCutoff = false);
 
 /// <summary>The statutory deductions chosen for a person in this run alone, why, who and when.</summary>
 public sealed record RunDeductionsResponse(IReadOnlyList<string> Deductions, string Reason, Guid SetBy, DateTimeOffset SetAt);
@@ -80,7 +83,7 @@ public static class PayRunInputsEndpoints
         {
             var (userId, _) = PayRunsEndpoints.Who(tenant, http);
             var run = await ChangeableAsync(db, tenant, id, ct);
-            var people = (await PeopleAsync(org, run, ct)).ToDictionary(p => p.Id);
+            var people = (await PeopleAsync(db, org, run, ct)).ToDictionary(p => p.Id);
             var items = (await ItemsAsync(org, run, ct)).ToDictionary(i => i.Id);
             var amountItems = (await AmountItemsAsync(org, run, ct)).ToDictionary(i => i.PayItemId);
             var entries = request.Entries ?? [];
@@ -150,7 +153,7 @@ public static class PayRunInputsEndpoints
         {
             var (userId, _) = PayRunsEndpoints.Who(tenant, http);
             var run = await ChangeableAsync(db, tenant, id, ct);
-            if (!(await PeopleAsync(org, run, ct)).Any(p => p.Id == employeeId)) throw PayRunErrors.EmployeeNotFound();
+            if (!(await PeopleAsync(db, org, run, ct)).Any(p => p.Id == employeeId)) throw PayRunErrors.EmployeeNotFound();
             var row = await db.RunDeductions.SingleOrDefaultAsync(d => d.PayRunId == run.Id && d.EmployeeId == employeeId, ct);
             if (request.Deductions is not { } chosen)
             {
@@ -193,7 +196,7 @@ public static class PayRunInputsEndpoints
                 .OrderByDescending(r => r.PayDate).ThenByDescending(r => r.ApprovedAt).FirstOrDefaultAsync(ct)
                 ?? throw PayRunErrors.NothingToCopy();
 
-            var people = (await PeopleAsync(org, run, ct)).ToDictionary(p => p.Id);
+            var people = (await PeopleAsync(db, org, run, ct)).ToDictionary(p => p.Id);
             var items = (await ItemsAsync(org, run, ct)).Select(i => i.Id).ToHashSet();
             var have = (await db.Inputs.AsNoTracking().Where(x => x.PayRunId == run.Id).Select(x => new { x.EmployeeId, x.PayItemId }).ToListAsync(ct))
                 .Select(x => (x.EmployeeId, x.PayItemId)).ToHashSet();
@@ -242,12 +245,15 @@ public static class PayRunInputsEndpoints
     /// <summary>
     /// Who the run pays, as the calculation finds them: for a regular run, the company's people
     /// employed in the period whose job at its end (their last day, if they left) is on the run's
-    /// schedule; for a correction, the people chosen. Unit: day or hour for a daily or hourly rate.
+    /// schedule, and leavers the last run paid to its cut-off (PAY-04: their final dues can be entered);
+    /// for a correction, the people chosen. Unit: day or hour for a daily or hourly rate.
     /// </summary>
-    private static async Task<List<Person>> PeopleAsync(OrganizationsDbContext org, PayRun run, CancellationToken ct)
+    private static async Task<List<Person>> PeopleAsync(PayrollDbContext db, OrganizationsDbContext org, PayRun run, CancellationToken ct)
     {
+        var leavers = await RunCutoffs.LeaversOwedAsync(db, run, ct);
         var query = org.Employees.AsNoTracking().Include(e => e.Employments).Include(e => e.Compensations).AsSplitQuery()
-            .Where(e => e.CompanyId == run.CompanyId && e.HireDate <= run.PeriodEnd && (e.ExitDate == null || e.ExitDate >= run.PeriodStart));
+            .Where(e => e.CompanyId == run.CompanyId
+                && ((e.HireDate <= run.PeriodEnd && (e.ExitDate == null || e.ExitDate >= run.PeriodStart)) || leavers.Contains(e.Id)));
         if (run.EmployeeIds is { } chosen) query = query.Where(e => chosen.Contains(e.Id));
         var people = new List<Person>();
         foreach (var e in await query.OrderBy(e => e.StaffNo).ToListAsync(ct))
@@ -287,13 +293,19 @@ public static class PayRunInputsEndpoints
     {
         var entries = (await db.Inputs.AsNoTracking().Where(x => x.PayRunId == run.Id).ToListAsync(ct)).ToLookup(x => x.EmployeeId);
         var chosen = await db.RunDeductions.AsNoTracking().Where(d => d.PayRunId == run.Id).ToDictionaryAsync(d => d.EmployeeId, ct);
-        var people = await PeopleAsync(org, run, ct);
+        var people = await PeopleAsync(db, org, run, ct);
+        var items = await ItemsAsync(org, run, ct);
+        var amountItems = await AmountItemsAsync(org, run, ct);
+        // Overtime and amounts for items entered each run wait for the next run when entered after the cut-off it applies to.
+        var cutoff = await RunCutoffs.ForAsync(org, run, ct);
+        bool Late(PayRunInput x) => cutoff is not null && cutoff.After(RunCutoffs.Day(x.EnteredAt))
+            && ((cutoff.Covers("overtime") && items.Any(i => i.Id == x.PayItemId))
+                || (cutoff.Covers("one_off") && amountItems.Any(i => i.PayItemId == x.PayItemId && i.CalcMethod == "each_run")));
         return new RunTimeResponse(run.Id,
             people.Select(p => new RunTimePerson(p.Id, p.StaffNo, p.Name, p.Unit, p.Usual, entries[p.Id]
                 .OrderBy(x => x.PayItemId is not null).ThenBy(x => x.PayItemId)
-                .Select(x => new TimeEntryResponse(x.PayItemId, x.Quantity, x.Source, x.EnteredBy, x.EnteredAt, x.Amount, x.Reason)).ToList(),
+                .Select(x => new TimeEntryResponse(x.PayItemId, x.Quantity, x.Source, x.EnteredBy, x.EnteredAt, x.Amount, x.Reason, Late(x))).ToList(),
                 chosen.GetValueOrDefault(p.Id) is { } d ? new RunDeductionsResponse(d.Deductions, d.Reason, d.SetBy, d.SetAt) : null)).ToList(),
-            (await ItemsAsync(org, run, ct)).Select(i => new RunTimeItem(i.Id, i.Code, i.Name, i.Unit)).ToList(),
-            await AmountItemsAsync(org, run, ct));
+            items.Select(i => new RunTimeItem(i.Id, i.Code, i.Name, i.Unit)).ToList(), amountItems);
     }
 }
