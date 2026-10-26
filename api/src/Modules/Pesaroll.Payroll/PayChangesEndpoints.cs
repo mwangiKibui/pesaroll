@@ -13,7 +13,7 @@ public sealed record PayChangeRequest(decimal? Amount, string? Basis, decimal? U
 
 /// <summary>One row of a person's basic pay over time: who changed it and why (empty on older rows).</summary>
 public sealed record PayChangeRow(Guid Id, DateOnly ValidFrom, DateOnly? ValidTo, decimal Amount, string Basis, decimal? UsualQuantity, string? Reason,
-    Guid? ChangedBy, DateTimeOffset CreatedAt);
+    Guid? ChangedBy, DateTimeOffset CreatedAt, Guid? ReplacedBy = null, DateTimeOffset? ReplacedAt = null);
 
 /// <summary>An approved run the change falls in: it keeps what it paid, and a correction pays the difference.</summary>
 public sealed record RunToCorrect(Guid PayRunId, DateOnly PeriodStart, DateOnly PeriodEnd, DateOnly PayDate);
@@ -26,7 +26,8 @@ public sealed record PayChangeResponse(PayChangeRow Change, IReadOnlyList<Guid> 
 
 /// <summary>
 /// Pay changed from an earlier date (PAY-04), for a rate that was wrong or a rise agreed late: the
-/// change runs from its date until the next change, the pay it interrupts ends the day before, and
+/// change runs from its date until the next change, the pay it interrupts ends the day before, a row
+/// starting on the same date (a wrong starting rate) is replaced (kept, marked, never paid), and
 /// nothing else is rewritten. Runs not yet sent that paid the person in those days go back to draft;
 /// a run waiting for approval stops it (its figures would move under the approver); approved runs are
 /// never changed, only listed for a correction. Needs Manage on pay at the company; reading the
@@ -46,7 +47,9 @@ public static class PayChangesEndpoints
             if (!tenant.Can(Permissions.PayView, companyId)) throw AccessErrors.NoPermission();
             var employee = await EmployeeAsync(org, companyId, employeeId, tracked: false, ct);
             await SensitiveViews.RecordAsync(org, tenant, http, "employee_pay", [employee.Id], ct);
-            return Results.Ok(employee.Compensations.OrderByDescending(c => c.ValidFrom).Select(Row).ToList());
+            var rows = await org.Compensations.IgnoreQueryFilters().AsNoTracking().Where(c => c.EmployeeId == employee.Id)
+                .OrderByDescending(c => c.ValidFrom).ThenBy(c => c.ReplacedAt != null).ThenByDescending(c => c.ReplacedAt).ToListAsync(ct);
+            return Results.Ok(rows.Select(Row).ToList());
         }).Produces<List<PayChangeRow>>().Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
           .Produces<ErrorResponse>(StatusCodes.Status404NotFound).RequirePermission(Permissions.PayView);
 
@@ -74,6 +77,7 @@ public static class PayChangesEndpoints
                 ChangedBy = userId, Reason = request.Reason!.Trim(), CreatedAt = now,
             };
             var interrupted = employee.Compensations.SingleOrDefault(c => c.ValidFrom < from && (c.ValidTo is null || c.ValidTo >= from));
+            var replaced = employee.Compensations.SingleOrDefault(c => c.ValidFrom == from);
             // Runs go back to draft first: on its own that only means working them out again.
             var sentBack = runs.Where(r => r.Status is "calculated" or "calculating").ToList();
             foreach (var run in sentBack) run.Status = "draft";
@@ -82,6 +86,7 @@ public static class PayChangesEndpoints
             // The interrupted pay ends before the change goes in: one current row at a time.
             await using var transaction = await org.Database.BeginTransactionAsync(ct);
             if (interrupted is not null) interrupted.ValidTo = from.AddDays(-1);
+            if (replaced is not null) (replaced.ReplacedBy, replaced.ReplacedAt) = (userId, now);
             await org.SaveChangesAsync(ct);
             org.Compensations.Add(change);
             await org.SaveChangesAsync(ct);
@@ -108,7 +113,6 @@ public static class PayChangesEndpoints
         else if (from < employee.HireDate) fields["effectiveFrom"] = $"Choose a date on or after they started ({employee.HireDate:d MMM yyyy}).";
         else if (from > today) fields["effectiveFrom"] = "Choose today or an earlier date. A change from today can be made on their details.";
         else if (employee.ExitDate is { } exit && from > exit) fields["effectiveFrom"] = $"Choose a date on or before their last day ({exit:d MMM yyyy}).";
-        else if (employee.Compensations.Any(c => c.ValidFrom == from)) fields["effectiveFrom"] = "Their pay already changes on this date. Choose another date.";
         if (fields.Count > 0) throw PayRunErrors.PayChangeInvalid(fields);
         return request.EffectiveFrom!.Value;
     }
@@ -120,5 +124,5 @@ public static class PayChangesEndpoints
     }
 
     private static PayChangeRow Row(Compensation c) =>
-        new(c.Id, c.ValidFrom, c.ValidTo, c.BasicAmount, c.PayBasis, c.UsualQuantity, c.Reason, c.ChangedBy, c.CreatedAt);
+        new(c.Id, c.ValidFrom, c.ValidTo, c.BasicAmount, c.PayBasis, c.UsualQuantity, c.Reason, c.ChangedBy, c.CreatedAt, c.ReplacedBy, c.ReplacedAt);
 }

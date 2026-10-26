@@ -866,6 +866,32 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
     }
 
     [Fact]
+    public async Task A_wrong_starting_rate_is_replaced_and_the_old_one_kept()
+    {
+        var world = await Organization();
+        var grace = await Employee(world, world.Westlands, 100_000, name: "Grace Njeri", hired: new DateOnly(2026, 10, 12));
+        var run = await Calculate(world, (await Start(world)).Id);
+        Assert.Equal(64_516.13m, Paid(await People(world.Owner, run.Id), grace).BasicPay);       // 100,000 x 20 / 31
+
+        var res = await ChangePay(world.Owner, world.Westlands, grace,
+            new { amount = 120_000, basis = "monthly", effectiveFrom = "2026-10-12", reason = "Her offer letter says 120,000" });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        Assert.Equal([run.Id], (await res.Content.ReadFromJsonAsync<PayChangeResponse>())!.SentBackToDraft);
+        await Calculate(world, run.Id);
+        Assert.Equal(77_419.35m, Paid(await People(world.Owner, run.Id), grace).BasicPay);       // 120,000 x 20 / 31
+
+        // The wrong rate is kept, marked replaced by whom and when; only the new one is paid or shown as current.
+        var history = await PayHistory(world.Owner, world.Westlands, grace);
+        Assert.Equal([(120_000m, (Guid?)null), (100_000m, world.Owner.UserId)], history.Select(h => (h.Amount, h.ReplacedBy)));
+        Assert.NotNull(history[1].ReplacedAt);
+        Assert.Equal(new DateOnly(2026, 10, 12), history[1].ValidFrom);
+        Assert.Equal(120_000m, (await world.Owner.Client.GetFromJsonAsync<EmployeePay>($"/api/employees/{grace}?includePay=true"))!.Pay!.BasicAmount);
+    }
+
+    private sealed record EmployeePayShape(decimal BasicAmount);
+    private sealed record EmployeePay(EmployeePayShape? Pay);
+
+    [Fact]
     public async Task An_earlier_pay_change_is_checked_and_needs_a_say_over_pay()
     {
         var world = await Organization();
@@ -883,7 +909,6 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
 
         Assert.Equal(["amount", "basis", "effectiveFrom", "reason"], await Fields(new { amount = 0, basis = "yearly", reason = " " }));
         Assert.Equal(["effectiveFrom"], await Fields(new { amount = 1, basis = "monthly", effectiveFrom = "2023-12-31", reason = "Before they started" }));
-        Assert.Equal(["effectiveFrom"], await Fields(new { amount = 1, basis = "monthly", effectiveFrom = "2026-08-01", reason = "Same day as another" }));
         Assert.Equal(["effectiveFrom"], await Fields(new { amount = 1, basis = "monthly",
             effectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30), reason = "In the future" }));
         Assert.Equal(["usualQuantity"], await Fields(new { amount = 1, basis = "monthly", usualQuantity = 5, effectiveFrom = "2026-09-01", reason = "Days on a salary" }));
