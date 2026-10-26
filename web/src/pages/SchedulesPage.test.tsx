@@ -115,6 +115,7 @@ it('adds a schedule every two weeks, starting on one of the next two pay days', 
 
   expect(within(drawer()).queryByRole('radio', { name: 'Last working day' })).not.toBeInTheDocument()
   expect(within(drawer()).getByRole('combobox', { name: 'Pay day' })).toHaveValue('Friday')
+  await userEvent.click(within(drawer()).getByRole('switch', { name: 'Use a cut-off' }))   // off until chosen
   expect(within(drawer()).getByRole('combobox', { name: 'Cut-off' })).toHaveValue('2 days before')
   await choose('First pay date', '23', 'Fri 23 Oct 2026')
   expect(await within(drawer()).findByText('Fri 6 Nov 2026')).toBeInTheDocument()
@@ -160,8 +161,9 @@ it('the cut-off is explained, optional, and covers what is chosen, including you
 
   await userEvent.click(screen.getByRole('button', { name: 'Add schedule' }))
   const uses = within(drawer()).getByRole('switch', { name: 'Use a cut-off' })
-  expect(uses).toBeChecked()
+  expect(uses).not.toBeChecked()   // off until chosen: everything up to pay day is paid on pay day
   expect(uses).toHaveAccessibleDescription(/last day changes count toward this payroll/)
+  await userEvent.click(uses)
   const covers = within(drawer()).getByRole('button', { name: /What the cut-off applies to/ })
   expect(covers).toHaveTextContent('6 selected')
 
@@ -183,14 +185,13 @@ it('the cut-off is explained, optional, and covers what is chosen, including you
   })
 })
 
-it('turning the cut-off off keeps none of it', async () => {
+it('a new schedule has no cut-off unless chosen, and sends none of it', async () => {
   const calls = oneCompany({ 'POST /api/pay-schedules': () => json(201, monthly) })
   renderApp('/setup/schedules')
   await userEvent.click(await screen.findByRole('button', { name: 'Add schedule' }))
   await userEvent.type(within(drawer()).getByRole('textbox', { name: 'Schedule name' }), 'Full month')
 
-  await userEvent.click(within(drawer()).getByRole('switch', { name: 'Use a cut-off' }))
-
+  expect(within(drawer()).getByRole('switch', { name: 'Use a cut-off' })).not.toBeChecked()
   expect(within(drawer()).queryByRole('combobox', { name: 'Cut-off day' })).not.toBeInTheDocument()
   expect(within(drawer()).queryByRole('button', { name: /What the cut-off applies to/ })).not.toBeInTheDocument()
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add schedule' }))
@@ -309,6 +310,7 @@ it('adds a schedule on a fixed day, showing its next pay dates before saving', a
   await userEvent.click(within(drawer()).getByRole('radio', { name: 'A fixed day' }))
   await choose('Day of the month', '15', '15th')
   expect(await within(drawer()).findByText('Fri 13 Nov 2026')).toBeInTheDocument()
+  await userEvent.click(within(drawer()).getByRole('switch', { name: 'Use a cut-off' }))   // off until chosen
   expect(within(drawer()).getByRole('combobox', { name: 'Cut-off day' })).toHaveValue('25th')
   await userEvent.click(within(drawer()).getByRole('button', { name: 'Add schedule' }))
 

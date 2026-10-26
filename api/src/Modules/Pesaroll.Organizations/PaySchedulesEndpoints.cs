@@ -13,7 +13,7 @@ namespace Pesaroll.Organizations;
 /// monthly <see cref="PayDayRule"/>, <see cref="PayDay"/> (a fixed day) and <see cref="CutoffDay"/>;
 /// weekly <see cref="PayWeekday"/> and <see cref="CutoffDaysBefore"/>; fortnightly those and
 /// <see cref="FirstPayDate"/>; daily <see cref="PayTime"/>. The cut-off is optional (<see cref="UsesCutoff"/>,
-/// on unless said) and covers <see cref="CutoffAppliesTo"/> (everything unless said). It serves all companies
+/// off unless asked for: said so, or a cut-off day or items given) and covers <see cref="CutoffAppliesTo"/> (everything unless said). It serves all companies
 /// (<see cref="AllCompanies"/>) or <see cref="CompanyIds"/>, and is the default of <see cref="DefaultFor"/>.
 /// </summary>
 public sealed record PayScheduleRequest(
@@ -35,7 +35,7 @@ public sealed record PayScheduleResponse(
 
 /// <summary>
 /// ONB-06, the Payroll schedules step: how often (monthly, weekly, every two weeks or daily) and when people are paid. Each company has one
-/// default schedule (the suggested "Monthly", last working day, cut-off on the 25th, made with the
+/// default schedule (the suggested "Monthly", last working day, no cut-off, made with the
 /// first company for all companies); a schedule serves chosen companies or all of them. Pay runs
 /// (PAY-03) build their periods and pay dates from these.
 /// </summary>
@@ -163,7 +163,7 @@ public static class PaySchedulesEndpoints
 
     /// <summary>
     /// A new company's default schedule: the oldest one for all companies, or else the suggested
-    /// "Monthly" (last working day, cut-off on the 25th) for all companies, which the caller adds.
+    /// "Monthly" (last working day, no cut-off until chosen) for all companies, which the caller adds.
     /// Kept even if the Payroll schedules step is skipped.
     /// </summary>
     internal static async Task<(PaySchedule Schedule, bool IsNew)> DefaultForNewCompanyAsync(
@@ -281,7 +281,7 @@ public static class PaySchedulesEndpoints
     private static ValidTiming Timing(PayScheduleRequest request, Dictionary<string, string> errors)
     {
         var timing = When(request, errors);
-        var uses = timing.Frequency != "daily" && (request.UsesCutoff ?? true);
+        var uses = timing.Frequency != "daily" && UsesCutoff(request);
         return uses
             ? timing with { UsesCutoff = true, CutoffAppliesTo = CutoffAppliesTo(request.CutoffAppliesTo, errors) }
             : timing with { CutoffDay = null, CutoffDaysBefore = null, UsesCutoff = false, CutoffAppliesTo = [] };
@@ -327,6 +327,10 @@ public static class PaySchedulesEndpoints
         return chosen;
     }
 
+    /// <summary>A cut-off only when asked for: said so, or a cut-off day or items given. Off otherwise.</summary>
+    private static bool UsesCutoff(PayScheduleRequest request) =>
+        request.UsesCutoff ?? (request.CutoffDay is not null || request.CutoffDaysBefore is not null || request.CutoffAppliesTo is not null);
+
     private static ValidTiming When(PayScheduleRequest request, Dictionary<string, string> errors)
     {
         var frequency = string.IsNullOrWhiteSpace(request.Frequency) ? "monthly" : request.Frequency.Trim();
@@ -347,7 +351,7 @@ public static class PaySchedulesEndpoints
                 }
 
                 var cutoff = request.CutoffDay ?? 25;
-                if ((request.UsesCutoff ?? true) && cutoff is < 1 or > 28)
+                if (UsesCutoff(request) && cutoff is < 1 or > 28)
                 {
                     errors["cutoffDay"] = "Choose a cut-off day from 1 to 28.";
                 }
@@ -362,7 +366,7 @@ public static class PaySchedulesEndpoints
 
                 var weekly = frequency == "weekly";
                 var before = request.CutoffDaysBefore ?? 2;
-                if ((request.UsesCutoff ?? true) && (before < 0 || before > (weekly ? 6 : 13)))
+                if (UsesCutoff(request) && (before < 0 || before > (weekly ? 6 : 13)))
                 {
                     errors["cutoffDaysBefore"] = weekly ? "Choose a cut-off from the pay day to 6 days before." : "Choose a cut-off from the pay day to 13 days before.";
                 }

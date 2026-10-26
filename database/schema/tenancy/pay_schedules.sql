@@ -6,7 +6,8 @@
 --   weekly       every pay_weekday (Monday 1 to Friday 5); cut-off cutoff_days_before the pay day
 --   fortnightly  every other pay_weekday, counted from first_pay_date; cut-off as weekly
 --   daily        every working day at pay_time (reminders count hours back from it); no cut-off
--- The cut-off is optional (uses_cutoff): when used, changes after it in what cutoff_applies_to
+-- The cut-off is optional (uses_cutoff; the app makes schedules without one until the organization
+-- chooses it; the column defaults serve older inserts): when used, changes after it in what cutoff_applies_to
 -- lists (overtime, new employees… or the organization's own items) go into the next payroll;
 -- without one, everything up to the pay run counts. Daily pay has none.
 -- The API works the dates out; pay runs (PAY-03) use them. Each company points at its default

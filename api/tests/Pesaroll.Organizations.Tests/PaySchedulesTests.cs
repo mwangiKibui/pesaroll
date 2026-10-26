@@ -63,11 +63,11 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
         var b = await AddCompany(client, "Mama Oliech Catering Ltd");
 
         var monthly = Assert.Single(await Schedules(client));   // one for all companies, not one each
-        Assert.Equal(("Monthly", "monthly", "last_working_day", (int?)null, 25, true),
+        Assert.Equal(("Monthly", "monthly", "last_working_day", (int?)null, (int?)null, true),
             (monthly.Name, monthly.Frequency, monthly.PayDayRule, monthly.PayDay, monthly.CutoffDay, monthly.AllCompanies));
         Assert.Equal([a.Id, b.Id], monthly.DefaultFor.Order());
-        Assert.True(monthly.UsesCutoff);
-        Assert.Equal(["overtime", "new_employees", "leavers", "unpaid_leave", "pay_changes", "one_off"], monthly.CutoffAppliesTo);
+        Assert.False(monthly.UsesCutoff);   // no cut-off until the organization chooses one
+        Assert.Empty(monthly.CutoffAppliesTo);
         Assert.Equal(3, monthly.NextPayDates.Count);
         Assert.All(monthly.NextPayDates, d => Assert.DoesNotContain(d.DayOfWeek, new[] { DayOfWeek.Saturday, DayOfWeek.Sunday }));
     }
@@ -203,12 +203,20 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
         })).Content.ReadFromJsonAsync<Schedule>())!;
         var daily = (await (await Add(new { name = "Daily", frequency = "daily", usesCutoff = true, allCompanies = false, companyIds = new[] { a.Id } }))
             .Content.ReadFromJsonAsync<Schedule>())!;
+        var plain = (await (await Add(new { name = "Plain monthly", allCompanies = false, companyIds = new[] { a.Id } })).Content.ReadFromJsonAsync<Schedule>())!;
+        var plainWeekly = (await (await Add(new { name = "Plain weekly", frequency = "weekly", payWeekday = 5, allCompanies = false, companyIds = new[] { a.Id } }))
+            .Content.ReadFromJsonAsync<Schedule>())!;
+        var dayOnly = (await (await Add(new { name = "Cut-off on the 20th", cutoffDay = 20, allCompanies = false, companyIds = new[] { a.Id } }))
+            .Content.ReadFromJsonAsync<Schedule>())!;
 
         Assert.Equal((false, (int?)null, 0), (fullMonth.UsesCutoff, fullMonth.CutoffDay, fullMonth.CutoffAppliesTo.Count));   // off keeps nothing of it
         Assert.Equal((false, (int?)null), (weekly.UsesCutoff, weekly.CutoffDaysBefore));
         Assert.Equal((true, (int?)20), (some.UsesCutoff, some.CutoffDay));
         Assert.Equal(["overtime", "Tips"], some.CutoffAppliesTo);   // the organization's own items kept as typed, repeats dropped
         Assert.False(daily.UsesCutoff);   // daily pay never has one
+        Assert.Equal((false, (int?)null, 0), (plain.UsesCutoff, plain.CutoffDay, plain.CutoffAppliesTo.Count));   // none unless asked for
+        Assert.Equal((false, (int?)null), (plainWeekly.UsesCutoff, plainWeekly.CutoffDaysBefore));
+        Assert.Equal((true, (int?)20, 6), (dayOnly.UsesCutoff, dayOnly.CutoffDay, dayOnly.CutoffAppliesTo.Count));   // a cut-off day asks for one
 
         var nothing = await Add(new { name = "Covers nothing", usesCutoff = true, cutoffAppliesTo = Array.Empty<string>(), allCompanies = true });
         Assert.Equal("cutoffAppliesTo", Assert.Single((await ErrorFrom(nothing)).Fields!.Keys));
