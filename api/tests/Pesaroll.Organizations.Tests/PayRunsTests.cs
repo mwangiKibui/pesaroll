@@ -1099,4 +1099,30 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         Assert.Null(october.CutoffOn);
         Assert.Equal(5_000m, Paid(await People(world.Owner, october.Id), amina).BasicPay);
     }
+
+    // PLAT-03: changes are recorded in the audit log by the database, with who and the request.
+
+    [Fact]
+    public async Task Changes_through_the_app_and_its_jobs_are_recorded_with_who_and_the_request_never_the_salary()
+    {
+        var world = await Organization();
+        var brian = await Employee(world, world.Westlands, 100_000);
+        var change = await ChangePay(world.Owner, world.Westlands, brian,
+            new { amount = 120_000, basis = "monthly", effectiveFrom = "2026-10-01", reason = "Promotion agreed in September" });
+        Assert.Equal(HttpStatusCode.OK, change.StatusCode);
+
+        const string Entries = """
+            select count(*) from audit_log where table_name = @t and user_id = @u and source = 'app' and request_ref like @ref
+                and organization_id = @org and company_id = @co
+            """;
+        Assert.Equal(1, await Scalar<long>(Entries + " and action = 'insert' and new_values->>'basic_amount' = 'masked'",
+            ("t", "compensations"), ("u", world.Owner.UserId), ("ref", "%"), ("org", world.OrgId), ("co", world.Westlands.Id)));
+        Assert.Equal(0, await Scalar<long>("select count(*) from audit_log where organization_id = @org and (old_values::text || new_values::text) like '%120000%'",
+            ("org", world.OrgId)));
+
+        var run = await Calculate(world, (await Start(world)).Id);
+        Assert.True(await Scalar<long>(Entries + " and action = 'update' and record_id = @r and 'status' = any (changed)",
+            ("t", "pay_runs"), ("u", world.Owner.UserId), ("ref", $"pay-run-calculation:{run.Id}"), ("org", world.OrgId), ("co", world.Westlands.Id),
+            ("r", run.Id)) >= 1);
+    }
 }

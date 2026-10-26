@@ -54,3 +54,4 @@ Follow the conventions and review checklist on the Schema Design page. In short:
 - money as `numeric(18,2)` with a `currency char(3)`
 - status values as `text` with a `check` constraint, not enums
 - effective-dated rows use `valid_during daterange` with an exclusion constraint
+- every customer table records its changes in the audit log (PLAT-03): add `create trigger <table>_audit … execute function audit_change()` to `schema/platform/audit_triggers.sql`, or the table to `audit_left_out()` with why (rows worked out again on every calculation, delivery records). Columns holding salaries or other pay of one person, ID numbers, KRA PINs, NSSF or SHA numbers, bank or M-Pesa accounts (in full or in part) or secrets go in `audit_masked()`. `database/tests/audit_log.sql` fails for a table that is in neither list

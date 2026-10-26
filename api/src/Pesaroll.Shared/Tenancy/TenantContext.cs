@@ -16,7 +16,12 @@ public sealed class TenantContext
     /// <summary>What they may do, from their security groups (ACC-02), each for all companies or some.</summary>
     public IReadOnlyList<AccessGrant> Grants { get; private set; } = [];
 
+    /// <summary>The request's reference (or a job's), which the audit log records with every change (PLAT-03).</summary>
+    public string? Reference { get; private set; }
+
     public void SetUser(Guid userId) => UserId = userId;
+
+    public void SetReference(string reference) => Reference = reference;
 
     public void Set(Guid organizationId, IEnumerable<Guid> companyIds, IEnumerable<AccessGrant>? grants = null)
     {

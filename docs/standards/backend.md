@@ -79,6 +79,14 @@ Status: draft for review.
 - xUnit. The golden payroll suite (`api/tests/Pesaroll.Payroll.Engine.Tests/Golden/`, worked examples reviewed by a Kenyan payroll accountant) runs on every change and must pass 100%. It reads the same rule pack files the database publishes.
 - Tenancy tests run against a real PostgreSQL (Testcontainers) and prove one organization can't read another's rows.
 
+## Audit log (PLAT-03)
+
+- The database records every change to an organization's data in `audit_log` (`schema/platform/audit_log.sql`): the table and row, insert, update or delete, the columns an update changed with their values before and after, who (`app.user_id`), the request (`app.request_ref`) and whether it came through the app. Writes from EF, `ExecuteUpdate`/`ExecuteDelete`, SQL functions and jobs are all caught, so code doesn't record changes itself.
+- `TenantSessionInterceptor` sets `app.request_ref` from `TenantContext.Reference`: the request's TraceIdentifier (`UseSessions`), or a job's own (`pay-run-calculation:{id}`). A job sets its user and reference before it writes.
+- Values of masked columns (`audit_masked()`: one person's pay, ID numbers, KRA PINs, NSSF and SHA numbers, bank and M-Pesa accounts, secrets) read `masked`; their history is in the dated tables. Left out (`audit_left_out()`): a run's people and lines (replaced on every calculation), an import's rows, sessions, delivery records, `sensitive_views` and the log itself.
+- The app can only read it; nobody can change or delete an entry (PLAT-9003). An entry with a company is seen with that company; one without only by someone who sees all the organization's companies. Kept 7 years (the Tax Procedures Act's 5, with margin); the purge job comes when anything is that old (2033).
+- Named actions (who worked out a payroll, how many people did something), reading the log and the summary come in PLAT-03's second part (#368).
+
 ## Logging
 
 - Serilog, structured. Every log line carries the request reference and organization id, never salaries, ID numbers, KRA PINs or bank details.
