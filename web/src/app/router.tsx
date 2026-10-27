@@ -26,6 +26,7 @@ const HomePage = lazyRouteComponent(() => import('../pages/HomePage'))
 const PeopleEmployeesPage = lazyRouteComponent(() => import('../pages/people/EmployeesPage'))
 const PayrollSchedulesPage = lazyRouteComponent(() => import('../pages/organization/PayrollSchedulesPage'))
 const PayRunsPage = lazyRouteComponent(() => import('../pages/pay/PayRunsPage'))
+const PayRunPage = lazyRouteComponent(() => import('../pages/pay/PayRunPage'))
 
 interface RouterContext { auth: AuthClient; api: Services['api'] }
 
@@ -107,6 +108,7 @@ const payrollSchedulesRoute = createRoute({ getParentRoute: () => rootRoute, pat
 // Pay runs, while its feature flag is off (OP-18): not a page yet.
 const payRunsFlag = () => { if (!featureOn('payRuns')) throw notFound() }
 const payRunsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/pay/runs', beforeLoad: async args => { payRunsFlag(); await signedInWithOrganization(args) }, component: PayRunsPage })
+const payRunRoute = createRoute({ getParentRoute: () => rootRoute, path: '/pay/runs/$id', beforeLoad: async args => { payRunsFlag(); await signedInWithOrganization(args) }, component: PayRunPage })
 const teamRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/team', beforeLoad: signedInWithOrganization, component: TeamPage })
 const historyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/setup/payroll-history', beforeLoad: signedInWithOrganization, component: PayrollHistoryPage })
 // An invitation's link (AUTH-08): open to anyone holding it, signed in or not.
@@ -121,7 +123,7 @@ const devRoutes = import.meta.env.DEV
   ? [createRoute({ getParentRoute: () => rootRoute, path: '/dev/components', component: lazyRouteComponent(() => import('../dev/ComponentsPage')) })]
   : []
 
-const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, invitationRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, peopleEmployeesRoute, payrollSchedulesRoute, payRunsRoute, earningsRoute, historyRoute, teamRoute, devicesRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
+const routeTree = rootRoute.addChildren([homeRoute, signInRoute, signUpRoute, invitationRoute, organizationRoute, companiesRoute, locationsRoute, structureRoute, schedulesRoute, leavePlansRoute, employeesRoute, peopleEmployeesRoute, payrollSchedulesRoute, payRunsRoute, payRunRoute, earningsRoute, historyRoute, teamRoute, devicesRoute, noOrganizationRoute, welcomeRoute, ...devRoutes])
 
 export function createAppRouter(auth: AuthClient, api: Services['api'], initialPath?: string) {
   return createRouter({

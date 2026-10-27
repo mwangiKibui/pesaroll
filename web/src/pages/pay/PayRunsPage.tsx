@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCurrentCompany } from '../../app/company'
@@ -87,7 +88,7 @@ function Runs({ companyId, canStart }: { companyId: string; canStart: boolean })
             {runs.data.items.map(r => (
               <tr key={r.id}>
                 <td>
-                  <span className="block font-medium text-ink">{periodLabel(r.periodStart, r.periodEnd)}</span>
+                  <Link to="/pay/runs/$id" params={{ id: r.id }} className="block font-medium text-brand">{periodLabel(r.periodStart, r.periodEnd)}</Link>
                   <span className="block text-hint text-muted">{r.kind === 'correction' ? t('payRuns.correctionOf', { schedule: r.scheduleName }) : r.scheduleName}</span>
                 </td>
                 <td className="whitespace-nowrap">{shortDate(r.payDate)}</td>
