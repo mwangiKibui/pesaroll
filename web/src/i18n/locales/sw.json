@@ -826,7 +826,48 @@
     "reasonRequired": "Sema kwa nini, ili Mishahara wajue cha kurekebisha.",
     "period": "Kipindi",
     "notWorkedOut": "Mishahara bado haijahesabiwa",
-    "notWorkedOutText": "Ihesabu uone mshahara wa kila mtu, makato yake na jumla. Unaweza kuihesabu tena hadi itumwe iidhinishwe."
+    "notWorkedOutText": "Weka siku, saa na viasi chini ya Maingizo. Ihesabu uone mshahara wa kila mtu, makato yake na jumla. Unaweza kuihesabu tena hadi itumwe iidhinishwe.",
+    "sections": "Sehemu za malipo",
+    "payTab": "Malipo",
+    "inputsTab": "Maingizo",
+    "inputs": {
+      "title": "Yaliyowekwa kwa malipo haya",
+      "worked": "Siku au saa za kazi",
+      "workedFor": {
+        "day": "Siku za kazi za {{name}}",
+        "hour": "Saa za kazi za {{name}}"
+      },
+      "cell": "{{column}} ya {{name}}",
+      "timeColumn": "{{name}} ({{unit}})",
+      "units": {
+        "day": "siku",
+        "hour": "saa"
+      },
+      "usual": {
+        "day_one": "siku {{count}}",
+        "day_other": "siku {{count}}",
+        "hour_one": "saa {{count}}",
+        "hour_other": "saa {{count}}"
+      },
+      "unitName": {
+        "day": "Siku",
+        "hour": "Saa"
+      },
+      "amount": "Kiasi",
+      "salary": "Mshahara",
+      "left": "Aliondoka {{date}}",
+      "nextRun": "Malipo yajayo",
+      "late": "Maingizo yenye alama Malipo yajayo yalikuja baada ya tarehe ya mwisho {{date}}, hivyo yanalipwa katika malipo yanayofuata.",
+      "backToDraft": "Kuhifadhi kunarudisha malipo haya kwenye rasimu, yahesabiwe tena.",
+      "changes_one": "badiliko {{count}}",
+      "changes_other": "mabadiliko {{count}}",
+      "copy": "Nakili kutoka malipo yaliyopita",
+      "copied": "Imenakiliwa kutoka malipo yaliyopita",
+      "save": "Hifadhi",
+      "saved": "Maingizo yamehifadhiwa",
+      "quantityInvalid": "Weka 0 hadi 744, na desimali mbili au chini.",
+      "amountInvalid": "Weka kiasi cha 0 au zaidi, na desimali mbili au chini."
+    }
   },
   "schedules": {
     "title": "Unawalipa watu wako lini?",

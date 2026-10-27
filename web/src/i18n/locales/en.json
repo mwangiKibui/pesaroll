@@ -826,7 +826,48 @@
     "reasonRequired": "Say why, so Payroll knows what to fix.",
     "period": "Period",
     "notWorkedOut": "Pay isn't worked out yet",
-    "notWorkedOutText": "Work it out to see each person's pay, their deductions and the totals. You can work it out again until it's sent for approval."
+    "notWorkedOutText": "Enter days, hours and amounts under Inputs. Work it out to see each person's pay, their deductions and the totals. You can work it out again until it's sent for approval.",
+    "sections": "Pay run sections",
+    "payTab": "Pay",
+    "inputsTab": "Inputs",
+    "inputs": {
+      "title": "Entered for this pay run",
+      "worked": "Days or hours worked",
+      "workedFor": {
+        "day": "Days worked for {{name}}",
+        "hour": "Hours worked for {{name}}"
+      },
+      "cell": "{{column}} for {{name}}",
+      "timeColumn": "{{name}} ({{unit}})",
+      "units": {
+        "day": "days",
+        "hour": "hours"
+      },
+      "usual": {
+        "day_one": "{{count}} day",
+        "day_other": "{{count}} days",
+        "hour_one": "{{count}} hour",
+        "hour_other": "{{count}} hours"
+      },
+      "unitName": {
+        "day": "Days",
+        "hour": "Hours"
+      },
+      "amount": "Amount",
+      "salary": "Salary",
+      "left": "Left {{date}}",
+      "nextRun": "Next run",
+      "late": "Entries marked Next run came after the cut-off on {{date}}, so they are paid in the next run.",
+      "backToDraft": "Saving sends this pay run back to draft, to be worked out again.",
+      "changes_one": "{{count}} change",
+      "changes_other": "{{count}} changes",
+      "copy": "Copy from last run",
+      "copied": "Copied from the last run",
+      "save": "Save",
+      "saved": "Entries saved",
+      "quantityInvalid": "Enter 0 to 744, with up to two decimals.",
+      "amountInvalid": "Enter an amount of 0 or more, with up to two decimals."
+    }
   },
   "schedules": {
     "title": "When do you pay your people?",
