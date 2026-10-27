@@ -87,7 +87,7 @@ export const location = (overrides: Record<string, unknown> = {}) => ({
 export const schedule = (overrides: Record<string, unknown> = {}) => ({
   id: '0199c0de-0000-7000-8000-00000000f001', name: 'Monthly', frequency: 'monthly', payDayRule: 'last_working_day', payDay: null, cutoffDay: 25,
   payWeekday: null, firstPayDate: null, cutoffDaysBefore: null, payTime: null,
-  usesCutoff: true, cutoffAppliesTo: ['overtime', 'new_employees', 'leavers', 'unpaid_leave', 'pay_changes', 'one_off'], reminders: [], allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], ...overrides,
+  usesCutoff: true, cutoffAppliesTo: ['overtime', 'new_employees', 'leavers', 'unpaid_leave', 'pay_changes', 'one_off'], reminders: [], allCompanies: true, companyIds: [], defaultFor: [company().id], nextPayDates: ['2026-10-30', '2026-11-30', '2026-12-31'], people: 0, ...overrides,
 })
 
 /** An earning, deduction or employer cost as the API returns it; by default the locked Basic pay. */

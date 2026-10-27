@@ -83,10 +83,14 @@ it('search offers only pages the person may open, and opens one', async () => {
   const search = await within(await screen.findByRole('banner')).findByRole('combobox', { name: 'Search Pesaroll' })
   await within(await screen.findByRole('navigation', { name: 'Main' })).findByRole('button', { name: /People/ })
 
+  // HR may view schedules (to pick one for an employee) but the page is for people who manage them (OP-05).
   await userEvent.type(search, 'payroll')
-  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Payroll schedules'])
+  expect(screen.queryAllByRole('option')).toEqual([])
+  await userEvent.clear(search)
+  await userEvent.type(search, 'branch')
+  expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Locations'])
   await userEvent.keyboard('{Enter}')
-  expect(await screen.findByRole('heading', { name: 'When do you pay your people?' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Where do your people work?' })).toBeInTheDocument()
 })
 
 it('the person menu shows how they use Pesaroll and signs out', async () => {
