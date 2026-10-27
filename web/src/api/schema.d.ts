@@ -10856,6 +10856,8 @@ export interface components {
             defaultFor: string[];
             nextPayDates: string[];
             reminders: components["schemas"]["ReminderResponse"][];
+            /** Format: int32 */
+            people: number | string;
         };
         PersonRef: {
             /** Format: uuid */

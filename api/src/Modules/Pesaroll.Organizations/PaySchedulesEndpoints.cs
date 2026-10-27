@@ -28,11 +28,12 @@ public sealed record ReminderRequest(Guid? Id, int Amount, string? Channel, stri
 
 public sealed record ReminderResponse(Guid Id, int Amount, string Unit, string Channel, string Recipient);
 
+/// <summary>A schedule. People: how many current employees it pays (OP-05), counted in the list only (0 after adding or changing one).</summary>
 public sealed record PayScheduleResponse(
     Guid Id, string Name, string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
     int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime, bool UsesCutoff, IReadOnlyList<string> CutoffAppliesTo,
     bool AllCompanies, IReadOnlyList<Guid> CompanyIds, IReadOnlyList<Guid> DefaultFor, IReadOnlyList<DateOnly> NextPayDates,
-    IReadOnlyList<ReminderResponse> Reminders);
+    IReadOnlyList<ReminderResponse> Reminders, int People);
 
 /// <summary>
 /// ONB-06, the Payroll schedules step: how often (monthly, weekly, every two weeks or daily) and when people are paid. Each company has one
@@ -65,7 +66,13 @@ public static class PaySchedulesEndpoints
             var list = await query.OrderBy(s => s.CreatedAt).ThenBy(s => s.Name).ToListAsync(ct);
             var defaults = await DefaultsAsync(db, ct);
             var today = PayDates.TodayInKenya(clock.GetUtcNow());
-            return Results.Ok(list.Select(s => ToResponse(s, defaults, today)).ToList());
+            // OP-05: the people each pays today, at the company asked for (else every company), only where they may see employees.
+            var counted = tenant.CompaniesFor(Permissions.EmployeesView).Where(c => companyId is null || c == companyId).ToArray();
+            var people = await db.Employments.AsNoTracking()
+                .Where(x => x.ValidTo == null && counted.Contains(x.CompanyId)
+                            && db.Employees.Any(e => e.Id == x.EmployeeId && e.HireDate <= today && (e.ExitDate == null || e.ExitDate >= today)))
+                .GroupBy(x => x.PayScheduleId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count, ct);
+            return Results.Ok(list.Select(s => ToResponse(s, defaults, today, people.GetValueOrDefault(s.Id))).ToList());
         }).Produces<List<PayScheduleResponse>>().Produces<ErrorResponse>(StatusCodes.Status401Unauthorized).RequirePermission(Permissions.SchedulesView);
 
         // The next pay dates for a pay day, shown while someone fills in a schedule.
@@ -475,9 +482,10 @@ public static class PaySchedulesEndpoints
             .Select(c => new { c.Id, Default = c.DefaultPayScheduleId!.Value }).ToListAsync(ct))
         .GroupBy(c => c.Default).ToDictionary(g => g.Key, g => g.Select(c => c.Id).ToList());
 
-    private static PayScheduleResponse ToResponse(PaySchedule s, Dictionary<Guid, List<Guid>> defaults, DateOnly today) => new(
+    private static PayScheduleResponse ToResponse(PaySchedule s, Dictionary<Guid, List<Guid>> defaults, DateOnly today, int people = 0) => new(
         s.Id, s.Name, s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime,
         s.UsesCutoff, s.CutoffAppliesTo, s.AllCompanies, s.Companies.Select(c => c.CompanyId).ToList(), defaults.GetValueOrDefault(s.Id) ?? [],
         NextPayDates(new ValidTiming(s.Frequency, s.PayDayRule, s.PayDay, s.CutoffDay, s.PayWeekday, s.FirstPayDate, s.CutoffDaysBefore, s.PayTime), today),
-        s.Reminders.OrderBy(r => r.CreatedAt).ThenBy(r => r.Id).Select(r => new ReminderResponse(r.Id, r.Amount, r.Unit, r.Channel, r.Recipient)).ToList());
+        s.Reminders.OrderBy(r => r.CreatedAt).ThenBy(r => r.Id).Select(r => new ReminderResponse(r.Id, r.Amount, r.Unit, r.Channel, r.Recipient)).ToList(),
+        people);
 }

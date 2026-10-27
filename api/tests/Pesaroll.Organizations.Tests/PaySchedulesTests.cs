@@ -20,7 +20,7 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
     private sealed record Company(Guid Id, string LegalName);
     private sealed record Schedule(Guid Id, string Name, string Frequency, string? PayDayRule, int? PayDay, int? CutoffDay,
         int? PayWeekday, DateOnly? FirstPayDate, int? CutoffDaysBefore, TimeOnly? PayTime, bool UsesCutoff, List<string> CutoffAppliesTo,
-        bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor, List<DateOnly> NextPayDates, List<Reminder> Reminders);
+        bool AllCompanies, List<Guid> CompanyIds, List<Guid> DefaultFor, List<DateOnly> NextPayDates, List<Reminder> Reminders, int People = -1);
     private sealed record Reminder(Guid Id, int Amount, string Unit, string Channel, string Recipient);
 
     private const string Ceo = "0199c0de-5a5e-7000-8000-000000000102";
@@ -431,5 +431,76 @@ public sealed class PaySchedulesTests(OnboardingTests.Api api) : IClassFixture<O
 
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
         Assert.Equal("ACC-8001", (await ErrorFrom(res)).Code);
+    }
+
+    // OP-05: how many people each schedule pays, for the company chosen, never counting a company the person can't see.
+
+    private static async Task Execute(string sql, params (string Name, object Value)[] parameters)
+    {
+        await using var connection = new NpgsqlConnection(Db);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(sql, connection);
+        foreach (var (name, value) in parameters) command.Parameters.AddWithValue(name, value);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Someone on the schedule at the company since they were hired, until they left (if they have).</summary>
+    private static Task Employee(Guid orgId, Guid companyId, Guid scheduleId, string hired, string? left = null) => Execute("""
+        with e as (
+            insert into employees (id, organization_id, company_id, staff_no, first_name, last_name, hire_date, exit_date)
+            values (uuidv7(), @org, @co, @staff, 'Wanjiru', 'Kamau', @hired::date, @left::date) returning id, hire_date)
+        insert into employments (id, organization_id, company_id, employee_id, valid_from, pay_schedule_id, leave_plan_id, employment_type)
+        select uuidv7(), @org, @co, e.id, e.hire_date, @schedule, c.default_leave_plan_id, 'permanent' from e, companies c where c.id = @co
+        """, ("org", orgId), ("co", companyId), ("staff", $"E{Random.Shared.Next(10000, 99999)}"), ("hired", hired), ("left", (object?)left ?? DBNull.Value),
+        ("schedule", scheduleId));
+
+    [Fact]
+    public async Task Each_schedule_shows_how_many_people_it_pays_for_the_company_asked_for_and_only_companies_they_may_see()
+    {
+        var (client, _, orgId) = await Onboarded();
+        var westlands = await AddCompany(client, "Westlands Ltd");
+        var mombasa = await AddCompany(client, "Mombasa Ltd");
+        var monthly = (await Schedules(client)).Single(s => s.Name == "Monthly");
+        var midMonth = (await (await client.PostAsJsonAsync("/api/pay-schedules", MidMonth([westlands.Id], []))).Content.ReadFromJsonAsync<Schedule>())!;
+
+        await Employee(orgId, westlands.Id, monthly.Id, "2024-01-15");
+        await Employee(orgId, westlands.Id, monthly.Id, "2024-01-15");
+        await Employee(orgId, westlands.Id, monthly.Id, "2023-01-15", left: "2024-06-30");   // has left
+        await Employee(orgId, westlands.Id, monthly.Id, "2099-01-01");                       // hasn't started
+        await Employee(orgId, westlands.Id, midMonth.Id, "2024-01-15");
+        await Employee(orgId, mombasa.Id, monthly.Id, "2024-01-15");
+
+        int People(List<Schedule> list, Guid id) => list.Single(s => s.Id == id).People;
+        var atWestlands = await Schedules(client, westlands.Id);
+        Assert.Equal((2, 1), (People(atWestlands, monthly.Id), People(atWestlands, midMonth.Id)));
+        Assert.Equal(1, People(await Schedules(client, mombasa.Id), monthly.Id));
+        Assert.Equal(3, People(await Schedules(client), monthly.Id));   // every company they may see
+
+        // Someone who sees Westlands only never counts Mombasa's people.
+        var hr = api.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        var hrEmail = $"hr-{Guid.NewGuid():N}@example.com";
+        await hr.PostAsJsonAsync("/api/auth/signup", new { firstName = "Mary", lastName = "Wanjiku", email = hrEmail, password = Password, roleId = Guid.Parse(Ceo) });
+        await Execute("""
+            with m as (insert into memberships (id, organization_id, user_id) select uuidv7(), @org, id from users where email = @email returning id),
+            g as (insert into security_groups (id, organization_id, name, all_companies) values (uuidv7(), @org, 'HR Westlands', false) returning id),
+            gc as (insert into security_group_companies (organization_id, security_group_id, company_id) select @org, g.id, @co from g),
+            gr as (insert into security_group_roles (organization_id, security_group_id, role_id) select @org, g.id, r.id from g, roles r where r.key = 'hr' and r.organization_id is null)
+            insert into security_group_members (id, organization_id, security_group_id, membership_id) select uuidv7(), @org, g.id, m.id from g, m
+            """, ("org", orgId), ("email", hrEmail), ("co", westlands.Id));
+        // Mary also approves pay runs for every company: she belongs to Mombasa, but may not see its employees.
+        await Execute("""
+            with g as (insert into security_groups (id, organization_id, name, all_companies) values (uuidv7(), @org, 'Approvers everywhere', true) returning id),
+            gr as (insert into security_group_roles (organization_id, security_group_id, role_id) select @org, g.id, r.id from g, roles r where r.key = 'approver' and r.organization_id is null)
+            insert into security_group_members (id, organization_id, security_group_id, membership_id)
+            select uuidv7(), @org, g.id, m.id from g, memberships m join users u on u.id = m.user_id where u.email = @email and m.organization_id = @org
+            """, ("org", orgId), ("email", hrEmail));
+        var signin = await api.CreateClient().PostAsJsonAsync("/api/auth/signin", new { identifier = hrEmail, password = Password });
+        hr.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", (await signin.Content.ReadFromJsonAsync<Token>())!.AccessToken);
+        Assert.Equal(2, People(await Schedules(hr), monthly.Id));
+        Assert.Equal(0, People(await Schedules(hr, mombasa.Id), monthly.Id));
+
+        // Another organization sees none of these schedules.
+        var (other, _, _) = await Onboarded();
+        Assert.DoesNotContain(await Schedules(other), s => s.Id == monthly.Id);
     }
 }
