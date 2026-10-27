@@ -4,13 +4,17 @@ import { shortDate } from '../schedules/wording'
 export const monthName = (iso: string) =>
   new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`))
 
-/** A run's period: "October 2026" for a calendar month, else "10 Oct to 16 Oct 2026" (both years when they differ). */
+/** "10 Oct to 16 Oct 2026", with both years when they differ. */
+export function datesLabel(start: string, end: string) {
+  const from = shortDate(start)
+  return start.slice(0, 4) === end.slice(0, 4) ? `${from.slice(0, from.lastIndexOf(' '))} to ${shortDate(end)}` : `${from} to ${shortDate(end)}`
+}
+
+/** A run's period: "October 2026" for a calendar month, else its dates. */
 export function periodLabel(start: string, end: string) {
   const [y, m, d] = start.split('-').map(Number)
   const lastOfMonth = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
-  if (d === 1 && end === lastOfMonth) return monthName(start)
-  const from = shortDate(start)
-  return start.slice(0, 4) === end.slice(0, 4) ? `${from.slice(0, from.lastIndexOf(' '))} to ${shortDate(end)}` : `${from} to ${shortDate(end)}`
+  return d === 1 && end === lastOfMonth ? monthName(start) : datesLabel(start, end)
 }
 
 /** "2026-10" for the month a date is in, months from it (-1 last month). */

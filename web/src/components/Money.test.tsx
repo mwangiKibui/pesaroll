@@ -22,3 +22,8 @@ it('can leave the currency out in a column of figures', () => {
   render(<Money amount={19500} currency={false} />)
   expect(screen.getByText('19,500')).toHaveClass('tabular-nums')
 })
+
+it('in a table column, always shows cents so the figures line up', () => {
+  expect(formatMoney(300, { currency: false, cents: true })).toBe('300.00')
+  expect(formatMoney(-1170.5, { currency: false, cents: true })).toBe('−1,170.50')
+})

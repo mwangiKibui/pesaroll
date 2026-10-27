@@ -9,12 +9,13 @@ export interface ApiError {
   reference: string
 }
 
-/** A problem with the whole form or page. Field problems go under their field instead. */
-export function FormErrorBanner({ error }: { error: ApiError }) {
+/** A problem with the whole form or page, and what to do about it if there's more to say. Field problems go under their field instead. */
+export function FormErrorBanner({ error, hint }: { error: ApiError; hint?: ReactNode }) {
   const { t } = useTranslation()
   return (
     <div role="alert" className="flex flex-col gap-1 rounded-card bg-danger-soft px-4 py-3 text-danger-ink">
       <p className="m-0 font-medium">{error.message}</p>
+      {hint && <p className="m-0">{hint}</p>}
       <p className="m-0 font-mono text-hint">{t('errors.codeAndReference', { code: error.code, reference: error.reference })}</p>
     </div>
   )

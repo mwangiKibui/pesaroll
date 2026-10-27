@@ -216,3 +216,27 @@ export const payRunSummary = (overrides: Record<string, unknown> = {}) => ({
   correctsPayRunId: null, periodStart: '2026-10-01', periodEnd: '2026-10-31', payDate: '2026-10-30', status: 'awaiting_approval',
   people: 14, grossPay: 798000, netPay: 589200, createdAt: '2026-10-20T07:00:00Z', ...overrides,
 })
+
+const noTotals = { people: 0, grossPay: 0, paye: 0, nssfEmployee: 0, shif: 0, housingLevyEmployee: 0, otherDeductions: 0, netPay: 0, nssfEmployer: 0, housingLevyEmployer: 0, nita: 0, otherEmployerCosts: 0, employerCost: 0 }
+
+/** A pay run in full, as the API returns it: October's Monthly run, worked out, nobody left out or flagged. */
+export const payRunDetail = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-0000000a0001', companyId: company().id, payScheduleId: schedule().id, scheduleName: 'Monthly', kind: 'regular',
+  correctsPayRunId: null, employeeIds: null, periodStart: '2026-10-01', periodEnd: '2026-10-31', payDate: '2026-10-30', status: 'calculated',
+  rulePackVersion: 'KE-2026.1', calculationError: null, declineReason: null, approvalRequestId: null,
+  totals: { ...noTotals, people: 14, grossPay: 798000, paye: 121300, nssfEmployee: 30000, shif: 21945, housingLevyEmployee: 11970, netPay: 589200, nssfEmployer: 30000, housingLevyEmployer: 11970, nita: 700, employerCost: 42670 },
+  leftOut: [], flagged: [], changes: null, createdAt: '2026-10-20T07:00:00Z', calculatedAt: '2026-10-26T07:00:00Z', sentAt: null, approvedAt: null,
+  cancelledAt: null, canManage: true, cutoffOn: null, ...overrides,
+})
+
+/** Someone a run pays, with their lines: Wanjiru Kamau on KES 85,000 a month. */
+export const payRunPerson = (overrides: Record<string, unknown> = {}) => ({
+  employeeId: '0199c0de-0000-7000-8000-00000000a501', staffNo: 'EMP-01', name: 'Wanjiru Kamau', notes: [], basicPay: 85000, grossPay: 85000,
+  taxablePay: 74987.5, paye: 16216.88, nssfEmployee: 4320, shif: 2337.5, housingLevyEmployee: 1275, totalDeductions: 24149.38, netPay: 60850.62,
+  employerCosts: 5645,
+  lines: [
+    { kind: 'earning', code: 'BASIC', name: 'Basic pay', statutoryKey: null, base: null, rate: null, amount: 85000, monthToDate: null, earlier: 0, quantity: null, unitRate: null, reason: null, owedFrom: null, owedTo: null },
+    { kind: 'deduction', code: 'PAYE', name: 'PAYE', statutoryKey: 'paye', base: 74987.5, rate: null, amount: 16216.88, monthToDate: 16216.88, earlier: 0, quantity: null, unitRate: null, reason: null, owedFrom: null, owedTo: null },
+  ],
+  approvedBefore: null, deductionsMade: null, deductionsChosenBy: null, ...overrides,
+})

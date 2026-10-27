@@ -675,7 +675,158 @@
     "monthPlaceholder": "Your month",
     "payDatePlaceholder": "Your pay date",
     "scheduleRequired": "Choose a payroll schedule.",
-    "startHint": "Overtime, commission, unpaid days and other changes are entered after the run starts, until it is sent for approval."
+    "startHint": "Overtime, commission, unpaid days and other changes are entered after the run starts, until it is sent for approval.",
+    "inCurrency": "{{label}} ({{currency}})"
+  },
+  "payRun": {
+    "back": "Back to pay runs",
+    "title": "{{schedule}} pay run · {{period}}",
+    "titleCorrection": "{{schedule}} correction · {{period}}",
+    "pays_one": "Pays {{date}} · {{count}} person",
+    "pays_other": "Pays {{date}} · {{count}} people",
+    "steps": "Pay run steps",
+    "totals": "Totals",
+    "paye": "PAYE",
+    "shif": "SHIF",
+    "nssf": "NSSF",
+    "housingLevy": "Housing Levy",
+    "employerCosts": "Employer costs",
+    "employee": "Employee",
+    "actions": "Actions",
+    "people": "People in this pay run",
+    "view": "View {{name}}",
+    "viewShort": "View",
+    "calculate": "Work out pay",
+    "recalculate": "Refresh",
+    "send": "Send for approval",
+    "sent": "Sent for approval",
+    "cancel": "Cancel pay run",
+    "cancelTitle": "Cancel this pay run?",
+    "cancelText": "Nobody is paid from it, and it can't be opened again. You can start a new one for the same period.",
+    "cancelled": "Pay run cancelled",
+    "working": "Working out pay. This takes a moment.",
+    "calculationFailed": "We couldn't work out this pay run. Code {{code}}. Work it out again, or give support the code.",
+    "declined": "Sent back: {{reason}}",
+    "cutoff": "Changes entered after {{date}} are paid in the next run.",
+    "workflowHint": "An administrator sets this up under Organization → Workflows.",
+    "since": "Since {{period}}:",
+    "runOf": "the run of {{date}}",
+    "peopleCount": "{{count}} people",
+    "joined": "{{names}} joined.",
+    "gone": "{{names}} left.",
+    "moved": "Gross pay {{gross}}, net pay {{net}}.",
+    "up": "up {{amount}}",
+    "down": "down {{amount}}",
+    "same": "the same",
+    "leftOut": "Left out",
+    "flagged": "To check",
+    "leftOutReasons": {
+      "no_pay": "No basic pay set",
+      "other_basis": "Paid by the day or hour on another schedule",
+      "other_currency": "Paid in another currency",
+      "not_in_period": "Not working here in this period"
+    },
+    "toCheck": "To check",
+    "earnings": "Earnings",
+    "deductions": "Deductions",
+    "totalDeductions": "Deductions",
+    "approvedBefore": "Net pay approved before",
+    "netChange": "Change in net pay",
+    "owed": "Owed from {{period}} (after that period's cut-off)",
+    "changed": "Changed for this run: {{reason}}",
+    "rateOf": "{{rate}} of {{base}}",
+    "monthToDate": "{{total}} this month, {{earlier}} in earlier runs",
+    "notes": {
+      "joined": {
+        "short": "Joined",
+        "long": "Joined in this period"
+      },
+      "left": {
+        "short": "Left",
+        "long": "Left in this period"
+      },
+      "prorated": {
+        "short": "Part period",
+        "long": "Paid for part of the period"
+      },
+      "pay_changed": {
+        "short": "Pay changed",
+        "long": "Pay changed in this period"
+      },
+      "basis_changed": {
+        "short": "Basis changed",
+        "long": "Moved between monthly, daily and hourly pay in this period"
+      },
+      "paid_to_cutoff": {
+        "short": "Paid to cut-off",
+        "long": "Paid up to the cut-off; the rest of the period is paid in the next run"
+      },
+      "owed": {
+        "short": "Owed",
+        "long": "Includes pay owed from the last period"
+      },
+      "negative_net": {
+        "short": "Below zero",
+        "long": "Deductions are more than pay, so net pay is below zero"
+      },
+      "no_deductions": {
+        "short": "No deductions",
+        "long": "This schedule makes no statutory deductions for them"
+      },
+      "some_deductions": {
+        "short": "Some deductions",
+        "long": "This schedule makes only some statutory deductions for them"
+      },
+      "refund": {
+        "short": "Refund",
+        "long": "Includes a refund"
+      },
+      "usual_time": {
+        "short": "Usual time",
+        "long": "Paid for their usual days or hours, as none were entered"
+      },
+      "below_minimum": {
+        "short": "Below minimum wage",
+        "long": "Paid below the minimum wage for their area"
+      },
+      "no_wage_area": {
+        "short": "No wage area",
+        "long": "No minimum wage area set, so the minimum wage wasn't checked"
+      },
+      "adjusted": {
+        "short": "Changed",
+        "long": "An amount was changed for this run"
+      },
+      "pay_change_next_run": {
+        "short": "Pay change next run",
+        "long": "A pay change came after the cut-off and is paid in the next run"
+      },
+      "next_run": {
+        "short": "Next run",
+        "long": "Some changes are paid in the next run"
+      }
+    },
+    "correct": "Correct",
+    "correctTitle": "Correct this pay run",
+    "correctIntro": "Choose whose pay was wrong. The correction is a pay run of its own and pays only the difference.",
+    "correctPeople": "People to correct",
+    "correctPeoplePlaceholder": "Your people to correct",
+    "correctNobody": "Choose at least one person.",
+    "startCorrection": "Start correction",
+    "correctionStarted": "Correction started",
+    "waitingFor": "Waiting for approval from {{names}}",
+    "yourApproval": "{{name}} sent this pay run for your approval.",
+    "approve": "Approve pay run",
+    "approved": "Pay run approved",
+    "sendBack": "Send back",
+    "sendBackTitle": "Send this pay run back?",
+    "sentBack": "Sent back to Payroll",
+    "reason": "Why",
+    "reasonPlaceholder": "Your reason, like Overtime for Otieno is missing",
+    "reasonRequired": "Say why, so Payroll knows what to fix.",
+    "period": "Period",
+    "notWorkedOut": "Pay isn't worked out yet",
+    "notWorkedOutText": "Work it out to see each person's pay, their deductions and the totals. You can work it out again until it's sent for approval."
   },
   "schedules": {
     "title": "When do you pay your people?",

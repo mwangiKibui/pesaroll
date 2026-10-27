@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCurrentCompany } from '../../app/company'
@@ -51,6 +52,8 @@ function Runs({ companyId, canStart }: { companyId: string; canStart: boolean })
   const { t } = useTranslation()
   const { api } = useServices()
   const companies = useCompanies()
+  // Runs pay only in the company's currency (anyone paid in another is left out), so the headings say it once.
+  const currency = companies.data?.find(c => c.id === companyId)?.currency ?? 'KES'
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [starting, setStarting] = useState(false)
@@ -78,8 +81,8 @@ function Runs({ companyId, canStart }: { companyId: string; canStart: boolean })
               <th scope="col">{t('payRuns.period')}</th>
               <th scope="col">{t('payRuns.payDate')}</th>
               <th scope="col" className="text-right">{t('payRuns.people')}</th>
-              <th scope="col" className="text-right">{t('payRuns.grossPay')}</th>
-              <th scope="col" className="text-right">{t('payRuns.netPay')}</th>
+              <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRuns.grossPay'), currency })}</th>
+              <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRuns.netPay'), currency })}</th>
               <th scope="col">{t('payRuns.status')}</th>
             </tr>
           </thead>
@@ -87,13 +90,13 @@ function Runs({ companyId, canStart }: { companyId: string; canStart: boolean })
             {runs.data.items.map(r => (
               <tr key={r.id}>
                 <td>
-                  <span className="block font-medium text-ink">{periodLabel(r.periodStart, r.periodEnd)}</span>
+                  <Link to="/pay/runs/$id" params={{ id: r.id }} className="block font-medium text-brand">{periodLabel(r.periodStart, r.periodEnd)}</Link>
                   <span className="block text-hint text-muted">{r.kind === 'correction' ? t('payRuns.correctionOf', { schedule: r.scheduleName }) : r.scheduleName}</span>
                 </td>
                 <td className="whitespace-nowrap">{shortDate(r.payDate)}</td>
                 <td className="text-right tabular-nums">{Number(r.people)}</td>
-                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.grossPay} /> : none}</td>
-                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.netPay} /> : none}</td>
+                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.grossPay} currency={false} cents /> : none}</td>
+                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.netPay} currency={false} cents /> : none}</td>
                 <td><Tag tone={statusTone(r.status)}>{t(`payRuns.statuses.${r.status}`)}</Tag></td>
               </tr>
             ))}

@@ -675,7 +675,158 @@
     "monthPlaceholder": "Mwezi wako",
     "payDatePlaceholder": "Tarehe yako ya malipo",
     "scheduleRequired": "Chagua ratiba ya mishahara.",
-    "startHint": "Saa za ziada, kamisheni, siku zisizolipwa na mabadiliko mengine huwekwa baada ya malipo kuanza, hadi yatumwe kwa idhini."
+    "startHint": "Saa za ziada, kamisheni, siku zisizolipwa na mabadiliko mengine huwekwa baada ya malipo kuanza, hadi yatumwe kwa idhini.",
+    "inCurrency": "{{label}} ({{currency}})"
+  },
+  "payRun": {
+    "back": "Rudi kwenye malipo ya mishahara",
+    "title": "Malipo ya {{schedule}} · {{period}}",
+    "titleCorrection": "Marekebisho ya {{schedule}} · {{period}}",
+    "pays_one": "Inalipwa {{date}} · mtu {{count}}",
+    "pays_other": "Inalipwa {{date}} · watu {{count}}",
+    "steps": "Hatua za malipo",
+    "totals": "Jumla",
+    "paye": "PAYE",
+    "shif": "SHIF",
+    "nssf": "NSSF",
+    "housingLevy": "Ushuru wa Nyumba",
+    "employerCosts": "Gharama za mwajiri",
+    "employee": "Mfanyakazi",
+    "actions": "Vitendo",
+    "people": "Watu katika malipo haya",
+    "view": "Angalia {{name}}",
+    "viewShort": "Angalia",
+    "calculate": "Hesabu mishahara",
+    "recalculate": "Sasisha",
+    "send": "Tuma iidhinishwe",
+    "sent": "Imetumwa iidhinishwe",
+    "cancel": "Ghairi malipo",
+    "cancelTitle": "Ghairi malipo haya?",
+    "cancelText": "Hakuna atakayelipwa kupitia malipo haya, na hayawezi kufunguliwa tena. Unaweza kuanzisha mapya kwa kipindi hicho.",
+    "cancelled": "Malipo yameghairiwa",
+    "working": "Tunahesabu mishahara. Itachukua muda mfupi.",
+    "calculationFailed": "Hatukuweza kuhesabu malipo haya. Msimbo {{code}}. Hesabu tena, au mpe msaada msimbo huo.",
+    "declined": "Yamerudishwa: {{reason}}",
+    "cutoff": "Mabadiliko yaliyowekwa baada ya {{date}} yanalipwa katika malipo yanayofuata.",
+    "workflowHint": "Msimamizi huweka hili chini ya Shirika → Mitiririko ya kazi.",
+    "since": "Tangu {{period}}:",
+    "runOf": "malipo ya {{date}}",
+    "peopleCount": "watu {{count}}",
+    "joined": "{{names}} wamejiunga.",
+    "gone": "{{names}} wameondoka.",
+    "moved": "Mshahara ghafi {{gross}}, mshahara halisi {{net}}.",
+    "up": "umepanda {{amount}}",
+    "down": "umeshuka {{amount}}",
+    "same": "haujabadilika",
+    "leftOut": "Walioachwa",
+    "flagged": "Ya kuangalia",
+    "leftOutReasons": {
+      "no_pay": "Hakuna mshahara wa msingi",
+      "other_basis": "Analipwa kwa siku au saa kwenye ratiba nyingine",
+      "other_currency": "Analipwa kwa sarafu nyingine",
+      "not_in_period": "Hafanyi kazi hapa katika kipindi hiki"
+    },
+    "toCheck": "Ya kuangalia",
+    "earnings": "Mapato",
+    "deductions": "Makato",
+    "totalDeductions": "Makato",
+    "approvedBefore": "Mshahara halisi ulioidhinishwa awali",
+    "netChange": "Mabadiliko ya mshahara halisi",
+    "owed": "Deni la {{period}} (baada ya tarehe ya mwisho ya kipindi hicho)",
+    "changed": "Imebadilishwa kwa malipo haya: {{reason}}",
+    "rateOf": "{{rate}} ya {{base}}",
+    "monthToDate": "{{total}} mwezi huu, {{earlier}} katika malipo ya awali",
+    "notes": {
+      "joined": {
+        "short": "Amejiunga",
+        "long": "Amejiunga katika kipindi hiki"
+      },
+      "left": {
+        "short": "Ameondoka",
+        "long": "Ameondoka katika kipindi hiki"
+      },
+      "prorated": {
+        "short": "Sehemu ya kipindi",
+        "long": "Amelipwa kwa sehemu ya kipindi"
+      },
+      "pay_changed": {
+        "short": "Mshahara umebadilika",
+        "long": "Mshahara umebadilika katika kipindi hiki"
+      },
+      "basis_changed": {
+        "short": "Msingi umebadilika",
+        "long": "Amehamishwa kati ya malipo ya mwezi, siku na saa katika kipindi hiki"
+      },
+      "paid_to_cutoff": {
+        "short": "Hadi tarehe ya mwisho",
+        "long": "Amelipwa hadi tarehe ya mwisho; kipindi kilichobaki kinalipwa katika malipo yanayofuata"
+      },
+      "owed": {
+        "short": "Deni",
+        "long": "Inajumuisha malipo yanayodaiwa kutoka kipindi kilichopita"
+      },
+      "negative_net": {
+        "short": "Chini ya sifuri",
+        "long": "Makato ni zaidi ya mshahara, hivyo mshahara halisi uko chini ya sifuri"
+      },
+      "no_deductions": {
+        "short": "Hakuna makato",
+        "long": "Ratiba hii haikati makato ya kisheria kwake"
+      },
+      "some_deductions": {
+        "short": "Baadhi ya makato",
+        "long": "Ratiba hii inakata baadhi tu ya makato ya kisheria kwake"
+      },
+      "refund": {
+        "short": "Marejesho",
+        "long": "Inajumuisha marejesho"
+      },
+      "usual_time": {
+        "short": "Muda wa kawaida",
+        "long": "Amelipwa kwa siku au saa zake za kawaida, kwa kuwa hazikuwekwa"
+      },
+      "below_minimum": {
+        "short": "Chini ya kima cha chini",
+        "long": "Amelipwa chini ya kima cha chini cha mshahara cha eneo lake"
+      },
+      "no_wage_area": {
+        "short": "Hakuna eneo la mshahara",
+        "long": "Hakuna eneo la kima cha chini lililowekwa, hivyo kima cha chini hakikukaguliwa"
+      },
+      "adjusted": {
+        "short": "Imebadilishwa",
+        "long": "Kiasi kimebadilishwa kwa malipo haya"
+      },
+      "pay_change_next_run": {
+        "short": "Badiliko malipo yajayo",
+        "long": "Badiliko la mshahara limekuja baada ya tarehe ya mwisho na linalipwa katika malipo yanayofuata"
+      },
+      "next_run": {
+        "short": "Malipo yajayo",
+        "long": "Baadhi ya mabadiliko yanalipwa katika malipo yanayofuata"
+      }
+    },
+    "correct": "Rekebisha",
+    "correctTitle": "Rekebisha malipo haya",
+    "correctIntro": "Chagua ambao mishahara yao ilikosewa. Marekebisho ni malipo yake yenyewe na yanalipa tofauti tu.",
+    "correctPeople": "Watu wa kurekebisha",
+    "correctPeoplePlaceholder": "Watu wako wa kurekebisha",
+    "correctNobody": "Chagua angalau mtu mmoja.",
+    "startCorrection": "Anza marekebisho",
+    "correctionStarted": "Marekebisho yameanzishwa",
+    "waitingFor": "Inasubiri idhini ya {{names}}",
+    "yourApproval": "{{name}} ametuma malipo haya uyaidhinishe.",
+    "approve": "Idhinisha malipo",
+    "approved": "Malipo yameidhinishwa",
+    "sendBack": "Rudisha",
+    "sendBackTitle": "Rudisha malipo haya?",
+    "sentBack": "Yamerudishwa kwa Mishahara",
+    "reason": "Kwa nini",
+    "reasonPlaceholder": "Sababu yako, kama saa za ziada za Otieno hazipo",
+    "reasonRequired": "Sema kwa nini, ili Mishahara wajue cha kurekebisha.",
+    "period": "Kipindi",
+    "notWorkedOut": "Mishahara bado haijahesabiwa",
+    "notWorkedOutText": "Ihesabu uone mshahara wa kila mtu, makato yake na jumla. Unaweza kuihesabu tena hadi itumwe iidhinishwe."
   },
   "schedules": {
     "title": "Unawalipa watu wako lini?",
