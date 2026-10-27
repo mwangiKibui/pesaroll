@@ -21,8 +21,14 @@ describe('navigation', () => {
     expect(shown(hr)).toEqual([
       'main: home',
       'people: employees',
-      'organization: locations, structure, schedules, leavePlans',
+      'organization: locations, structure, leavePlans',
     ])
+  })
+
+  it('Payroll schedules is for people who manage them (OP-05): HR may view schedules, to pick one for an employee, but has no link', () => {
+    expect(hr.map(g => g.permission)).toContain('schedules.view')
+    expect(shown(hr).join()).not.toContain('schedules')
+    expect(navigation.flatMap(s => s.links).find(l => l.key === 'schedules')?.href).toBe('/organization/payroll-schedules')
   })
 
   it('Payroll sees Pay', () => {

@@ -47,7 +47,8 @@ export const navigation: NavSection[] = [
     { key: 'companies', href: '/setup/companies', permission: p.companies.view },
     { key: 'locations', href: '/setup/locations', permission: p.locations.view },
     { key: 'structure', href: '/setup/structure', permission: p.structure.view },
-    { key: 'schedules', href: '/setup/schedules', permission: p.schedules.view },
+    // For people who manage schedules; HR's View is only for picking one on the employee form (OP-05).
+    { key: 'schedules', href: '/organization/payroll-schedules', permission: p.schedules.manage },
     { key: 'leavePlans', href: '/setup/leave-plans', permission: p.leave.view },
     { key: 'workflows', href: '/organization/workflows', permission: p.companies.manage, feature: 'workflows' },
   ] },
