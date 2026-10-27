@@ -4,6 +4,7 @@ import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../../api/schema'
 import { errorMessage, isApiError } from '../../app/apiErrors'
+import { permissions, usePermissions } from '../../app/permissions'
 import { useServices, type ApiError } from '../../app/services'
 import { Button, IconButton } from '../../components/Button'
 import { CompanySelect, type CompanySelection } from '../../components/CompanySelect'
@@ -14,6 +15,8 @@ import { Modal } from '../../components/Modal'
 import { MultiSelectField } from '../../components/MultiSelectField'
 import { PlusIcon } from '../../components/icons'
 import { useToast } from '../../components/toast'
+import { checkDeductions, deductionsBody, draftFrom, sameChoice, todayInKenya, type DeductionErrors, type DeductionsDraft } from './deductions'
+import { StatutoryDeductions } from './StatutoryDeductions'
 import { clockTime, longDate } from './wording'
 
 type Company = components['schemas']['CompanyResponse']
@@ -82,6 +85,9 @@ export function ScheduleDrawer({ schedule, companies, schedules, defaultApplies,
   const toast = useToast()
   const formId = useId()
   const [banner, setBanner] = useState<ApiError | 'network' | null>(null)
+  const { can } = usePermissions()
+  // Once added, saving again changes it (say its deductions were refused after the schedule was saved).
+  const [savedId, setSavedId] = useState(schedule?.id ?? null)
 
   const { register, handleSubmit, control, setError, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
     defaultValues: {
@@ -118,6 +124,26 @@ export function ScheduleDrawer({ schedule, companies, schedules, defaultApplies,
     ...ownItems.map(i => ({ value: i, label: i })),
   ]
   const serves = served(applies.all, applies.ids, companies)
+
+  // Statutory deductions (PAY-10) for schedules not paid monthly: the choice in force, and the one being made.
+  const notMonthly = frequency !== 'monthly'
+  const described = useQuery({
+    queryKey: ['schedule-deductions', savedId],
+    enabled: !!savedId && notMonthly,
+    queryFn: async () => {
+      const { data } = await api.GET('/api/pay-schedules/{id}/deductions', { params: { path: { id: savedId! } } })
+      if (!data) throw new Error('deductions')
+      return data
+    },
+  })
+  const [today] = useState(todayInKenya)
+  const [deductionsDraft, setDeductionsDraft] = useState<DeductionsDraft | null>(null)
+  const [deductionErrors, setDeductionErrors] = useState<DeductionErrors>({})
+  const inForce = draftFrom(described.data?.current ?? null, today)
+  const deductions = deductionsDraft ?? inForce
+  const canChangeDeductions = companies.every(c => can(permissions.schedules.manage, c.id))
+  // Sent only when the choice changed, and never over one that couldn't be read.
+  const sendDeductions = notMonthly && canChangeDeductions && !sameChoice(deductions, inForce) && (!savedId || described.isSuccess)
   const dayOptions = days.map(d => ({ value: d, label: t('schedules.day', { count: Number(d), ordinal: true }) }))
   const monthly = frequency === 'monthly'
   const byWeekday = frequency === 'weekly' || frequency === 'fortnightly'
@@ -160,7 +186,9 @@ export function ScheduleDrawer({ schedule, companies, schedules, defaultApplies,
     if (v.reminders.some(r => r.amount < 1 || r.amount > reminderMax(v.frequency))) problems.push(['reminders', t('schedules.remindersDontFit')])
     if (!v.applies.all && v.applies.ids.length === 0) problems.push(['applies', t('schedules.companiesRequired')])
     for (const [name, message] of problems) setError(name, { message })
-    return problems.length === 0
+    const deductionProblems = sendDeductions ? checkDeductions(deductions, t) : {}
+    setDeductionErrors(deductionProblems)
+    return problems.length === 0 && Object.keys(deductionProblems).length === 0
   }
 
   const onSubmit = async (v: Values) => {
@@ -189,20 +217,31 @@ export function ScheduleDrawer({ schedule, companies, schedules, defaultApplies,
       defaultFor: v.defaultFor.filter(id => served(v.applies.all, v.applies.ids, companies).some(c => c.id === id)),
     }
     try {
-      const { data, error } = schedule
-        ? await api.PATCH('/api/pay-schedules/{id}', { params: { path: { id: schedule.id } }, body })
+      const { data, error } = savedId
+        ? await api.PATCH('/api/pay-schedules/{id}', { params: { path: { id: savedId } }, body })
         : await api.POST('/api/pay-schedules', { body })
-      if (data) {
-        // Making it a default moves other companies' defaults, so the whole list is fetched again.
-        void queryClient.invalidateQueries({ queryKey: ['schedules'] })
-        toast.show(schedule ? t('schedules.saved') : t('schedules.added'))
-        onClose()
-        return
+      if (!data) return showError(error)
+      // Making it a default moves other companies' defaults, so the whole list is fetched again.
+      void queryClient.invalidateQueries({ queryKey: ['schedules'] })
+      setSavedId(data.id)
+      if (sendDeductions) {
+        const saved = await api.POST('/api/pay-schedules/{id}/deductions', { params: { path: { id: data.id } }, body: deductionsBody(deductions) })
+        if (!saved.data) return showDeductionsError(saved.error)
+        queryClient.setQueryData(['schedule-deductions', data.id], saved.data)
       }
-      showError(error)
+      toast.show(savedId ? t('schedules.saved') : t('schedules.added'))
+      onClose()
     } catch {
       setBanner('network')
     }
+  }
+
+  // The schedule is saved by now; the choice's own problems show on its fields, others above the form.
+  const showDeductionsError = (error: unknown) => {
+    if (!isApiError(error)) return setBanner('network')
+    const known = Object.entries(error.fields ?? {}).filter(([name]) => ['items', 'employeeIds', 'startsOn'].includes(name))
+    setDeductionErrors(Object.fromEntries(known))
+    if (known.length === 0) setBanner(error)
   }
 
   const showError = (error: unknown) => {
@@ -221,10 +260,10 @@ export function ScheduleDrawer({ schedule, companies, schedules, defaultApplies,
   }
 
   return (
-    <Drawer open size="wide" title={schedule ? t('schedules.editTitle') : t('schedules.addTitle')} onClose={onClose}
+    <Drawer open size="wide" title={savedId ? t('schedules.editTitle') : t('schedules.addTitle')} onClose={onClose}
       footer={<>
         <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
-        <Button type="submit" form={formId} busy={isSubmitting}>{schedule ? t('schedules.save') : t('schedules.add')}</Button>
+        <Button type="submit" form={formId} busy={isSubmitting}>{savedId ? t('schedules.save') : t('schedules.add')}</Button>
       </>}>
       <form id={formId} noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         {banner === 'network' && <Notice tone="danger">{t('apiErrors.network')}</Notice>}
@@ -297,6 +336,11 @@ export function ScheduleDrawer({ schedule, companies, schedules, defaultApplies,
               error={errors.cutoffAppliesTo?.message} options={itemOptions} value={field.value} onChange={field.onChange}
               addLabel={t('schedules.addOwn')} onAdd={() => setAddingItem(true)} />
           )} />
+        )}
+        {notMonthly && (
+          <StatutoryDeductions key={frequency} scheduleId={savedId} frequency={frequency} value={deductions} errors={deductionErrors}
+            onChange={setDeductionsDraft} canChange={canChangeDeductions} history={described.data?.history ?? []}
+            loading={!!savedId && described.isPending} loadFailed={described.isError} />
         )}
 
         <section aria-labelledby={`${formId}-reminders`} className="flex flex-col gap-2">
