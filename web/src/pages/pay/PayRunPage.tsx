@@ -24,6 +24,7 @@ import { PersonDrawer } from '../../features/payRuns/PersonDrawer'
 import { RunSteps } from '../../features/payRuns/RunSteps'
 import { datesLabel, hasTotals, monthName, periodLabel, statusTone } from '../../features/payRuns/wording'
 import { shortDate } from '../../features/schedules/wording'
+import { useCompanies } from '../../setup/hooks'
 
 type Run = components['schemas']['PayRunDetail']
 type Person = components['schemas']['PayRunPersonResponse']
@@ -58,6 +59,7 @@ function PayRun({ id }: { id: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [correcting, setCorrecting] = useState(false)
+  const companies = useCompanies()
   const run = useQuery({
     queryKey: ['pay-run', id],
     queryFn: async () => {
@@ -153,7 +155,7 @@ function PayRun({ id }: { id: string }) {
         <Totals run={r} />
         {r.changes && <Notice tone="brand">{changesText(r)}</Notice>}
         <Lists run={r} />
-        <People runId={id} />
+        <People runId={id} currency={companies.data?.find(c => c.id === r.companyId)?.currency ?? 'KES'} />
       </>}
 
       <ConfirmDialog open={cancelling} title={t('payRun.cancelTitle')} confirmLabel={t('payRun.cancel')} busy={busy === 'cancel'}
@@ -230,7 +232,8 @@ function Lists({ run }: { run: Run }) {
   </>
 }
 
-function People({ runId }: { runId: string }) {
+/** Everyone the run pays, one row each; the headings carry the currency so the figures stay plain. */
+function People({ runId, currency }: { runId: string; currency: string }) {
   const { t } = useTranslation()
   const { api } = useServices()
   const [page, setPage] = useState(1)
@@ -255,12 +258,12 @@ function People({ runId }: { runId: string }) {
         <thead>
           <tr>
             <th scope="col">{t('payRun.employee')}</th>
-            <th scope="col" className="text-right">{t('payRuns.grossPay')}</th>
-            <th scope="col" className="text-right">{t('payRun.paye')}</th>
-            <th scope="col" className="text-right">{t('payRun.shif')}</th>
-            <th scope="col" className="text-right">{t('payRun.nssf')}</th>
-            <th scope="col" className="text-right">{t('payRun.housingLevy')}</th>
-            <th scope="col" className="text-right">{t('payRuns.netPay')}</th>
+            <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRuns.grossPay'), currency })}</th>
+            <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRun.paye'), currency })}</th>
+            <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRun.shif'), currency })}</th>
+            <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRun.nssf'), currency })}</th>
+            <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRun.housingLevy'), currency })}</th>
+            <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRuns.netPay'), currency })}</th>
             <th scope="col" className="text-right"><span className="sr-only">{t('payRun.actions')}</span></th>
           </tr>
         </thead>
@@ -274,12 +277,12 @@ function People({ runId }: { runId: string }) {
                   {knownNotes(p.notes).map(n => <Tag key={n} tone="warning">{t(`payRun.notes.${n}.short`)}</Tag>)}
                 </span>}
               </td>
-              <td className="text-right"><Money amount={p.grossPay} /></td>
-              <td className="text-right"><Money amount={p.paye} /></td>
-              <td className="text-right"><Money amount={p.shif} /></td>
-              <td className="text-right"><Money amount={p.nssfEmployee} /></td>
-              <td className="text-right"><Money amount={p.housingLevyEmployee} /></td>
-              <td className="text-right font-medium"><Money amount={p.netPay} /></td>
+              <td className="text-right"><Money amount={p.grossPay} currency={false} cents /></td>
+              <td className="text-right"><Money amount={p.paye} currency={false} cents /></td>
+              <td className="text-right"><Money amount={p.shif} currency={false} cents /></td>
+              <td className="text-right"><Money amount={p.nssfEmployee} currency={false} cents /></td>
+              <td className="text-right"><Money amount={p.housingLevyEmployee} currency={false} cents /></td>
+              <td className="text-right font-medium"><Money amount={p.netPay} currency={false} cents /></td>
               <td className="text-right">
                 <Button variant="ghost" aria-label={t('payRun.view', { name: p.name })} onClick={() => setViewing(p)}>{t('payRun.viewShort')}</Button>
               </td>

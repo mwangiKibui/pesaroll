@@ -64,10 +64,10 @@ it('lists the top bar company\'s pay runs: period and schedule, pay date, people
   expect(await screen.findByRole('heading', { name: 'Pay runs', level: 1 })).toBeInTheDocument()
   expect(await within(screen.getByRole('navigation', { name: 'Main' })).findByRole('link', { name: 'Pay runs' })).toHaveAttribute('aria-current', 'page')
   const row = await rowOf('October 2026')
-  expect(within(table()).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Period', 'Pay date', 'People', 'Gross pay', 'Net pay', 'Status'])
-  expect(within(row).getAllByRole('cell').map(c => c.textContent)).toEqual(['October 2026Monthly', '30 Oct 2026', '14', 'KES 798,000', 'KES 589,200', 'Awaiting approval'])
+  expect(within(table()).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Period', 'Pay date', 'People', 'Gross pay (KES)', 'Net pay (KES)', 'Status'])
+  expect(within(row).getAllByRole('cell').map(c => c.textContent)).toEqual(['October 2026Monthly', '30 Oct 2026', '14', '798,000.00', '589,200.00', 'Awaiting approval'])
   expect(within(await rowOf('10 Oct to 16 Oct 2026')).getAllByRole('cell').map(c => c.textContent))
-    .toEqual(['10 Oct to 16 Oct 2026Casuals', '16 Oct 2026', '6', 'KES 46,800', 'KES 41,200', 'Approved'])
+    .toEqual(['10 Oct to 16 Oct 2026Casuals', '16 Oct 2026', '6', '46,800.00', '41,200.00', 'Approved'])
   // A correction says so; a draft has no totals yet.
   const fix = within(table()).getAllByRole('row').at(-1)!
   expect(within(fix).getAllByRole('cell').map(c => c.textContent)).toEqual(['October 2026Monthly · Correction', '30 Oct 2026', '1', '—', '—', 'Draft'])

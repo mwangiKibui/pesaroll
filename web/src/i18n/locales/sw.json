@@ -675,7 +675,8 @@
     "monthPlaceholder": "Mwezi wako",
     "payDatePlaceholder": "Tarehe yako ya malipo",
     "scheduleRequired": "Chagua ratiba ya mishahara.",
-    "startHint": "Saa za ziada, kamisheni, siku zisizolipwa na mabadiliko mengine huwekwa baada ya malipo kuanza, hadi yatumwe kwa idhini."
+    "startHint": "Saa za ziada, kamisheni, siku zisizolipwa na mabadiliko mengine huwekwa baada ya malipo kuanza, hadi yatumwe kwa idhini.",
+    "inCurrency": "{{label}} ({{currency}})"
   },
   "payRun": {
     "back": "Rudi kwenye malipo ya mishahara",
@@ -696,7 +697,7 @@
     "view": "Angalia {{name}}",
     "viewShort": "Angalia",
     "calculate": "Hesabu mishahara",
-    "recalculate": "Hesabu tena",
+    "recalculate": "Sasisha",
     "send": "Tuma iidhinishwe",
     "sent": "Imetumwa iidhinishwe",
     "cancel": "Ghairi malipo",

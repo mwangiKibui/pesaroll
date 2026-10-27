@@ -52,6 +52,8 @@ function Runs({ companyId, canStart }: { companyId: string; canStart: boolean })
   const { t } = useTranslation()
   const { api } = useServices()
   const companies = useCompanies()
+  // Runs pay only in the company's currency (anyone paid in another is left out), so the headings say it once.
+  const currency = companies.data?.find(c => c.id === companyId)?.currency ?? 'KES'
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [starting, setStarting] = useState(false)
@@ -79,8 +81,8 @@ function Runs({ companyId, canStart }: { companyId: string; canStart: boolean })
               <th scope="col">{t('payRuns.period')}</th>
               <th scope="col">{t('payRuns.payDate')}</th>
               <th scope="col" className="text-right">{t('payRuns.people')}</th>
-              <th scope="col" className="text-right">{t('payRuns.grossPay')}</th>
-              <th scope="col" className="text-right">{t('payRuns.netPay')}</th>
+              <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRuns.grossPay'), currency })}</th>
+              <th scope="col" className="text-right">{t('payRuns.inCurrency', { label: t('payRuns.netPay'), currency })}</th>
               <th scope="col">{t('payRuns.status')}</th>
             </tr>
           </thead>
@@ -93,8 +95,8 @@ function Runs({ companyId, canStart }: { companyId: string; canStart: boolean })
                 </td>
                 <td className="whitespace-nowrap">{shortDate(r.payDate)}</td>
                 <td className="text-right tabular-nums">{Number(r.people)}</td>
-                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.grossPay} /> : none}</td>
-                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.netPay} /> : none}</td>
+                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.grossPay} currency={false} cents /> : none}</td>
+                <td className="text-right">{hasTotals(r.status) ? <Money amount={r.netPay} currency={false} cents /> : none}</td>
                 <td><Tag tone={statusTone(r.status)}>{t(`payRuns.statuses.${r.status}`)}</Tag></td>
               </tr>
             ))}

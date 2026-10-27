@@ -675,7 +675,8 @@
     "monthPlaceholder": "Your month",
     "payDatePlaceholder": "Your pay date",
     "scheduleRequired": "Choose a payroll schedule.",
-    "startHint": "Overtime, commission, unpaid days and other changes are entered after the run starts, until it is sent for approval."
+    "startHint": "Overtime, commission, unpaid days and other changes are entered after the run starts, until it is sent for approval.",
+    "inCurrency": "{{label}} ({{currency}})"
   },
   "payRun": {
     "back": "Back to pay runs",
@@ -696,7 +697,7 @@
     "view": "View {{name}}",
     "viewShort": "View",
     "calculate": "Work out pay",
-    "recalculate": "Work out again",
+    "recalculate": "Refresh",
     "send": "Send for approval",
     "sent": "Sent for approval",
     "cancel": "Cancel pay run",

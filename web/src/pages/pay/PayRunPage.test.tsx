@@ -69,10 +69,10 @@ it('a worked-out run: its steps, totals, the cut-off and what changed, and each 
   expect(screen.getByText(/Since September 2026: Otieno Ouma joined\. Gross pay up KES 7,500, net pay down KES 1,200\./)).toBeInTheDocument()
 
   const table = await screen.findByRole('region', { name: 'People in this pay run' })
-  expect(within(table).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Employee', 'Gross pay', 'PAYE', 'SHIF', 'NSSF', 'Housing Levy', 'Net pay', 'Actions'])
+  expect(within(table).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Employee', 'Gross pay (KES)', 'PAYE (KES)', 'SHIF (KES)', 'NSSF (KES)', 'Housing Levy (KES)', 'Net pay (KES)', 'Actions'])
   const row = within(table).getByText('Wanjiru Kamau').closest('tr')!
   expect(within(row).getAllByRole('cell').map(c => c.textContent).slice(0, 7))
-    .toEqual(['Wanjiru KamauEMP-01', 'KES 85,000', 'KES 16,216.88', 'KES 2,337.50', 'KES 4,320', 'KES 1,275', 'KES 60,850.62'])
+    .toEqual(['Wanjiru KamauEMP-01', '85,000.00', '16,216.88', '2,337.50', '4,320.00', '1,275.00', '60,850.62'])
   expect(within(table).getByText('Otieno Ouma').closest('tr')).toHaveTextContent('Joined')
   await expectNoA11yViolations(container)
 })
@@ -115,6 +115,15 @@ it('a draft is worked out in the background: the page waits, then shows the figu
   await userEvent.click(within(next).getByRole('button', { name: 'Work out pay' }))
   expect(await screen.findByText('Working out pay. This takes a moment.')).toBeInTheDocument()
   expect(await screen.findByRole('region', { name: 'People in this pay run' }, { timeout: 5000 })).toBeInTheDocument()
+  expect(posted(calls, `${api}/calculate`)).toHaveLength(1)
+})
+
+it('Refresh works a worked-out run out again', async () => {
+  const calls = signedIn({ [`POST ${api}/calculate`]: () => json(202, { ...run, status: 'calculating' }) })
+  renderApp(path)
+  await heading()
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+  expect(await screen.findByText('Working out pay. This takes a moment.')).toBeInTheDocument()
   expect(posted(calls, `${api}/calculate`)).toHaveLength(1)
 })
 
@@ -238,7 +247,7 @@ it('someone who may only look has no actions', async () => {
   signedIn({ [`GET ${api}`]: () => json(200, { ...run, canManage: false }) }, ['pay_runs.view'].map(grant))
   renderApp(path)
   await heading()
-  for (const name of ['Work out pay', 'Send for approval', 'Cancel pay run', 'Work out again']) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+  for (const name of ['Work out pay', 'Send for approval', 'Cancel pay run', 'Refresh']) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
 })
 
 it('a run that can\'t be shown (another company, or a draft to an approver) says so', async () => {
