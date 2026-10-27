@@ -9,7 +9,8 @@ import { permissions } from './permissions'
  * when the person may open it for the chosen company and its flag (if any) is on; a section with
  * nothing to show is hidden. Labels and search words come from `nav.links.<key>` and
  * `nav.words.<key>` in the translations. Hiding is never the protection: the API checks every call.
- * Pages that show people's pay amounts (pay runs, payouts, filings) need `pay.view` (ACC-05).
+ * Pages that show people's pay amounts (payouts, filings) need `pay.view` (ACC-05); Pay runs has its
+ * own area (`pay_runs.view`), whose API records every look at people's pay.
  */
 export interface NavLink { key: string; href: string; permission?: string; feature?: Feature }
 export interface NavSection { key: string; links: NavLink[] }
@@ -22,7 +23,7 @@ export const navigation: NavSection[] = [
     { key: 'tasks', href: '/tasks', feature: 'tasks' },
   ] },
   { key: 'pay', links: [
-    { key: 'payRuns', href: '/pay/runs', permission: p.pay.view, feature: 'payRuns' },
+    { key: 'payRuns', href: '/pay/runs', permission: p.payRuns.view, feature: 'payRuns' },
     { key: 'earnings', href: '/setup/earnings-and-deductions', permission: p.payItems.view },
     { key: 'payouts', href: '/pay/payouts', permission: p.pay.view, feature: 'payouts' },
     { key: 'expenses', href: '/pay/expenses', permission: p.payItems.view, feature: 'expenses' },

@@ -8,7 +8,7 @@ import type { Feature } from './features'
 const grant = (permission: string, companyIds: string[] = []) => ({ permission, allCompanies: companyIds.length === 0, companyIds })
 const both = (area: string) => [grant(`${area}.view`), grant(`${area}.manage`)]
 const hr = [...both('employees'), ...both('locations'), ...both('structure'), ...both('leave'), grant('schedules.view')]
-const payroll = [...both('employees'), ...both('pay'), ...both('schedules'), ...both('pay_items'), ...both('payment_accounts'), ...both('payroll_history'),
+const payroll = [...both('employees'), ...both('pay'), ...both('pay_runs'), ...both('schedules'), ...both('pay_items'), ...both('payment_accounts'), ...both('payroll_history'),
   grant('locations.view'), grant('structure.view'), grant('leave.view')]
 const admin = ['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team'].flatMap(both)
 
@@ -65,11 +65,17 @@ describe('navigation', () => {
     expect(shown(hr, f => f === 'payouts')).not.toContain('pay: payouts')
   })
 
+  it('Pay runs needs View on pay runs (OP-18), not pay', () => {
+    const all = () => true
+    expect(shown([grant('pay_runs.view')], all).find(s => s.startsWith('pay:'))).toBe('pay: payRuns')
+    expect(shown([grant('pay.view')], all).find(s => s.startsWith('pay:'))).not.toContain('payRuns')
+  })
+
   it('pages that show people\'s pay amounts need the pay permission (ACC-05), not just the pay setup areas', () => {
     const all = () => true
     const withoutPay = payroll.filter(g => !g.permission.startsWith('pay.'))
     expect(shown(payroll, all).find(s => s.startsWith('pay:'))).toBe('pay: payRuns, earnings, payouts, expenses, filings, payrollHistory')
-    expect(shown(withoutPay, all).find(s => s.startsWith('pay:'))).toBe('pay: earnings, expenses, payrollHistory')
+    expect(shown(withoutPay, all).find(s => s.startsWith('pay:'))).toBe('pay: payRuns, earnings, expenses, payrollHistory')
   })
 
   it('every link has a page or a flag', () => {

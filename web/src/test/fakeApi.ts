@@ -17,7 +17,7 @@ export const roles = [
 ]
 
 /** Every area's View and Manage, for every company: what the person who onboarded the organization has. */
-export const adminPermissions = ['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team']
+export const adminPermissions = ['companies', 'employees', 'pay', 'locations', 'structure', 'leave', 'schedules', 'pay_items', 'payment_accounts', 'payroll_history', 'team', 'pay_runs']
   .flatMap(area => [`${area}.view`, `${area}.manage`]).map(permission => ({ permission, allCompanies: true, companyIds: [] as string[] }))
 
 export const me = { id: 'u1', firstName: 'Wanjiru', middleName: null, lastName: 'Kamau', fullName: 'Wanjiru Kamau', email: 'wanjiru@example.com', phone: null, signupRoleId: roles[0].roles[0].id, signupRoleOther: null, organizationId: null, signedUpVia: 'self', canOnboardOrganization: true, permissions: adminPermissions }
@@ -209,3 +209,10 @@ export function fakeApi(routes: Record<string, Handler> = {}) {
   }))
   return calls
 }
+
+/** A pay run in a company's list, as the API returns it: October's Monthly run, waiting for approval. */
+export const payRunSummary = (overrides: Record<string, unknown> = {}) => ({
+  id: '0199c0de-0000-7000-8000-0000000a0001', companyId: company().id, payScheduleId: schedule().id, scheduleName: 'Monthly', kind: 'regular',
+  correctsPayRunId: null, periodStart: '2026-10-01', periodEnd: '2026-10-31', payDate: '2026-10-30', status: 'awaiting_approval',
+  people: 14, grossPay: 798000, netPay: 589200, createdAt: '2026-10-20T07:00:00Z', ...overrides,
+})
