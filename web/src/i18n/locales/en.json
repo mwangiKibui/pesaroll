@@ -822,7 +822,10 @@
     "sentBack": "Sent back to Payroll",
     "reason": "Why",
     "reasonPlaceholder": "Your reason, like Overtime for Otieno is missing",
-    "reasonRequired": "Say why, so Payroll knows what to fix."
+    "reasonRequired": "Say why, so Payroll knows what to fix.",
+    "period": "Period",
+    "notWorkedOut": "Pay isn't worked out yet",
+    "notWorkedOutText": "Work it out to see each person's pay, their deductions and the totals. You can work it out again until it's sent for approval."
   },
   "schedules": {
     "title": "When do you pay your people?",

@@ -14,7 +14,7 @@ import { TextField } from '../../components/fields'
 import { Modal } from '../../components/Modal'
 import { Money } from '../../components/Money'
 import { Pagination } from '../../components/Pagination'
-import { TableCard } from '../../components/TableCard'
+import { Card, TableCard } from '../../components/TableCard'
 import { useToast } from '../../components/toast'
 import i18n from '../../i18n'
 import { formatMoney } from '../../lib/money'
@@ -22,7 +22,7 @@ import { CorrectDrawer } from '../../features/payRuns/CorrectDrawer'
 import { knownNotes } from '../../features/payRuns/lines'
 import { PersonDrawer } from '../../features/payRuns/PersonDrawer'
 import { RunSteps } from '../../features/payRuns/RunSteps'
-import { hasTotals, monthName, periodLabel, statusTone } from '../../features/payRuns/wording'
+import { datesLabel, hasTotals, monthName, periodLabel, statusTone } from '../../features/payRuns/wording'
 import { shortDate } from '../../features/schedules/wording'
 
 type Run = components['schemas']['PayRunDetail']
@@ -105,10 +105,8 @@ function PayRun({ id }: { id: string }) {
 
   const open = ['draft', 'calculated'].includes(r.status)
   const manage = r.canManage && (
-    r.status === 'draft' ? <>
-      <Button variant="secondary" onClick={() => setCancelling(true)}>{t('payRun.cancel')}</Button>
-      <Button busy={busy === 'calculate'} onClick={calculate}>{t('payRun.calculate')}</Button>
-    </> : r.status === 'calculated' ? <>
+    r.status === 'draft' ? <Button variant="secondary" onClick={() => setCancelling(true)}>{t('payRun.cancel')}</Button>
+      : r.status === 'calculated' ? <>
       <Button variant="secondary" onClick={() => setCancelling(true)}>{t('payRun.cancel')}</Button>
       <Button variant="secondary" busy={busy === 'calculate'} onClick={calculate}>{t('payRun.recalculate')}</Button>
       <Button busy={busy === 'submit'} onClick={submit}>{t('payRun.send')}</Button>
@@ -137,6 +135,19 @@ function PayRun({ id }: { id: string }) {
       {r.declineReason && open && <Notice>{t('payRun.declined', { reason: r.declineReason })}</Notice>}
       {r.cutoffOn && open && <Notice tone="brand">{t('payRun.cutoff', { date: shortDate(r.cutoffOn) })}</Notice>}
       {r.status === 'awaiting_approval' && r.approvalRequestId && <Approval requestId={r.approvalRequestId} runId={id} />}
+
+      {r.status === 'draft' && <Card title={t('payRun.notWorkedOut')}>
+        <dl className="m-0 grid gap-x-6 gap-y-3 sm:grid-cols-3">
+          {[[t('payRun.period'), datesLabel(r.periodStart, r.periodEnd)], [t('payRuns.payDate'), shortDate(r.payDate)], [t('payRuns.schedule'), r.scheduleName]].map(([term, value]) => (
+            <div key={term} className="flex flex-col gap-0.5">
+              <dt className="text-hint text-muted">{term}</dt>
+              <dd className="m-0 text-body font-medium text-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="m-0 text-muted">{t('payRun.notWorkedOutText')}</p>
+        {r.canManage && <div><Button busy={busy === 'calculate'} onClick={calculate}>{t('payRun.calculate')}</Button></div>}
+      </Card>}
 
       {hasTotals(r.status) && <>
         <Totals run={r} />
@@ -250,7 +261,7 @@ function People({ runId }: { runId: string }) {
             <th scope="col" className="text-right">{t('payRun.nssf')}</th>
             <th scope="col" className="text-right">{t('payRun.housingLevy')}</th>
             <th scope="col" className="text-right">{t('payRuns.netPay')}</th>
-            <th scope="col"><span className="sr-only">{t('payRun.actions')}</span></th>
+            <th scope="col" className="text-right"><span className="sr-only">{t('payRun.actions')}</span></th>
           </tr>
         </thead>
         <tbody>

@@ -822,7 +822,10 @@
     "sentBack": "Yamerudishwa kwa Mishahara",
     "reason": "Kwa nini",
     "reasonPlaceholder": "Sababu yako, kama saa za ziada za Otieno hazipo",
-    "reasonRequired": "Sema kwa nini, ili Mishahara wajue cha kurekebisha."
+    "reasonRequired": "Sema kwa nini, ili Mishahara wajue cha kurekebisha.",
+    "period": "Kipindi",
+    "notWorkedOut": "Mishahara bado haijahesabiwa",
+    "notWorkedOutText": "Ihesabu uone mshahara wa kila mtu, makato yake na jumla. Unaweza kuihesabu tena hadi itumwe iidhinishwe."
   },
   "schedules": {
     "title": "Unawalipa watu wako lini?",
