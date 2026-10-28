@@ -67,7 +67,7 @@ export function RunInputs({ run, currency }: { run: Run; currency: string }) {
     setBusy('save')
     try {
       const { data: next, error } = await api.PUT('/api/pay-runs/{id}/inputs', {
-        params: { path: { id: run.id } }, body: { entries: changed.map(({ employeeId, column }) => entryBody(employeeId, column, value(employeeId, column))) },
+        params: { path: { id: run.id } }, body: { entries: changed.map(({ employeeId, column }) => entryBody(data, employeeId, column, value(employeeId, column))) },
       })
       if (next) {
         keep(next)

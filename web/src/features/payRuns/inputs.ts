@@ -40,8 +40,15 @@ export function checkCell(c: Column, text: string): 'quantityInvalid' | 'amountI
   return Number.isFinite(n) && n >= 0 && n <= 744 && twoDecimals(n) ? null : 'quantityInvalid'
 }
 
-/** One entry to send: nothing typed removes what was entered. */
-export function entryBody(employeeId: string, c: Column, text: string) {
+/**
+ * One entry to send: nothing typed removes what was entered. Basic pay's days or hours share their
+ * entry with a change to basic pay made in review, which is sent back as it is so it stays.
+ */
+export function entryBody(data: Inputs, employeeId: string, c: Column, text: string) {
   const n = text.trim() ? number(text) : null
-  return { employeeId, payItemId: c.kind === 'basic' ? null : c.id, quantity: c.kind === 'amount' ? null : n, amount: c.kind === 'amount' ? n : null }
+  if (c.kind === 'basic') {
+    const changed = data.people.find(p => p.employeeId === employeeId)?.entries.find(e => e.payItemId === null && e.amount != null)
+    return { employeeId, payItemId: null, quantity: n, amount: changed ? Number(changed.amount) : null, ...(changed ? { reason: changed.reason } : {}) }
+  }
+  return { employeeId, payItemId: c.id, quantity: c.kind === 'amount' ? null : n, amount: c.kind === 'amount' ? n : null }
 }

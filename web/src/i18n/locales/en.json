@@ -867,6 +867,41 @@
       "saved": "Entries saved",
       "quantityInvalid": "Enter 0 to 744, with up to two decimals.",
       "amountInvalid": "Enter an amount of 0 or more, with up to two decimals."
+    },
+    "changedSince": "Changed since it was worked out",
+    "changedSinceText": "The figures below were worked out on {{date}}, before the latest changes. Work it out again to bring them up to date.",
+    "review": {
+      "change": "Change {{name}}",
+      "changeTitle": "Change {{name}} for this run",
+      "changeIntro": "Worked out as {{amount}}. The change is for this pay run only; 0 removes it.",
+      "amount": "Amount for this run",
+      "reasonPlaceholder": "Your reason, like two days of unpaid leave",
+      "reasonRequired": "Say why this is changed for this pay run.",
+      "undo": "Undo change",
+      "saveChange": "Save change",
+      "saved": "Changed for this run. Work out pay to see it in the figures.",
+      "add": "Add for this run",
+      "addButton": "Add",
+      "item": "Item",
+      "itemPlaceholder": "Your item, like a staff loan",
+      "itemRequired": "Choose what to add.",
+      "deductions": "Statutory deductions",
+      "usual": "The usual ones for {{name}}.",
+      "chosen": "For this run: {{list}}. {{reason}}",
+      "noneChosen": "none",
+      "choose": "Choose for this run",
+      "useUsual": "Use the usual ones",
+      "deductionsTitle": "Statutory deductions for this run",
+      "made": "Deductions made",
+      "deductionsReason": "Say why these deductions are made for this pay run.",
+      "deductionsPlaceholder": "Your reason, like covered by a spouse this month",
+      "groups": {
+        "paye": "PAYE",
+        "shif": "SHIF",
+        "nssf": "NSSF",
+        "housing_levy": "Housing Levy",
+        "nita": "NITA"
+      }
     }
   },
   "schedules": {

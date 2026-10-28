@@ -101,7 +101,7 @@ it('a draft is worked out in the background: the page waits, then shows the figu
     [`GET ${api}`]: () => {
       const now = status
       if (status === 'calculating') status = 'calculated'
-      return json(200, { ...run, status: now, totals: now === 'draft' ? { ...run.totals, people: 0 } : run.totals })
+      return json(200, { ...run, status: now, calculatedAt: now === 'draft' ? null : run.calculatedAt, totals: now === 'draft' ? { ...run.totals, people: 0 } : run.totals })
     },
     [`POST ${api}/calculate`]: () => { status = 'calculating'; return json(202, { ...run, status: 'calculating' }) },
   })

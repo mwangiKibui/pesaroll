@@ -145,3 +145,17 @@ it('someone who may only look, or a run that is sent, shows the entries without 
   for (const name of ['Save', 'Copy from last run']) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
   expect(screen.queryByText('Saving sends this pay run back to draft, to be worked out again.')).not.toBeInTheDocument()
 })
+
+it('saving days keeps a change to basic pay made in review', async () => {
+  const withEdit = inputs()
+  withEdit.people[0] = { ...(withEdit.people[0] as object), entries: [entry({ quantity: 20, amount: 15000, reason: 'Two days unpaid leave' })] }
+  const calls = signedIn({ [`GET ${api}/inputs`]: () => json(200, withEdit), [`PUT ${api}/inputs`]: () => json(200, withEdit) })
+  renderApp(path)
+  await openInputs()
+  await userEvent.clear(cell('Days worked for Peter Kamau'))
+  await userEvent.type(cell('Days worked for Peter Kamau'), '21')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await vi.waitFor(() => expect(posted(calls, 'PUT', `${api}/inputs`)).toEqual([{ entries: [
+    { employeeId: peter, payItemId: null, quantity: 21, amount: 15000, reason: 'Two days unpaid leave' },
+  ] }]))
+})

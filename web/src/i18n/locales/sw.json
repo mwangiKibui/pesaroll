@@ -867,6 +867,41 @@
       "saved": "Maingizo yamehifadhiwa",
       "quantityInvalid": "Weka 0 hadi 744, na desimali mbili au chini.",
       "amountInvalid": "Weka kiasi cha 0 au zaidi, na desimali mbili au chini."
+    },
+    "changedSince": "Imebadilika tangu ilipohesabiwa",
+    "changedSinceText": "Takwimu zilizo hapa chini zilihesabiwa {{date}}, kabla ya mabadiliko ya karibuni. Ihesabu tena ili zisasishwe.",
+    "review": {
+      "change": "Badilisha {{name}}",
+      "changeTitle": "Badilisha {{name}} kwa malipo haya",
+      "changeIntro": "Imehesabiwa kama {{amount}}. Badiliko ni la malipo haya tu; 0 inaliondoa.",
+      "amount": "Kiasi kwa malipo haya",
+      "reasonPlaceholder": "Sababu yako, kama siku mbili za likizo bila malipo",
+      "reasonRequired": "Sema kwa nini hili limebadilishwa kwa malipo haya.",
+      "undo": "Tendua badiliko",
+      "saveChange": "Hifadhi badiliko",
+      "saved": "Imebadilishwa kwa malipo haya. Hesabu mishahara uone kwenye takwimu.",
+      "add": "Ongeza kwa malipo haya",
+      "addButton": "Ongeza",
+      "item": "Kipengele",
+      "itemPlaceholder": "Kipengele chako, kama mkopo wa mfanyakazi",
+      "itemRequired": "Chagua cha kuongeza.",
+      "deductions": "Makato ya kisheria",
+      "usual": "Ya kawaida kwa {{name}}.",
+      "chosen": "Kwa malipo haya: {{list}}. {{reason}}",
+      "noneChosen": "hakuna",
+      "choose": "Chagua kwa malipo haya",
+      "useUsual": "Tumia ya kawaida",
+      "deductionsTitle": "Makato ya kisheria kwa malipo haya",
+      "made": "Makato yanayofanywa",
+      "deductionsReason": "Sema kwa nini makato haya yanafanywa kwa malipo haya.",
+      "deductionsPlaceholder": "Sababu yako, kama amegharamiwa na mwenzi mwezi huu",
+      "groups": {
+        "paye": "PAYE",
+        "shif": "SHIF",
+        "nssf": "NSSF",
+        "housing_levy": "Ushuru wa Nyumba",
+        "nita": "NITA"
+      }
     }
   },
   "schedules": {
