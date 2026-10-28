@@ -1067,10 +1067,13 @@ public sealed class PayRunsTests(OnboardingTests.Api api) : IClassFixture<Onboar
         var entries = (await Time(world.Owner, october.Id)).People;
         Assert.True(entries.Single(p => p.EmployeeId == brian).Entries.Single().AfterCutoff);
         Assert.False(entries.Single(p => p.EmployeeId == grace).Entries.Single().AfterCutoff);
+        Assert.Equal(new DateOnly(2026, 10, 28), entries.Single(p => p.EmployeeId == peter).LeftOn);   // whose final dues are entered
+        Assert.Null(entries.Single(p => p.EmployeeId == brian).LeftOn);
         await Approve(october.Id);
 
         // November pays what October held back, as owed from October.
         var november = await Calculate(world, (await Start(world, month: "2026-11")).Id);
+        Assert.Equal(new DateOnly(2026, 10, 28), (await Time(world.Owner, november.Id)).People.Single(p => p.EmployeeId == peter).LeftOn);   // still owed
         Assert.Empty(november.LeftOut);
         paid = await People(world.Owner, november.Id);
         WorkedOwed(Paid(paid, amina), "BASIC", 5_000m);

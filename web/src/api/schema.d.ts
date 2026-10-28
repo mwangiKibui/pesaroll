@@ -10978,6 +10978,8 @@ export interface components {
             usualQuantity: null | number | string;
             entries: components["schemas"]["TimeEntryResponse"][];
             deductions?: null | components["schemas"]["RunDeductionsResponse"];
+            /** Format: date */
+            leftOn?: null | string;
         };
         RunTimeRequest: {
             entries: null | components["schemas"]["TimeEntryRequest"][];

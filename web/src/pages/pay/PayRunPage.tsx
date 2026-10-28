@@ -1,6 +1,6 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../../api/schema'
 import { errorMessage, isApiError } from '../../app/apiErrors'
@@ -15,12 +15,14 @@ import { Modal } from '../../components/Modal'
 import { Money } from '../../components/Money'
 import { Pagination } from '../../components/Pagination'
 import { Card, TableCard } from '../../components/TableCard'
+import { TabPanel, Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/toast'
 import i18n from '../../i18n'
 import { formatMoney } from '../../lib/money'
 import { CorrectDrawer } from '../../features/payRuns/CorrectDrawer'
 import { knownNotes } from '../../features/payRuns/lines'
 import { PersonDrawer } from '../../features/payRuns/PersonDrawer'
+import { RunInputs } from '../../features/payRuns/RunInputs'
 import { RunSteps } from '../../features/payRuns/RunSteps'
 import { datesLabel, hasTotals, monthName, periodLabel, statusTone } from '../../features/payRuns/wording'
 import { shortDate } from '../../features/schedules/wording'
@@ -60,6 +62,10 @@ function PayRun({ id }: { id: string }) {
   const [cancelling, setCancelling] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const companies = useCompanies()
+  const tabsId = useId()
+  const [tab, setTab] = useState<'pay' | 'inputs'>('pay')
+  // The inputs load the first time they're opened, then stay, so what's typed survives a look at Pay.
+  const [visited, setVisited] = useState(false)
   const run = useQuery({
     queryKey: ['pay-run', id],
     queryFn: async () => {
@@ -82,6 +88,8 @@ function PayRun({ id }: { id: string }) {
     )
   }
   const r = run.data
+  // Runs pay only in the company's currency; anyone paid in another is left out.
+  const currency = companies.data?.find(c => c.id === r.companyId)?.currency ?? 'KES'
 
   /** Posts one of the run's actions; the API answers with the run as it now is. */
   const act = async (name: string, call: () => Promise<{ data?: Run; error?: unknown }>, done?: string) => {
@@ -138,25 +146,34 @@ function PayRun({ id }: { id: string }) {
       {r.cutoffOn && open && <Notice tone="brand">{t('payRun.cutoff', { date: shortDate(r.cutoffOn) })}</Notice>}
       {r.status === 'awaiting_approval' && r.approvalRequestId && <Approval requestId={r.approvalRequestId} runId={id} />}
 
-      {r.status === 'draft' && <Card title={t('payRun.notWorkedOut')}>
-        <dl className="m-0 grid gap-x-6 gap-y-3 sm:grid-cols-3">
-          {[[t('payRun.period'), datesLabel(r.periodStart, r.periodEnd)], [t('payRuns.payDate'), shortDate(r.payDate)], [t('payRuns.schedule'), r.scheduleName]].map(([term, value]) => (
-            <div key={term} className="flex flex-col gap-0.5">
-              <dt className="text-hint text-muted">{term}</dt>
-              <dd className="m-0 text-body font-medium text-ink">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="m-0 text-muted">{t('payRun.notWorkedOutText')}</p>
-        {r.canManage && <div><Button busy={busy === 'calculate'} onClick={calculate}>{t('payRun.calculate')}</Button></div>}
-      </Card>}
+      {r.status !== 'cancelled' && <div className="flex flex-col gap-4">
+        <Tabs id={tabsId} label={t('payRun.sections')} current={tab} onChange={key => { setTab(key as 'pay' | 'inputs'); setVisited(v => v || key === 'inputs') }}
+          tabs={[{ key: 'pay', label: t('payRun.payTab') }, { key: 'inputs', label: t('payRun.inputsTab') }]} />
+        <TabPanel id={tabsId} tab="pay" current={tab}>
+          {r.status === 'draft' && <Card title={t('payRun.notWorkedOut')}>
+            <dl className="m-0 grid gap-x-6 gap-y-3 sm:grid-cols-3">
+              {[[t('payRun.period'), datesLabel(r.periodStart, r.periodEnd)], [t('payRuns.payDate'), shortDate(r.payDate)], [t('payRuns.schedule'), r.scheduleName]].map(([term, value]) => (
+                <div key={term} className="flex flex-col gap-0.5">
+                  <dt className="text-hint text-muted">{term}</dt>
+                  <dd className="m-0 text-body font-medium text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="m-0 text-muted">{t('payRun.notWorkedOutText')}</p>
+            {r.canManage && <div><Button busy={busy === 'calculate'} onClick={calculate}>{t('payRun.calculate')}</Button></div>}
+          </Card>}
 
-      {hasTotals(r.status) && <>
-        <Totals run={r} />
-        {r.changes && <Notice tone="brand">{changesText(r)}</Notice>}
-        <Lists run={r} />
-        <People runId={id} currency={companies.data?.find(c => c.id === r.companyId)?.currency ?? 'KES'} />
-      </>}
+          {hasTotals(r.status) && <>
+            <Totals run={r} />
+            {r.changes && <Notice tone="brand">{changesText(r)}</Notice>}
+            <Lists run={r} />
+            <People runId={id} currency={currency} />
+          </>}
+        </TabPanel>
+        <TabPanel id={tabsId} tab="inputs" current={tab}>
+          {visited && <RunInputs run={r} currency={currency} />}
+        </TabPanel>
+      </div>}
 
       <ConfirmDialog open={cancelling} title={t('payRun.cancelTitle')} confirmLabel={t('payRun.cancel')} busy={busy === 'cancel'}
         onConfirm={() => void cancel()} onCancel={() => setCancelling(false)}>

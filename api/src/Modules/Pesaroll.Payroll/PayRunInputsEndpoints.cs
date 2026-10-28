@@ -32,11 +32,12 @@ public sealed record RunDeductionsResponse(IReadOnlyList<string> Deductions, str
 
 /// <summary>
 /// Someone the run pays: Unit is day or hour for a daily or hourly rate (null for a salary or wage,
-/// paid as it is), with the days or hours they usually work (paid when nothing is entered), and the
-/// statutory deductions chosen for them in this run (null: theirs or the schedule's).
+/// paid as it is), with the days or hours they usually work (paid when nothing is entered), the
+/// statutory deductions chosen for them in this run (null: theirs or the schedule's), and their last
+/// day if they leave by the period's end or left owed from the last run (their final dues are entered here).
 /// </summary>
 public sealed record RunTimePerson(Guid EmployeeId, string StaffNo, string Name, string? Unit, decimal? UsualQuantity, IReadOnlyList<TimeEntryResponse> Entries,
-    RunDeductionsResponse? Deductions = null);
+    RunDeductionsResponse? Deductions = null, DateOnly? LeftOn = null);
 
 /// <summary>An item paid by the hour or day that can be entered for the run's company.</summary>
 public sealed record RunTimeItem(Guid PayItemId, string Code, string Name, string Unit);
@@ -238,7 +239,7 @@ public static class PayRunInputsEndpoints
         if (run.Status is "calculated" or "calculating") run.Status = "draft";
     }
 
-    private sealed record Person(Guid Id, string StaffNo, string Name, string? Unit, decimal? Usual);
+    private sealed record Person(Guid Id, string StaffNo, string Name, string? Unit, decimal? Usual, DateOnly? LeftOn);
 
     private sealed record Item(Guid Id, string Code, string Name, string Unit);
 
@@ -263,7 +264,8 @@ public static class PayRunInputsEndpoints
             if (job?.PayScheduleId != run.PayScheduleId) continue;
             var pay = e.Compensations.Where(c => c.ValidFrom <= on && (c.ValidTo == null || c.ValidTo >= on)).OrderByDescending(c => c.ValidFrom).FirstOrDefault();
             var unit = pay?.PayBasis switch { "daily" => "day", "hourly" => "hour", _ => null };
-            people.Add(new Person(e.Id, e.StaffNo, $"{e.FirstName} {e.LastName}", unit, unit is null ? null : pay!.UsualQuantity));
+            people.Add(new Person(e.Id, e.StaffNo, $"{e.FirstName} {e.LastName}", unit, unit is null ? null : pay!.UsualQuantity,
+                e.ExitDate is { } left && left <= run.PeriodEnd ? left : null));
         }
         return people;
     }
@@ -305,7 +307,7 @@ public static class PayRunInputsEndpoints
             people.Select(p => new RunTimePerson(p.Id, p.StaffNo, p.Name, p.Unit, p.Usual, entries[p.Id]
                 .OrderBy(x => x.PayItemId is not null).ThenBy(x => x.PayItemId)
                 .Select(x => new TimeEntryResponse(x.PayItemId, x.Quantity, x.Source, x.EnteredBy, x.EnteredAt, x.Amount, x.Reason, Late(x))).ToList(),
-                chosen.GetValueOrDefault(p.Id) is { } d ? new RunDeductionsResponse(d.Deductions, d.Reason, d.SetBy, d.SetAt) : null)).ToList(),
+                chosen.GetValueOrDefault(p.Id) is { } d ? new RunDeductionsResponse(d.Deductions, d.Reason, d.SetBy, d.SetAt) : null, p.LeftOn)).ToList(),
             items.Select(i => new RunTimeItem(i.Id, i.Code, i.Name, i.Unit)).ToList(), amountItems);
     }
 }
