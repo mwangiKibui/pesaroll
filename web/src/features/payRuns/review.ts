@@ -32,3 +32,26 @@ export function amountOf(text: string): number | null {
   const n = Number(text.replace(/,/g, '').trim())
   return text.trim() && Number.isFinite(n) && n >= 0 && Math.round(n * 100) === n * 100 ? n : null
 }
+
+export type Waiting = { amount: string | number; reason: string | null } | 'usual'
+
+/**
+ * A change saved since the line was worked out (PAY-04): the amount and reason it becomes, or back to
+ * the usual when a change was undone. Nothing when the figures already show what's entered.
+ */
+export function waitingOf(line: Line, data: Inputs, employeeId: string): Waiting | undefined {
+  const target = targetOf(line, data)
+  if (target === undefined) return undefined
+  const entry = entryFor(data, employeeId, target)
+  if (entry?.amount == null) return line.reason ? 'usual' : undefined
+  const same = Number(entry.amount) === Number(line.amount) && (entry.reason ?? null) === (line.reason ?? null)
+  return same ? undefined : { amount: entry.amount, reason: entry.reason ?? null }
+}
+
+/** Items added for this run since it was worked out, so not among the lines yet. */
+export function waitingAdded(data: Inputs, employeeId: string, lines: Line[]) {
+  return addable(data, lines).flatMap(item => {
+    const entry = entryFor(data, employeeId, item.payItemId)
+    return entry?.amount == null ? [] : [{ item, amount: entry.amount, reason: entry.reason ?? null }]
+  })
+}

@@ -7,8 +7,9 @@ import { Button, IconButton } from '../../components/Button'
 import { Drawer } from '../../components/Drawer'
 import { PlusIcon } from '../../components/icons'
 import { Money } from '../../components/Money'
+import { formatMoney } from '../../lib/money'
 import { knownNotes, lineDetails } from './lines'
-import { addable, targetOf } from './review'
+import { addable, targetOf, waitingAdded, waitingOf, type Waiting } from './review'
 import { AddItem, ChangeLine, RunDeductions } from './ReviewForms'
 
 type Person = components['schemas']['PayRunPersonResponse']
@@ -20,7 +21,8 @@ const kinds = [['earning', 'earnings'], ['deduction', 'deductions'], ['employer_
  * One person's pay in a run (OP-18): each line with how it was worked out, gross and net pay, what to
  * check, and for a correction what was approved before. Amounts are the API's, never added up here.
  * While the run can change, Payroll changes lines, adds items and chooses statutory deductions for
- * this run alone, each saying why (PAY-04); the figures show it once the run is worked out again.
+ * this run alone, each saying why (PAY-04); the figures show it once the run is worked out again, and
+ * until then each changed line says what it becomes.
  */
 export function PersonDrawer({ person, run, onClose }: { person: Person; run: { id: string; status: string; canManage: boolean }; onClose: () => void }) {
   const { t } = useTranslation()
@@ -39,6 +41,9 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
     },
   })
   const editing = canEdit ? inputs.data : undefined
+  const added = editing ? waitingAdded(editing, person.employeeId, person.lines) : []
+  const waitingText = (w: Waiting) => w === 'usual' ? t('payRun.review.waitingUsual')
+    : t(w.reason ? 'payRun.review.waitingWhy' : 'payRun.review.waiting', { amount: formatMoney(w.amount), reason: w.reason })
   return (
     <Drawer open title={person.name} onClose={onClose}>
       <div className="flex flex-col gap-5">
@@ -53,16 +58,19 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
         )}
         {kinds.map(([kind, key]) => {
           const lines = person.lines.filter(l => l.kind === kind)
-          if (lines.length === 0) return null
+          const addedHere = added.filter(a => a.item.kind === kind)
+          if (lines.length === 0 && addedHere.length === 0) return null
           return (
             <section key={kind} className="flex flex-col gap-1">
               <h3 className="m-0 text-label font-medium text-ink">{t(`payRun.${key}`)}</h3>
               <ul aria-label={t(`payRun.${key}`)} className="m-0 flex list-none flex-col divide-y divide-line-soft p-0">
-                {lines.map((l, i) => (
-                  <li key={`${l.code}-${i}`} className="flex items-start justify-between gap-4 py-2">
+                {lines.map((l, i) => {
+                  const waiting = editing && waitingOf(l, editing, person.employeeId)
+                  return <li key={`${l.code}-${i}`} className="flex items-start justify-between gap-4 py-2">
                     <span className="flex min-w-0 flex-col">
                       <span className="text-body text-ink">{l.name}</span>
                       {lineDetails(l).map(d => <span key={d} className="text-hint text-muted">{d}</span>)}
+                      {waiting && <span className="text-hint font-medium text-warning-ink">{waitingText(waiting)}</span>}
                     </span>
                     <span className="flex flex-none items-center gap-1">
                       <Money amount={l.amount} className="text-body text-ink" />
@@ -72,6 +80,12 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
                         </IconButton>
                       )}
                     </span>
+                  </li>
+                })}
+                {addedHere.map(a => (
+                  <li key={a.item.payItemId} className="flex flex-col py-2">
+                    <span className="text-body text-ink">{a.item.name}</span>
+                    <span className="text-hint font-medium text-warning-ink">{t(a.reason ? 'payRun.review.waitingAddedWhy' : 'payRun.review.waitingAdded', { amount: formatMoney(a.amount), reason: a.reason })}</span>
                   </li>
                 ))}
               </ul>

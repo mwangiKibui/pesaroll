@@ -163,3 +163,27 @@ it('someone who may only look, or a run that is sent, has nothing to change', as
   const sheet = await openPeter()
   expect(within(sheet).queryAllByRole('button', { name: /^Change |Add for this run|Choose for this run/ })).toHaveLength(0)
 })
+
+it('shows changes waiting to be worked out on the lines they change', async () => {
+  signedIn({
+    [`GET ${api}/inputs`]: () => json(200, {
+      ...inputs(),
+      people: [{ ...inputs().people[0], entries: [
+        entry({ quantity: 20, amount: 15000, reason: 'Two days unpaid leave' }),
+        entry({ payItemId: nssf, amount: 960 }),
+        entry({ payItemId: loan, amount: 3000, reason: 'Advance in October' }),
+      ] }],
+    }),
+  })
+  renderApp(path)
+  const sheet = await openPeter()
+  const item = (name: string) => within(sheet).getAllByRole('listitem').find(li => li.textContent?.startsWith(name))!
+  await vi.waitFor(() => expect(item('Basic pay')).toHaveTextContent('Becomes KES 15,000 once worked out again: Two days unpaid leave'))
+  // The change was undone: it goes back to what it would be.
+  expect(item('Commission')).toHaveTextContent('Goes back to the usual once worked out again.')
+  // Unchanged lines and the owed line say nothing.
+  expect(item('NSSF')).not.toHaveTextContent('once worked out again')
+  expect(within(sheet).getAllByRole('listitem').filter(li => li.textContent?.includes('once worked out again'))).toHaveLength(3)
+  const deductions = within(sheet).getByRole('list', { name: 'Deductions' })
+  expect(within(deductions).getByText('Staff loan').closest('li')).toHaveTextContent('Added as KES 3,000 once worked out again: Advance in October')
+})
