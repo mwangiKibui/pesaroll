@@ -1,4 +1,4 @@
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +29,6 @@ import { dayMonthYear, shortDate } from '../../features/schedules/wording'
 import { useCompanies } from '../../setup/hooks'
 
 type Run = components['schemas']['PayRunDetail']
-type Person = components['schemas']['PayRunPersonResponse']
 type Problem = ApiError | 'network' | null
 
 /**
@@ -261,9 +260,12 @@ function People({ run, currency }: { run: Run; currency: string }) {
   const { api } = useServices()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [viewing, setViewing] = useState<Person | null>(null)
+  const [viewing, setViewing] = useState<string | null>(null)
   const people = useQuery({
-    queryKey: ['pay-run-people', runId, page, pageSize],
+    // Working out happens in the background, so the people are loaded again once it's done; last
+    // time's stay on show until then.
+    queryKey: ['pay-run-people', runId, run.calculatedAt, page, pageSize],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data } = await api.GET('/api/pay-runs/{id}/people', { params: { path: { id: runId }, query: { page, pageSize } } })
       if (!data) throw new Error('pay-run-people')
@@ -272,6 +274,7 @@ function People({ run, currency }: { run: Run; currency: string }) {
   })
   if (!people.data) return people.isError ? <Notice tone="danger">{t('apiErrors.network')}</Notice> : <Loading rows={4} />
   const total = Number(people.data.total)
+  const shown = people.data.items.find(p => p.employeeId === viewing)
 
   return <>
     <TableCard title={t('payRun.people')} count={total}
@@ -307,14 +310,14 @@ function People({ run, currency }: { run: Run; currency: string }) {
               <td className="text-right"><Money amount={p.housingLevyEmployee} currency={false} cents /></td>
               <td className="text-right font-medium"><Money amount={p.netPay} currency={false} cents /></td>
               <td className="text-right">
-                <Button variant="ghost" aria-label={t('payRun.view', { name: p.name })} onClick={() => setViewing(p)}>{t('payRun.viewShort')}</Button>
+                <Button variant="ghost" aria-label={t('payRun.view', { name: p.name })} onClick={() => setViewing(p.employeeId)}>{t('payRun.viewShort')}</Button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
     </TableCard>
-    {viewing && <PersonDrawer person={viewing} run={run} onClose={() => setViewing(null)} />}
+    {shown && <PersonDrawer person={shown} run={run} onClose={() => setViewing(null)} />}
   </>
 }
 

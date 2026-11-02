@@ -187,3 +187,24 @@ it('shows changes waiting to be worked out on the lines they change', async () =
   const deductions = within(sheet).getByRole('list', { name: 'Deductions' })
   expect(within(deductions).getByText('Staff loan').closest('li')).toHaveTextContent('Added as KES 3,000 once worked out again: Advance in October')
 })
+
+it('an item left out of this run stays in the drawer, so the change can be undone', async () => {
+  const calls = signedIn({
+    [`GET ${api}/inputs`]: () => json(200, {
+      ...inputs(),
+      people: [{ ...inputs().people[0], entries: [entry({ quantity: 20 }), entry({ payItemId: commission, amount: 2000, reason: 'Sold the most' }), entry({ payItemId: loan, amount: 0, reason: 'Paid off early' })] }],
+    }),
+  })
+  renderApp(path)
+  const sheet = await openPeter()
+  const deductions = within(sheet).getByRole('list', { name: 'Deductions' })
+  const left = (await within(deductions).findByText('Staff loan')).closest('li')!
+  expect(left).toHaveTextContent('Left out of this run: Paid off early')
+  expect(left).not.toHaveTextContent('once worked out again')
+  // Nothing else can be added, so there's no Add button.
+  expect(within(sheet).queryByRole('button', { name: 'Add for this run' })).not.toBeInTheDocument()
+  await userEvent.click(within(left).getByRole('button', { name: 'Change Staff loan' }))
+  const form = screen.getByRole('dialog', { name: 'Change Staff loan for this run' })
+  await userEvent.click(within(form).getByRole('button', { name: 'Undo change' }))
+  await vi.waitFor(() => expect(sent(calls, 'PUT', `${api}/inputs`)).toEqual([{ entries: [{ employeeId: peter, payItemId: loan, quantity: null, amount: null, reason: null }] }]))
+})

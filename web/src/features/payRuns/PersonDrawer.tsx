@@ -9,11 +9,10 @@ import { PlusIcon } from '../../components/icons'
 import { Money } from '../../components/Money'
 import { formatMoney } from '../../lib/money'
 import { knownNotes, lineDetails } from './lines'
-import { addable, targetOf, waitingAdded, waitingOf, type Waiting } from './review'
+import { addable, enteredExtra, targetOf, waitingOf, type Waiting } from './review'
 import { AddItem, ChangeLine, RunDeductions } from './ReviewForms'
 
 type Person = components['schemas']['PayRunPersonResponse']
-type Line = Person['lines'][number]
 
 const kinds = [['earning', 'earnings'], ['deduction', 'deductions'], ['employer_cost', 'employerCosts']] as const
 
@@ -29,7 +28,7 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
   const { api } = useServices()
   const notes = knownNotes(person.notes)
   const canEdit = run.canManage && ['draft', 'calculated'].includes(run.status)
-  const [changing, setChanging] = useState<{ line: Line; payItemId: string | null } | null>(null)
+  const [changing, setChanging] = useState<{ name: string; amount: number | string; payItemId: string | null } | null>(null)
   const [adding, setAdding] = useState(false)
   const inputs = useQuery({
     queryKey: ['pay-run-inputs', run.id],
@@ -41,7 +40,14 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
     },
   })
   const editing = canEdit ? inputs.data : undefined
-  const added = editing ? waitingAdded(editing, person.employeeId, person.lines) : []
+  const extra = editing ? enteredExtra(editing, person.employeeId, person.lines) : []
+  // What can still be added: not paid this run and not entered already.
+  const toAdd = editing ? addable(editing, person.lines).filter(i => !extra.some(e => e.item.payItemId === i.payItemId)) : []
+  const pencil = (name: string, payItemId: string | null, amount: number | string) => (
+    <IconButton label={t('payRun.review.change', { name })} onClick={() => setChanging({ name, amount, payItemId })}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
+    </IconButton>
+  )
   const waitingText = (w: Waiting) => w === 'usual' ? t('payRun.review.waitingUsual')
     : t(w.reason ? 'payRun.review.waitingWhy' : 'payRun.review.waiting', { amount: formatMoney(w.amount), reason: w.reason })
   return (
@@ -58,8 +64,8 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
         )}
         {kinds.map(([kind, key]) => {
           const lines = person.lines.filter(l => l.kind === kind)
-          const addedHere = added.filter(a => a.item.kind === kind)
-          if (lines.length === 0 && addedHere.length === 0) return null
+          const extraHere = extra.filter(a => a.item.kind === kind)
+          if (lines.length === 0 && extraHere.length === 0) return null
           return (
             <section key={kind} className="flex flex-col gap-1">
               <h3 className="m-0 text-label font-medium text-ink">{t(`payRun.${key}`)}</h3>
@@ -74,25 +80,26 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
                     </span>
                     <span className="flex flex-none items-center gap-1">
                       <Money amount={l.amount} className="text-body text-ink" />
-                      {editing && targetOf(l, editing) !== undefined && (
-                        <IconButton label={t('payRun.review.change', { name: l.name })} onClick={() => setChanging({ line: l, payItemId: targetOf(l, editing)! })}>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
-                        </IconButton>
-                      )}
+                      {editing && targetOf(l, editing) !== undefined && pencil(l.name, targetOf(l, editing)!, l.amount)}
                     </span>
                   </li>
                 })}
-                {addedHere.map(a => (
-                  <li key={a.item.payItemId} className="flex flex-col py-2">
-                    <span className="text-body text-ink">{a.item.name}</span>
-                    <span className="text-hint font-medium text-warning-ink">{t(a.reason ? 'payRun.review.waitingAddedWhy' : 'payRun.review.waitingAdded', { amount: formatMoney(a.amount), reason: a.reason })}</span>
+                {extraHere.map(a => (
+                  <li key={a.item.payItemId} className="flex items-start justify-between gap-4 py-2">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-body text-ink">{a.item.name}</span>
+                      {Number(a.amount) === 0
+                        ? <span className="text-hint text-muted">{t('payRun.review.leftOut', { reason: a.reason ?? '' })}</span>
+                        : <span className="text-hint font-medium text-warning-ink">{t(a.reason ? 'payRun.review.waitingAddedWhy' : 'payRun.review.waitingAdded', { amount: formatMoney(a.amount), reason: a.reason })}</span>}
+                    </span>
+                    <span className="flex-none">{pencil(a.item.name, a.item.payItemId, 0)}</span>
                   </li>
                 ))}
               </ul>
             </section>
           )
         })}
-        {editing && addable(editing, person.lines).length > 0 && (
+        {toAdd.length > 0 && (
           <div><Button variant="secondary" onClick={() => setAdding(true)}><PlusIcon />{t('payRun.review.add')}</Button></div>
         )}
         {editing && <RunDeductions runId={run.id} employeeId={person.employeeId} name={person.name} inputs={editing} canEdit={canEdit} />}
@@ -107,8 +114,8 @@ export function PersonDrawer({ person, run, onClose }: { person: Person; run: { 
         </dl>
       </div>
       {changing && editing && <ChangeLine runId={run.id} employeeId={person.employeeId} inputs={editing} payItemId={changing.payItemId}
-        name={changing.line.name} amount={changing.line.amount} onClose={() => setChanging(null)} />}
-      {adding && editing && <AddItem runId={run.id} employeeId={person.employeeId} items={addable(editing, person.lines)} onClose={() => setAdding(false)} />}
+        name={changing.name} amount={changing.amount} onClose={() => setChanging(null)} />}
+      {adding && editing && <AddItem runId={run.id} employeeId={person.employeeId} items={toAdd} onClose={() => setAdding(false)} />}
     </Drawer>
   )
 }

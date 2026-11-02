@@ -48,8 +48,11 @@ export function waitingOf(line: Line, data: Inputs, employeeId: string): Waiting
   return same ? undefined : { amount: entry.amount, reason: entry.reason ?? null }
 }
 
-/** Items added for this run since it was worked out, so not among the lines yet. */
-export function waitingAdded(data: Inputs, employeeId: string, lines: Line[]) {
+/**
+ * Items entered for this run that aren't among the lines: added since it was worked out, or left out
+ * of it (0), which leaves no line to change back from.
+ */
+export function enteredExtra(data: Inputs, employeeId: string, lines: Line[]) {
   return addable(data, lines).flatMap(item => {
     const entry = entryFor(data, employeeId, item.payItemId)
     return entry?.amount == null ? [] : [{ item, amount: entry.amount, reason: entry.reason ?? null }]

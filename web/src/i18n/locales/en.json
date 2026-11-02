@@ -885,6 +885,7 @@
       "waitingUsual": "Goes back to the usual once worked out again.",
       "waitingAdded": "Added as {{amount}} once worked out again.",
       "waitingAddedWhy": "Added as {{amount}} once worked out again: {{reason}}",
+      "leftOut": "Left out of this run: {{reason}}",
       "add": "Add for this run",
       "addButton": "Add",
       "item": "Item",

@@ -885,6 +885,7 @@
       "waitingUsual": "Itarudi kama kawaida ikihesabiwa tena.",
       "waitingAdded": "Imeongezwa kama {{amount}} ikihesabiwa tena.",
       "waitingAddedWhy": "Imeongezwa kama {{amount}} ikihesabiwa tena: {{reason}}",
+      "leftOut": "Imeachwa nje ya malipo haya: {{reason}}",
       "add": "Ongeza kwa malipo haya",
       "addButton": "Ongeza",
       "item": "Kipengele",
