@@ -13,6 +13,7 @@ import { Money } from '../../components/Money'
 import { Pagination } from '../../components/Pagination'
 import { TableCard } from '../../components/TableCard'
 import { StartPayRunDrawer } from '../../features/payRuns/StartPayRunDrawer'
+import { WorkingHours } from '../../features/payRuns/WorkingHours'
 import { hasTotals, periodLabel, statusTone } from '../../features/payRuns/wording'
 import { none, shortDate } from '../../features/schedules/wording'
 import { useCompanies } from '../../setup/hooks'
@@ -34,12 +35,17 @@ function PayRuns() {
   const { t } = useTranslation()
   const { companyId } = useCurrentCompany()
   const { ready, can } = usePermissions()
+  const companies = useCompanies()
+  const company = companies.data?.find(c => c.id === companyId)
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
         <h1 className="m-0 font-display text-title text-ink">{t('payRuns.title')}</h1>
         <p className="m-0 text-muted">{t('payRuns.intro')}</p>
+        {company && can(permissions.pay.view, company.id) && (
+          <div><WorkingHours key={company.id} companyId={company.id} companyName={company.legalName} canManage={can(permissions.pay.manage, company.id)} /></div>
+        )}
       </div>
       {!ready || !companyId ? <Loading rows={4} />
         : !can(permissions.payRuns.view, companyId) ? <EmptyState title={t('payRuns.noAccessTitle')}>{t('payRuns.noAccessText')}</EmptyState>

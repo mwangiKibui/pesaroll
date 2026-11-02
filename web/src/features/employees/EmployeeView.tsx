@@ -11,6 +11,7 @@ import { TabPanel, Tabs } from '../../components/Tabs'
 import { useRuleText } from '../../lib/leaveText'
 import { formatMoney } from '../../lib/money'
 import { useBanks, useLeavePlans, useLeaveTypes, useLocations, useSchedules, useStructure, type StructureItem } from '../../setup/hooks'
+import { PayChanges } from './PayChanges'
 import { none, shortDate, tabs, type Company, type TabKey } from './shared'
 
 /** The profile's tabs: the form's, then Leave (OP-07). */
@@ -168,6 +169,9 @@ export function EmployeeView({ id, companies, onClose, onEdit }: { id: string; c
                 ))}
               </ul>
             </section>
+          )}
+          {k === 'pay' && featureOn('payRuns') && (
+            <PayChanges companyId={e.companyId} employeeId={e.id} currency={company.currency} showPay={showPay} canManage={can(permissions.pay.manage, e.companyId)} />
           )}
         </TabPanel>
       ))}

@@ -1697,7 +1697,41 @@
     "peopleIntro": "Kila mtu katika kampuni uliyochagua juu. Tafuta kwa jina, nambari ya mfanyakazi, simu, nambari ya kitambulisho au PIN ya KRA.",
     "joinedSince": "Walijiunga tangu {{date}}",
     "allDepartments": "Idara zote",
-    "departmentFilterPlaceholder": "Chagua idara"
+    "departmentFilterPlaceholder": "Chagua idara",
+    "payChanges": {
+      "title": "Mshahara kwa muda",
+      "change": "Badilisha mshahara kuanzia tarehe ya awali",
+      "showFirst": "Onyesha kiasi uone mshahara kwa muda.",
+      "from": "Kuanzia {{from}}",
+      "fromTo": "Kuanzia {{from}} hadi {{to}}",
+      "replaced": "Imebadilishwa",
+      "intro": "Kwa nyongeza iliyokubaliwa kuchelewa au kiwango kilichokosewa. Malipo ambayo hayajatumwa yanarudi kuhesabiwa tena, na yaliyoidhinishwa yanaorodheshwa kurekebishwa.",
+      "amountPlaceholder": "Mshahara wako, kama 90,000",
+      "amountRequired": "Weka mshahara, zaidi ya 0.",
+      "basis": "Hulipwa",
+      "basisPlaceholder": "Msingi wa malipo, kama kwa mwezi",
+      "bases": {
+        "monthly": "Kwa mwezi",
+        "weekly": "Kwa wiki",
+        "fortnightly": "Kila wiki mbili",
+        "daily": "Kwa siku",
+        "hourly": "Kwa saa"
+      },
+      "usual": {
+        "daily": "Siku za kawaida kila malipo",
+        "hourly": "Saa za kawaida kila malipo"
+      },
+      "usualPlaceholder": "Idadi yako ya kawaida, kama 22",
+      "usualInvalid": "Weka zaidi ya 0 hadi 744.",
+      "effectiveFrom": "Mshahara unabadilika kuanzia",
+      "effectiveFromPlaceholder": "Tarehe ya kuanza mshahara mpya",
+      "fromRequired": "Chagua tarehe mshahara unapobadilika.",
+      "reasonPlaceholder": "Sababu yako, kama nyongeza iliyokubaliwa Agosti",
+      "reasonRequired": "Sema kwa nini mshahara unabadilika kuanzia tarehe hii.",
+      "saved": "Mshahara unabadilika kuanzia {{from}}.",
+      "sentBack": "Yamerudi kuwa rasimu, kuhesabiwa tena:",
+      "toCorrect": "Yameidhinishwa, kurekebishwa kwa tofauti:"
+    }
   },
   "pagination": {
     "showing": "Inaonyesha {{from}}–{{to}} kati ya {{total}}",
@@ -2079,5 +2113,22 @@
         "viewed": "{{who}} aliangalia mishahara ya watu {{count}}"
       }
     }
+  },
+  "workingHours": {
+    "button": "Saa za kazi: {{day}} kwa siku, {{month}} kwa mwezi",
+    "buttonNone": "Saa za kazi: hazijawekwa",
+    "title": "Saa za kazi",
+    "intro": "Saa ngapi ni siku na mwezi wa kazi. Zinageuza kiwango cha siku au mshahara kuwa cha saa kwa muda wa ziada.",
+    "wageOrder": "{{company}} inatumia za agizo la mishahara: saa {{day}} kwa siku, {{month}} kwa mwezi.",
+    "own": "Za {{company}} yenyewe: saa {{day}} kwa siku, {{month}} kwa mwezi, ziliwekwa {{date}}.",
+    "none": "{{company}} haina saa za kazi, na nchi yake haina agizo la mishahara.",
+    "day": "Saa za siku ya kazi",
+    "dayPlaceholder": "Siku yako ya kazi, kama 8",
+    "month": "Saa za mwezi wa kazi",
+    "monthPlaceholder": "Mwezi wako wa kazi, kama 225",
+    "emptyHint": "Acha wazi kutumia za agizo la mishahara.",
+    "dayInvalid": "Weka zaidi ya 0 hadi 24, au acha wazi kutumia za agizo la mishahara.",
+    "monthInvalid": "Weka zaidi ya 0 hadi 744, au acha wazi kutumia za agizo la mishahara.",
+    "saved": "Saa za kazi zimehifadhiwa"
   }
 }

@@ -1697,7 +1697,41 @@
     "peopleIntro": "Everyone at the company chosen at the top. Search by name, staff number, phone, ID number or KRA PIN.",
     "joinedSince": "Joined since {{date}}",
     "allDepartments": "All departments",
-    "departmentFilterPlaceholder": "Choose a department"
+    "departmentFilterPlaceholder": "Choose a department",
+    "payChanges": {
+      "title": "Pay over time",
+      "change": "Change pay from an earlier date",
+      "showFirst": "Show amounts to see pay over time.",
+      "from": "From {{from}}",
+      "fromTo": "From {{from}} to {{to}}",
+      "replaced": "Replaced",
+      "intro": "For a rise agreed late or a rate that was wrong. Pay runs not yet sent go back to be worked out again, and approved ones are listed to correct.",
+      "amountPlaceholder": "Your basic pay, like 90,000",
+      "amountRequired": "Enter the basic pay, more than 0.",
+      "basis": "Paid",
+      "basisPlaceholder": "Your pay basis, like by the month",
+      "bases": {
+        "monthly": "By the month",
+        "weekly": "By the week",
+        "fortnightly": "Every two weeks",
+        "daily": "By the day",
+        "hourly": "By the hour"
+      },
+      "usual": {
+        "daily": "Usual days each pay run",
+        "hourly": "Usual hours each pay run"
+      },
+      "usualPlaceholder": "Your usual number, like 22",
+      "usualInvalid": "Enter more than 0 and up to 744.",
+      "effectiveFrom": "Pay changes from",
+      "effectiveFromPlaceholder": "Your start date for the new pay",
+      "fromRequired": "Choose the date the pay changes from.",
+      "reasonPlaceholder": "Your reason, like a rise agreed in August",
+      "reasonRequired": "Say why the pay changes from this date.",
+      "saved": "Pay changes from {{from}}.",
+      "sentBack": "Back to draft, to be worked out again:",
+      "toCorrect": "Approved, to correct for the difference:"
+    }
   },
   "pagination": {
     "showing": "Showing {{from}}–{{to}} of {{total}}",
@@ -2079,5 +2113,22 @@
         "viewed": "{{who}} looked at the pay of {{count}} people"
       }
     }
+  },
+  "workingHours": {
+    "button": "Working hours: {{day}} a day, {{month}} a month",
+    "buttonNone": "Working hours: not set",
+    "title": "Working hours",
+    "intro": "How many hours make a working day and month. They turn a daily rate or a salary into an hourly one for overtime.",
+    "wageOrder": "{{company}} uses the wage order's: {{day}} hours a day, {{month}} a month.",
+    "own": "{{company}}'s own: {{day}} hours a day, {{month}} a month, set on {{date}}.",
+    "none": "{{company}} has no working hours set, and its country has no wage order.",
+    "day": "Hours in a working day",
+    "dayPlaceholder": "Your working day, like 8",
+    "month": "Hours in a working month",
+    "monthPlaceholder": "Your working month, like 225",
+    "emptyHint": "Leave it empty for the wage order's.",
+    "dayInvalid": "Enter more than 0 and up to 24, or leave it empty for the wage order's.",
+    "monthInvalid": "Enter more than 0 and up to 744, or leave it empty for the wage order's.",
+    "saved": "Working hours saved"
   }
 }
