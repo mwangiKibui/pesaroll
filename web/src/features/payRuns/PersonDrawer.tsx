@@ -1,8 +1,16 @@
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '../../api/schema'
+import { useServices } from '../../app/services'
+import { Button, IconButton } from '../../components/Button'
 import { Drawer } from '../../components/Drawer'
+import { PlusIcon } from '../../components/icons'
 import { Money } from '../../components/Money'
+import { formatMoney } from '../../lib/money'
 import { knownNotes, lineDetails } from './lines'
+import { addable, enteredExtra, targetOf, waitingOf, type Waiting } from './review'
+import { AddItem, ChangeLine, RunDeductions } from './ReviewForms'
 
 type Person = components['schemas']['PayRunPersonResponse']
 
@@ -11,10 +19,37 @@ const kinds = [['earning', 'earnings'], ['deduction', 'deductions'], ['employer_
 /**
  * One person's pay in a run (OP-18): each line with how it was worked out, gross and net pay, what to
  * check, and for a correction what was approved before. Amounts are the API's, never added up here.
+ * While the run can change, Payroll changes lines, adds items and chooses statutory deductions for
+ * this run alone, each saying why (PAY-04); the figures show it once the run is worked out again, and
+ * until then each changed line says what it becomes.
  */
-export function PersonDrawer({ person, onClose }: { person: Person; onClose: () => void }) {
+export function PersonDrawer({ person, run, onClose }: { person: Person; run: { id: string; status: string; canManage: boolean }; onClose: () => void }) {
   const { t } = useTranslation()
+  const { api } = useServices()
   const notes = knownNotes(person.notes)
+  const canEdit = run.canManage && ['draft', 'calculated'].includes(run.status)
+  const [changing, setChanging] = useState<{ name: string; amount: number | string; payItemId: string | null } | null>(null)
+  const [adding, setAdding] = useState(false)
+  const inputs = useQuery({
+    queryKey: ['pay-run-inputs', run.id],
+    enabled: canEdit,
+    queryFn: async () => {
+      const { data } = await api.GET('/api/pay-runs/{id}/inputs', { params: { path: { id: run.id } } })
+      if (!data) throw new Error('pay-run-inputs')
+      return data
+    },
+  })
+  const editing = canEdit ? inputs.data : undefined
+  const extra = editing ? enteredExtra(editing, person.employeeId, person.lines) : []
+  // What can still be added: not paid this run and not entered already.
+  const toAdd = editing ? addable(editing, person.lines).filter(i => !extra.some(e => e.item.payItemId === i.payItemId)) : []
+  const pencil = (name: string, payItemId: string | null, amount: number | string) => (
+    <IconButton label={t('payRun.review.change', { name })} onClick={() => setChanging({ name, amount, payItemId })}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
+    </IconButton>
+  )
+  const waitingText = (w: Waiting) => w === 'usual' ? t('payRun.review.waitingUsual')
+    : t(w.reason ? 'payRun.review.waitingWhy' : 'payRun.review.waiting', { amount: formatMoney(w.amount), reason: w.reason })
   return (
     <Drawer open title={person.name} onClose={onClose}>
       <div className="flex flex-col gap-5">
@@ -29,24 +64,45 @@ export function PersonDrawer({ person, onClose }: { person: Person; onClose: () 
         )}
         {kinds.map(([kind, key]) => {
           const lines = person.lines.filter(l => l.kind === kind)
-          if (lines.length === 0) return null
+          const extraHere = extra.filter(a => a.item.kind === kind)
+          if (lines.length === 0 && extraHere.length === 0) return null
           return (
             <section key={kind} className="flex flex-col gap-1">
               <h3 className="m-0 text-label font-medium text-ink">{t(`payRun.${key}`)}</h3>
               <ul aria-label={t(`payRun.${key}`)} className="m-0 flex list-none flex-col divide-y divide-line-soft p-0">
-                {lines.map((l, i) => (
-                  <li key={`${l.code}-${i}`} className="flex items-start justify-between gap-4 py-2">
+                {lines.map((l, i) => {
+                  const waiting = editing && waitingOf(l, editing, person.employeeId)
+                  return <li key={`${l.code}-${i}`} className="flex items-start justify-between gap-4 py-2">
                     <span className="flex min-w-0 flex-col">
                       <span className="text-body text-ink">{l.name}</span>
                       {lineDetails(l).map(d => <span key={d} className="text-hint text-muted">{d}</span>)}
+                      {waiting && <span className="text-hint font-medium text-warning-ink">{waitingText(waiting)}</span>}
                     </span>
-                    <Money amount={l.amount} className="flex-none text-body text-ink" />
+                    <span className="flex flex-none items-center gap-1">
+                      <Money amount={l.amount} className="text-body text-ink" />
+                      {editing && targetOf(l, editing) !== undefined && pencil(l.name, targetOf(l, editing)!, l.amount)}
+                    </span>
+                  </li>
+                })}
+                {extraHere.map(a => (
+                  <li key={a.item.payItemId} className="flex items-start justify-between gap-4 py-2">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-body text-ink">{a.item.name}</span>
+                      {Number(a.amount) === 0
+                        ? <span className="text-hint text-muted">{t('payRun.review.leftOut', { reason: a.reason ?? '' })}</span>
+                        : <span className="text-hint font-medium text-warning-ink">{t(a.reason ? 'payRun.review.waitingAddedWhy' : 'payRun.review.waitingAdded', { amount: formatMoney(a.amount), reason: a.reason })}</span>}
+                    </span>
+                    <span className="flex-none">{pencil(a.item.name, a.item.payItemId, 0)}</span>
                   </li>
                 ))}
               </ul>
             </section>
           )
         })}
+        {toAdd.length > 0 && (
+          <div><Button variant="secondary" onClick={() => setAdding(true)}><PlusIcon />{t('payRun.review.add')}</Button></div>
+        )}
+        {editing && <RunDeductions runId={run.id} employeeId={person.employeeId} name={person.name} inputs={editing} canEdit={canEdit} />}
         <dl className="m-0 flex flex-col gap-1 border-t border-line pt-3 text-body">
           <div className="flex justify-between gap-4"><dt className="text-muted">{t('payRuns.grossPay')}</dt><dd className="m-0"><Money amount={person.grossPay} /></dd></div>
           <div className="flex justify-between gap-4"><dt className="text-muted">{t('payRun.totalDeductions')}</dt><dd className="m-0"><Money amount={person.totalDeductions} /></dd></div>
@@ -57,6 +113,9 @@ export function PersonDrawer({ person, onClose }: { person: Person; onClose: () 
           </>}
         </dl>
       </div>
+      {changing && editing && <ChangeLine runId={run.id} employeeId={person.employeeId} inputs={editing} payItemId={changing.payItemId}
+        name={changing.name} amount={changing.amount} onClose={() => setChanging(null)} />}
+      {adding && editing && <AddItem runId={run.id} employeeId={person.employeeId} items={toAdd} onClose={() => setAdding(false)} />}
     </Drawer>
   )
 }

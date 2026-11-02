@@ -101,7 +101,7 @@ it('a draft is worked out in the background: the page waits, then shows the figu
     [`GET ${api}`]: () => {
       const now = status
       if (status === 'calculating') status = 'calculated'
-      return json(200, { ...run, status: now, totals: now === 'draft' ? { ...run.totals, people: 0 } : run.totals })
+      return json(200, { ...run, status: now, calculatedAt: now === 'draft' ? null : run.calculatedAt, totals: now === 'draft' ? { ...run.totals, people: 0 } : run.totals })
     },
     [`POST ${api}/calculate`]: () => { status = 'calculating'; return json(202, { ...run, status: 'calculating' }) },
   })
@@ -125,6 +125,28 @@ it('Refresh works a worked-out run out again', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Refresh' }))
   expect(await screen.findByText('Working out pay. This takes a moment.')).toBeInTheDocument()
   expect(posted(calls, `${api}/calculate`)).toHaveLength(1)
+})
+
+it('once worked out again, each person\'s figures are the new ones', async () => {
+  let status = 'calculated'
+  let worked = false
+  signedIn({
+    [`GET ${api}`]: () => {
+      const now = status
+      if (status === 'calculating') { status = 'calculated'; worked = true }
+      return json(200, { ...run, status: now, calculatedAt: worked ? '2026-10-28T09:00:00Z' : run.calculatedAt })
+    },
+    // While it's being worked out the people are still last time's.
+    [`GET ${api}/people`]: () => people([worked ? { ...otieno, grossPay: 30000, netPay: 25000 } : otieno]),
+    [`POST ${api}/calculate`]: () => { status = 'calculating'; return json(202, { ...run, status: 'calculating' }) },
+  })
+  renderApp(path)
+  const table = await screen.findByRole('region', { name: 'People in this pay run' })
+  expect(await within(table).findByText('33,736.25')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+  expect(await within(table).findByText('25,000.00', {}, { timeout: 5000 })).toBeInTheDocument()
+  await userEvent.click(within(table).getByRole('button', { name: 'View Otieno Ouma' }))
+  expect(await screen.findByRole('dialog', { name: 'Otieno Ouma' })).toHaveTextContent('Net payKES 25,000')
 })
 
 it('sends a worked-out run for approval; with nobody set up to approve, says so with the code', async () => {

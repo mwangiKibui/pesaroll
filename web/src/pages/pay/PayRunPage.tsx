@@ -1,4 +1,4 @@
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,12 +24,11 @@ import { knownNotes } from '../../features/payRuns/lines'
 import { PersonDrawer } from '../../features/payRuns/PersonDrawer'
 import { RunInputs } from '../../features/payRuns/RunInputs'
 import { RunSteps } from '../../features/payRuns/RunSteps'
-import { datesLabel, hasTotals, monthName, periodLabel, statusTone } from '../../features/payRuns/wording'
-import { shortDate } from '../../features/schedules/wording'
+import { datesLabel, monthName, periodLabel, statusTone } from '../../features/payRuns/wording'
+import { dayMonthYear, shortDate } from '../../features/schedules/wording'
 import { useCompanies } from '../../setup/hooks'
 
 type Run = components['schemas']['PayRunDetail']
-type Person = components['schemas']['PayRunPersonResponse']
 type Problem = ApiError | 'network' | null
 
 /**
@@ -150,7 +149,11 @@ function PayRun({ id }: { id: string }) {
         <Tabs id={tabsId} label={t('payRun.sections')} current={tab} onChange={key => { setTab(key as 'pay' | 'inputs'); setVisited(v => v || key === 'inputs') }}
           tabs={[{ key: 'pay', label: t('payRun.payTab') }, { key: 'inputs', label: t('payRun.inputsTab') }]} />
         <TabPanel id={tabsId} tab="pay" current={tab}>
-          {r.status === 'draft' && <Card title={t('payRun.notWorkedOut')}>
+          {r.status === 'draft' && r.calculatedAt && <Card title={t('payRun.changedSince')}>
+            <p className="m-0 text-muted">{t('payRun.changedSinceText', { date: dayMonthYear(new Date(r.calculatedAt), 'Africa/Nairobi') })}</p>
+            {r.canManage && <div><Button busy={busy === 'calculate'} onClick={calculate}>{t('payRun.calculate')}</Button></div>}
+          </Card>}
+          {r.status === 'draft' && !r.calculatedAt && <Card title={t('payRun.notWorkedOut')}>
             <dl className="m-0 grid gap-x-6 gap-y-3 sm:grid-cols-3">
               {[[t('payRun.period'), datesLabel(r.periodStart, r.periodEnd)], [t('payRuns.payDate'), shortDate(r.payDate)], [t('payRuns.schedule'), r.scheduleName]].map(([term, value]) => (
                 <div key={term} className="flex flex-col gap-0.5">
@@ -163,11 +166,12 @@ function PayRun({ id }: { id: string }) {
             {r.canManage && <div><Button busy={busy === 'calculate'} onClick={calculate}>{t('payRun.calculate')}</Button></div>}
           </Card>}
 
-          {hasTotals(r.status) && <>
+          {/* A run changed since it was worked out keeps its last figures on show until it's worked out again. */}
+          {r.calculatedAt && <>
             <Totals run={r} />
             {r.changes && <Notice tone="brand">{changesText(r)}</Notice>}
             <Lists run={r} />
-            <People runId={id} currency={currency} />
+            <People run={r} currency={currency} />
           </>}
         </TabPanel>
         <TabPanel id={tabsId} tab="inputs" current={tab}>
@@ -250,14 +254,18 @@ function Lists({ run }: { run: Run }) {
 }
 
 /** Everyone the run pays, one row each; the headings carry the currency so the figures stay plain. */
-function People({ runId, currency }: { runId: string; currency: string }) {
+function People({ run, currency }: { run: Run; currency: string }) {
+  const runId = run.id
   const { t } = useTranslation()
   const { api } = useServices()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [viewing, setViewing] = useState<Person | null>(null)
+  const [viewing, setViewing] = useState<string | null>(null)
   const people = useQuery({
-    queryKey: ['pay-run-people', runId, page, pageSize],
+    // Working out happens in the background, so the people are loaded again once it's done; last
+    // time's stay on show until then.
+    queryKey: ['pay-run-people', runId, run.calculatedAt, page, pageSize],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const { data } = await api.GET('/api/pay-runs/{id}/people', { params: { path: { id: runId }, query: { page, pageSize } } })
       if (!data) throw new Error('pay-run-people')
@@ -266,6 +274,7 @@ function People({ runId, currency }: { runId: string; currency: string }) {
   })
   if (!people.data) return people.isError ? <Notice tone="danger">{t('apiErrors.network')}</Notice> : <Loading rows={4} />
   const total = Number(people.data.total)
+  const shown = people.data.items.find(p => p.employeeId === viewing)
 
   return <>
     <TableCard title={t('payRun.people')} count={total}
@@ -301,14 +310,14 @@ function People({ runId, currency }: { runId: string; currency: string }) {
               <td className="text-right"><Money amount={p.housingLevyEmployee} currency={false} cents /></td>
               <td className="text-right font-medium"><Money amount={p.netPay} currency={false} cents /></td>
               <td className="text-right">
-                <Button variant="ghost" aria-label={t('payRun.view', { name: p.name })} onClick={() => setViewing(p)}>{t('payRun.viewShort')}</Button>
+                <Button variant="ghost" aria-label={t('payRun.view', { name: p.name })} onClick={() => setViewing(p.employeeId)}>{t('payRun.viewShort')}</Button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
     </TableCard>
-    {viewing && <PersonDrawer person={viewing} onClose={() => setViewing(null)} />}
+    {shown && <PersonDrawer person={shown} run={run} onClose={() => setViewing(null)} />}
   </>
 }
 
