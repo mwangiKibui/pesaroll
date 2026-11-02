@@ -1701,7 +1701,7 @@
     "payChanges": {
       "title": "Mshahara kwa muda",
       "change": "Badilisha mshahara kuanzia tarehe ya awali",
-      "showFirst": "Onyesha kiasi uone mshahara kwa muda.",
+      "showFirst": "Onyesha kiasi uone mshahara kwa muda au uubadilishe.",
       "from": "Kuanzia {{from}}",
       "fromTo": "Kuanzia {{from}} hadi {{to}}",
       "replaced": "Imebadilishwa",

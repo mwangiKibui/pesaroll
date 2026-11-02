@@ -1701,7 +1701,7 @@
     "payChanges": {
       "title": "Pay over time",
       "change": "Change pay from an earlier date",
-      "showFirst": "Show amounts to see pay over time.",
+      "showFirst": "Show amounts to see pay over time or change it.",
       "from": "From {{from}}",
       "fromTo": "From {{from}} to {{to}}",
       "replaced": "Replaced",

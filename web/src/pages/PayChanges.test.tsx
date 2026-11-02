@@ -49,7 +49,8 @@ it('pay over time shows after Show amounts, newest first, with why it changed', 
   const calls = withProfile()
   const view = await openPay()
   const history = within(view).getByRole('region', { name: 'Pay over time' })
-  expect(history).toHaveTextContent('Show amounts to see pay over time.')
+  expect(history).toHaveTextContent('Show amounts to see pay over time or change it.')
+  expect(within(view).queryByRole('button', { name: 'Change pay from an earlier date' })).not.toBeInTheDocument()
   expect(calls.some(c => c.path === changes)).toBe(false)
   await userEvent.click(within(view).getByRole('button', { name: 'Show amounts' }))
   const items = await within(history).findAllByRole('listitem')
@@ -68,7 +69,8 @@ it('changes pay from an earlier date, saying why, and says which runs to work ou
     }),
   })
   const view = await openPay()
-  await userEvent.click(within(view).getByRole('button', { name: 'Change pay from an earlier date' }))
+  await userEvent.click(within(view).getByRole('button', { name: 'Show amounts' }))
+  await userEvent.click(await within(view).findByRole('button', { name: 'Change pay from an earlier date' }))
   const form = screen.getByRole('dialog', { name: 'Change pay from an earlier date' })
   await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
   expect(within(form).getByText('Enter the basic pay, more than 0.')).toBeInTheDocument()
@@ -97,7 +99,8 @@ it('a daily rate asks for usual days; the API\'s problems show on their fields, 
     fields: { effectiveFrom: 'Choose a date on or after they started (15 Jan 2024).' } })
   const calls = withProfile({ [`POST ${changes}`]: () => answer })
   const view = await openPay()
-  await userEvent.click(within(view).getByRole('button', { name: 'Change pay from an earlier date' }))
+  await userEvent.click(within(view).getByRole('button', { name: 'Show amounts' }))
+  await userEvent.click(await within(view).findByRole('button', { name: 'Change pay from an earlier date' }))
   const form = screen.getByRole('dialog', { name: 'Change pay from an earlier date' })
   await userEvent.click(within(form).getByRole('combobox', { name: 'Paid' }))
   await userEvent.click(screen.getByRole('option', { name: 'By the day' }))
@@ -121,4 +124,23 @@ it('without Manage on pay there\'s no change button; pay over time still shows',
   await userEvent.click(within(view).getByRole('button', { name: 'Show amounts' }))
   expect(await within(within(view).getByRole('region', { name: 'Pay over time' })).findAllByRole('listitem')).toHaveLength(2)
   expect(within(view).queryByRole('button', { name: 'Change pay from an earlier date' })).not.toBeInTheDocument()
+})
+
+it('the form starts from how they\'re paid now, so their usual days aren\'t lost', async () => {
+  const calls = withProfile({
+    [`GET ${changes}`]: () => json(200, [row({ basis: 'daily', amount: 800, usualQuantity: 22 })]),
+    [`POST ${changes}`]: () => json(200, { change: row({ basis: 'daily', amount: 850, usualQuantity: 22, validFrom: '2026-09-01' }), sentBackToDraft: [], needCorrection: [] }),
+  })
+  const view = await openPay()
+  await userEvent.click(within(view).getByRole('button', { name: 'Show amounts' }))
+  await within(within(view).getByRole('region', { name: 'Pay over time' })).findAllByRole('listitem')
+  await userEvent.click(within(view).getByRole('button', { name: 'Change pay from an earlier date' }))
+  const form = screen.getByRole('dialog', { name: 'Change pay from an earlier date' })
+  expect(within(form).getByRole('combobox', { name: 'Paid' })).toHaveValue('By the day')
+  expect(within(form).getByRole('textbox', { name: /^Usual days each pay run/ })).toHaveValue('22')
+  await userEvent.type(within(form).getByRole('textbox', { name: 'Basic pay' }), '850')
+  await userEvent.type(within(form).getByLabelText('Pay changes from'), '2026-09-01')
+  await userEvent.type(within(form).getByRole('textbox', { name: 'Why' }), 'Rise agreed in August')
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
+  await vi.waitFor(() => expect(sent(calls)).toEqual([{ amount: 850, basis: 'daily', usualQuantity: 22, effectiveFrom: '2026-09-01', reason: 'Rise agreed in August' }]))
 })

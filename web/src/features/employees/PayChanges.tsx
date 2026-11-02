@@ -45,7 +45,8 @@ export function PayChanges({ companyId, employeeId, currency, showPay, canManage
     <section aria-label={t('employees.payChanges.title')} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="m-0 text-label font-semibold text-ink">{t('employees.payChanges.title')}</h3>
-        {canManage && <Button variant="secondary" onClick={() => setChanging(true)}>{t('employees.payChanges.change')}</Button>}
+        {/* The form starts from how they're paid now, which only shows with the amounts. */}
+        {canManage && history.data && <Button variant="secondary" onClick={() => setChanging(true)}>{t('employees.payChanges.change')}</Button>}
       </div>
       {done && <Result done={done} />}
       {!showPay ? <p className="m-0 text-label text-muted">{t('employees.payChanges.showFirst')}</p>
@@ -63,7 +64,7 @@ export function PayChanges({ companyId, employeeId, currency, showPay, canManage
             ))}
           </ul>
         )}
-      {changing && <ChangeForm companyId={companyId} employeeId={employeeId} basis={history.data?.find(r => !r.replacedAt)?.basis}
+      {changing && <ChangeForm companyId={companyId} employeeId={employeeId} now={history.data?.find(r => !r.replacedAt)}
         onClose={() => setChanging(false)} onDone={d => { setDone(d); setChanging(false) }} />}
     </section>
   )
@@ -106,14 +107,15 @@ function Result({ done }: { done: Done }) {
   )
 }
 
-function ChangeForm({ companyId, employeeId, basis: current, onClose, onDone }: {
-  companyId: string; employeeId: string; basis?: string; onClose: () => void; onDone: (done: Done) => void
+/** Starts from how they're paid now (newest first, when amounts are shown), so usual days or hours carry over. */
+function ChangeForm({ companyId, employeeId, now, onClose, onDone }: {
+  companyId: string; employeeId: string; now?: { basis: string; usualQuantity?: number | string | null }; onClose: () => void; onDone: (done: Done) => void
 }) {
   const { t } = useTranslation()
   const { api, queryClient } = useServices()
   const [amount, setAmount] = useState('')
-  const [basis, setBasis] = useState(current ?? 'monthly')
-  const [usual, setUsual] = useState('')
+  const [basis, setBasis] = useState(now?.basis ?? 'monthly')
+  const [usual, setUsual] = useState(now?.usualQuantity == null ? '' : String(Number(now.usualQuantity)))
   const [from, setFrom] = useState('')
   const [reason, setReason] = useState('')
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
